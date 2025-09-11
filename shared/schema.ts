@@ -21,14 +21,21 @@ export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   originalName: text("original_name").notNull(),
-  filePath: text("file_path").notNull(),
-  fileSize: integer("file_size").notNull(),
+  filePath: text("file_path"),
+  fileSize: integer("file_size"),
   fileType: text("file_type").notNull(),
   mimeType: text("mime_type").notNull(),
   folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
   uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
   isFavorite: boolean("is_favorite").default(false).notNull(),
   isDeleted: boolean("is_deleted").default(false).notNull(),
+  // Google Drive integration fields
+  driveFileId: text("drive_file_id"), // Google Drive file ID
+  driveWebViewLink: text("drive_web_view_link"), // Google Drive web view URL
+  isFromDrive: boolean("is_from_drive").default(false).notNull(),
+  driveLastModified: timestamp("drive_last_modified"), // Last modified time from Drive
+  driveSyncStatus: text("drive_sync_status").default("synced"), // synced, pending, error
+  driveSyncedAt: timestamp("drive_synced_at"), // Last sync timestamp
   // AI Analysis fields
   aiSummary: text("ai_summary"),
   aiKeyTopics: text("ai_key_topics").array(),
