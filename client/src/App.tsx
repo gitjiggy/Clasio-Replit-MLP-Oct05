@@ -1,17 +1,20 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Link, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LoginModal } from "@/components/LoginModal";
 import { UserMenu } from "@/components/UserMenu";
 import Documents from "@/pages/documents";
+import Drive from "@/pages/drive";
 import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
 import { initGA } from "./lib/analytics";
 import { useAnalytics } from "./hooks/use-analytics";
+import { FileText, HardDrive } from "lucide-react";
 
 interface AppHeaderProps {
   onSignInClick: () => void;
@@ -51,15 +54,48 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
   );
 }
 
+function Navigation() {
+  const [location] = useLocation();
+  const currentTab = location === "/drive" ? "drive" : "documents";
+  
+  return (
+    <div className="border-b bg-background">
+      <div className="container mx-auto px-6">
+        <Tabs value={currentTab} className="w-full">
+          <TabsList className="grid w-full max-w-[400px] grid-cols-2">
+            <TabsTrigger value="documents" asChild>
+              <Link href="/documents" className="flex items-center gap-2" data-testid="tab-documents">
+                <FileText className="h-4 w-4" />
+                Documents
+              </Link>
+            </TabsTrigger>
+            <TabsTrigger value="drive" asChild>
+              <Link href="/drive" className="flex items-center gap-2" data-testid="tab-drive">
+                <HardDrive className="h-4 w-4" />
+                Google Drive
+              </Link>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+    </div>
+  );
+}
+
 function Router() {
   // Track page views when routes change
   useAnalytics();
   
   return (
-    <Switch>
-      <Route path="/" component={Documents} />
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      <Navigation />
+      <Switch>
+        <Route path="/" component={Documents} />
+        <Route path="/documents" component={Documents} />
+        <Route path="/drive" component={Drive} />
+        <Route component={NotFound} />
+      </Switch>
+    </>
   );
 }
 

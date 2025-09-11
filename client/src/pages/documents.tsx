@@ -141,7 +141,7 @@ export default function Documents() {
     },
     onSuccess: (data) => {
       // Track successful AI analysis
-      trackEvent('ai_analysis_complete', { document_id: documentId, analysis_type: 'gemini' });
+      trackEvent('ai_analysis_complete', { analysis_type: 'gemini' });
       
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       toast({
@@ -523,7 +523,7 @@ export default function Documents() {
                             {document.name}
                           </h3>
                           <p className="text-xs text-muted-foreground">
-                            {formatFileSize(document.fileSize)}
+                            {formatFileSize(document.fileSize || 0)}
                           </p>
                         </div>
                       </div>

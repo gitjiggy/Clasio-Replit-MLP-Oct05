@@ -23,26 +23,67 @@ async function getAuthHeaders(): Promise<{ [key: string]: string }> {
   return headers;
 }
 
+// Overload 1: New pattern (url, options) returning parsed JSON
+export async function apiRequest<T = any>(
+  url: string,
+  options: RequestInit & { headers?: Record<string, string> }
+): Promise<T>;
+
+// Overload 2: Legacy pattern (method, url, data) returning Response
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
-): Promise<Response> {
+): Promise<Response>;
+
+// Implementation
+export async function apiRequest<T = any>(
+  urlOrMethod: string,
+  urlOrOptions?: string | (RequestInit & { headers?: Record<string, string> }),
+  data?: unknown | undefined,
+): Promise<T | Response> {
   const authHeaders = await getAuthHeaders();
-  const headers = {
-    ...authHeaders,
-    ...(data ? { "Content-Type": "application/json" } : {}),
-  };
+  
+  // New pattern: apiRequest(url, options)
+  if (typeof urlOrOptions === 'object') {
+    const url = urlOrMethod;
+    const options = urlOrOptions;
+    
+    const headers = {
+      ...authHeaders,
+      ...(options.headers || {}),
+    };
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
 
-  await throwIfResNotOk(res);
-  return res;
+    await throwIfResNotOk(res);
+    return await res.json() as T;
+  }
+  
+  // Legacy pattern: apiRequest(method, url, data)
+  else {
+    const method = urlOrMethod;
+    const url = urlOrOptions as string;
+    
+    const headers = {
+      ...authHeaders,
+      ...(data ? { "Content-Type": "application/json" } : {}),
+    };
+
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
+    });
+
+    await throwIfResNotOk(res);
+    return res;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
