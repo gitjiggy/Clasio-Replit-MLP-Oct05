@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth";
 import multer from "multer";
 import path from "path";
 import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents } from "@shared/schema";
@@ -69,7 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Complete document upload
-  app.post("/api/documents", async (req, res) => {
+  app.post("/api/documents", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { uploadURL, name, originalName, fileSize, fileType, mimeType, folderId, tagIds } = req.body;
       
@@ -114,7 +115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all documents with filters
-  app.get("/api/documents", async (req, res) => {
+  app.get("/api/documents", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { search, fileType, folderId, tagId, page = 1, limit = 12 } = req.query;
       
@@ -146,7 +147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get document by ID
-  app.get("/api/documents/:id", async (req, res) => {
+  app.get("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const document = await storage.getDocumentById(req.params.id);
       if (!document) {
@@ -160,7 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update document
-  app.put("/api/documents/:id", async (req, res) => {
+  app.put("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { name, folderId, isFavorite, tagIds } = req.body;
       
@@ -193,7 +194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete document
-  app.delete("/api/documents/:id", async (req, res) => {
+  app.delete("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const deleted = await storage.deleteDocument(req.params.id);
       if (!deleted) {
@@ -207,7 +208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Analysis endpoint
-  app.post("/api/documents/:id/analyze", async (req, res) => {
+  app.post("/api/documents/:id/analyze", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const documentId = req.params.id;
       
