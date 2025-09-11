@@ -28,7 +28,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     // Handle auth redirect on app load
-    handleAuthRedirect().catch(console.error);
+    const handleAuth = async () => {
+      try {
+        const authResult = await handleAuthRedirect();
+        if (authResult) {
+          console.log("✅ Auth redirect handled successfully");
+          console.log("✅ Google access token saved:", authResult.googleAccessToken ? "YES" : "NO");
+          console.log("✅ Token in localStorage:", localStorage.getItem('google_access_token') ? "YES" : "NO");
+          setUser(authResult.user);
+        }
+      } catch (error) {
+        console.error("❌ Auth redirect failed:", error);
+      }
+    };
+
+    handleAuth();
 
     // Set up auth state observer
     const unsubscribe = onAuthStateChange((user) => {
