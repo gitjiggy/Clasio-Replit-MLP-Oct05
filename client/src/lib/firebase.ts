@@ -34,8 +34,17 @@ const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
 googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 
-// Auth functions
+// Auth functions with debugging
 export const signInWithGoogle = () => {
+  console.log("=== DEBUG: Starting Google OAuth ===");
+  console.log("Firebase config:", {
+    authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    currentDomain: window.location.origin
+  });
+  console.log("GoogleAuthProvider scopes:", googleProvider.getScopes());
+  console.log("About to redirect to Google OAuth...");
+  
   return signInWithRedirect(auth, googleProvider);
 };
 
@@ -47,8 +56,14 @@ export const signOutUser = async () => {
 
 // Handle redirect result after Google sign-in
 export const handleAuthRedirect = async () => {
+  console.log("=== DEBUG: Handling auth redirect ===");
+  console.log("Current URL:", window.location.href);
+  console.log("Current domain:", window.location.origin);
+  
   try {
     const result = await getRedirectResult(auth);
+    console.log("getRedirectResult:", result);
+    
     if (result) {
       // This gives you a Google Access Token. You can use it to access Google APIs.
       const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -56,7 +71,8 @@ export const handleAuthRedirect = async () => {
 
       // The signed-in user info.
       const user = result.user;
-      console.log("User signed in:", user.displayName);
+      console.log("✅ User signed in successfully:", user.displayName);
+      console.log("✅ Google access token:", googleAccessToken ? "received" : "missing");
       
       // Store the Google access token for Drive API calls
       if (googleAccessToken) {
@@ -65,9 +81,16 @@ export const handleAuthRedirect = async () => {
       
       return { user, googleAccessToken };
     }
+    console.log("No redirect result found");
     return null;
   } catch (error: any) {
-    console.error("Auth redirect error:", error);
+    console.error("❌ Auth redirect error details:", {
+      code: error.code,
+      message: error.message,
+      customData: error.customData,
+      credential: error.credential,
+      stack: error.stack
+    });
     throw new Error(error.message || "Authentication failed");
   }
 };
