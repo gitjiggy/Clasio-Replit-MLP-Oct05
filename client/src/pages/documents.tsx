@@ -5,11 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { UploadResult } from "@uppy/core";
-import type { DocumentWithFolderAndTags, Folder, Tag } from "@shared/schema";
+import type { DocumentWithFolderAndTags, DocumentWithVersions, DocumentVersion, Folder, Tag } from "@shared/schema";
 import { 
   Search, 
   Upload, 
@@ -25,7 +27,12 @@ import {
   File,
   FileImage,
   FileSpreadsheet,
-  Presentation
+  Presentation,
+  History,
+  GitBranch,
+  Clock,
+  CheckCircle,
+  Plus
 } from "lucide-react";
 
 interface DocumentsResponse {

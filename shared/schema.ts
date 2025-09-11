@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, unique, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -31,6 +31,29 @@ export const documents = pgTable("documents", {
   isDeleted: boolean("is_deleted").default(false).notNull(),
 });
 
+export const documentVersions = pgTable("document_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  version: integer("version").notNull(),
+  filePath: text("file_path").notNull(),
+  fileSize: integer("file_size").notNull(),
+  fileType: text("file_type").notNull(),
+  mimeType: text("mime_type").notNull(),
+  uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
+  uploadedBy: text("uploaded_by").default("system").notNull(),
+  changeDescription: text("change_description"),
+  isActive: boolean("is_active").default(false).notNull(),
+}, (table) => ({
+  // Ensure no duplicate version numbers per document
+  uniqueDocumentVersion: unique().on(table.documentId, table.version),
+  // Create an index to support the active version queries
+  activeVersionIndex: index("document_active_version_idx").on(table.documentId, table.isActive),
+  // Enforce single active version per document (partial unique index)
+  uniqueActiveVersion: uniqueIndex("document_one_active_version_idx")
+    .on(table.documentId)
+    .where(sql`is_active = true`),
+}));
+
 export const documentTags = pgTable("document_tags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
@@ -52,6 +75,13 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   uploadedAt: true,
 });
 
+export const insertDocumentVersionSchema = createInsertSchema(documentVersions).omit({
+  id: true,
+  uploadedAt: true,
+}).extend({
+  version: z.number().optional(), // Version can be auto-generated
+});
+
 export const insertDocumentTagSchema = createInsertSchema(documentTags).omit({
   id: true,
 });
@@ -59,14 +89,21 @@ export const insertDocumentTagSchema = createInsertSchema(documentTags).omit({
 export type InsertFolder = z.infer<typeof insertFolderSchema>;
 export type InsertTag = z.infer<typeof insertTagSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
 export type InsertDocumentTag = z.infer<typeof insertDocumentTagSchema>;
 
 export type Folder = typeof folders.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Document = typeof documents.$inferSelect;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
 export type DocumentTag = typeof documentTags.$inferSelect;
 
 export type DocumentWithFolderAndTags = Document & {
   folder?: Folder;
   tags: Tag[];
+};
+
+export type DocumentWithVersions = DocumentWithFolderAndTags & {
+  versions: DocumentVersion[];
+  currentVersion?: DocumentVersion;
 };

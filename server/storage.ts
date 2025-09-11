@@ -3,15 +3,19 @@ import {
   type Folder,
   type Tag,
   type DocumentTag,
+  type DocumentVersion,
   type InsertDocument,
   type InsertFolder,
   type InsertTag,
   type InsertDocumentTag,
+  type InsertDocumentVersion,
   type DocumentWithFolderAndTags,
+  type DocumentWithVersions,
   documents,
   folders,
   tags,
   documentTags,
+  documentVersions,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -32,8 +36,15 @@ export interface IStorage {
   getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]>;
   getDocumentsCount(filters: DocumentFilters): Promise<number>;
   getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined>;
+  getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
+
+  // Document Versions
+  createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
+  getDocumentVersions(documentId: string): Promise<DocumentVersion[]>;
+  setActiveVersion(documentId: string, versionId: string): Promise<boolean>;
+  deleteDocumentVersion(documentId: string, versionId: string): Promise<boolean>;
 
   // Folders
   createFolder(folder: InsertFolder): Promise<Folder>;
@@ -97,16 +108,32 @@ export class DatabaseStorage implements IStorage {
   // Documents
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
     await this.ensureInitialized();
-    const [document] = await db
-      .insert(documents)
-      .values({
-        ...insertDocument,
-        folderId: insertDocument.folderId || null,
-        isFavorite: insertDocument.isFavorite ?? false,
-        isDeleted: insertDocument.isDeleted ?? false,
-      })
-      .returning();
-    return document;
+    return await db.transaction(async (tx) => {
+      const [document] = await tx
+        .insert(documents)
+        .values({
+          ...insertDocument,
+          folderId: insertDocument.folderId || null,
+          isFavorite: insertDocument.isFavorite ?? false,
+          isDeleted: insertDocument.isDeleted ?? false,
+        })
+        .returning();
+
+      // Create initial version (version 1) as active within the same transaction
+      await tx.insert(documentVersions).values({
+        documentId: document.id,
+        version: 1,
+        filePath: document.filePath,
+        fileSize: document.fileSize,
+        fileType: document.fileType,
+        mimeType: document.mimeType,
+        uploadedBy: "system",
+        changeDescription: "Initial version",
+        isActive: true,
+      });
+
+      return document;
+    });
   }
 
   async getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]> {
@@ -270,6 +297,184 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return result.length > 0;
+  }
+
+  async getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined> {
+    const documentWithDetails = await this.getDocumentById(id);
+    if (!documentWithDetails) {
+      return undefined;
+    }
+
+    const versions = await this.getDocumentVersions(id);
+    const currentVersion = versions.find(v => v.isActive);
+
+    return {
+      ...documentWithDetails,
+      versions,
+      currentVersion,
+    };
+  }
+
+  // Document Versions
+  async createDocumentVersion(insertVersion: InsertDocumentVersion): Promise<DocumentVersion> {
+    // Always force isActive=false for new versions - only document creation can set active=true
+    const safeInsertVersion = { ...insertVersion, isActive: false };
+    
+    return await db.transaction(async (tx) => {
+      // Lock the parent document to prevent concurrent version creation
+      await tx
+        .select({ id: sql<string>`id` })
+        .from(documents)
+        .where(eq(documents.id, safeInsertVersion.documentId))
+        .for('update');
+
+      // Get next version number
+      const result = await tx
+        .select({ maxVersion: sql<number>`COALESCE(MAX(version), 0) + 1` })
+        .from(documentVersions)
+        .where(eq(documentVersions.documentId, safeInsertVersion.documentId));
+      
+      const nextVersion = result[0].maxVersion;
+
+      // Insert the new version with computed version number
+      const [version] = await tx
+        .insert(documentVersions)
+        .values({ ...safeInsertVersion, version: nextVersion })
+        .returning();
+        
+      return version;
+    });
+  }
+
+  async getDocumentVersions(documentId: string): Promise<DocumentVersion[]> {
+    return await db
+      .select()
+      .from(documentVersions)
+      .where(eq(documentVersions.documentId, documentId))
+      .orderBy(desc(documentVersions.version));
+  }
+
+  async setActiveVersion(documentId: string, versionId: string): Promise<boolean> {
+    // Get the version we want to activate to ensure it exists and belongs to this document
+    const targetVersion = await db
+      .select()
+      .from(documentVersions)
+      .where(and(
+        eq(documentVersions.id, versionId),
+        eq(documentVersions.documentId, documentId)
+      ))
+      .limit(1);
+
+    if (targetVersion.length === 0) {
+      return false; // Version not found or doesn't belong to this document
+    }
+
+    const version = targetVersion[0];
+
+    // Use a transaction to ensure atomicity with parent document locking
+    return await db.transaction(async (tx) => {
+      // Lock the parent document to serialize concurrent activations
+      await tx
+        .select({ id: sql<string>`id` })
+        .from(documents)
+        .where(eq(documents.id, documentId))
+        .for('update');
+      // First, deactivate all versions for this document
+      await tx
+        .update(documentVersions)
+        .set({ isActive: false })
+        .where(eq(documentVersions.documentId, documentId));
+
+      // Then activate the specified version
+      await tx
+        .update(documentVersions)
+        .set({ isActive: true })
+        .where(eq(documentVersions.id, versionId));
+
+      // Update the document's metadata to match the active version
+      await tx
+        .update(documents)
+        .set({
+          filePath: version.filePath,
+          fileSize: version.fileSize,
+          fileType: version.fileType,
+          mimeType: version.mimeType,
+        })
+        .where(eq(documents.id, documentId));
+
+      return true;
+    });
+  }
+
+  async deleteDocumentVersion(documentId: string, versionId: string): Promise<boolean> {
+    // Use a transaction to ensure atomicity and lock parent for consistency
+    return await db.transaction(async (tx) => {
+      // Lock the parent document to prevent concurrent operations
+      await tx
+        .select({ id: sql<string>`id` })
+        .from(documents)
+        .where(eq(documents.id, documentId))
+        .for('update');
+
+      // Get the version to be deleted, ensuring it belongs to the specified document
+      const versionToDelete = await tx
+        .select()
+        .from(documentVersions)
+        .where(and(
+          eq(documentVersions.id, versionId),
+          eq(documentVersions.documentId, documentId)
+        ))
+        .limit(1);
+
+      if (versionToDelete.length === 0) {
+        return false; // Version not found
+      }
+
+      const version = versionToDelete[0];
+
+      // Get all versions for this document within the transaction
+      const allVersions = await tx
+        .select()
+        .from(documentVersions)
+        .where(eq(documentVersions.documentId, documentId))
+        .orderBy(desc(documentVersions.version));
+
+      // Prevent deleting the only version
+      if (allVersions.length === 1) {
+        return false; // Cannot delete the only version
+      }
+      // Delete the version
+      await tx
+        .delete(documentVersions)
+        .where(eq(documentVersions.id, versionId));
+
+      // If we deleted the active version, activate the latest remaining version
+      if (version.isActive) {
+        const remainingVersions = allVersions.filter(v => v.id !== versionId);
+        const latestVersion = remainingVersions[0]; // Already sorted by version desc
+
+        if (latestVersion) {
+          // Activate the latest remaining version
+          await tx
+            .update(documentVersions)
+            .set({ isActive: true })
+            .where(eq(documentVersions.id, latestVersion.id));
+
+          // Update document metadata to match the new active version
+          await tx
+            .update(documents)
+            .set({
+              filePath: latestVersion.filePath,
+              fileSize: latestVersion.fileSize,
+              fileType: latestVersion.fileType,
+              mimeType: latestVersion.mimeType,
+            })
+            .where(eq(documents.id, documentId));
+        }
+      }
+
+      return true;
+    });
   }
 
   // Folders

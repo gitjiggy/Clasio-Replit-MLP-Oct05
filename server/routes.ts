@@ -4,7 +4,9 @@ import { storage } from "./storage";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import multer from "multer";
 import path from "path";
-import { insertDocumentSchema, insertFolderSchema, insertTagSchema } from "@shared/schema";
+import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents } from "@shared/schema";
+import { sql, eq } from "drizzle-orm";
+import { db } from "./db.js";
 
 // Configure multer for memory storage
 const upload = multer({
@@ -201,6 +203,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting document:", error);
       res.status(500).json({ error: "Failed to delete document" });
+    }
+  });
+
+  // Document Versioning endpoints
+  
+  // Get document with all versions
+  app.get("/api/documents/:id/versions", async (req, res) => {
+    try {
+      const documentWithVersions = await storage.getDocumentWithVersions(req.params.id);
+      if (!documentWithVersions) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      res.json(documentWithVersions);
+    } catch (error) {
+      console.error("Error fetching document versions:", error);
+      res.status(500).json({ error: "Failed to fetch document versions" });
+    }
+  });
+
+  // Create new version
+  app.post("/api/documents/:id/versions", async (req, res) => {
+    try {
+      const { uploadURL, changeDescription, uploadedBy = "system" } = req.body;
+      
+      if (!uploadURL) {
+        return res.status(400).json({ error: "Upload URL is required" });
+      }
+
+      // Get existing document to get file info
+      const document = await storage.getDocumentById(req.params.id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Normalize the object path
+      const objectStorageService = new ObjectStorageService();
+      const filePath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+      // Create version data (version number will be generated automatically by storage)
+      const versionData = {
+        documentId: req.params.id,
+        // Don't set version - it will be generated atomically by storage
+        filePath,
+        fileSize: parseInt(req.body.fileSize) || document.fileSize,
+        fileType: req.body.fileType || document.fileType,
+        mimeType: req.body.mimeType || document.mimeType,
+        uploadedBy,
+        changeDescription,
+        isActive: false, // New versions start as inactive
+      };
+
+      const validatedData = insertDocumentVersionSchema.parse(versionData);
+      const version = await storage.createDocumentVersion(validatedData);
+      
+      res.status(201).json(version);
+    } catch (error) {
+      console.error("Error creating document version:", error);
+      
+      // Handle unique constraint violations (Postgres error code 23505)
+      if (error instanceof Error && (error as any).code === '23505') {
+        return res.status(409).json({ 
+          error: "Version conflict detected. Please retry your request.",
+          code: "VERSION_CONFLICT"
+        });
+      }
+      
+      res.status(500).json({ error: "Failed to create document version" });
+    }
+  });
+
+  // Set active version
+  app.put("/api/documents/:id/versions/:versionId/activate", async (req, res) => {
+    try {
+      const activated = await storage.setActiveVersion(req.params.id, req.params.versionId);
+      if (!activated) {
+        return res.status(404).json({ error: "Document or version not found" });
+      }
+      res.json({ message: "Version activated successfully" });
+    } catch (error) {
+      console.error("Error activating version:", error);
+      
+      // Handle unique constraint violations during activation (Postgres error code 23505)
+      if (error instanceof Error && (error as any).code === '23505') {
+        return res.status(409).json({ 
+          error: "Activation conflict detected. Please retry your request.",
+          code: "ACTIVE_VERSION_CONFLICT"
+        });
+      }
+      
+      res.status(500).json({ error: "Failed to activate version" });
+    }
+  });
+
+  // Delete version
+  app.delete("/api/documents/:id/versions/:versionId", async (req, res) => {
+    try {
+      const deleted = await storage.deleteDocumentVersion(req.params.id, req.params.versionId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Version not found or doesn't belong to this document" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting version:", error);
+      
+      // Handle unique constraint violations during deletion (when promoting new active version)
+      if (error instanceof Error && (error as any).code === '23505') {
+        return res.status(409).json({ 
+          error: "Deletion conflict detected. Please retry your request.",
+          code: "VERSION_DELETE_CONFLICT"
+        });
+      }
+      
+      res.status(500).json({ error: "Failed to delete version" });
     }
   });
 
