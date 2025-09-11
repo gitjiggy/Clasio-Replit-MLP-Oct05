@@ -38,7 +38,9 @@ export const signInWithGoogle = () => {
   return signInWithRedirect(auth, googleProvider);
 };
 
-export const signOutUser = () => {
+export const signOutUser = async () => {
+  // Clear stored Google access token
+  clearGoogleAccessToken();
   return signOut(auth);
 };
 
@@ -49,19 +51,34 @@ export const handleAuthRedirect = async () => {
     if (result) {
       // This gives you a Google Access Token. You can use it to access Google APIs.
       const credential = GoogleAuthProvider.credentialFromResult(result);
-      const token = credential?.accessToken;
+      const googleAccessToken = credential?.accessToken;
 
       // The signed-in user info.
       const user = result.user;
       console.log("User signed in:", user.displayName);
       
-      return { user, token };
+      // Store the Google access token for Drive API calls
+      if (googleAccessToken) {
+        localStorage.setItem('google_access_token', googleAccessToken);
+      }
+      
+      return { user, googleAccessToken };
     }
     return null;
   } catch (error: any) {
     console.error("Auth redirect error:", error);
     throw new Error(error.message || "Authentication failed");
   }
+};
+
+// Get stored Google access token for Drive API calls
+export const getGoogleAccessToken = (): string | null => {
+  return localStorage.getItem('google_access_token');
+};
+
+// Clear stored Google access token on sign out
+export const clearGoogleAccessToken = () => {
+  localStorage.removeItem('google_access_token');
 };
 
 // Auth state observer

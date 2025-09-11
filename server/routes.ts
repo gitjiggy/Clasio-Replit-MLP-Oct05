@@ -3,11 +3,72 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth";
+import { DriveService } from "./driveService";
 import multer from "multer";
 import path from "path";
 import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { db } from "./db.js";
+import { z } from "zod";
+import { google } from 'googleapis';
+
+// Middleware to verify Drive access token belongs to the authenticated Firebase user
+async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any) {
+  try {
+    const driveAccessToken = req.headers['x-drive-access-token'] as string;
+    if (!driveAccessToken) {
+      return res.status(401).json({ error: "Google Drive access token required in x-drive-access-token header" });
+    }
+
+    // Get Firebase user email from the verified token
+    const firebaseUserEmail = req.user?.email;
+    if (!firebaseUserEmail) {
+      return res.status(401).json({ error: "Firebase user email not available" });
+    }
+
+    // Verify the Google access token belongs to the same user
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: driveAccessToken });
+    
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const userInfo = await oauth2.userinfo.get();
+    
+    const googleUserEmail = userInfo.data.email;
+    if (!googleUserEmail || googleUserEmail !== firebaseUserEmail) {
+      return res.status(403).json({ 
+        error: "Drive access token does not belong to the authenticated user",
+        message: "Token mismatch detected"
+      });
+    }
+
+    // Store Drive service in request for reuse
+    (req as any).driveService = new DriveService(driveAccessToken);
+    next();
+  } catch (error) {
+    console.error("Drive access verification failed:", error);
+    return res.status(403).json({ 
+      error: "Invalid or expired Drive access token",
+      message: "Please re-authenticate with Google Drive"
+    });
+  }
+}
+
+// Zod schemas for Drive API validation
+const driveSyncSchema = z.object({
+  driveFileId: z.string().min(1, "Drive file ID is required"),
+  folderId: z.string().optional(),
+  runAiAnalysis: z.boolean().default(false),
+});
+
+const driveDocumentsQuerySchema = z.object({
+  search: z.string().optional(),
+  pageToken: z.string().optional(),
+  folderId: z.string().optional(),
+  pageSize: z.string().default("20").transform(val => {
+    const parsed = parseInt(val);
+    return isNaN(parsed) || parsed < 1 || parsed > 100 ? 20 : parsed;
+  }),
+});
 
 // Configure multer for memory storage
 const upload = multer({
@@ -462,6 +523,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to delete tag" });
     }
   });
+
+  // Google Drive Integration endpoints
+  
+  // Verify Drive connection and get status
+  app.get("/api/drive/connect", verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      const driveService = (req as any).driveService as DriveService;
+      
+      // Verify Drive access
+      const hasAccess = await driveService.verifyDriveAccess();
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          error: "Drive access not granted", 
+          message: "Please re-authenticate with Drive permissions" 
+        });
+      }
+
+      // Get storage quota info
+      const quota = await driveService.getStorageQuota();
+      
+      res.json({
+        connected: true,
+        hasAccess: true,
+        quota: quota || null,
+        message: "Drive connected successfully"
+      });
+    } catch (error) {
+      console.error("Error checking Drive connection:", error);
+      res.status(500).json({ error: "Failed to check Drive connection" });
+    }
+  });
+
+  // List documents from Google Drive
+  app.get("/api/drive/documents", verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      const driveService = (req as any).driveService as DriveService;
+      
+      // Validate query parameters
+      const validatedQuery = driveDocumentsQuerySchema.parse(req.query);
+      
+      const result = await driveService.listFiles({
+        query: validatedQuery.search,
+        pageToken: validatedQuery.pageToken,
+        folderId: validatedQuery.folderId,
+        pageSize: validatedQuery.pageSize
+      });
+
+      // Get folders for navigation
+      const folders = await driveService.getFolders();
+      
+      res.json({
+        files: result.files,
+        folders,
+        nextPageToken: result.nextPageToken,
+        pagination: {
+          pageSize: validatedQuery.pageSize,
+          hasNext: !!result.nextPageToken
+        }
+      });
+    } catch (error) {
+      console.error("Error listing Drive documents:", error);
+      res.status(500).json({ error: "Failed to list Drive documents" });
+    }
+  });
+
+  // Sync Drive document to local system
+  app.post("/api/drive/sync", verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Validate request body
+      const validatedBody = driveSyncSchema.parse(req.body);
+      const { driveFileId, folderId, runAiAnalysis } = validatedBody;
+
+      const driveService = (req as any).driveService as DriveService;
+      
+      // Get file content from Drive
+      const driveFile = await driveService.getFileContent(driveFileId);
+      if (!driveFile) {
+        return res.status(404).json({ error: "Drive file not found or cannot be accessed" });
+      }
+
+      // Check if document already exists in our system
+      const existingDocument = await storage.getDocumentByDriveFileId(driveFileId);
+      if (existingDocument) {
+        // Update existing document sync status
+        const updatedDocument = await storage.updateDocument(existingDocument.id, {
+          driveSyncStatus: "synced",
+          driveSyncedAt: new Date(),
+        });
+        
+        return res.json({
+          message: "Document already synced",
+          document: updatedDocument || existingDocument,
+          isNew: false
+        });
+      }
+
+      // Create new document from Drive file
+      const documentData = {
+        name: driveFile.name,
+        originalName: driveFile.name,
+        filePath: null, // Drive files don't have local file paths
+        fileSize: driveFile.content.length,
+        fileType: getFileTypeFromMimeType(driveFile.mimeType),
+        mimeType: driveFile.mimeType,
+        folderId: folderId || null,
+        isFromDrive: true,
+        driveFileId: driveFile.id,
+        driveWebViewLink: `https://drive.google.com/file/d/${driveFile.id}/view`,
+        driveLastModified: new Date(),
+        driveSyncStatus: "synced",
+        driveSyncedAt: new Date(),
+        isFavorite: false,
+        isDeleted: false,
+      };
+
+      const validatedData = insertDocumentSchema.parse(documentData);
+      const document = await storage.createDocument(validatedData);
+
+      // Store Drive content for AI analysis
+      if (runAiAnalysis && driveFile.content && driveFile.content !== `[Binary file: ${driveFile.name}]`) {
+        // Run AI analysis on the existing document
+        await storage.analyzeDocumentWithAI(document.id);
+      }
+
+      // Get document with details
+      const documentWithDetails = await storage.getDocumentById(document.id);
+      
+      res.status(201).json({
+        message: "Document synced from Drive successfully",
+        document: documentWithDetails,
+        isNew: true
+      });
+    } catch (error) {
+      console.error("Error syncing Drive document:", error);
+      res.status(500).json({ error: "Failed to sync Drive document" });
+    }
+  });
+
+  // Helper function to determine file type from MIME type
+  function getFileTypeFromMimeType(mimeType: string): string {
+    const mimeTypeMap: { [key: string]: string } = {
+      'application/pdf': 'pdf',
+      'application/vnd.google-apps.document': 'document',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
+      'application/msword': 'document',
+      'text/plain': 'text',
+      'text/csv': 'spreadsheet',
+      'application/rtf': 'document',
+      'text/html': 'text'
+    };
+    
+    return mimeTypeMap[mimeType] || 'other';
+  }
 
   const httpServer = createServer(app);
   return httpServer;

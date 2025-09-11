@@ -19,7 +19,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, desc, ilike, inArray, count } from "drizzle-orm";
+import { eq, and, desc, ilike, inArray, count, sql } from "drizzle-orm";
 
 export interface DocumentFilters {
   search?: string;
@@ -36,6 +36,7 @@ export interface IStorage {
   getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]>;
   getDocumentsCount(filters: DocumentFilters): Promise<number>;
   getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined>;
+  getDocumentByDriveFileId(driveFileId: string): Promise<DocumentWithFolderAndTags | undefined>;
   getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
@@ -121,6 +122,11 @@ export class DatabaseStorage implements IStorage {
         .returning();
 
       // Create initial version (version 1) as active within the same transaction
+      // Ensure required fields are not null for documentVersions table
+      if (!document.filePath || !document.fileSize) {
+        throw new Error("Document must have filePath and fileSize to create initial version");
+      }
+      
       await tx.insert(documentVersions).values({
         documentId: document.id,
         version: 1,
@@ -298,6 +304,34 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return result.length > 0;
+  }
+
+  async getDocumentByDriveFileId(driveFileId: string): Promise<DocumentWithFolderAndTags | undefined> {
+    const result = await db
+      .select({
+        document: documents,
+        folder: folders,
+      })
+      .from(documents)
+      .leftJoin(folders, eq(documents.folderId, folders.id))
+      .where(and(eq(documents.driveFileId, driveFileId), eq(documents.isDeleted, false)))
+      .limit(1);
+
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    const docTags = await db
+      .select({ tag: tags })
+      .from(documentTags)
+      .leftJoin(tags, eq(documentTags.tagId, tags.id))
+      .where(eq(documentTags.documentId, result[0].document.id));
+
+    return {
+      ...result[0].document,
+      folder: result[0].folder || undefined,
+      tags: docTags.map(dt => dt.tag).filter(Boolean) as Tag[],
+    };
   }
 
   async getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined> {
@@ -584,6 +618,11 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Extract text from the document
+      if (!document.filePath) {
+        console.error("Document has no file path for AI analysis");
+        return false;
+      }
+      
       const documentText = await extractTextFromDocument(document.filePath, document.mimeType);
       
       // Generate AI analysis
