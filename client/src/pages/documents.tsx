@@ -32,7 +32,9 @@ import {
   GitBranch,
   Clock,
   CheckCircle,
-  Plus
+  Plus,
+  Brain,
+  Sparkles
 } from "lucide-react";
 
 interface DocumentsResponse {
@@ -102,6 +104,28 @@ export default function Documents() {
     onError: (error) => {
       toast({
         title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // AI Analysis mutation
+  const analyzeDocumentMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await apiRequest("POST", `/api/documents/${documentId}/analyze`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      toast({
+        title: "AI Analysis Complete",
+        description: "Document has been analyzed with AI successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "AI Analysis Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -496,6 +520,31 @@ export default function Documents() {
                       <span>{document.folder?.name || "No folder"}</span>
                     </div>
                     
+                    {/* AI Analysis Results */}
+                    {document.aiSummary && (
+                      <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Sparkles className="h-3 w-3 text-blue-600" />
+                          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">AI Analysis</span>
+                        </div>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
+                        {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {document.aiKeyTopics.map((topic, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                                {topic}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {document.aiDocumentType && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            Type: {document.aiDocumentType} • Sentiment: {document.aiSentiment}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex items-center space-x-2">
                       <Button
                         size="sm"
@@ -508,6 +557,15 @@ export default function Documents() {
                       </Button>
                       <Button size="sm" variant="outline" data-testid={`preview-${document.id}`}>
                         <Eye className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={document.aiSummary ? "secondary" : "outline"}
+                        onClick={() => analyzeDocumentMutation.mutate(document.id)}
+                        disabled={analyzeDocumentMutation.isPending}
+                        data-testid={`analyze-ai-${document.id}`}
+                      >
+                        <Brain className="h-3 w-3" />
                       </Button>
                     </div>
                   </CardContent>

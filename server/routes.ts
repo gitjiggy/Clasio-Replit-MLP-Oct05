@@ -206,6 +206,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Analysis endpoint
+  app.post("/api/documents/:id/analyze", async (req, res) => {
+    try {
+      const documentId = req.params.id;
+      
+      // Check if API key is configured
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(503).json({ error: "AI analysis unavailable - API key not configured" });
+      }
+      
+      // Check if document exists
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Check if document was recently analyzed (prevent spam)
+      if (document.aiAnalyzedAt) {
+        const timeSinceLastAnalysis = Date.now() - new Date(document.aiAnalyzedAt).getTime();
+        const oneMinute = 60 * 1000; // 1 minute in milliseconds
+        if (timeSinceLastAnalysis < oneMinute) {
+          return res.status(429).json({ 
+            error: "Document was recently analyzed. Please wait before analyzing again.",
+            retryAfter: Math.ceil((oneMinute - timeSinceLastAnalysis) / 1000)
+          });
+        }
+      }
+
+      // Analyze document with AI
+      const success = await storage.analyzeDocumentWithAI(documentId);
+      if (!success) {
+        return res.status(500).json({ error: "Failed to analyze document with AI" });
+      }
+
+      // Return updated document with AI analysis
+      const updatedDocument = await storage.getDocumentById(documentId);
+      res.json({
+        success: true,
+        message: "Document analyzed successfully",
+        document: updatedDocument
+      });
+    } catch (error) {
+      console.error("Error analyzing document:", error);
+      res.status(500).json({ error: "Failed to analyze document" });
+    }
+  });
+
   // Document Versioning endpoints
   
   // Get document with all versions

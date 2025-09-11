@@ -39,6 +39,7 @@ export interface IStorage {
   getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
+  analyzeDocumentWithAI(id: string): Promise<boolean>;
 
   // Document Versions
   createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
@@ -568,6 +569,48 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(documentTags)
       .where(eq(documentTags.documentId, documentId));
+  }
+
+  // AI Analysis
+  async analyzeDocumentWithAI(documentId: string): Promise<boolean> {
+    try {
+      // Import here to avoid circular dependencies
+      const { summarizeDocument, analyzeDocumentContent, extractTextFromDocument } = await import("./gemini.js");
+      
+      // Get the document
+      const document = await this.getDocumentById(documentId);
+      if (!document) {
+        return false;
+      }
+
+      // Extract text from the document
+      const documentText = await extractTextFromDocument(document.filePath, document.mimeType);
+      
+      // Generate AI analysis
+      const [summary, analysis] = await Promise.all([
+        summarizeDocument(documentText),
+        analyzeDocumentContent(documentText)
+      ]);
+
+      // Update the document with AI analysis
+      const [updatedDoc] = await db
+        .update(documents)
+        .set({
+          aiSummary: summary,
+          aiKeyTopics: analysis.keyTopics,
+          aiDocumentType: analysis.documentType,
+          aiSentiment: analysis.sentiment,
+          aiWordCount: analysis.wordCount,
+          aiAnalyzedAt: new Date()
+        })
+        .where(eq(documents.id, documentId))
+        .returning();
+
+      return !!updatedDoc;
+    } catch (error) {
+      console.error("Error analyzing document with AI:", error);
+      return false;
+    }
   }
 
 }

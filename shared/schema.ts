@@ -29,6 +29,13 @@ export const documents = pgTable("documents", {
   uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
   isFavorite: boolean("is_favorite").default(false).notNull(),
   isDeleted: boolean("is_deleted").default(false).notNull(),
+  // AI Analysis fields
+  aiSummary: text("ai_summary"),
+  aiKeyTopics: text("ai_key_topics").array(),
+  aiDocumentType: text("ai_document_type"),
+  aiSentiment: text("ai_sentiment"),
+  aiWordCount: integer("ai_word_count"),
+  aiAnalyzedAt: timestamp("ai_analyzed_at"),
 });
 
 export const documentVersions = pgTable("document_versions", {

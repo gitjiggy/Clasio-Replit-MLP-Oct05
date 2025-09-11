@@ -130,6 +130,33 @@ export class ObjectStorageService {
     }
   }
 
+  // Get object content as Buffer for AI processing
+  async getObjectBuffer(objectPath: string): Promise<Buffer> {
+    try {
+      const file = await this.getObjectEntityFile(objectPath);
+      const stream = file.createReadStream();
+      
+      const chunks: Buffer[] = [];
+      return new Promise((resolve, reject) => {
+        stream.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+        
+        stream.on('end', () => {
+          resolve(Buffer.concat(chunks));
+        });
+        
+        stream.on('error', (error) => {
+          console.error("Error reading object stream:", error);
+          reject(error);
+        });
+      });
+    } catch (error) {
+      console.error("Error getting object buffer:", error);
+      throw error;
+    }
+  }
+
   // Gets the upload URL for an object entity.
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
