@@ -10,6 +10,8 @@ import { UserMenu } from "@/components/UserMenu";
 import Documents from "@/pages/documents";
 import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
+import { initGA } from "./lib/analytics";
+import { useAnalytics } from "./hooks/use-analytics";
 
 interface AppHeaderProps {
   onSignInClick: () => void;
@@ -49,6 +51,18 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
   );
 }
 
+function Router() {
+  // Track page views when routes change
+  useAnalytics();
+  
+  return (
+    <Switch>
+      <Route path="/" component={Documents} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
 function AuthenticatedApp() {
   const { user, loading } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -76,10 +90,7 @@ function AuthenticatedApp() {
       <AppHeader onSignInClick={() => setShowLoginModal(true)} />
       <main className="flex-1">
         {user ? (
-          <Switch>
-            <Route path="/" component={Documents} />
-            <Route component={NotFound} />
-          </Switch>
+          <Router />
         ) : (
           <div className="container mx-auto py-8 text-center">
             <h2 className="text-2xl font-bold mb-4">Welcome to DocuFlow</h2>
@@ -96,6 +107,16 @@ function AuthenticatedApp() {
 }
 
 function App() {
+  // Initialize Google Analytics when app loads
+  useEffect(() => {
+    // Verify required environment variable is present
+    if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
+      console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
+    } else {
+      initGA();
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

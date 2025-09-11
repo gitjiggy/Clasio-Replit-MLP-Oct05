@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, Shield, FileText, Brain } from "lucide-react";
 import { signInWithGoogle } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { trackEvent } from "@/lib/analytics";
 
 interface LoginModalProps {
   open: boolean;
@@ -25,9 +26,17 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   const handleGoogleSignIn = async () => {
     try {
       setIsSigningIn(true);
+      // Track login attempt
+      trackEvent('login_start', { method: 'google' });
+      
       await signInWithGoogle();
+      
+      // Track successful login
+      trackEvent('login', { method: 'google' });
     } catch (error) {
       console.error("Sign-in error:", error);
+      // Track failed login
+      trackEvent('login_failed', { method: 'google', error_message: (error as Error).message });
       setIsSigningIn(false);
     }
   };

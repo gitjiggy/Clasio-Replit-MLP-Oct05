@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { trackEvent } from "@/lib/analytics";
 import type { UploadResult } from "@uppy/core";
 import type { DocumentWithFolderAndTags, DocumentWithVersions, DocumentVersion, Folder, Tag } from "@shared/schema";
 import { 
@@ -54,9 +55,28 @@ export default function Documents() {
   const [selectedTagId, setSelectedTagId] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Handle search with debouncing
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    
+    // Clear existing timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Set new timeout for analytics tracking
+    if (query.trim()) {
+      const timeout = setTimeout(() => {
+        trackEvent('search', { search_term: query.trim() });
+      }, 500); // 500ms debounce
+      setSearchTimeout(timeout);
+    }
+  };
 
   // Fetch documents
   const { data: documentsData, isLoading: documentsLoading } = useQuery<DocumentsResponse>({
@@ -113,10 +133,16 @@ export default function Documents() {
   // AI Analysis mutation
   const analyzeDocumentMutation = useMutation({
     mutationFn: async (documentId: string) => {
+      // Track AI analysis initiation
+      trackEvent('ai_analysis_start', { document_id: documentId, analysis_type: 'gemini' });
+      
       const response = await apiRequest("POST", `/api/documents/${documentId}/analyze`);
       return response.json();
     },
     onSuccess: (data) => {
+      // Track successful AI analysis
+      trackEvent('ai_analysis_complete', { document_id: documentId, analysis_type: 'gemini' });
+      
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       toast({
         title: "AI Analysis Complete",
@@ -124,6 +150,9 @@ export default function Documents() {
       });
     },
     onError: (error) => {
+      // Track failed AI analysis
+      trackEvent('ai_analysis_failed', { analysis_type: 'gemini', error_message: error.message });
+      
       toast({
         title: "AI Analysis Failed",
         description: error.message,
@@ -146,6 +175,9 @@ export default function Documents() {
     if (file && file.uploadURL) {
       const fileExtension = file.name?.split('.').pop()?.toLowerCase() || '';
       const fileType = getFileTypeFromExtension(fileExtension);
+      
+      // Track document upload event
+      trackEvent('file_upload', { file_type: fileType, file_size: file.size });
       
       uploadMutation.mutate({
         uploadURL: file.uploadURL as string,
@@ -359,7 +391,7 @@ export default function Documents() {
                   type="text"
                   placeholder="Search documents..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="w-64 pl-10"
                   data-testid="search-input"
                 />
