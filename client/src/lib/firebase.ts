@@ -28,8 +28,10 @@ try {
 // Initialize Auth
 export const auth = getAuth(app);
 
-// Google Auth Provider
+// Google Auth Provider with Drive scopes
 const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
+googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 
 // Auth functions
 export const signInWithGoogle = () => {
