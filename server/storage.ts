@@ -8,8 +8,14 @@ import {
   type InsertTag,
   type InsertDocumentTag,
   type DocumentWithFolderAndTags,
+  documents,
+  folders,
+  tags,
+  documentTags,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and, desc, ilike, inArray, count } from "drizzle-orm";
 
 export interface DocumentFilters {
   search?: string;
@@ -46,290 +52,319 @@ export interface IStorage {
   removeDocumentTags(documentId: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private documents: Map<string, Document>;
-  private folders: Map<string, Folder>;
-  private tags: Map<string, Tag>;
-  private documentTags: Map<string, DocumentTag>;
+export class DatabaseStorage implements IStorage {
+  private isInitialized = false;
 
-  constructor() {
-    this.documents = new Map();
-    this.folders = new Map();
-    this.tags = new Map();
-    this.documentTags = new Map();
-
-    // Initialize with some default folders and tags
-    this.initializeDefaults();
+  private async ensureInitialized() {
+    if (!this.isInitialized) {
+      await this.initializeDefaults();
+      this.isInitialized = true;
+    }
   }
 
-  private initializeDefaults() {
-    // Default folders
-    const defaultFolders = [
-      { name: "Contracts", color: "#f59e0b" },
-      { name: "Reports", color: "#3b82f6" },
-      { name: "Invoices", color: "#10b981" },
-      { name: "Legal Documents", color: "#8b5cf6" },
-    ];
+  private async initializeDefaults() {
+    try {
+      // Check if we have any folders, if not create defaults
+      const existingFolders = await db.select().from(folders);
+      if (existingFolders.length === 0) {
+        const defaultFolders = [
+          { name: "Contracts", color: "#f59e0b" },
+          { name: "Reports", color: "#3b82f6" },
+          { name: "Invoices", color: "#10b981" },
+          { name: "Legal Documents", color: "#8b5cf6" },
+        ];
+        
+        await db.insert(folders).values(defaultFolders);
+      }
 
-    for (const folder of defaultFolders) {
-      const id = randomUUID();
-      this.folders.set(id, {
-        id,
-        ...folder,
-        createdAt: new Date(),
-      });
-    }
-
-    // Default tags
-    const defaultTags = [
-      { name: "Important", color: "#ef4444" },
-      { name: "Reviewed", color: "#10b981" },
-      { name: "Pending", color: "#f59e0b" },
-      { name: "Archive", color: "#8b5cf6" },
-    ];
-
-    for (const tag of defaultTags) {
-      const id = randomUUID();
-      this.tags.set(id, {
-        id,
-        ...tag,
-        createdAt: new Date(),
-      });
+      // Check if we have any tags, if not create defaults
+      const existingTags = await db.select().from(tags);
+      if (existingTags.length === 0) {
+        const defaultTags = [
+          { name: "Important", color: "#ef4444" },
+          { name: "Reviewed", color: "#10b981" },
+          { name: "Pending", color: "#f59e0b" },
+          { name: "Archive", color: "#8b5cf6" },
+        ];
+        
+        await db.insert(tags).values(defaultTags);
+      }
+    } catch (error) {
+      console.log("Database initialization skipped:", error);
     }
   }
 
   // Documents
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
-    const id = randomUUID();
-    const document: Document = {
-      ...insertDocument,
-      id,
-      uploadedAt: new Date(),
-      folderId: insertDocument.folderId ?? null,
-      isFavorite: insertDocument.isFavorite ?? false,
-      isDeleted: insertDocument.isDeleted ?? false,
-    };
-    this.documents.set(id, document);
+    await this.ensureInitialized();
+    const [document] = await db
+      .insert(documents)
+      .values({
+        ...insertDocument,
+        folderId: insertDocument.folderId || null,
+        isFavorite: insertDocument.isFavorite ?? false,
+        isDeleted: insertDocument.isDeleted ?? false,
+      })
+      .returning();
     return document;
   }
 
   async getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]> {
-    let docs = Array.from(this.documents.values()).filter(doc => !doc.isDeleted);
+    await this.ensureInitialized();
+    let query = db
+      .select({
+        document: documents,
+        folder: folders,
+      })
+      .from(documents)
+      .leftJoin(folders, eq(documents.folderId, folders.id))
+      .where(eq(documents.isDeleted, false));
 
     // Apply filters
+    const conditions = [eq(documents.isDeleted, false)];
+
     if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      docs = docs.filter(doc => 
-        doc.name.toLowerCase().includes(searchLower) ||
-        doc.originalName.toLowerCase().includes(searchLower)
+      conditions.push(
+        ilike(documents.name, `%${filters.search}%`)
       );
     }
 
-    if (filters.fileType) {
-      docs = docs.filter(doc => doc.fileType === filters.fileType);
+    if (filters.fileType && filters.fileType !== 'all') {
+      conditions.push(eq(documents.fileType, filters.fileType));
     }
 
-    if (filters.folderId) {
-      docs = docs.filter(doc => doc.folderId === filters.folderId);
+    if (filters.folderId && filters.folderId !== 'all') {
+      conditions.push(eq(documents.folderId, filters.folderId));
     }
 
     if (filters.tagId) {
-      const docsWithTag = Array.from(this.documentTags.values())
-        .filter(dt => dt.tagId === filters.tagId)
-        .map(dt => dt.documentId);
-      docs = docs.filter(doc => docsWithTag.includes(doc.id));
+      const docsWithTag = await db
+        .select({ documentId: documentTags.documentId })
+        .from(documentTags)
+        .where(eq(documentTags.tagId, filters.tagId));
+      
+      const docIds = docsWithTag.map(dt => dt.documentId);
+      if (docIds.length > 0) {
+        conditions.push(inArray(documents.id, docIds));
+      } else {
+        // No documents with this tag
+        return [];
+      }
     }
 
-    // Sort by upload date (newest first)
-    docs.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
+    const results = await db
+      .select({
+        document: documents,
+        folder: folders,
+      })
+      .from(documents)
+      .leftJoin(folders, eq(documents.folderId, folders.id))
+      .where(and(...conditions))
+      .orderBy(desc(documents.uploadedAt))
+      .limit(filters.limit)
+      .offset((filters.page - 1) * filters.limit);
 
-    // Apply pagination
-    const start = (filters.page - 1) * filters.limit;
-    const paginatedDocs = docs.slice(start, start + filters.limit);
+    // Get tags for each document
+    const docsWithTags = await Promise.all(
+      results.map(async (result) => {
+        const docTags = await db
+          .select({ tag: tags })
+          .from(documentTags)
+          .leftJoin(tags, eq(documentTags.tagId, tags.id))
+          .where(eq(documentTags.documentId, result.document.id));
 
-    // Enrich with folder and tags
-    return paginatedDocs.map(doc => this.enrichDocument(doc));
+        return {
+          ...result.document,
+          folder: result.folder || undefined,
+          tags: docTags.map(dt => dt.tag).filter(Boolean) as Tag[],
+        };
+      })
+    );
+
+    return docsWithTags;
   }
 
   async getDocumentsCount(filters: DocumentFilters): Promise<number> {
-    let docs = Array.from(this.documents.values()).filter(doc => !doc.isDeleted);
+    await this.ensureInitialized();
+    const conditions = [eq(documents.isDeleted, false)];
 
-    // Apply same filters as getDocuments
     if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      docs = docs.filter(doc => 
-        doc.name.toLowerCase().includes(searchLower) ||
-        doc.originalName.toLowerCase().includes(searchLower)
+      conditions.push(
+        ilike(documents.name, `%${filters.search}%`)
       );
     }
 
-    if (filters.fileType) {
-      docs = docs.filter(doc => doc.fileType === filters.fileType);
+    if (filters.fileType && filters.fileType !== 'all') {
+      conditions.push(eq(documents.fileType, filters.fileType));
     }
 
-    if (filters.folderId) {
-      docs = docs.filter(doc => doc.folderId === filters.folderId);
+    if (filters.folderId && filters.folderId !== 'all') {
+      conditions.push(eq(documents.folderId, filters.folderId));
     }
 
     if (filters.tagId) {
-      const docsWithTag = Array.from(this.documentTags.values())
-        .filter(dt => dt.tagId === filters.tagId)
-        .map(dt => dt.documentId);
-      docs = docs.filter(doc => docsWithTag.includes(doc.id));
+      const docsWithTag = await db
+        .select({ documentId: documentTags.documentId })
+        .from(documentTags)
+        .where(eq(documentTags.tagId, filters.tagId));
+      
+      const docIds = docsWithTag.map(dt => dt.documentId);
+      if (docIds.length > 0) {
+        conditions.push(inArray(documents.id, docIds));
+      } else {
+        return 0;
+      }
     }
 
-    return docs.length;
+    const [result] = await db
+      .select({ count: count() })
+      .from(documents)
+      .where(and(...conditions));
+
+    return result.count;
   }
 
   async getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined> {
-    const document = this.documents.get(id);
-    if (!document || document.isDeleted) {
+    const result = await db
+      .select({
+        document: documents,
+        folder: folders,
+      })
+      .from(documents)
+      .leftJoin(folders, eq(documents.folderId, folders.id))
+      .where(and(eq(documents.id, id), eq(documents.isDeleted, false)))
+      .limit(1);
+
+    if (result.length === 0) {
       return undefined;
     }
-    return this.enrichDocument(document);
+
+    const docTags = await db
+      .select({ tag: tags })
+      .from(documentTags)
+      .leftJoin(tags, eq(documentTags.tagId, tags.id))
+      .where(eq(documentTags.documentId, id));
+
+    return {
+      ...result[0].document,
+      folder: result[0].folder || undefined,
+      tags: docTags.map(dt => dt.tag).filter(Boolean) as Tag[],
+    };
   }
 
   async updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined> {
-    const document = this.documents.get(id);
-    if (!document || document.isDeleted) {
-      return undefined;
-    }
+    const [updatedDocument] = await db
+      .update(documents)
+      .set(updates)
+      .where(and(eq(documents.id, id), eq(documents.isDeleted, false)))
+      .returning();
 
-    const updatedDocument = { ...document, ...updates };
-    this.documents.set(id, updatedDocument);
     return updatedDocument;
   }
 
   async deleteDocument(id: string): Promise<boolean> {
-    const document = this.documents.get(id);
-    if (!document) {
-      return false;
-    }
+    const result = await db
+      .update(documents)
+      .set({ isDeleted: true })
+      .where(eq(documents.id, id))
+      .returning();
 
-    // Soft delete
-    const updatedDocument = { ...document, isDeleted: true };
-    this.documents.set(id, updatedDocument);
-
-    // Remove associated tags
-    await this.removeDocumentTags(id);
-    return true;
+    return result.length > 0;
   }
 
   // Folders
   async createFolder(insertFolder: InsertFolder): Promise<Folder> {
-    const id = randomUUID();
-    const folder: Folder = {
-      ...insertFolder,
-      id,
-      createdAt: new Date(),
-      color: insertFolder.color ?? "#f59e0b",
-    };
-    this.folders.set(id, folder);
+    const [folder] = await db
+      .insert(folders)
+      .values({
+        ...insertFolder,
+        color: insertFolder.color ?? "#f59e0b",
+      })
+      .returning();
     return folder;
   }
 
   async getFolders(): Promise<Folder[]> {
-    return Array.from(this.folders.values()).sort((a, b) => a.name.localeCompare(b.name));
+    await this.ensureInitialized();
+    return await db
+      .select()
+      .from(folders)
+      .orderBy(folders.name);
   }
 
   async updateFolder(id: string, updates: Partial<InsertFolder>): Promise<Folder | undefined> {
-    const folder = this.folders.get(id);
-    if (!folder) {
-      return undefined;
-    }
+    const [updatedFolder] = await db
+      .update(folders)
+      .set(updates)
+      .where(eq(folders.id, id))
+      .returning();
 
-    const updatedFolder = { ...folder, ...updates };
-    this.folders.set(id, updatedFolder);
     return updatedFolder;
   }
 
   async deleteFolder(id: string): Promise<boolean> {
-    const deleted = this.folders.delete(id);
-    if (deleted) {
-      // Remove folder association from documents
-      for (const [docId, document] of Array.from(this.documents.entries())) {
-        if (document.folderId === id) {
-          this.documents.set(docId, { ...document, folderId: null });
-        }
-      }
-    }
-    return deleted;
+    const result = await db
+      .delete(folders)
+      .where(eq(folders.id, id))
+      .returning();
+
+    return result.length > 0;
   }
 
   // Tags
   async createTag(insertTag: InsertTag): Promise<Tag> {
-    const id = randomUUID();
-    const tag: Tag = {
-      ...insertTag,
-      id,
-      createdAt: new Date(),
-      color: insertTag.color ?? "#3b82f6",
-    };
-    this.tags.set(id, tag);
+    const [tag] = await db
+      .insert(tags)
+      .values({
+        ...insertTag,
+        color: insertTag.color ?? "#3b82f6",
+      })
+      .returning();
     return tag;
   }
 
   async getTags(): Promise<Tag[]> {
-    return Array.from(this.tags.values()).sort((a, b) => a.name.localeCompare(b.name));
+    await this.ensureInitialized();
+    return await db
+      .select()
+      .from(tags)
+      .orderBy(tags.name);
   }
 
   async updateTag(id: string, updates: Partial<InsertTag>): Promise<Tag | undefined> {
-    const tag = this.tags.get(id);
-    if (!tag) {
-      return undefined;
-    }
+    const [updatedTag] = await db
+      .update(tags)
+      .set(updates)
+      .where(eq(tags.id, id))
+      .returning();
 
-    const updatedTag = { ...tag, ...updates };
-    this.tags.set(id, updatedTag);
     return updatedTag;
   }
 
   async deleteTag(id: string): Promise<boolean> {
-    const deleted = this.tags.delete(id);
-    if (deleted) {
-      // Remove tag associations
-      for (const [dtId, documentTag] of Array.from(this.documentTags.entries())) {
-        if (documentTag.tagId === id) {
-          this.documentTags.delete(dtId);
-        }
-      }
-    }
-    return deleted;
+    const result = await db
+      .delete(tags)
+      .where(eq(tags.id, id))
+      .returning();
+
+    return result.length > 0;
   }
 
   // Document Tags
   async addDocumentTag(insertDocumentTag: InsertDocumentTag): Promise<DocumentTag> {
-    const id = randomUUID();
-    const documentTag: DocumentTag = {
-      ...insertDocumentTag,
-      id,
-    };
-    this.documentTags.set(id, documentTag);
+    const [documentTag] = await db
+      .insert(documentTags)
+      .values(insertDocumentTag)
+      .returning();
     return documentTag;
   }
 
   async removeDocumentTags(documentId: string): Promise<void> {
-    for (const [id, documentTag] of Array.from(this.documentTags.entries())) {
-      if (documentTag.documentId === documentId) {
-        this.documentTags.delete(id);
-      }
-    }
+    await db
+      .delete(documentTags)
+      .where(eq(documentTags.documentId, documentId));
   }
 
-  // Helper method to enrich document with folder and tags
-  private enrichDocument(document: Document): DocumentWithFolderAndTags {
-    const folder = document.folderId ? this.folders.get(document.folderId) : undefined;
-    const documentTagIds = Array.from(this.documentTags.values())
-      .filter(dt => dt.documentId === document.id)
-      .map(dt => dt.tagId);
-    const tags = documentTagIds.map(tagId => this.tags.get(tagId)).filter(Boolean) as Tag[];
-
-    return {
-      ...document,
-      folder,
-      tags,
-    };
-  }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

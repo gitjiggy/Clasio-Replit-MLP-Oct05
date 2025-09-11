@@ -25,7 +25,7 @@ export const documents = pgTable("documents", {
   fileSize: integer("file_size").notNull(),
   fileType: text("file_type").notNull(),
   mimeType: text("mime_type").notNull(),
-  folderId: varchar("folder_id").references(() => folders.id),
+  folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
   uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
   isFavorite: boolean("is_favorite").default(false).notNull(),
   isDeleted: boolean("is_deleted").default(false).notNull(),
@@ -33,8 +33,8 @@ export const documents = pgTable("documents", {
 
 export const documentTags = pgTable("document_tags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  documentId: varchar("document_id").references(() => documents.id).notNull(),
-  tagId: varchar("tag_id").references(() => tags.id).notNull(),
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  tagId: varchar("tag_id").references(() => tags.id, { onDelete: "cascade" }).notNull(),
 });
 
 export const insertFolderSchema = createInsertSchema(folders).omit({
