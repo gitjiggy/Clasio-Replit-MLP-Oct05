@@ -1,6 +1,6 @@
 // Minimal OAuth test component for debugging
 import { useState } from "react";
-import { getAuth, signInWithRedirect, GoogleAuthProvider, getRedirectResult } from "firebase/auth";
+import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 
 const auth = getAuth();
@@ -14,46 +14,31 @@ export function DebugAuth() {
   const [loading, setLoading] = useState(false);
 
   const testMinimalAuth = async () => {
-    console.log("=== MINIMAL AUTH TEST ===");
-    console.log("Testing basic Google auth without Drive scopes...");
+    console.log("=== MINIMAL AUTH POPUP TEST ===");
+    console.log("Testing basic Google auth POPUP without Drive scopes...");
     console.log("Current domain:", window.location.origin);
     console.log("Firebase authDomain:", `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`);
     
     setLoading(true);
     try {
-      await signInWithRedirect(auth, minimalProvider);
-    } catch (error: any) {
-      console.error("❌ Minimal auth failed:", error);
-      setDebugInfo({ error: error.message, code: error.code });
-      setLoading(false);
-    }
-  };
-
-  const checkRedirectResult = async () => {
-    console.log("=== CHECKING REDIRECT RESULT ===");
-    try {
-      const result = await getRedirectResult(auth);
-      console.log("Redirect result:", result);
+      const result = await signInWithPopup(auth, minimalProvider);
+      console.log("✅ Minimal popup auth successful:", result.user?.email);
       setDebugInfo({ 
-        success: !!result, 
-        user: result?.user?.email,
-        domain: window.location.origin 
+        success: true, 
+        user: result.user?.email,
+        domain: window.location.origin,
+        method: "popup"
       });
     } catch (error: any) {
-      console.error("❌ Redirect check failed:", error);
-      setDebugInfo({ 
-        error: error.message, 
-        code: error.code,
-        domain: window.location.origin 
-      });
+      console.error("❌ Minimal popup auth failed:", error);
+      setDebugInfo({ error: error.message, code: error.code, method: "popup" });
     }
     setLoading(false);
   };
 
-  // Check for redirect result on component mount
-  useState(() => {
-    checkRedirectResult();
-  });
+  const clearDebugInfo = () => {
+    setDebugInfo(null);
+  };
 
   return (
     <div className="p-4 border rounded-lg bg-muted" data-testid="debug-auth">
@@ -65,15 +50,15 @@ export function DebugAuth() {
           disabled={loading}
           data-testid="button-test-minimal-auth"
         >
-          {loading ? "Testing..." : "Test Minimal Google Auth"}
+          {loading ? "Testing..." : "Test Minimal Google Auth (Popup)"}
         </Button>
         
         <Button 
-          onClick={checkRedirectResult} 
+          onClick={clearDebugInfo} 
           variant="outline"
-          data-testid="button-check-redirect"
+          data-testid="button-clear-debug"
         >
-          Check Redirect Result
+          Clear Debug Info
         </Button>
       </div>
 
