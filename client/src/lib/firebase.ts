@@ -2,7 +2,7 @@
 // Based on blueprint:firebase_barebones_javascript
 
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithRedirect, GoogleAuthProvider, getRedirectResult, onAuthStateChanged, signOut, User } from "firebase/auth";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -34,9 +34,9 @@ const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
 googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 
-// Auth functions with debugging
-export const signInWithGoogle = () => {
-  console.log("=== DEBUG: Starting Google OAuth with CORRECTED Firebase config ===");
+// Auth functions with debugging - Using popup instead of redirect
+export const signInWithGoogle = async () => {
+  console.log("=== DEBUG: Starting Google OAuth POPUP with Firebase ===");
   console.log("Firebase config:", {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY ? "✅ Present" : "❌ Missing",
     authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
@@ -45,10 +45,33 @@ export const signInWithGoogle = () => {
     currentDomain: window.location.origin
   });
   console.log("GoogleAuthProvider scopes:", googleProvider.getScopes());
-  console.log("Expected OAuth redirect domain:", `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com/__/auth/handler`);
-  console.log("About to redirect to Google OAuth...");
+  console.log("About to open Google OAuth popup...");
   
-  return signInWithRedirect(auth, googleProvider);
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    
+    // Get the Google access token from the credential
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const googleAccessToken = credential?.accessToken;
+
+    console.log("✅ User signed in via POPUP:", result.user.displayName);
+    console.log("✅ Google access token:", googleAccessToken ? "received" : "missing");
+    
+    // Store the Google access token for Drive API calls
+    if (googleAccessToken) {
+      localStorage.setItem('google_access_token', googleAccessToken);
+    }
+    
+    return { user: result.user, googleAccessToken };
+  } catch (error: any) {
+    console.error("❌ Popup sign-in error:", {
+      code: error.code,
+      message: error.message,
+      customData: error.customData,
+      credential: error.credential
+    });
+    throw new Error(error.message || "Authentication failed");
+  }
 };
 
 export const signOutUser = async () => {
@@ -57,46 +80,7 @@ export const signOutUser = async () => {
   return signOut(auth);
 };
 
-// Handle redirect result after Google sign-in
-export const handleAuthRedirect = async () => {
-  console.log("=== DEBUG: Handling auth redirect ===");
-  console.log("Current URL:", window.location.href);
-  console.log("Current domain:", window.location.origin);
-  
-  try {
-    const result = await getRedirectResult(auth);
-    console.log("getRedirectResult:", result);
-    
-    if (result) {
-      // This gives you a Google Access Token. You can use it to access Google APIs.
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const googleAccessToken = credential?.accessToken;
-
-      // The signed-in user info.
-      const user = result.user;
-      console.log("✅ User signed in successfully:", user.displayName);
-      console.log("✅ Google access token:", googleAccessToken ? "received" : "missing");
-      
-      // Store the Google access token for Drive API calls
-      if (googleAccessToken) {
-        localStorage.setItem('google_access_token', googleAccessToken);
-      }
-      
-      return { user, googleAccessToken };
-    }
-    console.log("No redirect result found");
-    return null;
-  } catch (error: any) {
-    console.error("❌ Auth redirect error details:", {
-      code: error.code,
-      message: error.message,
-      customData: error.customData,
-      credential: error.credential,
-      stack: error.stack
-    });
-    throw new Error(error.message || "Authentication failed");
-  }
-};
+// No redirect handling needed with popup authentication
 
 // Get stored Google access token for Drive API calls
 export const getGoogleAccessToken = (): string | null => {
