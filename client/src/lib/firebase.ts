@@ -36,10 +36,12 @@ googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 
 // Auth functions with debugging
 export const signInWithGoogle = () => {
-  console.log("=== DEBUG: Starting Google OAuth with NEW Firebase project ===");
+  console.log("=== DEBUG: Starting Google OAuth with CORRECTED Firebase config ===");
   console.log("Firebase config:", {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY ? "✅ Present" : "❌ Missing",
     authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
     currentDomain: window.location.origin
   });
   console.log("GoogleAuthProvider scopes:", googleProvider.getScopes());
