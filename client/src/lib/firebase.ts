@@ -29,10 +29,17 @@ try {
 // Initialize Auth
 export const auth = getAuth(app);
 
-// Google Auth Provider with Drive scopes
+// Google Auth Provider with Drive scopes - Configured for popup mode
 const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
 googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
+
+// Force popup mode and prevent redirects
+googleProvider.setCustomParameters({
+  'prompt': 'select_account',  // Always show account selector
+  'access_type': 'offline',    // Get refresh token
+  'include_granted_scopes': 'true'  // Include previously granted scopes
+});
 
 // Auth functions with debugging - Using popup instead of redirect
 export const signInWithGoogle = async () => {

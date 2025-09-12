@@ -7,7 +7,11 @@ const auth = getAuth();
 
 // Create a minimal provider without Drive scopes for testing
 const minimalProvider = new GoogleAuthProvider();
-// Don't add any extra scopes for this test
+// Configure for popup mode to prevent redirects
+minimalProvider.setCustomParameters({
+  'prompt': 'select_account',  // Always show account selector
+  'access_type': 'offline'     // Get refresh token
+});
 
 export function DebugAuth() {
   const [debugInfo, setDebugInfo] = useState<any>(null);
