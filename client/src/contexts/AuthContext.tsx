@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from 'firebase/auth';
-import { onAuthStateChange } from '@/lib/firebase';
+import { onAuthStateChange, handleAuthRedirect } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -27,7 +27,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state observer for popup authentication
+    // Handle auth redirect on app load (fallback method)
+    const handleAuth = async () => {
+      try {
+        const authResult = await handleAuthRedirect();
+        if (authResult) {
+          console.log("✅ Auth redirect handled successfully");
+          console.log("✅ Google access token saved:", authResult.googleAccessToken ? "YES" : "NO");
+          setUser(authResult.user);
+        }
+      } catch (error) {
+        console.error("❌ Auth redirect failed:", error);
+      }
+    };
+
+    handleAuth();
+
+    // Set up auth state observer for both popup and redirect authentication
     const unsubscribe = onAuthStateChange((user) => {
       setUser(user);
       setLoading(false);
