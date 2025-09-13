@@ -29,21 +29,23 @@ try {
 // Initialize Auth
 export const auth = getAuth(app);
 
-// Google Auth Provider with Drive scopes - Configured for popup mode
-const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
-googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
-
-// Force popup mode and prevent redirects
-googleProvider.setCustomParameters({
-  'prompt': 'select_account',  // Always show account selector
-  'access_type': 'offline',    // Get refresh token
-  'include_granted_scopes': 'true'  // Include previously granted scopes
+// Basic Google Auth Provider for initial Firebase login (NO Drive scopes)
+const basicGoogleProvider = new GoogleAuthProvider();
+basicGoogleProvider.setCustomParameters({
+  'prompt': 'select_account'  // Always show account selector
 });
 
-// Auth functions with debugging - Popup with redirect fallback for third-party cookie issues
+// Separate Drive Provider for incremental consent (redirect-only)
+const driveGoogleProvider = new GoogleAuthProvider();
+driveGoogleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
+driveGoogleProvider.addScope('https://www.googleapis.com/auth/drive.file');
+driveGoogleProvider.setCustomParameters({
+  'prompt': 'consent'  // Force consent screen for Drive scopes
+});
+
+// Basic Firebase authentication (NO Drive scopes) - Works reliably with popup
 export const signInWithGoogle = async () => {
-  console.log("=== DEBUG: Starting Google OAuth with POPUP + REDIRECT FALLBACK ===");
+  console.log("=== DEBUG: Basic Firebase authentication (NO Drive scopes) ===");
   console.log("Firebase config:", {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY ? "✅ Present" : "❌ Missing",
     authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
@@ -51,41 +53,39 @@ export const signInWithGoogle = async () => {
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
     currentDomain: window.location.origin
   });
-  console.log("GoogleAuthProvider scopes:", googleProvider.getScopes());
+  console.log("Basic scopes only (no Drive)");
   
   try {
-    console.log("🔄 Attempting popup method first...");
-    const result = await signInWithPopup(auth, googleProvider);
-    
-    // Get the Google access token from the credential
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const googleAccessToken = credential?.accessToken;
-
+    const result = await signInWithPopup(auth, basicGoogleProvider);
     console.log("✅ User signed in via POPUP:", result.user.displayName);
-    console.log("✅ Google access token:", googleAccessToken ? "received" : "missing");
+    console.log("📝 Note: Drive access requires separate consent");
     
-    // Store the Google access token for Drive API calls
-    if (googleAccessToken) {
-      localStorage.setItem('google_access_token', googleAccessToken);
-    }
-    
-    return { user: result.user, googleAccessToken };
+    return { user: result.user };
   } catch (error: any) {
-    console.warn("⚠️ Popup failed (likely third-party cookie blocking):", error.code);
-    console.log("🔄 Falling back to redirect method...");
-    
-    // Fallback to redirect method for third-party cookie issues
-    try {
-      await signInWithRedirect(auth, googleProvider);
-      // Note: redirect will complete on page reload via handleAuthRedirect
-      return null; // Redirect initiated
-    } catch (redirectError: any) {
-      console.error("❌ Both popup and redirect failed:", {
-        popup: error.code,
-        redirect: redirectError.code
-      });
-      throw new Error("Authentication failed: " + redirectError.message);
-    }
+    console.error("❌ Basic authentication failed:", error);
+    throw new Error("Authentication failed: " + error.message);
+  }
+};
+
+// Separate Drive consent flow - Uses redirect to handle consent screen
+export const connectGoogleDrive = async () => {
+  console.log("=== DEBUG: Drive consent flow (redirect method) ===");
+  console.log("Requesting Drive scopes with forced consent...");
+  
+  // Check if running in iframe (Replit environment)
+  if (window.top !== window.self) {
+    console.warn("⚠️ Running in iframe - Drive consent may fail");
+    console.log("Consider opening in new tab for better compatibility");
+  }
+  
+  try {
+    // Force redirect for Drive consent (no popup option)
+    await signInWithRedirect(auth, driveGoogleProvider);
+    console.log("🔄 Drive consent redirect initiated...");
+    // Note: will complete on page reload via handleAuthRedirect
+  } catch (error: any) {
+    console.error("❌ Drive consent failed:", error);
+    throw new Error("Drive connection failed: " + error.message);
   }
 };
 

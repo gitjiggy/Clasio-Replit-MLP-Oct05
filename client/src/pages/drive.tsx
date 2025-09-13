@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { getGoogleAccessToken } from "@/lib/firebase";
+import { getGoogleAccessToken, connectGoogleDrive } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { 
   HardDrive, 
@@ -250,7 +250,38 @@ export default function Drive() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {connectionLoading ? (
+          {!googleAccessToken ? (
+            <div className="space-y-3">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Connect your Google Drive to access and manage your documents with AI-powered analysis.
+                </AlertDescription>
+              </Alert>
+              <Button 
+                onClick={async () => {
+                  try {
+                    await connectGoogleDrive();
+                    toast({
+                      title: "Drive connection initiated",
+                      description: "You'll be redirected to Google for authorization...",
+                    });
+                  } catch (error) {
+                    toast({
+                      title: "Connection failed",
+                      description: "Failed to connect to Google Drive. Please try again.",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+                className="w-full"
+                data-testid="button-connect-drive"
+              >
+                <Cloud className="h-4 w-4 mr-2" />
+                Connect Google Drive
+              </Button>
+            </div>
+          ) : connectionLoading ? (
             <div className="flex items-center gap-2">
               <RefreshCw className="h-4 w-4 animate-spin" />
               <span>Checking connection...</span>
