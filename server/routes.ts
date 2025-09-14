@@ -623,8 +623,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const documentData = {
         name: driveFile.name,
         originalName: driveFile.name,
-        filePath: null, // Drive files don't have local file paths
-        fileSize: driveFile.content.length,
+        filePath: `drive:${driveFile.id}`, // Use Drive file ID as path identifier
+        fileSize: driveFile.content ? driveFile.content.length : 0,
         fileType: getFileTypeFromMimeType(driveFile.mimeType),
         mimeType: driveFile.mimeType,
         folderId: folderId || null,
