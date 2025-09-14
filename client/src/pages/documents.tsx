@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { useToast } from "@/hooks/use-toast";
@@ -532,9 +533,39 @@ export default function Documents() {
                           </p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="h-auto p-1">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-auto p-1" data-testid={`menu-${document.id}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </DropdownMenuItem>
+                          <DropdownMenuItem data-testid={`menu-view-${document.id}`}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => analyzeDocumentMutation.mutate(document.id)}
+                            disabled={analyzeDocumentMutation.isPending}
+                            data-testid={`menu-analyze-${document.id}`}
+                          >
+                            <Brain className="mr-2 h-4 w-4" />
+                            {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
+                            <Star className="mr-2 h-4 w-4" />
+                            {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-600" data-testid={`menu-delete-${document.id}`}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     
                     <div className="mb-3">
@@ -576,7 +607,7 @@ export default function Documents() {
                         )}
                         {document.aiDocumentType && (
                           <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                            Type: {document.aiDocumentType} • Sentiment: {document.aiSentiment}
+                            Type: {document.aiDocumentType} • Classification: {document.aiSentiment}
                           </p>
                         )}
                       </div>
