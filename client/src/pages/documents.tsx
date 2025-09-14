@@ -180,6 +180,11 @@ export default function Documents() {
   const deleteDocumentMutation = useMutation({
     mutationFn: async (documentId: string) => {
       const response = await apiRequest("DELETE", `/api/documents/${documentId}`);
+      // Handle 204 No Content response (successful delete with no body)
+      if (response.status === 204) {
+        return { success: true };
+      }
+      // For other responses, try to parse JSON
       return response.json();
     },
     onSuccess: () => {
