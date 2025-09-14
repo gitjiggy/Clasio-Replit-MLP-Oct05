@@ -35,14 +35,14 @@ export async function summarizeDocument(text: string): Promise<string> {
 export async function analyzeDocumentContent(text: string): Promise<{
     keyTopics: string[];
     documentType: string;
-    sentiment: string;
+    category: string;
     wordCount: number;
 }> {
     if (!text || text.trim().length === 0) {
         return {
             keyTopics: [],
             documentType: "Unknown",
-            sentiment: "Neutral",
+            category: "General",
             wordCount: 0
         };
     }
@@ -51,7 +51,7 @@ export async function analyzeDocumentContent(text: string): Promise<{
         return {
             keyTopics: ["API key required"],
             documentType: "Unknown",
-            sentiment: "Neutral",
+            category: "General",
             wordCount: text.split(/\s+/).length
         };
     }
@@ -61,13 +61,13 @@ export async function analyzeDocumentContent(text: string): Promise<{
     const prompt = `Analyze the following document and provide a JSON response with:
 1. Key topics (up to 5 most important topics as an array of strings)
 2. Document type (e.g., "Report", "Contract", "Letter", "Invoice", "Technical Documentation", etc.)
-3. Overall sentiment (one of: "Positive", "Negative", "Neutral", or "Professional")
+3. Document category for filing purposes - choose the MOST relevant one: "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", or "Business"
 
 Format your response as JSON only, no additional text:
 {
   "keyTopics": ["topic1", "topic2", "topic3"],
   "documentType": "Document Type",
-  "sentiment": "Sentiment"
+  "category": "Category"
 }
 
 Document content:
@@ -75,7 +75,7 @@ ${text}`;
 
     try {
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-pro",
+            model: "gemini-1.5-flash",
             generationConfig: {
                 temperature: 0.1,
                 maxOutputTokens: 1000,
@@ -96,7 +96,7 @@ ${text}`;
             return {
                 keyTopics: Array.isArray(data.keyTopics) ? data.keyTopics.slice(0, 5) : ["Analysis unavailable"],
                 documentType: data.documentType || "Unknown",
-                sentiment: data.sentiment || "Neutral",
+                category: data.category || "General",
                 wordCount
             };
         } else {
@@ -107,7 +107,7 @@ ${text}`;
         return {
             keyTopics: ["Analysis unavailable"],
             documentType: "Unknown",
-            sentiment: "Neutral",
+            category: "General",
             wordCount
         };
     }

@@ -94,10 +94,14 @@ export class DatabaseStorage implements IStorage {
       const existingTags = await db.select().from(tags);
       if (existingTags.length === 0) {
         const defaultTags = [
-          { name: "Important", color: "#ef4444" },
-          { name: "Reviewed", color: "#10b981" },
-          { name: "Pending", color: "#f59e0b" },
-          { name: "Archive", color: "#8b5cf6" },
+          { name: "Taxes", color: "#ef4444" },
+          { name: "Medical", color: "#10b981" },
+          { name: "Insurance", color: "#3b82f6" },
+          { name: "Legal", color: "#8b5cf6" },
+          { name: "Immigration", color: "#f59e0b" },
+          { name: "Financial", color: "#06b6d4" },
+          { name: "Important", color: "#dc2626" },
+          { name: "Pending", color: "#f97316" },
         ];
         
         await db.insert(tags).values(defaultTags);
@@ -645,7 +649,7 @@ export class DatabaseStorage implements IStorage {
           aiSummary: summary,
           aiKeyTopics: analysis.keyTopics,
           aiDocumentType: analysis.documentType,
-          aiSentiment: analysis.sentiment,
+          aiSentiment: analysis.category,
           aiWordCount: analysis.wordCount,
           aiAnalyzedAt: new Date()
         })
