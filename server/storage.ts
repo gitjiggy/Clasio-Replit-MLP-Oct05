@@ -606,7 +606,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // AI Analysis
-  async analyzeDocumentWithAI(documentId: string): Promise<boolean> {
+  async analyzeDocumentWithAI(documentId: string, driveContent?: string): Promise<boolean> {
     try {
       // Import here to avoid circular dependencies
       const { summarizeDocument, analyzeDocumentContent, extractTextFromDocument } = await import("./gemini.js");
@@ -618,12 +618,19 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Extract text from the document
-      if (!document.filePath) {
-        console.error("Document has no file path for AI analysis");
-        return false;
-      }
+      let documentText: string;
       
-      const documentText = await extractTextFromDocument(document.filePath, document.mimeType);
+      if (driveContent) {
+        // Use provided Drive content directly
+        documentText = driveContent;
+      } else {
+        // Extract from stored file
+        if (!document.filePath) {
+          console.error("Document has no file path for AI analysis");
+          return false;
+        }
+        documentText = await extractTextFromDocument(document.filePath, document.mimeType);
+      }
       
       // Generate AI analysis
       const [summary, analysis] = await Promise.all([

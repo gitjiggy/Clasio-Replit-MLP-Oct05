@@ -643,8 +643,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Store Drive content for AI analysis
       if (runAiAnalysis && driveFile.content && driveFile.content !== `[Binary file: ${driveFile.name}]`) {
-        // Run AI analysis on the existing document
-        await storage.analyzeDocumentWithAI(document.id);
+        // Run AI analysis on the existing document with Drive content
+        await storage.analyzeDocumentWithAI(document.id, driveFile.content);
       }
 
       // Get document with details
