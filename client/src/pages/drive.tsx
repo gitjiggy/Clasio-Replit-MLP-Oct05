@@ -115,12 +115,12 @@ export default function Drive() {
     retry: false,
   });
 
-  // Fetch Drive documents
+  // Fetch Drive documents - only when connected
   const { data: driveData, isLoading: documentsLoading, error: documentsError, refetch } = useQuery<DriveDocumentsResponse>({
     queryKey: ['drive-documents', searchQuery, selectedFolderId, pageToken],
     queryFn: async () => {
       if (!googleAccessToken) {
-        throw new Error('No Google access token available');
+        return { files: [], folders: [], pagination: { pageSize: 0, hasNext: false } };
       }
       
       const params = new URLSearchParams();
@@ -211,18 +211,7 @@ export default function Drive() {
     return File;
   };
 
-  if (!googleAccessToken) {
-    return (
-      <div className="container mx-auto p-6 max-w-4xl">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Google Drive access not available. Please sign out and sign in again to grant Drive permissions.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  // Remove this early return - let the normal UI handle the no-token case
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
