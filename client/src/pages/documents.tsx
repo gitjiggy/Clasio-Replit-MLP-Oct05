@@ -12,6 +12,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { trackEvent } from "@/lib/analytics";
+import { getGoogleAccessToken } from "@/lib/firebase";
 import { DebugAuth } from "@/components/DebugAuth";
 import type { UploadResult } from "@uppy/core";
 import type { DocumentWithFolderAndTags, DocumentWithVersions, DocumentVersion, Folder, Tag } from "@shared/schema";
@@ -138,7 +139,19 @@ export default function Documents() {
       // Track AI analysis initiation
       trackEvent('ai_analysis_start', { document_id: documentId, analysis_type: 'gemini' });
       
-      const response = await apiRequest("POST", `/api/documents/${documentId}/analyze`);
+      // Find the document to check if it's from Drive
+      const document = documentsQuery.data?.documents?.find(doc => doc.id === documentId);
+      const googleAccessToken = getGoogleAccessToken();
+      
+      // Prepare headers for Drive documents
+      const headers: HeadersInit = {};
+      if (document?.driveFileId && googleAccessToken) {
+        headers['x-drive-access-token'] = googleAccessToken;
+      }
+      
+      const response = await apiRequest("POST", `/api/documents/${documentId}/analyze`, {
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+      });
       return response.json();
     },
     onSuccess: (data) => {

@@ -296,8 +296,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Analyze document with AI
-      const success = await storage.analyzeDocumentWithAI(documentId);
+      // Handle Drive vs uploaded documents differently
+      let success = false;
+      
+      if (document.driveFileId) {
+        // For Drive documents, we need the Drive access token
+        const driveAccessToken = req.headers['x-drive-access-token'] as string;
+        if (!driveAccessToken) {
+          return res.status(400).json({ 
+            error: "Google Drive access token required for Drive document analysis. Please include x-drive-access-token header." 
+          });
+        }
+        
+        try {
+          const { DriveService } = await import("./driveService.js");
+          const driveService = new DriveService(driveAccessToken);
+          const driveFileContent = await driveService.getFileContent(document.driveFileId);
+          if (!driveFileContent?.content) {
+            return res.status(500).json({ error: "Failed to extract content from Drive document" });
+          }
+          success = await storage.analyzeDocumentWithAI(documentId, driveFileContent.content);
+        } catch (driveError) {
+          console.error("Error fetching Drive content for analysis:", driveError);
+          return res.status(500).json({ error: "Failed to fetch document content from Drive" });
+        }
+      } else {
+        // For uploaded documents, analyze normally
+        success = await storage.analyzeDocumentWithAI(documentId);
+      }
+      
       if (!success) {
         return res.status(500).json({ error: "Failed to analyze document with AI" });
       }
