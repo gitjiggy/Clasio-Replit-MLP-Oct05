@@ -123,7 +123,7 @@ export class DatabaseStorage implements IStorage {
 
       // Create initial version (version 1) as active within the same transaction
       // Ensure required fields are not null for documentVersions table
-      if (!document.filePath || !document.fileSize) {
+      if (!document.filePath || document.fileSize === null || document.fileSize === undefined) {
         throw new Error("Document must have filePath and fileSize to create initial version");
       }
       
