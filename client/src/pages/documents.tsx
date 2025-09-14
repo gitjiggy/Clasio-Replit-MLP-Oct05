@@ -140,7 +140,7 @@ export default function Documents() {
       trackEvent('ai_analysis_start', { document_id: documentId, analysis_type: 'gemini' });
       
       // Find the document to check if it's from Drive
-      const document = documentsQuery.data?.documents?.find(doc => doc.id === documentId);
+      const document = documentsData?.documents?.find((doc: DocumentWithFolderAndTags) => doc.id === documentId);
       const googleAccessToken = getGoogleAccessToken();
       
       // Prepare headers for Drive documents
@@ -170,6 +170,28 @@ export default function Documents() {
       
       toast({
         title: "AI Analysis Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete mutation
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await apiRequest("DELETE", `/api/documents/${documentId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      toast({
+        title: "Document deleted",
+        description: "Document has been deleted successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Delete failed",
         description: error.message,
         variant: "destructive",
       });
@@ -573,9 +595,14 @@ export default function Documents() {
                             <Star className="mr-2 h-4 w-4" />
                             {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600" data-testid={`menu-delete-${document.id}`}>
+                          <DropdownMenuItem 
+                            className="text-red-600" 
+                            onClick={() => deleteDocumentMutation.mutate(document.id)}
+                            disabled={deleteDocumentMutation.isPending}
+                            data-testid={`menu-delete-${document.id}`}
+                          >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
+                            {deleteDocumentMutation.isPending ? 'Deleting...' : 'Delete'}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
