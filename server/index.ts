@@ -1,8 +1,33 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// Configure CORS for FlutterFlow and other frontends
+app.use(cors({
+  origin: [
+    // Allow localhost for development
+    "http://localhost:3000",
+    "http://localhost:5000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5000",
+    // Allow Replit preview domains
+    /.*\.replit\.app$/,
+    /.*\.replit\.dev$/,
+    // Allow FlutterFlow domains
+    /.*\.flutterflow\.app$/,
+    /.*\.web\.app$/,
+    /.*\.firebaseapp\.com$/,
+    // Allow custom domains (add your FlutterFlow domain here when you get it)
+    // "https://your-custom-domain.com"
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-drive-access-token']
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
