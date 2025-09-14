@@ -261,17 +261,43 @@ export default function Drive() {
               <Button 
                 onClick={async () => {
                   try {
-                    await connectGoogleDrive();
                     toast({
-                      title: "Drive connection initiated",
-                      description: "You'll be redirected to Google for authorization...",
+                      title: "Opening authorization window",
+                      description: "A new window will open for Google Drive authorization...",
                     });
-                  } catch (error) {
+                    
+                    const token = await connectGoogleDrive();
+                    
+                    // Token is already stored in localStorage by the auth window
+                    // Refresh the page data to reflect new connection
+                    queryClient.invalidateQueries({ queryKey: ['drive-connection'] });
+                    
                     toast({
-                      title: "Connection failed",
-                      description: "Failed to connect to Google Drive. Please try again.",
-                      variant: "destructive"
+                      title: "Drive Connected!",
+                      description: "Successfully connected to Google Drive. You can now sync your documents.",
                     });
+                  } catch (error: any) {
+                    console.error('Drive connection error:', error);
+                    
+                    if (error.message.includes("Popup was blocked")) {
+                      toast({
+                        title: "Popup Blocked",
+                        description: "Please allow popups for this site and try again.",
+                        variant: "destructive"
+                      });
+                    } else if (error.message.includes("cancelled")) {
+                      toast({
+                        title: "Authorization Cancelled",
+                        description: "You can try connecting to Google Drive again anytime.",
+                        variant: "destructive"
+                      });
+                    } else {
+                      toast({
+                        title: "Connection failed",
+                        description: "Failed to connect to Google Drive. Please try again.",
+                        variant: "destructive"
+                      });
+                    }
                   }
                 }}
                 className="w-full"

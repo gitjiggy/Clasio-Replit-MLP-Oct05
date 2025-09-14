@@ -10,6 +10,7 @@ import { LoginModal } from "@/components/LoginModal";
 import { UserMenu } from "@/components/UserMenu";
 import Documents from "@/pages/documents";
 import Drive from "@/pages/drive";
+import AuthDrive from "@/pages/auth-drive";
 import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
 import { initGA } from "./lib/analytics";
@@ -158,7 +159,10 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
-          <AuthenticatedApp />
+          <Switch>
+            <Route path="/auth/drive" component={AuthDrive} />
+            <Route path="/*" component={AuthenticatedApp} />
+          </Switch>
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

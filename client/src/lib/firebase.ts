@@ -67,26 +67,68 @@ export const signInWithGoogle = async () => {
   }
 };
 
-// Separate Drive consent flow - Uses redirect to handle consent screen
-export const connectGoogleDrive = async () => {
-  console.log("=== DEBUG: Drive consent flow (redirect method) ===");
-  console.log("Requesting Drive scopes with forced consent...");
+// NEW TAB WORKAROUND: Drive consent flow - Opens in new tab to avoid iframe issues
+export const connectGoogleDrive = async (): Promise<string> => {
+  console.log("=== NEW TAB: Drive consent flow ===");
+  console.log("Opening Drive authorization in new tab to bypass iframe restrictions...");
   
-  // Check if running in iframe (Replit environment)
-  if (window.top !== window.self) {
-    console.warn("⚠️ Running in iframe - Drive consent may fail");
-    console.log("Consider opening in new tab for better compatibility");
-  }
-  
-  try {
-    // Force redirect for Drive consent (no popup option)
-    await signInWithRedirect(auth, driveGoogleProvider);
-    console.log("🔄 Drive consent redirect initiated...");
-    // Note: will complete on page reload via handleAuthRedirect
-  } catch (error: any) {
-    console.error("❌ Drive consent failed:", error);
-    throw new Error("Drive connection failed: " + error.message);
-  }
+  return new Promise((resolve, reject) => {
+    // Open auth page in new tab/window
+    const authWindow = window.open(
+      '/auth/drive', 
+      'driveAuth', 
+      'width=500,height=600,scrollbars=yes,resizable=yes'
+    );
+    
+    if (!authWindow) {
+      console.error("❌ Popup blocked");
+      reject(new Error("Popup was blocked. Please allow popups and try again."));
+      return;
+    }
+    
+    // Listen for messages from the auth window
+    const messageListener = (event: MessageEvent) => {
+      // Verify origin for security
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+      
+      if (event.data.type === 'DRIVE_AUTH_SUCCESS') {
+        console.log("✅ Drive auth successful via new tab");
+        console.log("✅ Token received:", !!event.data.token);
+        
+        // Clean up
+        window.removeEventListener('message', messageListener);
+        authWindow.close();
+        
+        resolve(event.data.token);
+        
+      } else if (event.data.type === 'DRIVE_AUTH_ERROR') {
+        console.error("❌ Drive auth failed:", event.data.error);
+        
+        // Clean up
+        window.removeEventListener('message', messageListener);
+        authWindow.close();
+        
+        reject(new Error(event.data.error));
+      }
+    };
+    
+    // Set up message listener
+    window.addEventListener('message', messageListener);
+    
+    // Check if the window was closed manually
+    const checkClosed = setInterval(() => {
+      if (authWindow.closed) {
+        console.log("🚪 Auth window closed manually");
+        clearInterval(checkClosed);
+        window.removeEventListener('message', messageListener);
+        reject(new Error("Authentication was cancelled"));
+      }
+    }, 1000);
+    
+    console.log("⏳ Waiting for authentication in new tab...");
+  });
 };
 
 export const signOutUser = async () => {
