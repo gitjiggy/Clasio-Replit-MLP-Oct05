@@ -97,22 +97,39 @@ export default function Drive() {
   };
 
   // Check Drive connection status - only if we have a token
-  const { data: connectionStatus, isLoading: connectionLoading, error: connectionError } = useQuery<DriveConnectionStatus>({
+  const { data: connectionStatus, isLoading: connectionLoading, error: connectionError, refetch: refetchConnection } = useQuery<DriveConnectionStatus>({
     queryKey: ['drive-connection'],
     queryFn: async () => {
       if (!googleAccessToken) {
         return { connected: false, hasAccess: false, message: 'No Drive authorization' };
       }
       
-      return apiRequest('/api/drive/connect', {
-        method: 'GET',
-        headers: {
-          'x-drive-access-token': googleAccessToken,
-        },
-      });
+      try {
+        return await apiRequest('/api/drive/connect', {
+          method: 'GET',
+          headers: {
+            'x-drive-access-token': googleAccessToken,
+          },
+        });
+      } catch (error: any) {
+        // Handle specific API not enabled error
+        if (error.response?.status === 403 && error.response?.data?.error?.includes('Google Drive API has not been used')) {
+          return { 
+            connected: false, 
+            hasAccess: false, 
+            message: 'Google Drive API is being enabled. This may take a few minutes. The page will auto-refresh.' 
+          };
+        }
+        return { 
+          connected: false, 
+          hasAccess: false, 
+          message: error.message || 'Drive connection failed' 
+        };
+      }
     },
     enabled: !!googleAccessToken, // Only run if we have a token
     retry: false,
+    refetchInterval: 15000, // Auto-retry every 15 seconds to check connection status
   });
 
   // Fetch Drive documents - only when connected
