@@ -96,12 +96,12 @@ export default function Drive() {
     }
   };
 
-  // Check Drive connection status
+  // Check Drive connection status - only if we have a token
   const { data: connectionStatus, isLoading: connectionLoading, error: connectionError } = useQuery<DriveConnectionStatus>({
     queryKey: ['drive-connection'],
     queryFn: async () => {
       if (!googleAccessToken) {
-        throw new Error('No Google access token available');
+        return { connected: false, hasAccess: false, message: 'No Drive authorization' };
       }
       
       return apiRequest('/api/drive/connect', {
@@ -111,7 +111,7 @@ export default function Drive() {
         },
       });
     },
-    enabled: !!googleAccessToken,
+    enabled: !!googleAccessToken, // Only run if we have a token
     retry: false,
   });
 
