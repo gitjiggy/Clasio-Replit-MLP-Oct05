@@ -51,6 +51,7 @@ export async function apiRequest<T = any>(
     
     const headers = {
       ...authHeaders,
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {}),
     };
 
