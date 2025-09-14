@@ -623,7 +623,19 @@ export default function Documents() {
                         <Download className="mr-1 h-3 w-3" />
                         Download
                       </Button>
-                      <Button size="sm" variant="outline" data-testid={`preview-${document.id}`}>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => {
+                          // Open document details/preview
+                          if (document.driveWebViewLink) {
+                            window.open(document.driveWebViewLink, '_blank');
+                          } else if (document.filePath) {
+                            window.open(document.filePath, '_blank');
+                          }
+                        }}
+                        data-testid={`preview-${document.id}`}
+                      >
                         <Eye className="h-3 w-3" />
                       </Button>
                       <Button

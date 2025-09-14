@@ -17,7 +17,7 @@ export async function summarizeDocument(text: string): Promise<string> {
         return "AI analysis unavailable - API key not configured.";
     }
 
-    const prompt = `Please provide a concise summary of this document, highlighting the key points, main topics, and important information:\n\n${text}`;
+    const prompt = `Please provide a very concise 2-3 line summary of this document, focusing only on the most essential information and key points. Be brief and direct:\n\n${text}`;
 
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
