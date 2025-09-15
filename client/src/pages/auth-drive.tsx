@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, storeGoogleAccessToken } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
@@ -35,8 +35,8 @@ export default function AuthDrive() {
       console.log('✅ Access token received:', !!googleAccessToken);
       
       if (googleAccessToken) {
-        // Store the token
-        localStorage.setItem('google_access_token', googleAccessToken);
+        // Store the token with timestamp
+        storeGoogleAccessToken(googleAccessToken);
         
         // Send token back to parent window if opened as popup
         if (window.opener) {

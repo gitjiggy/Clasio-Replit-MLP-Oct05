@@ -97,6 +97,11 @@ export const connectGoogleDrive = async (): Promise<string> => {
         console.log("✅ Drive auth successful via new tab");
         console.log("✅ Token received:", !!event.data.token);
         
+        // Store the token with timestamp in the main window
+        if (event.data.token) {
+          storeGoogleAccessToken(event.data.token);
+        }
+        
         // Clean up
         window.removeEventListener('message', messageListener);
         authWindow.close();
@@ -159,7 +164,7 @@ export const handleAuthRedirect = async () => {
       
       // Store the Google access token for Drive API calls
       if (googleAccessToken) {
-        localStorage.setItem('google_access_token', googleAccessToken);
+        storeGoogleAccessToken(googleAccessToken);
       }
       
       return { user, googleAccessToken };
@@ -180,12 +185,34 @@ export const handleAuthRedirect = async () => {
 
 // Get stored Google access token for Drive API calls
 export const getGoogleAccessToken = (): string | null => {
-  return localStorage.getItem('google_access_token');
+  const token = localStorage.getItem('google_access_token');
+  const tokenTime = localStorage.getItem('google_access_token_time');
+  
+  // Check if token is older than 50 minutes (tokens expire in 60 minutes)
+  if (token && tokenTime) {
+    const tokenAge = Date.now() - parseInt(tokenTime);
+    const fiftyMinutes = 50 * 60 * 1000; // 50 minutes in milliseconds
+    
+    if (tokenAge > fiftyMinutes) {
+      console.log("🕒 Drive access token is likely expired, clearing...");
+      clearGoogleAccessToken();
+      return null;
+    }
+  }
+  
+  return token;
+};
+
+// Store Google access token with timestamp
+export const storeGoogleAccessToken = (token: string) => {
+  localStorage.setItem('google_access_token', token);
+  localStorage.setItem('google_access_token_time', Date.now().toString());
 };
 
 // Clear stored Google access token on sign out
 export const clearGoogleAccessToken = () => {
   localStorage.removeItem('google_access_token');
+  localStorage.removeItem('google_access_token_time');
 };
 
 // Auth state observer

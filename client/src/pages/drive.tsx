@@ -112,6 +112,14 @@ export default function Drive() {
           },
         });
       } catch (error: any) {
+        // Handle token expiry - automatically prompt re-authentication
+        if (error.response?.status === 403 && error.response?.data?.error?.includes('Invalid or expired Drive access token')) {
+          return { 
+            connected: false, 
+            hasAccess: false, 
+            message: 'Drive access token has expired. Please re-authenticate.' 
+          };
+        }
         // Handle specific API not enabled error
         if (error.response?.status === 403 && error.response?.data?.error?.includes('Google Drive API has not been used')) {
           return { 
