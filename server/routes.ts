@@ -346,14 +346,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!driveFileContent?.content) {
             return res.status(500).json({ error: "Failed to extract content from Drive document" });
           }
-          success = await storage.analyzeDocumentWithAI(documentId, driveFileContent.content);
+          try {
+            success = await storage.analyzeDocumentWithAI(documentId, driveFileContent.content);
+          } catch (aiError) {
+            console.error("AI analysis failed for Drive content:", aiError);
+            success = false;
+          }
         } catch (driveError) {
           console.error("Error fetching Drive content for analysis:", driveError);
           return res.status(500).json({ error: "Failed to fetch document content from Drive" });
         }
       } else {
         // For uploaded documents, analyze normally
-        success = await storage.analyzeDocumentWithAI(documentId);
+        try {
+          success = await storage.analyzeDocumentWithAI(documentId);
+        } catch (aiError) {
+          console.error("AI analysis failed for uploaded file:", aiError);
+          success = false;
+        }
       }
       
       if (!success) {
@@ -793,7 +803,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Store Drive content for AI analysis
       if (runAiAnalysis && driveFile.content && driveFile.content !== `[Binary file: ${driveFile.name}]`) {
         // Run AI analysis on the existing document with Drive content
-        await storage.analyzeDocumentWithAI(document.id, driveFile.content);
+        try {
+          await storage.analyzeDocumentWithAI(document.id, driveFile.content);
+        } catch (aiError) {
+          console.error("AI analysis failed, but continuing without analysis:", aiError);
+          // Don't let AI analysis errors crash the document sync
+        }
       }
 
       // Get document with details
