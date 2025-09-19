@@ -7,9 +7,16 @@ import { ObjectStorageService } from "./objectStorage.js";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
 
-// Import with type assertions for libraries without built-in TypeScript definitions
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<PDFData>;
-const WordExtractor = require('word-extractor') as new () => { extract(buffer: Buffer): Promise<ExtractedDocument>; };
+// Dynamic imports for libraries without built-in TypeScript definitions
+async function getPdfParse() {
+  const pdfParse = await import('pdf-parse');
+  return pdfParse.default as (buffer: Buffer) => Promise<PDFData>;
+}
+
+async function getWordExtractor() {
+  const WordExtractor = await import('word-extractor');
+  return WordExtractor.default as new () => { extract(buffer: Buffer): Promise<ExtractedDocument>; };
+}
 
 // Type definitions for libraries without built-in types
 interface PDFData {
@@ -187,6 +194,7 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     try {
         console.log("Extracting text from PDF...");
+        const pdfParse = await getPdfParse();
         const data = await pdfParse(buffer);
         const text = data.text?.trim();
         
@@ -227,6 +235,7 @@ async function extractTextFromWordDocx(buffer: Buffer): Promise<string> {
 async function extractTextFromWordDoc(buffer: Buffer): Promise<string> {
     try {
         console.log("Extracting text from DOC...");
+        const WordExtractor = await getWordExtractor();
         const extractor = new WordExtractor();
         const extracted = await extractor.extract(buffer);
         const text = extracted.getBody()?.trim();
