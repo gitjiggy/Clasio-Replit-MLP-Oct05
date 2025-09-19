@@ -3,6 +3,11 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ObjectStorageService } from "./objectStorage.js";
+// Text extraction libraries
+import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
+import WordExtractor from "word-extractor";
+import * as XLSX from "xlsx";
 
 // This API key is from Gemini Developer API Key, not vertex AI API Key
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
@@ -115,6 +120,8 @@ ${text}`;
 
 export async function extractTextFromDocument(filePath: string, mimeType: string): Promise<string> {
     try {
+        console.log(`Extracting text from document: ${filePath}, mimeType: ${mimeType}`);
+        
         // Extract the object path from the file path
         // File paths are stored as object storage paths like "/objects/public/documents/..."
         const objectPath = filePath.startsWith('/objects/') ? filePath.substring(9) : filePath;
@@ -127,17 +134,140 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
             return fileBuffer.toString('utf-8');
         }
         
+        // For PDF files
+        if (mimeType === 'application/pdf') {
+            return await extractTextFromPDF(fileBuffer);
+        }
+        
+        // For Word documents (.docx)
+        if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            return await extractTextFromWordDocx(fileBuffer);
+        }
+        
+        // For legacy Word documents (.doc)
+        if (mimeType === 'application/msword') {
+            return await extractTextFromWordDoc(fileBuffer);
+        }
+        
+        // For Excel files
+        if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+            mimeType === 'application/vnd.ms-excel') {
+            return await extractTextFromExcel(fileBuffer);
+        }
+        
         // For images, use Gemini's vision capabilities to extract text
         if (mimeType.startsWith('image/')) {
             return await extractTextFromImageBuffer(fileBuffer, mimeType);
         }
         
-        // For other file types, return a message
-        return `Text extraction from ${mimeType} files is not yet supported. Currently supporting text files and images for AI analysis.`;
+        // For unsupported file types, return a message
+        return `Text extraction from ${mimeType} files is not yet supported. Currently supporting PDF, Word (.doc/.docx), Excel (.xls/.xlsx), text files, and images.`;
         
     } catch (error) {
         console.error("Error extracting text from document:", error);
         return "Error extracting text from document. Please ensure the file is accessible and try again.";
+    }
+}
+
+// PDF text extraction using pdf-parse
+async function extractTextFromPDF(buffer: Buffer): Promise<string> {
+    try {
+        console.log("Extracting text from PDF...");
+        const data = await pdfParse(buffer);
+        const text = data.text?.trim();
+        
+        if (!text || text.length === 0) {
+            console.log("No text found in PDF, attempting OCR fallback...");
+            // If no text found, try OCR using Gemini vision as fallback
+            return await extractTextFromImageBuffer(buffer, 'application/pdf') + " (extracted via OCR)";
+        }
+        
+        console.log(`PDF text extracted: ${text.length} characters`);
+        return text;
+    } catch (error) {
+        console.error("Error extracting text from PDF:", error);
+        return "Error extracting text from PDF document.";
+    }
+}
+
+// Word document (.docx) text extraction using mammoth
+async function extractTextFromWordDocx(buffer: Buffer): Promise<string> {
+    try {
+        console.log("Extracting text from DOCX...");
+        const result = await mammoth.extractRawText({ buffer });
+        const text = result.value?.trim();
+        
+        if (result.messages && result.messages.length > 0) {
+            console.log("Mammoth warnings:", result.messages);
+        }
+        
+        console.log(`DOCX text extracted: ${text?.length || 0} characters`);
+        return text || "No text content found in Word document.";
+    } catch (error) {
+        console.error("Error extracting text from DOCX:", error);
+        return "Error extracting text from Word document.";
+    }
+}
+
+// Legacy Word document (.doc) text extraction using word-extractor
+async function extractTextFromWordDoc(buffer: Buffer): Promise<string> {
+    try {
+        console.log("Extracting text from DOC...");
+        const extractor = new WordExtractor();
+        const extracted = await extractor.extract(buffer);
+        const text = extracted.getBody()?.trim();
+        
+        console.log(`DOC text extracted: ${text?.length || 0} characters`);
+        return text || "No text content found in Word document.";
+    } catch (error) {
+        console.error("Error extracting text from DOC:", error);
+        return "Error extracting text from legacy Word document.";
+    }
+}
+
+// Excel text extraction using xlsx
+async function extractTextFromExcel(buffer: Buffer): Promise<string> {
+    try {
+        console.log("Extracting text from Excel...");
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        let allText = '';
+        
+        // Extract text from all worksheets
+        workbook.SheetNames.forEach((sheetName, index) => {
+            console.log(`Processing sheet: ${sheetName}`);
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Convert sheet to array of arrays
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                header: 1, 
+                defval: '', 
+                raw: false 
+            });
+            
+            // Add sheet header
+            if (workbook.SheetNames.length > 1) {
+                allText += `\n=== Sheet: ${sheetName} ===\n`;
+            }
+            
+            // Extract text from each row
+            jsonData.forEach((row: unknown) => {
+                if (Array.isArray(row)) {
+                    const rowText = row
+                        .filter(cell => cell && String(cell).trim())
+                        .join(' | ');
+                    if (rowText.trim()) {
+                        allText += rowText + '\n';
+                    }
+                }
+            });
+        });
+        
+        const text = allText.trim();
+        console.log(`Excel text extracted: ${text.length} characters from ${workbook.SheetNames.length} sheets`);
+        return text || "No text content found in Excel document.";
+    } catch (error) {
+        console.error("Error extracting text from Excel:", error);
+        return "Error extracting text from Excel document.";
     }
 }
 
