@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { DocumentModal } from "@/components/DocumentModal";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { trackEvent } from "@/lib/analytics";
@@ -53,6 +54,8 @@ interface DocumentsResponse {
 export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFileType, setSelectedFileType] = useState("all");
+  const [selectedDocument, setSelectedDocument] = useState<DocumentWithFolderAndTags | null>(null);
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [selectedFolderId, setSelectedFolderId] = useState("all");
   const [selectedTagId, setSelectedTagId] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -282,6 +285,11 @@ export default function Documents() {
       month: 'short', 
       day: 'numeric' 
     });
+  };
+
+  const handleViewDocument = (document: DocumentWithFolderAndTags) => {
+    setSelectedDocument(document);
+    setDocumentModalOpen(true);
   };
 
   const handleDownload = (document: DocumentWithFolderAndTags) => {
@@ -579,7 +587,10 @@ export default function Documents() {
                             <Download className="mr-2 h-4 w-4" />
                             Download
                           </DropdownMenuItem>
-                          <DropdownMenuItem data-testid={`menu-view-${document.id}`}>
+                          <DropdownMenuItem 
+                            onClick={() => handleViewDocument(document)}
+                            data-testid={`menu-view-${document.id}`}
+                          >
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
                           </DropdownMenuItem>
@@ -739,6 +750,15 @@ export default function Documents() {
           )}
         </div>
       </main>
+      
+      {/* Document Modal */}
+      <DocumentModal
+        document={selectedDocument}
+        open={documentModalOpen}
+        onOpenChange={setDocumentModalOpen}
+        searchQuery={searchQuery}
+        onDownload={handleDownload}
+      />
     </div>
   );
 }
