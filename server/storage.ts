@@ -159,15 +159,12 @@ export class DatabaseStorage implements IStorage {
 
     if (filters.search) {
       // Search in both document name and content
-      conditions.push(
-        or(
-          ilike(documents.name, `%${filters.search}%`),
-          and(
-            isNotNull(documents.documentContent),
-            ilike(documents.documentContent, `%${filters.search}%`)
-          )
-        )
-      );
+      const nameCondition = ilike(documents.name, `%${filters.search}%`);
+      const contentConditions = and(
+        isNotNull(documents.documentContent),
+        ilike(documents.documentContent, `%${filters.search}%`)
+      )!;
+      conditions.push(or(nameCondition, contentConditions));
     }
 
     if (filters.fileType && filters.fileType !== 'all') {
@@ -262,15 +259,12 @@ export class DatabaseStorage implements IStorage {
 
     if (filters.search) {
       // Search in both document name and content
-      conditions.push(
-        or(
-          ilike(documents.name, `%${filters.search}%`),
-          and(
-            isNotNull(documents.documentContent),
-            ilike(documents.documentContent, `%${filters.search}%`)
-          )
-        )
-      );
+      const nameCondition = ilike(documents.name, `%${filters.search}%`);
+      const contentConditions = and(
+        isNotNull(documents.documentContent),
+        ilike(documents.documentContent, `%${filters.search}%`)
+      )!;
+      conditions.push(or(nameCondition, contentConditions));
     }
 
     if (filters.fileType && filters.fileType !== 'all') {
@@ -686,7 +680,14 @@ export class DatabaseStorage implements IStorage {
           console.error("Document has no file path for AI analysis");
           return false;
         }
+        
         documentText = await extractTextFromDocument(document.filePath, document.mimeType);
+        
+        // Check if extraction failed
+        if (documentText.startsWith('Error extracting text') || documentText.length < 10) {
+          console.warn(`Failed to extract text from document ${documentId}: ${document.filePath}`);
+          return false;
+        }
       }
       
       // Generate AI analysis

@@ -4,28 +4,23 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ObjectStorageService } from "./objectStorage.js";
 // Text extraction libraries
-import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
-import WordExtractor from "word-extractor";
 import * as XLSX from "xlsx";
 
-// Type declarations for libraries without built-in types
-declare module 'pdf-parse' {
-  interface PDFData {
-    text: string;
-    numpages: number;
-    info: any;
-    metadata: any;
-  }
-  function pdfParse(buffer: Buffer): Promise<PDFData>;
-  export = pdfParse;
+// Import with type assertions for libraries without built-in TypeScript definitions
+const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<PDFData>;
+const WordExtractor = require('word-extractor') as new () => { extract(buffer: Buffer): Promise<ExtractedDocument>; };
+
+// Type definitions for libraries without built-in types
+interface PDFData {
+  text: string;
+  numpages: number;
+  info: any;
+  metadata: any;
 }
 
-declare module 'word-extractor' {
-  class WordExtractor {
-    extract(buffer: Buffer): Promise<{ getBody(): string }>;
-  }
-  export = WordExtractor;
+interface ExtractedDocument {
+  getBody(): string;
 }
 
 // This API key is from Gemini Developer API Key, not vertex AI API Key
