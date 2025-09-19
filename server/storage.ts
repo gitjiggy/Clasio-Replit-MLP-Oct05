@@ -19,7 +19,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, desc, ilike, inArray, count, sql } from "drizzle-orm";
+import { eq, and, desc, ilike, inArray, count, sql, or } from "drizzle-orm";
 
 export interface DocumentFilters {
   search?: string;
@@ -162,8 +162,12 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(documents.isDeleted, false)];
 
     if (filters.search) {
+      // Search in both document name and content
       conditions.push(
-        ilike(documents.name, `%${filters.search}%`)
+        or(
+          ilike(documents.name, `%${filters.search}%`),
+          ilike(documents.documentContent, `%${filters.search}%`)
+        )
       );
     }
 
@@ -227,8 +231,12 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(documents.isDeleted, false)];
 
     if (filters.search) {
+      // Search in both document name and content
       conditions.push(
-        ilike(documents.name, `%${filters.search}%`)
+        or(
+          ilike(documents.name, `%${filters.search}%`),
+          ilike(documents.documentContent, `%${filters.search}%`)
+        )
       );
     }
 
