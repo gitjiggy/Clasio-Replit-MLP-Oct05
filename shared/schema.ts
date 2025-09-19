@@ -43,6 +43,10 @@ export const documents = pgTable("documents", {
   aiSentiment: text("ai_sentiment"),
   aiWordCount: integer("ai_word_count"),
   aiAnalyzedAt: timestamp("ai_analyzed_at"),
+  // Content Search fields
+  documentContent: text("document_content"), // Full extracted text content
+  contentExtracted: boolean("content_extracted").default(false).notNull(),
+  contentExtractedAt: timestamp("content_extracted_at"),
 });
 
 export const documentVersions = pgTable("document_versions", {
