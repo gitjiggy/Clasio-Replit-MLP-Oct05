@@ -19,7 +19,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, desc, ilike, inArray, count, sql, or } from "drizzle-orm";
+import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
 
 export interface DocumentFilters {
   search?: string;
@@ -162,7 +162,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(
         or(
           ilike(documents.name, `%${filters.search}%`),
-          ilike(documents.documentContent, `%${filters.search}%`)
+          and(
+            isNotNull(documents.documentContent),
+            ilike(documents.documentContent, `%${filters.search}%`)
+          )
         )
       );
     }
@@ -262,7 +265,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(
         or(
           ilike(documents.name, `%${filters.search}%`),
-          ilike(documents.documentContent, `%${filters.search}%`)
+          and(
+            isNotNull(documents.documentContent),
+            ilike(documents.documentContent, `%${filters.search}%`)
+          )
         )
       );
     }
