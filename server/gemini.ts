@@ -9,6 +9,25 @@ import mammoth from "mammoth";
 import WordExtractor from "word-extractor";
 import * as XLSX from "xlsx";
 
+// Type declarations for libraries without built-in types
+declare module 'pdf-parse' {
+  interface PDFData {
+    text: string;
+    numpages: number;
+    info: any;
+    metadata: any;
+  }
+  function pdfParse(buffer: Buffer): Promise<PDFData>;
+  export = pdfParse;
+}
+
+declare module 'word-extractor' {
+  class WordExtractor {
+    extract(buffer: Buffer): Promise<{ getBody(): string }>;
+  }
+  export = WordExtractor;
+}
+
 // This API key is from Gemini Developer API Key, not vertex AI API Key
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const objectStorageService = new ObjectStorageService();
