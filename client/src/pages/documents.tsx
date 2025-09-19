@@ -13,7 +13,6 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { trackEvent } from "@/lib/analytics";
 import { getGoogleAccessToken } from "@/lib/firebase";
-import { DebugAuth } from "@/components/DebugAuth";
 import type { UploadResult } from "@uppy/core";
 import type { DocumentWithFolderAndTags, DocumentWithVersions, DocumentVersion, Folder, Tag } from "@shared/schema";
 import { 
@@ -306,10 +305,6 @@ export default function Documents() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Temporary OAuth Debug Component - Remove after testing */}
-      <div className="absolute top-4 right-4 z-50 w-96">
-        <DebugAuth />
-      </div>
       {/* Sidebar */}
       <aside className="w-64 bg-card border-r border-border flex flex-col">
         <div className="p-6 border-b border-border">
