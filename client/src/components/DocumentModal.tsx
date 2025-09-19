@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,9 @@ import {
   Download,
   ExternalLink,
   Search,
-  FileX
+  FileX,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 import type { DocumentWithFolderAndTags } from "@shared/schema";
 
@@ -41,7 +44,8 @@ function HighlightedText({ text, searchQuery }: { text: string; searchQuery?: st
     const parts = text.split(regex);
 
     return parts.map((part, index) => 
-      regex.test(part) ? 
+      // Parts at odd indices are the captured groups (matches)
+      index % 2 === 1 ? 
         <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 px-1 rounded">
           {part}
         </mark> : 
@@ -60,8 +64,19 @@ export function DocumentModal({
   onDownload 
 }: DocumentModalProps) {
   const [contentExpanded, setContentExpanded] = useState(false);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Fetch document content on-demand when modal opens
+  const { data: contentData, isLoading: isLoadingContent } = useQuery({
+    queryKey: [`/api/documents/${document?.id}/content`],
+    enabled: open && !!document?.id && !document?.documentContent, // Only fetch if modal is open and content is not already available
+  });
 
   if (!document) return null;
+
+  // Use existing content or fetched content (API returns { content })
+  const documentContent = document.documentContent || contentData?.content;
 
   const formatDate = (date: string | Date) => {
     return new Date(date).toLocaleDateString('en-US', {
@@ -87,8 +102,58 @@ export function DocumentModal({
     return `${size.toFixed(1)} ${units[unitIndex]}`;
   };
 
+  // Find all matches and their positions
+  const matches = useMemo(() => {
+    if (!documentContent || !searchQuery?.trim()) return [];
+    
+    const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    const found: { index: number; match: string }[] = [];
+    let match;
+    
+    while ((match = regex.exec(documentContent)) !== null) {
+      found.push({ index: match.index, match: match[0] });
+      if (regex.lastIndex === match.index) break; // Prevent infinite loop
+    }
+    
+    return found;
+  }, [documentContent, searchQuery]);
+
+  // Reset current match index when search changes
+  useEffect(() => {
+    setCurrentMatchIndex(0);
+  }, [searchQuery, documentContent]);
+
+  // Auto-scroll to current match when it changes
+  useEffect(() => {
+    if (!scrollAreaRef.current || !searchQuery?.trim() || matches.length === 0) return;
+    
+    const timeout = setTimeout(() => {
+      const markElements = scrollAreaRef.current?.querySelectorAll('mark');
+      if (markElements && markElements[currentMatchIndex]) {
+        markElements[currentMatchIndex].scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      }
+    }, 100); // Small delay to ensure DOM is updated
+    
+    return () => clearTimeout(timeout);
+  }, [currentMatchIndex, matches, searchQuery, isLoadingContent]);
+
   const getPreviewContent = () => {
-    if (!document.documentContent) {
+    if (isLoadingContent) {
+      return (
+        <div className="flex items-center justify-center py-8 text-muted-foreground">
+          <div className="animate-pulse flex items-center">
+            <FileText className="h-8 w-8 mr-2" />
+            <span>Loading content...</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (!documentContent) {
       return (
         <div className="flex items-center justify-center py-8 text-muted-foreground">
           <FileX className="h-8 w-8 mr-2" />
@@ -97,10 +162,41 @@ export function DocumentModal({
       );
     }
 
-    const content = document.documentContent;
-    const maxLength = 2000;
-    const shouldTruncate = content.length > maxLength && !contentExpanded;
-    const displayContent = shouldTruncate ? content.substring(0, maxLength) + '...' : content;
+    const content = documentContent;
+    let displayContent = content;
+    let showingSnippet = false;
+    
+    // If there's a search query and matches, show snippet around current match
+    if (searchQuery?.trim() && matches.length > 0) {
+      const currentMatch = matches[currentMatchIndex] || matches[0];
+      if (currentMatch && !contentExpanded) {
+        const snippetLength = 500; // Characters to show before/after match
+        const start = Math.max(0, currentMatch.index - snippetLength);
+        const end = Math.min(content.length, currentMatch.index + currentMatch.match.length + snippetLength);
+        
+        displayContent = (start > 0 ? '...' : '') + 
+                        content.substring(start, end) + 
+                        (end < content.length ? '...' : '');
+        showingSnippet = true;
+      }
+    } else if (!contentExpanded) {
+      // Fallback to original truncation logic when no search
+      const maxLength = 2000;
+      if (content.length > maxLength) {
+        displayContent = content.substring(0, maxLength) + '...';
+        showingSnippet = true;
+      }
+    }
+
+    const navigateToMatch = (direction: 'prev' | 'next') => {
+      if (matches.length === 0) return;
+      
+      const newIndex = direction === 'next' 
+        ? (currentMatchIndex + 1) % matches.length
+        : (currentMatchIndex - 1 + matches.length) % matches.length;
+        
+      setCurrentMatchIndex(newIndex);
+    };
 
     return (
       <div className="space-y-4">
@@ -108,26 +204,59 @@ export function DocumentModal({
           <h4 className="text-sm font-medium flex items-center">
             <FileText className="h-4 w-4 mr-2" />
             Document Content
-            {searchQuery && (
+            {searchQuery && matches.length > 0 && (
               <Badge variant="secondary" className="ml-2">
                 <Search className="h-3 w-3 mr-1" />
-                Searching: "{searchQuery}"
+                {matches.length} matches found
+              </Badge>
+            )}
+            {searchQuery && matches.length === 0 && (
+              <Badge variant="outline" className="ml-2">
+                <Search className="h-3 w-3 mr-1" />
+                No matches for "{searchQuery}"
               </Badge>
             )}
           </h4>
-          {content.length > maxLength && (
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setContentExpanded(!contentExpanded)}
-              data-testid="toggle-content-expansion"
-            >
-              {contentExpanded ? 'Show Less' : 'Show More'}
-            </Button>
-          )}
+          <div className="flex items-center space-x-2">
+            {matches.length > 1 && (
+              <div className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigateToMatch('prev')}
+                  data-testid="prev-match"
+                  className="h-7 w-7 p-0"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground px-2">
+                  {currentMatchIndex + 1}/{matches.length}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigateToMatch('next')}
+                  data-testid="next-match"
+                  className="h-7 w-7 p-0"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            {(showingSnippet || content.length > 2000) && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setContentExpanded(!contentExpanded)}
+                data-testid="toggle-content-expansion"
+              >
+                {contentExpanded ? 'Show Less' : 'Show More'}
+              </Button>
+            )}
+          </div>
         </div>
         
-        <ScrollArea className="h-64 w-full border rounded-lg p-4 bg-muted/50">
+        <ScrollArea ref={scrollAreaRef} className="h-64 w-full border rounded-lg p-4 bg-muted/50">
           <div className="text-sm leading-relaxed whitespace-pre-wrap font-mono">
             <HighlightedText text={displayContent} searchQuery={searchQuery} />
           </div>

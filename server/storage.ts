@@ -28,6 +28,7 @@ export interface DocumentFilters {
   tagId?: string;
   page: number;
   limit: number;
+  includeContent?: boolean; // Flag to include document content
 }
 
 export interface IStorage {
@@ -36,6 +37,7 @@ export interface IStorage {
   getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]>;
   getDocumentsCount(filters: DocumentFilters): Promise<number>;
   getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined>;
+  getDocumentContent(id: string): Promise<string | null>; // Get just the content for a document
   getDocumentByDriveFileId(driveFileId: string): Promise<DocumentWithFolderAndTags | undefined>;
   getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
@@ -151,15 +153,7 @@ export class DatabaseStorage implements IStorage {
 
   async getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]> {
     await this.ensureInitialized();
-    let query = db
-      .select({
-        document: documents,
-        folder: folders,
-      })
-      .from(documents)
-      .leftJoin(folders, eq(documents.folderId, folders.id))
-      .where(eq(documents.isDeleted, false));
-
+    
     // Apply filters
     const conditions = [eq(documents.isDeleted, false)];
 
@@ -196,9 +190,40 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // Select only necessary fields, exclude documentContent by default for performance
+    const documentSelect = filters.includeContent ? documents : {
+      id: documents.id,
+      name: documents.name,
+      originalName: documents.originalName,
+      filePath: documents.filePath,
+      fileSize: documents.fileSize,
+      fileType: documents.fileType,
+      mimeType: documents.mimeType,
+      folderId: documents.folderId,
+      uploadedAt: documents.uploadedAt,
+      isFavorite: documents.isFavorite,
+      isDeleted: documents.isDeleted,
+      driveFileId: documents.driveFileId,
+      driveWebViewLink: documents.driveWebViewLink,
+      isFromDrive: documents.isFromDrive,
+      driveLastModified: documents.driveLastModified,
+      driveSyncStatus: documents.driveSyncStatus,
+      driveSyncedAt: documents.driveSyncedAt,
+      aiSummary: documents.aiSummary,
+      aiKeyTopics: documents.aiKeyTopics,
+      aiDocumentType: documents.aiDocumentType,
+      aiSentiment: documents.aiSentiment,
+      aiWordCount: documents.aiWordCount,
+      aiAnalyzedAt: documents.aiAnalyzedAt,
+      // Exclude documentContent for performance
+      documentContent: sql<string | null>`NULL`.as('documentContent'),
+      contentExtracted: documents.contentExtracted,
+      contentExtractedAt: documents.contentExtractedAt,
+    };
+
     const results = await db
       .select({
-        document: documents,
+        document: documentSelect,
         folder: folders,
       })
       .from(documents)
@@ -298,6 +323,18 @@ export class DatabaseStorage implements IStorage {
       folder: result[0].folder || undefined,
       tags: docTags.map(dt => dt.tag).filter(Boolean) as Tag[],
     };
+  }
+
+  async getDocumentContent(id: string): Promise<string | null> {
+    const result = await db
+      .select({ 
+        documentContent: documents.documentContent 
+      })
+      .from(documents)
+      .where(and(eq(documents.id, id), eq(documents.isDeleted, false)))
+      .limit(1);
+
+    return result.length > 0 ? result[0].documentContent : null;
   }
 
   async updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined> {

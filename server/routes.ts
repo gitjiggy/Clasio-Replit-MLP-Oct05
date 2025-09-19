@@ -220,6 +220,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get document content on-demand
+  app.get("/api/documents/:id/content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const content = await storage.getDocumentContent(id);
+      
+      if (content === null) {
+        res.status(404).json({ error: "Document not found or has no content" });
+        return;
+      }
+      
+      res.json({ content });
+    } catch (error) {
+      console.error("Error fetching document content:", error);
+      res.status(500).json({ error: "Failed to fetch document content" });
+    }
+  });
+
   // Get document by ID
   app.get("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
