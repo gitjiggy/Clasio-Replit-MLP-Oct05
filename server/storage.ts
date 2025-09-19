@@ -41,6 +41,8 @@ export interface IStorage {
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
   analyzeDocumentWithAI(id: string): Promise<boolean>;
+  extractDocumentContent(id: string): Promise<boolean>;
+  getDocumentsWithoutContent(): Promise<Document[]>;
 
   // Document Versions
   createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
@@ -669,6 +671,79 @@ export class DatabaseStorage implements IStorage {
       console.error("Error analyzing document with AI:", error);
       return false;
     }
+  }
+
+  async extractDocumentContent(documentId: string): Promise<boolean> {
+    try {
+      // Import here to avoid circular dependencies
+      const { extractTextFromDocument } = await import("./gemini.js");
+      
+      console.log(`Starting content extraction for document: ${documentId}`);
+      
+      // Get the document
+      const document = await this.getDocumentById(documentId);
+      if (!document) {
+        console.error(`Document not found: ${documentId}`);
+        return false;
+      }
+
+      // Skip if content already extracted
+      if (document.contentExtracted) {
+        console.log(`Content already extracted for document: ${documentId}`);
+        return true;
+      }
+
+      // Check if document has a file path
+      if (!document.filePath) {
+        console.error(`Document has no file path for content extraction: ${documentId}`);
+        return false;
+      }
+
+      // Extract text content
+      console.log(`Extracting content from: ${document.filePath} (${document.mimeType})`);
+      const documentText = await extractTextFromDocument(document.filePath, document.mimeType);
+      
+      // Update the document with extracted content
+      const [updatedDoc] = await db
+        .update(documents)
+        .set({
+          documentContent: documentText,
+          contentExtracted: true,
+          contentExtractedAt: new Date()
+        })
+        .where(eq(documents.id, documentId))
+        .returning();
+
+      const success = !!updatedDoc;
+      if (success) {
+        console.log(`Content extraction completed for document: ${documentId} (${documentText.length} characters)`);
+      } else {
+        console.error(`Failed to update document with extracted content: ${documentId}`);
+      }
+
+      return success;
+    } catch (error) {
+      console.error(`Error extracting document content for ${documentId}:`, error);
+      return false;
+    }
+  }
+
+  async getDocumentsWithoutContent(): Promise<Document[]> {
+    await this.ensureInitialized();
+    
+    const documentsWithoutContent = await db
+      .select()
+      .from(documents)
+      .where(
+        and(
+          eq(documents.isDeleted, false),
+          eq(documents.contentExtracted, false)
+        )
+      )
+      .orderBy(desc(documents.uploadedAt))
+      .limit(100); // Limit to 100 documents at a time for performance
+    
+    return documentsWithoutContent;
   }
 
 }

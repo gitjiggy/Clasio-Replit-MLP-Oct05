@@ -168,6 +168,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get document with folder and tags
       const documentWithDetails = await storage.getDocumentById(document.id);
       
+      // Trigger background content extraction (don't wait for it)
+      storage.extractDocumentContent(document.id)
+        .then(success => {
+          if (success) {
+            console.log(`✅ Content extraction completed for document: ${document.id}`);
+          } else {
+            console.error(`❌ Content extraction failed for document: ${document.id}`);
+          }
+        })
+        .catch(error => {
+          console.error(`💥 Content extraction error for document ${document.id}:`, error);
+        });
+      
       res.status(201).json(documentWithDetails);
     } catch (error) {
       console.error("Error creating document:", error);
@@ -339,6 +352,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error analyzing document:", error);
       res.status(500).json({ error: "Failed to analyze document" });
+    }
+  });
+
+  // Content extraction endpoint for single document
+  app.post("/api/documents/:id/extract-content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const documentId = req.params.id;
+      
+      // Check if document exists
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // Extract content
+      const success = await storage.extractDocumentContent(documentId);
+      
+      if (!success) {
+        return res.status(500).json({ error: "Failed to extract document content" });
+      }
+
+      // Return updated document with extracted content
+      const updatedDocument = await storage.getDocumentById(documentId);
+      res.json({
+        success: true,
+        message: "Document content extracted successfully",
+        document: updatedDocument
+      });
+    } catch (error) {
+      console.error("Error extracting document content:", error);
+      res.status(500).json({ error: "Failed to extract document content" });
+    }
+  });
+
+  // Batch content extraction endpoint
+  app.post("/api/documents/batch-extract-content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      console.log("🚀 Starting batch content extraction...");
+      
+      // Get documents without extracted content
+      const documentsWithoutContent = await storage.getDocumentsWithoutContent();
+      
+      if (documentsWithoutContent.length === 0) {
+        return res.json({
+          success: true,
+          message: "All documents already have extracted content",
+          processed: 0,
+          total: 0
+        });
+      }
+
+      console.log(`📄 Found ${documentsWithoutContent.length} documents needing content extraction`);
+
+      // Process documents in batches (don't wait for all to complete)
+      let processed = 0;
+      let successful = 0;
+
+      // Start processing asynchronously
+      const processingPromise = Promise.all(
+        documentsWithoutContent.map(async (doc) => {
+          try {
+            const success = await storage.extractDocumentContent(doc.id);
+            if (success) successful++;
+            return { id: doc.id, success };
+          } catch (error) {
+            console.error(`Error processing document ${doc.id}:`, error);
+            return { id: doc.id, success: false };
+          } finally {
+            processed++;
+          }
+        })
+      );
+
+      // Don't wait for all to complete - return immediate response
+      res.json({
+        success: true,
+        message: `Batch content extraction started for ${documentsWithoutContent.length} documents`,
+        total: documentsWithoutContent.length,
+        status: "processing"
+      });
+
+      // Log completion asynchronously
+      processingPromise.then(() => {
+        console.log(`✅ Batch content extraction completed: ${successful}/${processed} successful`);
+      }).catch((error) => {
+        console.error("❌ Batch content extraction error:", error);
+      });
+      
+    } catch (error) {
+      console.error("Error in batch content extraction:", error);
+      res.status(500).json({ error: "Failed to start batch content extraction" });
     }
   });
 
