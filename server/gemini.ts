@@ -20,7 +20,7 @@ export async function summarizeDocument(text: string): Promise<string> {
     const prompt = `Please provide a very concise 2-3 line summary of this document, focusing only on the most essential information and key points. Be brief and direct:\n\n${text}`;
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const resultText = response.text();
@@ -75,10 +75,11 @@ ${text}`;
 
     try {
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.0-flash-exp",
+            model: "gemini-2.5-flash-lite",
             generationConfig: {
                 temperature: 0.1,
                 maxOutputTokens: 1000,
+                responseMimeType: "application/json"
             }
         });
         
@@ -89,9 +90,8 @@ ${text}`;
         console.log(`AI Analysis Response: ${rawJson}`);
 
         if (rawJson) {
-            // Clean the response to ensure it's valid JSON
-            const cleanedJson = rawJson.replace(/```json\n?/g, '').replace(/```/g, '').trim();
-            const data = JSON.parse(cleanedJson);
+            // With responseMimeType: "application/json", the response should be clean JSON
+            const data = JSON.parse(rawJson);
             
             return {
                 keyTopics: Array.isArray(data.keyTopics) ? data.keyTopics.slice(0, 5) : ["Analysis unavailable"],
@@ -147,7 +147,7 @@ async function extractTextFromImageBuffer(imageBuffer: Buffer, mimeType: string)
             return "AI image analysis unavailable - API key not configured.";
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
         const imagePart = {
             inlineData: {
