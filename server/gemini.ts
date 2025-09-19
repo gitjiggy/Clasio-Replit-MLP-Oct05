@@ -20,7 +20,7 @@ export async function summarizeDocument(text: string): Promise<string> {
     const prompt = `Please provide a very concise 2-3 line summary of this document, focusing only on the most essential information and key points. Be brief and direct:\n\n${text}`;
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const resultText = response.text();
@@ -75,7 +75,7 @@ ${text}`;
 
     try {
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash",
+            model: "gemini-2.0-flash-exp",
             generationConfig: {
                 temperature: 0.1,
                 maxOutputTokens: 1000,
@@ -147,7 +147,7 @@ async function extractTextFromImageBuffer(imageBuffer: Buffer, mimeType: string)
             return "AI image analysis unavailable - API key not configured.";
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
         const imagePart = {
             inlineData: {
