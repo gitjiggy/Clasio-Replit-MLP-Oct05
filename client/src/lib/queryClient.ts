@@ -4,7 +4,7 @@ import { auth } from "./firebase";
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    throw new Error(`${res.status}: ${text} (${res.url})`);
   }
 }
 
@@ -15,9 +15,14 @@ async function getAuthHeaders(): Promise<{ [key: string]: string }> {
     try {
       const token = await auth.currentUser.getIdToken();
       headers['Authorization'] = `Bearer ${token}`;
+      console.log('🔑 Firebase ID token retrieved successfully for API request');
     } catch (error) {
-      console.error('Failed to get ID token:', error);
+      console.error('❌ Failed to get Firebase ID token:', error);
+      // For critical operations like analyze, we should throw instead of silently failing
+      throw new Error('Authentication failed. Please refresh the page and sign in again.');
     }
+  } else {
+    console.warn('⚠️ No Firebase user authenticated - request will be sent without auth header');
   }
   
   return headers;

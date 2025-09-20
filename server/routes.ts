@@ -303,15 +303,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents/:id/analyze", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const documentId = req.params.id;
+      console.log(`📋 AI Analysis request for document: ${documentId}`);
       
       // Check if API key is configured
       if (!process.env.GEMINI_API_KEY) {
+        console.error(`❌ AI analysis failed: API key not configured (doc: ${documentId})`);
         return res.status(503).json({ error: "AI analysis unavailable - API key not configured" });
       }
       
       // Check if document exists
       const document = await storage.getDocumentById(documentId);
       if (!document) {
+        console.error(`❌ AI analysis failed: Document not found (doc: ${documentId})`);
         return res.status(404).json({ error: "Document not found" });
       }
 
@@ -320,6 +323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const timeSinceLastAnalysis = Date.now() - new Date(document.aiAnalyzedAt).getTime();
         const oneMinute = 60 * 1000; // 1 minute in milliseconds
         if (timeSinceLastAnalysis < oneMinute) {
+          console.error(`❌ AI analysis failed: Rate limited (doc: ${documentId})`);
           return res.status(429).json({ 
             error: "Document was recently analyzed. Please wait before analyzing again.",
             retryAfter: Math.ceil((oneMinute - timeSinceLastAnalysis) / 1000)
@@ -331,13 +335,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let success = false;
       
       if (document.driveFileId) {
+        console.log(`🔗 Document is from Google Drive (ID: ${document.driveFileId})`);
         // For Drive documents, we need the Drive access token
         const driveAccessToken = req.headers['x-drive-access-token'] as string;
         if (!driveAccessToken) {
+          console.error('❌ Missing Drive access token for Drive document analysis');
           return res.status(400).json({ 
-            error: "Google Drive access token required for Drive document analysis. Please include x-drive-access-token header." 
+            error: "Google Drive access token required for Drive document analysis. Please include x-drive-access-token header.",
+            code: "DRIVE_TOKEN_MISSING",
+            driveFileId: document.driveFileId
           });
         }
+        console.log('🔑 Drive access token provided for analysis');
         
         // Verify the Drive access token belongs to the authenticated Firebase user
         try {
@@ -355,9 +364,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           const googleUserEmail = userInfo.data.email;
           if (!googleUserEmail || googleUserEmail !== firebaseUserEmail) {
+            console.error('🚫 Drive token belongs to different user than Firebase user');
             return res.status(403).json({ 
               error: "Drive access token does not belong to the authenticated user",
-              message: "Token mismatch detected"
+              message: "Token mismatch detected",
+              code: "DRIVE_TOKEN_MISMATCH"
             });
           }
           
@@ -366,9 +377,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (error) {
           console.error("Drive token verification or AI analysis failed:", error);
           if (error instanceof Error && error.message.includes('token')) {
+            console.error('🚫 Drive token verification failed - invalid or expired');
             return res.status(403).json({ 
               error: "Invalid or expired Drive access token",
-              message: "Please re-authenticate with Google Drive"
+              message: "Please re-authenticate with Google Drive",
+              code: "DRIVE_TOKEN_INVALID"
             });
           } else {
             console.error("AI analysis failed for Drive document:", error);
@@ -376,28 +389,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       } else {
+        console.log(`📄 Document is uploaded file (not from Drive)`);
         // For uploaded documents, analyze normally
         try {
           success = await storage.analyzeDocumentWithAI(documentId);
+          console.log(`✅ AI analysis completed for uploaded document: ${success}`);
         } catch (aiError) {
-          console.error("AI analysis failed for uploaded file:", aiError);
+          console.error("❌ AI analysis failed for uploaded file:", aiError);
           success = false;
         }
       }
       
       if (!success) {
+        console.error(`❌ AI analysis completion failed (doc: ${documentId}, status: 500)`);
         return res.status(500).json({ error: "Failed to analyze document with AI" });
       }
 
       // Return updated document with AI analysis
       const updatedDocument = await storage.getDocumentById(documentId);
+      console.log(`✅ AI analysis completed successfully (doc: ${documentId}, status: 200, branch: ${document.driveFileId ? 'drive' : 'uploaded'})`);
       res.json({
         success: true,
         message: "Document analyzed successfully",
         document: updatedDocument
       });
     } catch (error) {
-      console.error("Error analyzing document:", error);
+      console.error(`❌ AI analysis exception (doc: ${documentId}, status: 500):`, error);
       res.status(500).json({ error: "Failed to analyze document" });
     }
   });
