@@ -67,8 +67,8 @@ export async function analyzeDocumentContent(text: string): Promise<{
     if (!text || text.trim().length === 0) {
         return {
             keyTopics: [],
-            documentType: "Unknown",
-            category: "General",
+            documentType: "Other",
+            category: "Personal",
             wordCount: 0
         };
     }
@@ -76,20 +76,66 @@ export async function analyzeDocumentContent(text: string): Promise<{
     if (!process.env.GEMINI_API_KEY) {
         return {
             keyTopics: ["API key required"],
-            documentType: "Unknown",
-            category: "General",
+            documentType: "Other",
+            category: "Personal",
             wordCount: text.split(/\s+/).length
         };
     }
 
     const wordCount = text.split(/\s+/).length;
     
-    const prompt = `Analyze the following document and provide a JSON response with:
-1. Key topics (up to 5 most important topics as an array of strings)
-2. Document type (e.g., "Report", "Contract", "Letter", "Invoice", "Technical Documentation", etc.)
-3. Document category for filing purposes - choose the MOST relevant one: "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", or "Business"
+    // Pre-processing: Apply keyword-based rules for better accuracy
+    const textLower = text.toLowerCase();
+    let keywordCategory = null;
+    let keywordDocumentType = null;
+    
+    // Education-specific patterns
+    if (/(back to school|syllabus|homework|pta|pto|school night|curriculum|parent teacher|class schedule|school event|education|academic|teacher|student|grade|assignment)/i.test(text)) {
+        keywordCategory = "Education";
+        if (/(back to school|school night|event|meeting|notice|announcement)/i.test(text)) {
+            keywordDocumentType = "Event Notice";
+        } else if (/(syllabus|curriculum|assignment|homework)/i.test(text)) {
+            keywordDocumentType = "Academic Document";
+        }
+    }
 
-Format your response as JSON only, no additional text:
+    const prompt = `You are a document classification expert. Analyze the following document and provide a JSON response.
+
+STRICT REQUIREMENTS:
+1. Key topics: Extract up to 5 most important topics as an array of strings
+2. Document type: Must be EXACTLY one of these options:
+   - "Resume"
+   - "Cover Letter" 
+   - "Contract"
+   - "Invoice"
+   - "Receipt"
+   - "Tax Document"
+   - "Medical Record"
+   - "Insurance Document"
+   - "Legal Document"
+   - "Immigration Document"
+   - "Financial Statement"
+   - "Employment Document"
+   - "Event Notice"
+   - "Academic Document"
+   - "Real Estate Document"
+   - "Travel Document"
+   - "Personal Statement"
+   - "Technical Documentation"
+   - "Business Report"
+   - "Other"
+
+3. Category: Must be EXACTLY one of these: "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
+
+EXAMPLES:
+- "2022 Fall Back to School Night" → {"documentType": "Event Notice", "category": "Education"}
+- "John Smith Resume 2024" → {"documentType": "Resume", "category": "Business"}
+- "Stanford Personal Statement Draft" → {"documentType": "Personal Statement", "category": "Education"}
+
+${keywordCategory ? `HINT: Based on content analysis, this appears to be category "${keywordCategory}"` : ''}
+${keywordDocumentType ? ` and type "${keywordDocumentType}"` : ''}
+
+Format response as JSON only:
 {
   "keyTopics": ["topic1", "topic2", "topic3"],
   "documentType": "Document Type",
@@ -103,7 +149,7 @@ ${text}`;
         const model = genAI.getGenerativeModel({ 
             model: "gemini-2.5-flash-lite",
             generationConfig: {
-                temperature: 0.1,
+                temperature: 0,
                 maxOutputTokens: 1000,
                 responseMimeType: "application/json"
             }
@@ -119,10 +165,36 @@ ${text}`;
             // With responseMimeType: "application/json", the response should be clean JSON
             const data = JSON.parse(rawJson);
             
+            // Post-processing validation: Ensure responses conform to strict taxonomy
+            const validDocumentTypes = [
+                "Resume", "Cover Letter", "Contract", "Invoice", "Receipt", "Tax Document",
+                "Medical Record", "Insurance Document", "Legal Document", "Immigration Document",
+                "Financial Statement", "Employment Document", "Event Notice", "Academic Document",
+                "Real Estate Document", "Travel Document", "Personal Statement", 
+                "Technical Documentation", "Business Report", "Other"
+            ];
+            
+            const validCategories = [
+                "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial",
+                "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
+            ];
+            
+            // Apply keyword overrides if detected
+            let finalDocumentType = validDocumentTypes.includes(data.documentType) ? data.documentType : "Other";
+            let finalCategory = validCategories.includes(data.category) ? data.category : "Personal";
+            
+            // Override with keyword-based rules for better accuracy
+            if (keywordCategory && validCategories.includes(keywordCategory)) {
+                finalCategory = keywordCategory;
+            }
+            if (keywordDocumentType && validDocumentTypes.includes(keywordDocumentType)) {
+                finalDocumentType = keywordDocumentType;
+            }
+            
             return {
                 keyTopics: Array.isArray(data.keyTopics) ? data.keyTopics.slice(0, 5) : ["Analysis unavailable"],
-                documentType: data.documentType || "Unknown",
-                category: data.category || "General",
+                documentType: finalDocumentType,
+                category: finalCategory,
                 wordCount
             };
         } else {
@@ -132,14 +204,14 @@ ${text}`;
         console.error("Error analyzing document content:", error);
         return {
             keyTopics: ["Analysis unavailable"],
-            documentType: "Unknown",
-            category: "General",
+            documentType: "Other",
+            category: "Personal",
             wordCount
         };
     }
 }
 
-export async function extractTextFromDocument(filePath: string, mimeType: string): Promise<string> {
+export async function extractTextFromDocument(filePath: string, mimeType: string, driveAccessToken?: string): Promise<string> {
     try {
         console.log(`Extracting text from document: ${filePath}, mimeType: ${mimeType}`);
         
@@ -148,12 +220,56 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
             const driveFileId = filePath.substring(6); // Remove 'drive:' prefix
             console.log(`Extracting content from Google Drive document: ${driveFileId}`);
             
-            // Import DriveService here to avoid circular dependencies
-            const { DriveService } = await import('./driveService.js');
+            if (!driveAccessToken) {
+                return `Google Drive document content extraction requires authentication. Please provide a valid access token.`;
+            }
             
-            // We need a Google access token to read the file
-            // For now, return a message indicating Drive extraction is needed
-            return `Google Drive document content extraction requires authentication. Please use AI analysis which can access Drive content.`;
+            try {
+                // Import DriveService here to avoid circular dependencies
+                const { DriveService } = await import('./driveService.js');
+                const driveService = new DriveService(driveAccessToken);
+                
+                // Handle text files using existing getFileContent method
+                if (mimeType === 'application/vnd.google-apps.document' || 
+                    mimeType === 'text/plain' || mimeType === 'text/csv' || mimeType === 'text/html') {
+                    const fileContent = await driveService.getFileContent(driveFileId);
+                    if (fileContent && fileContent.content !== `[Binary file: ${fileContent.name}]`) {
+                        return fileContent.content;
+                    }
+                    return `Failed to extract text content from Drive file: ${driveFileId}`;
+                } 
+                
+                // Handle binary files (PDFs, Word docs) using new getFileBuffer method
+                else if (mimeType === 'application/pdf' || 
+                           mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                           mimeType === 'application/msword') {
+                    
+                    const fileBuffer = await driveService.getFileBuffer(driveFileId);
+                    if (!fileBuffer) {
+                        return `Failed to download binary file from Drive: ${driveFileId}`;
+                    }
+                    
+                    // Use existing extraction logic for binary files
+                    if (mimeType === 'application/pdf') {
+                        const pdfParse = await getPdfParse();
+                        const data = await pdfParse(fileBuffer.buffer);
+                        return data.text || '';
+                    } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                        const result = await mammoth.extractRawText({ buffer: fileBuffer.buffer });
+                        return result.value || '';
+                    } else if (mimeType === 'application/msword') {
+                        const WordExtractor = await getWordExtractor();
+                        const extractor = new WordExtractor();
+                        const extracted = await extractor.extract(fileBuffer.buffer);
+                        return extracted.getBody() || '';
+                    }
+                } else {
+                    return `Unsupported file type for Drive extraction: ${mimeType}`;
+                }
+            } catch (error) {
+                console.error('Error extracting Drive document:', error);
+                return `Error extracting Google Drive document: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            }
         }
         
         // Extract the object path from the file path

@@ -146,6 +146,49 @@ export class DriveService {
   }
 
   /**
+   * Get file content as buffer for binary files (PDFs, Word docs, etc.)
+   * NOTE: Do NOT use this for Google Docs - use getFileContent with export instead
+   */
+  async getFileBuffer(fileId: string): Promise<{ buffer: Buffer; mimeType: string; name: string } | null> {
+    try {
+      // Get file metadata first
+      const metadata = await this.drive.files.get({
+        fileId,
+        fields: 'id, name, mimeType'
+      });
+
+      const file = metadata.data;
+      if (!file.id || !file.name || !file.mimeType) {
+        throw new Error('Invalid file metadata');
+      }
+
+      // Don't use getFileBuffer for Google Docs - they need to be exported, not downloaded
+      if (file.mimeType === 'application/vnd.google-apps.document') {
+        throw new Error('Google Docs should use getFileContent with export, not getFileBuffer');
+      }
+
+      // Download file content as buffer with proper responseType
+      const response = await this.drive.files.get({
+        fileId,
+        alt: 'media'
+      }, { 
+        responseType: 'arraybuffer' 
+      });
+
+      const buffer = Buffer.from(response.data as ArrayBuffer);
+
+      return {
+        buffer,
+        mimeType: file.mimeType,
+        name: file.name
+      };
+    } catch (error) {
+      console.error('Error getting file buffer:', error);
+      return null;
+    }
+  }
+
+  /**
    * Get folder structure from Google Drive
    */
   async getFolders(): Promise<DriveFile[]> {

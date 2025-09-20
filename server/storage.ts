@@ -51,7 +51,7 @@ export interface IStorage {
   getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
-  analyzeDocumentWithAI(id: string, driveContent?: string): Promise<boolean>;
+  analyzeDocumentWithAI(id: string, driveContent?: string, driveAccessToken?: string): Promise<boolean>;
   extractDocumentContent(id: string): Promise<boolean>;
   getDocumentsWithoutContent(): Promise<Document[]>;
 
@@ -679,7 +679,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // AI Analysis
-  async analyzeDocumentWithAI(documentId: string, driveContent?: string): Promise<boolean> {
+  async analyzeDocumentWithAI(documentId: string, driveContent?: string, driveAccessToken?: string): Promise<boolean> {
     try {
       // Import here to avoid circular dependencies
       const { summarizeDocument, analyzeDocumentContent, extractTextFromDocument } = await import("./gemini.js");
@@ -703,7 +703,8 @@ export class DatabaseStorage implements IStorage {
           return false;
         }
         
-        documentText = await extractTextFromDocument(document.filePath, document.mimeType);
+        // Pass Drive access token for Drive documents
+        documentText = await extractTextFromDocument(document.filePath, document.mimeType, driveAccessToken);
         
         // Check if extraction failed or returned placeholder content
         if (documentText.startsWith('Error extracting text') || 

@@ -339,22 +339,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
         
+        // Verify the Drive access token belongs to the authenticated Firebase user
         try {
-          const { DriveService } = await import("./driveService.js");
-          const driveService = new DriveService(driveAccessToken);
-          const driveFileContent = await driveService.getFileContent(document.driveFileId);
-          if (!driveFileContent?.content) {
-            return res.status(500).json({ error: "Failed to extract content from Drive document" });
+          const firebaseUserEmail = req.user?.email;
+          if (!firebaseUserEmail) {
+            return res.status(401).json({ error: "Firebase user email not available" });
           }
-          try {
-            success = await storage.analyzeDocumentWithAI(documentId, driveFileContent.content);
-          } catch (aiError) {
-            console.error("AI analysis failed for Drive content:", aiError);
-            success = false;
+
+          // Verify the Google access token belongs to the same user
+          const oauth2Client = new google.auth.OAuth2();
+          oauth2Client.setCredentials({ access_token: driveAccessToken });
+          
+          const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+          const userInfo = await oauth2.userinfo.get();
+          
+          const googleUserEmail = userInfo.data.email;
+          if (!googleUserEmail || googleUserEmail !== firebaseUserEmail) {
+            return res.status(403).json({ 
+              error: "Drive access token does not belong to the authenticated user",
+              message: "Token mismatch detected"
+            });
           }
-        } catch (driveError) {
-          console.error("Error fetching Drive content for analysis:", driveError);
-          return res.status(500).json({ error: "Failed to fetch document content from Drive" });
+          
+          // Pass the verified Drive access token to the storage method for proper text extraction
+          success = await storage.analyzeDocumentWithAI(documentId, undefined, driveAccessToken);
+        } catch (driveAuthError) {
+          console.error("Drive token verification failed:", driveAuthError);
+          return res.status(403).json({ 
+            error: "Invalid or expired Drive access token",
+            message: "Please re-authenticate with Google Drive"
+          });
+        } catch (aiError) {
+          console.error("AI analysis failed for Drive document:", aiError);
+          success = false;
         }
       } else {
         // For uploaded documents, analyze normally
