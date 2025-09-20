@@ -696,7 +696,7 @@ export class DatabaseStorage implements IStorage {
         analyzeDocumentContent(documentText)
       ]);
 
-      // Update the document with AI analysis
+      // Update the document with AI analysis AND save content for search
       const [updatedDoc] = await db
         .update(documents)
         .set({
@@ -705,7 +705,11 @@ export class DatabaseStorage implements IStorage {
           aiDocumentType: analysis.documentType,
           aiSentiment: analysis.category,
           aiWordCount: analysis.wordCount,
-          aiAnalyzedAt: new Date()
+          aiAnalyzedAt: new Date(),
+          // Save the document content for search functionality
+          documentContent: documentText,
+          contentExtracted: true,
+          contentExtractedAt: new Date()
         })
         .where(eq(documents.id, documentId))
         .returning();

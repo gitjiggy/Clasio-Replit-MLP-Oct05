@@ -143,6 +143,19 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
     try {
         console.log(`Extracting text from document: ${filePath}, mimeType: ${mimeType}`);
         
+        // Handle Google Drive documents
+        if (filePath.startsWith('drive:')) {
+            const driveFileId = filePath.substring(6); // Remove 'drive:' prefix
+            console.log(`Extracting content from Google Drive document: ${driveFileId}`);
+            
+            // Import DriveService here to avoid circular dependencies
+            const { DriveService } = await import('./driveService.js');
+            
+            // We need a Google access token to read the file
+            // For now, return a message indicating Drive extraction is needed
+            return `Google Drive document content extraction requires authentication. Please use AI analysis which can access Drive content.`;
+        }
+        
         // Extract the object path from the file path
         // File paths are stored as object storage paths like "/objects/public/documents/..."
         const objectPath = filePath.startsWith('/objects/') ? filePath.substring(9) : filePath;
