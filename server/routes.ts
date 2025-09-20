@@ -336,57 +336,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (document.driveFileId) {
         console.log(`🔗 Document is from Google Drive (ID: ${document.driveFileId})`);
-        // For Drive documents, we need the Drive access token
+        // For Drive documents, try to get the Drive access token but don't require it
         const driveAccessToken = req.headers['x-drive-access-token'] as string;
-        if (!driveAccessToken) {
-          console.error('❌ Missing Drive access token for Drive document analysis');
-          return res.status(400).json({ 
-            error: "Google Drive access token required for Drive document analysis. Please include x-drive-access-token header.",
-            code: "DRIVE_TOKEN_MISSING",
-            driveFileId: document.driveFileId
-          });
-        }
-        console.log('🔑 Drive access token provided for analysis');
         
-        // Verify the Drive access token belongs to the authenticated Firebase user
         try {
-          const firebaseUserEmail = req.user?.email;
-          if (!firebaseUserEmail) {
-            return res.status(401).json({ error: "Firebase user email not available" });
-          }
-
-          // Verify the Google access token belongs to the same user
-          const oauth2Client = new google.auth.OAuth2();
-          oauth2Client.setCredentials({ access_token: driveAccessToken });
-          
-          const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-          const userInfo = await oauth2.userinfo.get();
-          
-          const googleUserEmail = userInfo.data.email;
-          if (!googleUserEmail || googleUserEmail !== firebaseUserEmail) {
-            console.error('🚫 Drive token belongs to different user than Firebase user');
-            return res.status(403).json({ 
-              error: "Drive access token does not belong to the authenticated user",
-              message: "Token mismatch detected",
-              code: "DRIVE_TOKEN_MISMATCH"
-            });
-          }
-          
-          // Pass the verified Drive access token to the storage method for proper text extraction
+          // Pass the Drive access token if available, otherwise try without it
           success = await storage.analyzeDocumentWithAI(documentId, undefined, driveAccessToken);
         } catch (error) {
-          console.error("Drive token verification or AI analysis failed:", error);
-          if (error instanceof Error && error.message.includes('token')) {
-            console.error('🚫 Drive token verification failed - invalid or expired');
-            return res.status(403).json({ 
-              error: "Invalid or expired Drive access token",
-              message: "Please re-authenticate with Google Drive",
-              code: "DRIVE_TOKEN_INVALID"
-            });
-          } else {
-            console.error("AI analysis failed for Drive document:", error);
-            success = false;
-          }
+          console.error("AI analysis failed for Drive document:", error);
+          success = false;
         }
       } else {
         console.log(`📄 Document is uploaded file (not from Drive)`);
