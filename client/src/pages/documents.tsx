@@ -583,7 +583,9 @@ export default function Documents() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Folders</SelectItem>
-                  {folders.map((folder) => (
+                  {folders
+                    .filter(folder => !folder.parentId) // Only show main category folders (no sub-folders)
+                    .map((folder) => (
                     <SelectItem key={folder.id} value={folder.id}>
                       {folder.name}
                     </SelectItem>

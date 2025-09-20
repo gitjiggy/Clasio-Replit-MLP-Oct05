@@ -363,15 +363,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Pass the verified Drive access token to the storage method for proper text extraction
           success = await storage.analyzeDocumentWithAI(documentId, undefined, driveAccessToken);
-        } catch (driveAuthError) {
-          console.error("Drive token verification failed:", driveAuthError);
-          return res.status(403).json({ 
-            error: "Invalid or expired Drive access token",
-            message: "Please re-authenticate with Google Drive"
-          });
-        } catch (aiError) {
-          console.error("AI analysis failed for Drive document:", aiError);
-          success = false;
+        } catch (error) {
+          console.error("Drive token verification or AI analysis failed:", error);
+          if (error instanceof Error && error.message.includes('token')) {
+            return res.status(403).json({ 
+              error: "Invalid or expired Drive access token",
+              message: "Please re-authenticate with Google Drive"
+            });
+          } else {
+            console.error("AI analysis failed for Drive document:", error);
+            success = false;
+          }
         }
       } else {
         // For uploaded documents, analyze normally
@@ -605,7 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Folders endpoints
-  app.get("/api/folders", async (req, res) => {
+  app.get("/api/folders", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const folders = await storage.getFolders();
       res.json(folders);
