@@ -339,8 +339,8 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
         
         console.log("✅ PDF buffer validation passed, attempting text extraction...");
         
-        // Import pdf-parse dynamically to avoid debug mode issues
-        const pdfParse = (await import('pdf-parse')).default;
+        // Import our pdf-parser wrapper to avoid debug mode issues
+        const pdfParse = (await import('./pdf-parser.js')).default;
         const data = await pdfParse(buffer);
         const text = data.text?.trim();
         
