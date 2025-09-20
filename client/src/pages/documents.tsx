@@ -180,10 +180,12 @@ export default function Documents() {
         headers['x-drive-access-token'] = googleAccessToken;
       }
       
-      const response = await apiRequest("POST", `/api/documents/${documentId}/analyze`, {
+      // Use the correct apiRequest pattern to include headers
+      const response = await apiRequest(`/api/documents/${documentId}/analyze`, {
+        method: "POST",
         headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
-      return response.json();
+      return response;
     },
     onSuccess: (data) => {
       // Track successful AI analysis

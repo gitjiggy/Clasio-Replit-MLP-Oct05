@@ -6,7 +6,7 @@ import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth"
 import { DriveService } from "./driveService";
 import multer from "multer";
 import path from "path";
-import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents } from "@shared/schema";
+import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents, type DocumentWithFolderAndTags } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { db } from "./db.js";
 import { z } from "zod";
@@ -376,7 +376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         document: updatedDocument
       });
     } catch (error) {
-      console.error(`❌ AI analysis exception (doc: ${documentId}, status: 500):`, error);
+      console.error(`❌ AI analysis exception (doc: ${req.params.id}, status: 500):`, error);
       res.status(500).json({ error: "Failed to analyze document" });
     }
   });
