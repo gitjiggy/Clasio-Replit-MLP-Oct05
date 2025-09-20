@@ -99,6 +99,20 @@ export default function Documents() {
     queryKey: ['/api/folders'],
   });
 
+  // Separate manual and automatic folders
+  const manualFolders = folders.filter(folder => !folder.isAutoCreated);
+  const automaticFolders = folders.filter(folder => folder.isAutoCreated);
+  
+  // Build hierarchical structure for automatic folders
+  const categoryFolders = automaticFolders.filter(folder => !folder.parentId);
+  const subFolders = automaticFolders.filter(folder => folder.parentId);
+  
+  // Create nested structure
+  const hierarchicalFolders = categoryFolders.map(category => ({
+    ...category,
+    subFolders: subFolders.filter(sub => sub.parentId === category.id)
+  }));
+
   // Fetch tags
   const { data: tags = [] } = useQuery<Tag[]>({
     queryKey: ['/api/tags'],
@@ -367,29 +381,87 @@ export default function Documents() {
             </li>
           </ul>
           
-          <div className="mt-8">
-            <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Folders</h3>
-            <ul className="mt-2 space-y-1">
-              {folders.map((folder) => (
-                <li key={folder.id}>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-between px-3 py-2 text-sm text-foreground hover:bg-accent"
-                    onClick={() => setSelectedFolderId(selectedFolderId === folder.id ? "" : folder.id)}
-                    data-testid={`folder-${folder.name.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <div className="flex items-center">
-                      <FolderOpen className="mr-3 h-4 w-4 text-yellow-500" />
-                      <span>{folder.name}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {documentsData?.documents.filter(doc => doc.folderId === folder.id).length || 0}
-                    </span>
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* Automatic Organization Folders */}
+          {hierarchicalFolders.length > 0 && (
+            <div className="mt-8">
+              <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center">
+                <Sparkles className="mr-1 h-3 w-3" />
+                Smart Organization
+              </h3>
+              <ul className="mt-2 space-y-1">
+                {hierarchicalFolders.map((category) => (
+                  <li key={category.id}>
+                    {/* Main Category Folder */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-between px-3 py-2 text-sm text-foreground hover:bg-accent"
+                      onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "" : category.id)}
+                      data-testid={`folder-${category.name.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <div className="flex items-center">
+                        <FolderOpen className="mr-3 h-4 w-4" style={{ color: category.color || '#3b82f6' }} />
+                        <span className="font-medium">{category.name}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {documentsData?.documents.filter(doc => doc.folderId === category.id).length || 0}
+                      </span>
+                    </Button>
+                    
+                    {/* Sub-folders */}
+                    {category.subFolders && category.subFolders.length > 0 && (
+                      <ul className="ml-6 mt-1 space-y-1">
+                        {category.subFolders.map((subFolder) => (
+                          <li key={subFolder.id}>
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-between px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                              onClick={() => setSelectedFolderId(selectedFolderId === subFolder.id ? "" : subFolder.id)}
+                              data-testid={`subfolder-${subFolder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                            >
+                              <div className="flex items-center">
+                                <div className="mr-3 h-3 w-3 rounded-sm" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
+                                <span>{subFolder.name}</span>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {documentsData?.documents.filter(doc => doc.folderId === subFolder.id).length || 0}
+                              </span>
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Manual Folders */}
+          {manualFolders.length > 0 && (
+            <div className="mt-8">
+              <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Manual Folders</h3>
+              <ul className="mt-2 space-y-1">
+                {manualFolders.map((folder) => (
+                  <li key={folder.id}>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-between px-3 py-2 text-sm text-foreground hover:bg-accent opacity-70"
+                      onClick={() => setSelectedFolderId(selectedFolderId === folder.id ? "" : folder.id)}
+                      data-testid={`manual-folder-${folder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <div className="flex items-center">
+                        <FolderOpen className="mr-3 h-4 w-4 text-gray-400" />
+                        <span>{folder.name}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {documentsData?.documents.filter(doc => doc.folderId === folder.id).length || 0}
+                      </span>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           
           <div className="mt-8">
             <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tags</h3>
