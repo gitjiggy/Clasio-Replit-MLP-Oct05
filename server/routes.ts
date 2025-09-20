@@ -143,6 +143,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filePath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
       // Create document record
+      console.log(`🔍 UPLOAD DEBUG: Received folderId="${folderId}" (type: ${typeof folderId})`);
+      const normalizedFolderId = folderId && folderId !== "all" ? folderId : null;
+      console.log(`🔍 UPLOAD DEBUG: Normalized folderId="${normalizedFolderId}" (type: ${typeof normalizedFolderId})`);
+      
       const documentData = {
         name,
         originalName,
@@ -150,7 +154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: parseInt(fileSize),
         fileType,
         mimeType,
-        folderId: folderId && folderId !== "all" ? folderId : null,
+        folderId: normalizedFolderId,
         isFavorite: false,
         isDeleted: false,
       };
