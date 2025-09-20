@@ -159,6 +159,11 @@ export default function Documents() {
       const document = documentsData?.documents?.find((doc: DocumentWithFolderAndTags) => doc.id === documentId);
       const googleAccessToken = getGoogleAccessToken();
       
+      // Handle Drive documents that need authentication
+      if (document?.driveFileId && !googleAccessToken) {
+        throw new Error("Drive access token has expired. Please re-authenticate with Google Drive to analyze this document.");
+      }
+      
       // Prepare headers for Drive documents
       const headers: HeadersInit = {};
       if (document?.driveFileId && googleAccessToken) {
@@ -184,9 +189,14 @@ export default function Documents() {
       // Track failed AI analysis
       trackEvent('ai_analysis_failed', { analysis_type: 'gemini', error_message: error.message });
       
+      // Check if it's a Drive token issue and provide helpful guidance
+      const isDriveTokenIssue = error.message.includes("Drive access token");
+      
       toast({
         title: "AI Analysis Failed",
-        description: error.message,
+        description: isDriveTokenIssue 
+          ? "Drive access expired. Go to Google Drive tab to reconnect, then try again."
+          : error.message,
         variant: "destructive",
       });
     },
