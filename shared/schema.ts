@@ -13,7 +13,16 @@ export const folders = pgTable("folders", {
   documentType: text("document_type"), // For sub-folders: "Resume", "Contract", etc.
   gcsPath: text("gcs_path"), // Path in Google Cloud Storage
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
-});
+}, (table) => ({
+  // Ensure unique main category folders (no parent, auto-created, by category)
+  uniqueMainCategoryFolder: uniqueIndex("folders_unique_main_category_idx")
+    .on(table.category)
+    .where(sql`parent_id IS NULL AND is_auto_created = true`),
+  // Ensure unique sub-folders under each parent
+  uniqueSubFolderUnderParent: uniqueIndex("folders_unique_subfolder_idx")
+    .on(table.parentId, table.documentType)
+    .where(sql`parent_id IS NOT NULL AND is_auto_created = true`),
+}));
 
 export const tags = pgTable("tags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

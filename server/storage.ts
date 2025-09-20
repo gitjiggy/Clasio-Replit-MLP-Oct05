@@ -840,26 +840,11 @@ export class DatabaseStorage implements IStorage {
       category = "Personal";
     }
     
-    // Check if main category folder already exists
-    const existingFolder = await db
-      .select()
-      .from(folders)
-      .where(
-        and(
-          eq(folders.category, category),
-          eq(folders.isAutoCreated, true),
-          sql`parent_id IS NULL` // Main category folders have no parent
-        )
-      )
-      .limit(1);
+    // Create GCS path with proper sanitization
+    const gcsPath = `/categories/${this.slugify(category)}`;
     
-    if (existingFolder.length > 0) {
-      return existingFolder[0];
-    }
-    
-    // Create new main category folder
-    const gcsPath = `/categories/${category.toLowerCase()}`;
-    const [newFolder] = await db
+    // Try to insert with ON CONFLICT DO NOTHING
+    const insertResult = await db
       .insert(folders)
       .values({
         name: category,
@@ -870,10 +855,32 @@ export class DatabaseStorage implements IStorage {
         documentType: null,
         gcsPath: gcsPath,
       })
+      .onConflictDoNothing()
       .returning();
     
-    console.log(`Auto-created main category folder: ${category}`);
-    return newFolder;
+    if (insertResult.length > 0) {
+      console.log(`Auto-created main category folder: ${category}`);
+      return insertResult[0];
+    }
+    
+    // Folder already exists, fetch it
+    const existingFolder = await db
+      .select()
+      .from(folders)
+      .where(
+        and(
+          eq(folders.category, category),
+          eq(folders.isAutoCreated, true),
+          sql`parent_id IS NULL`
+        )
+      )
+      .limit(1);
+    
+    if (existingFolder.length > 0) {
+      return existingFolder[0];
+    }
+    
+    throw new Error(`Failed to create or find category folder: ${category}`);
   }
 
   async findOrCreateSubFolder(parentId: string, documentType: string): Promise<Folder> {
@@ -881,8 +888,45 @@ export class DatabaseStorage implements IStorage {
     
     // Normalize document type for folder naming
     const normalizedType = this.normalizeDocumentType(documentType);
+    if (!normalizedType || normalizedType.trim() === '') {
+      throw new Error('Document type cannot be empty after normalization');
+    }
     
-    // Check if sub-folder already exists under this parent
+    // Get parent folder to construct GCS path
+    const parentFolder = await db
+      .select()
+      .from(folders)
+      .where(eq(folders.id, parentId))
+      .limit(1);
+    
+    if (parentFolder.length === 0) {
+      throw new Error(`Parent folder ${parentId} not found`);
+    }
+    
+    // Create GCS path with proper sanitization
+    const gcsPath = `${parentFolder[0].gcsPath}/${this.slugify(normalizedType)}`;
+    
+    // Try to insert with ON CONFLICT DO NOTHING
+    const insertResult = await db
+      .insert(folders)
+      .values({
+        name: normalizedType,
+        color: "#9ca3af", // Gray color for sub-folders
+        parentId: parentId,
+        isAutoCreated: true,
+        category: parentFolder[0].category,
+        documentType: normalizedType,
+        gcsPath: gcsPath,
+      })
+      .onConflictDoNothing()
+      .returning();
+    
+    if (insertResult.length > 0) {
+      console.log(`Auto-created sub-folder: ${parentFolder[0].category}/${normalizedType}`);
+      return insertResult[0];
+    }
+    
+    // Sub-folder already exists, fetch it
     const existingSubFolder = await db
       .select()
       .from(folders)
@@ -899,34 +943,7 @@ export class DatabaseStorage implements IStorage {
       return existingSubFolder[0];
     }
     
-    // Get parent folder to construct GCS path
-    const parentFolder = await db
-      .select()
-      .from(folders)
-      .where(eq(folders.id, parentId))
-      .limit(1);
-    
-    if (parentFolder.length === 0) {
-      throw new Error(`Parent folder ${parentId} not found`);
-    }
-    
-    // Create new sub-folder
-    const gcsPath = `${parentFolder[0].gcsPath}/${normalizedType.toLowerCase()}`;
-    const [newSubFolder] = await db
-      .insert(folders)
-      .values({
-        name: normalizedType,
-        color: "#9ca3af", // Gray color for sub-folders
-        parentId: parentId,
-        isAutoCreated: true,
-        category: parentFolder[0].category,
-        documentType: normalizedType,
-        gcsPath: gcsPath,
-      })
-      .returning();
-    
-    console.log(`Auto-created sub-folder: ${parentFolder[0].category}/${normalizedType}`);
-    return newSubFolder;
+    throw new Error(`Failed to create or find sub-folder: ${normalizedType} under ${parentId}`);
   }
 
   async organizeDocumentIntoFolder(documentId: string, category: string, documentType: string): Promise<boolean> {
@@ -1001,6 +1018,23 @@ export class DatabaseStorage implements IStorage {
     const normalized = typeMap[documentType.toLowerCase()] || documentType;
     // Capitalize first letter and ensure proper format
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+
+  private slugify(text: string): string {
+    if (!text || typeof text !== 'string') {
+      return 'uncategorized';
+    }
+    
+    const slug = text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9-\s]/g, '') // Remove invalid characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+      .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+    
+    // Ensure we have a valid slug
+    return slug || 'uncategorized';
   }
 
 }
