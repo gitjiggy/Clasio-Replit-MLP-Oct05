@@ -430,8 +430,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document not found" });
       }
       
-      // Extract content
-      const success = await storage.extractDocumentContent(documentId);
+      let success = false;
+      
+      // Check if this is a Google Drive document
+      if (document.driveFileId) {
+        console.log(`📄 Extracting content from Drive document: ${document.name}`);
+        
+        // For Drive documents, we need the user's Google access token
+        const driveAccessToken = req.headers['x-drive-access-token'] as string;
+        
+        if (!driveAccessToken) {
+          return res.status(403).json({ 
+            error: "Google Drive access token required",
+            message: "Please provide Drive access token in x-drive-access-token header",
+            code: "DRIVE_TOKEN_REQUIRED"
+          });
+        }
+        
+        try {
+          // Extract with Drive authentication
+          success = await storage.extractDocumentContent(documentId, driveAccessToken);
+          
+        } catch (driveError) {
+          console.error("Drive authentication failed:", driveError);
+          return res.status(403).json({ 
+            error: "Failed to authenticate with Google Drive",
+            message: "Please re-authenticate with Google Drive",
+            code: "DRIVE_AUTH_FAILED"
+          });
+        }
+      } else {
+        // Regular uploaded document
+        success = await storage.extractDocumentContent(documentId);
+      }
       
       if (!success) {
         return res.status(500).json({ error: "Failed to extract document content" });

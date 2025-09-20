@@ -55,7 +55,7 @@ export interface IStorage {
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
   analyzeDocumentWithAI(id: string, driveContent?: string, driveAccessToken?: string): Promise<boolean>;
-  extractDocumentContent(id: string): Promise<boolean>;
+  extractDocumentContent(id: string, driveAccessToken?: string): Promise<boolean>;
   getDocumentsWithoutContent(): Promise<Document[]>;
 
   // Document Versions
@@ -779,7 +779,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async extractDocumentContent(documentId: string): Promise<boolean> {
+  async extractDocumentContent(documentId: string, driveAccessToken?: string): Promise<boolean> {
     try {
       // Import here to avoid circular dependencies
       const { extractTextFromDocument } = await import("./gemini.js");
@@ -805,9 +805,15 @@ export class DatabaseStorage implements IStorage {
         return false;
       }
 
-      // Extract text content
+      // Extract text content - pass Drive access token if provided
       console.log(`Extracting content from: ${document.filePath} (${document.mimeType})`);
-      const documentText = await extractTextFromDocument(document.filePath, document.mimeType);
+      const documentText = await extractTextFromDocument(document.filePath, document.mimeType, driveAccessToken);
+      
+      // Check if extraction failed with authentication error
+      if (documentText.includes('Google Drive document content extraction requires authentication')) {
+        console.error(`Drive authentication required for document: ${documentId}`);
+        return false;
+      }
       
       // Update the document with extracted content
       const [updatedDoc] = await db
