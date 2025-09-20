@@ -54,6 +54,7 @@ export const documents = pgTable("documents", {
   aiSummary: text("ai_summary"),
   aiKeyTopics: text("ai_key_topics").array(),
   aiDocumentType: text("ai_document_type"),
+  aiCategory: text("ai_category"), // Store the AI-classified category
   aiSentiment: text("ai_sentiment"),
   aiWordCount: integer("ai_word_count"),
   aiAnalyzedAt: timestamp("ai_analyzed_at"),

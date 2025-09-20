@@ -749,7 +749,8 @@ export class DatabaseStorage implements IStorage {
           aiSummary: summary,
           aiKeyTopics: analysis.keyTopics,
           aiDocumentType: analysis.documentType,
-          aiSentiment: analysis.category,
+          aiCategory: analysis.category, // Store the AI-classified category
+          aiSentiment: "neutral", // TODO: Add actual sentiment analysis
           aiWordCount: analysis.wordCount,
           aiAnalyzedAt: new Date(),
           // Save the document content for search functionality

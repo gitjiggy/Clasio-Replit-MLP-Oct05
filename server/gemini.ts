@@ -89,12 +89,12 @@ export async function analyzeDocumentContent(text: string): Promise<{
     let keywordCategory = null;
     let keywordDocumentType = null;
     
-    // Education-specific patterns
-    if (/(back to school|syllabus|homework|pta|pto|school night|curriculum|parent teacher|class schedule|school event|education|academic|teacher|student|grade|assignment)/i.test(text)) {
+    // Education-specific patterns - made more specific to avoid false positives
+    if (/(back to school night|syllabus|homework assignment|pta meeting|pto meeting|school night|curriculum guide|parent teacher conference|class schedule|school event announcement|academic calendar|teacher communication|school enrollment|grade report)/i.test(text)) {
         keywordCategory = "Education";
-        if (/(back to school|school night|event|meeting|notice|announcement)/i.test(text)) {
+        if (/(back to school|school night|pta|pto|school event|meeting|notice|announcement)/i.test(text)) {
             keywordDocumentType = "Event Notice";
-        } else if (/(syllabus|curriculum|assignment|homework)/i.test(text)) {
+        } else if (/(syllabus|curriculum|homework|academic)/i.test(text)) {
             keywordDocumentType = "Academic Document";
         }
     }
@@ -183,11 +183,14 @@ ${text}`;
             let finalDocumentType = validDocumentTypes.includes(data.documentType) ? data.documentType : "Other";
             let finalCategory = validCategories.includes(data.category) ? data.category : "Personal";
             
-            // Override with keyword-based rules for better accuracy
-            if (keywordCategory && validCategories.includes(keywordCategory)) {
+            // Only use keyword overrides as tie-breakers when AI confidence is low
+            // Prefer the AI model's structured output with temperature=0
+            if (keywordCategory && validCategories.includes(keywordCategory) && 
+                (!data.category || !validCategories.includes(data.category))) {
                 finalCategory = keywordCategory;
             }
-            if (keywordDocumentType && validDocumentTypes.includes(keywordDocumentType)) {
+            if (keywordDocumentType && validDocumentTypes.includes(keywordDocumentType) && 
+                (!data.documentType || !validDocumentTypes.includes(data.documentType))) {
                 finalDocumentType = keywordDocumentType;
             }
             
