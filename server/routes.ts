@@ -150,7 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: parseInt(fileSize),
         fileType,
         mimeType,
-        folderId: folderId || null,
+        folderId: folderId && folderId !== "all" ? folderId : null,
         isFavorite: false,
         isDeleted: false,
       };
