@@ -510,6 +510,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk AI analysis endpoint - Re-analyze documents with improved classification
+  app.post("/api/documents/bulk-ai-analysis", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      console.log("🚀 Starting bulk AI analysis with improved classification rules...");
+      
+      // Get all documents and filter those that need AI analysis
+      const allDocuments = await storage.getDocuments({
+        search: "",
+        page: 1,
+        limit: 1000, // Get up to 1000 documents
+        includeContent: false
+      });
+      
+      // Filter documents that need re-analysis (NULL category or misclassified)
+      const documentsForAnalysis = allDocuments.filter((doc: DocumentWithFolderAndTags) => 
+        !doc.isDeleted && (
+          doc.aiCategory === null || 
+          doc.aiDocumentType === 'Event Notice' || 
+          doc.aiDocumentType === 'Unknown' || 
+          doc.aiDocumentType === 'Letter' ||
+          doc.aiCategory === 'Education'
+        )
+      );
+      
+      if (documentsForAnalysis.length === 0) {
+        return res.json({
+          success: true,
+          message: "All documents already have proper AI classification",
+          processed: 0,
+          total: 0
+        });
+      }
+
+      console.log(`🎯 Found ${documentsForAnalysis.length} documents needing AI re-analysis`);
+
+      // Process documents in batches with concurrency limit
+      let processed = 0;
+      let successful = 0;
+      const concurrency = 3; // Limit concurrent AI requests
+
+      // Start processing asynchronously with limited concurrency
+      const batchPromise = async () => {
+        for (let i = 0; i < documentsForAnalysis.length; i += concurrency) {
+          const batch = documentsForAnalysis.slice(i, i + concurrency);
+          
+          await Promise.all(
+            batch.map(async (doc: DocumentWithFolderAndTags) => {
+              try {
+                console.log(`🔍 Analyzing document: ${doc.name} (${doc.id})`);
+                
+                let success = false;
+                if (doc.driveFileId) {
+                  // Drive document - need user's access token for authentication
+                  console.log(`📄 Skipping Drive document ${doc.name} (requires user interaction)`);
+                  processed++;
+                  return { id: doc.id, success: false, reason: "drive_auth_required" };
+                } else {
+                  // Uploaded document
+                  success = await storage.analyzeDocumentWithAI(doc.id);
+                }
+                
+                if (success) {
+                  successful++;
+                  console.log(`✅ Successfully analyzed: ${doc.name}`);
+                } else {
+                  console.log(`⚠️ Failed to analyze: ${doc.name}`);
+                }
+                
+                return { id: doc.id, success };
+              } catch (error) {
+                console.error(`❌ Error analyzing document ${doc.name}:`, error);
+                return { id: doc.id, success: false };
+              } finally {
+                processed++;
+              }
+            })
+          );
+          
+          // Small delay between batches to prevent overwhelming the AI service
+          if (i + concurrency < documentsForAnalysis.length) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+      };
+
+      // Return immediate response
+      res.json({
+        success: true,
+        message: `Bulk AI analysis started for ${documentsForAnalysis.length} documents`,
+        total: documentsForAnalysis.length,
+        status: "processing"
+      });
+
+      // Log completion asynchronously
+      batchPromise().then(() => {
+        console.log(`✅ Bulk AI analysis completed: ${successful}/${processed} successful`);
+        console.log(`🎯 Tax documents should now be properly classified as "Taxes/Tax Document"`);
+      }).catch((error) => {
+        console.error("❌ Bulk AI analysis error:", error);
+      });
+
+    } catch (error) {
+      console.error("❌ Bulk AI analysis failed:", error);
+      res.status(500).json({ error: "Failed to start bulk AI analysis" });
+    }
+  });
+
   // Document Versioning endpoints
   
   // Get document with all versions
