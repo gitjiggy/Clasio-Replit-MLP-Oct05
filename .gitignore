@@ -1,6 +1,56 @@
-node_modules
-dist
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Cache directories
+.cache/
+.parcel-cache/
+.npm/
+.yarn/
+
+# Logs
+logs
+*.log
+
+# Server public (existing)
 server/public
-vite.config.ts.*
+
+# Temporary files
+tmp/
+temp/
 *.tar.gz
+
+# Replit specific
+.replit
+.upm/
+.breakpoints
+replit.nix
