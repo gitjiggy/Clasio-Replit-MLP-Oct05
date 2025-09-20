@@ -148,42 +148,75 @@ export class DriveService {
   /**
    * Get file content as buffer for binary files (PDFs, Word docs, etc.)
    * NOTE: Do NOT use this for Google Docs - use getFileContent with export instead
+   * Uses stream-based approach for reliable binary downloads (googleapis v37+ compatible)
    */
   async getFileBuffer(fileId: string): Promise<{ buffer: Buffer; mimeType: string; name: string } | null> {
     try {
+      console.log(`🔍 DRIVE DEBUG: Downloading binary file ${fileId}...`);
+      
       // Get file metadata first
       const metadata = await this.drive.files.get({
         fileId,
-        fields: 'id, name, mimeType'
+        fields: 'id, name, mimeType, size'
       });
 
       const file = metadata.data;
       if (!file.id || !file.name || !file.mimeType) {
+        console.error(`❌ DRIVE DEBUG: Invalid file metadata for ${fileId}`);
         throw new Error('Invalid file metadata');
       }
 
+      console.log(`🔍 DRIVE DEBUG: File metadata - Name: ${file.name}, Type: ${file.mimeType}, Size: ${file.size || 'unknown'}`);
+
       // Don't use getFileBuffer for Google Docs - they need to be exported, not downloaded
       if (file.mimeType === 'application/vnd.google-apps.document') {
+        console.error(`❌ DRIVE DEBUG: Attempted to download Google Doc as binary: ${fileId}`);
         throw new Error('Google Docs should use getFileContent with export, not getFileBuffer');
       }
 
-      // Download file content as buffer with proper responseType
+      // Use stream-based download for reliable binary data handling
+      // This fixes issues with newer googleapis versions and arraybuffer conversion
       const response = await this.drive.files.get({
         fileId,
         alt: 'media'
       }, { 
-        responseType: 'arraybuffer' 
+        responseType: 'stream' 
       });
 
-      const buffer = Buffer.from(response.data as ArrayBuffer);
+      console.log(`🔍 DRIVE DEBUG: Stream response received, collecting chunks...`);
 
-      return {
-        buffer,
-        mimeType: file.mimeType,
-        name: file.name
-      };
+      // Collect stream chunks into buffer array (more reliable than arraybuffer)
+      const chunks: Buffer[] = [];
+      return new Promise((resolve, reject) => {
+        response.data
+          .on('data', (chunk: Buffer) => {
+            chunks.push(chunk);
+          })
+          .on('end', () => {
+            const buffer = Buffer.concat(chunks);
+            console.log(`✅ DRIVE DEBUG: File downloaded successfully - ${buffer.length} bytes`);
+            
+            resolve({
+              buffer,
+              mimeType: file.mimeType,
+              name: file.name
+            });
+          })
+          .on('error', (streamError: Error) => {
+            console.error(`❌ DRIVE DEBUG: Stream error for ${fileId}:`, streamError);
+            reject(streamError);
+          });
+      });
+
     } catch (error) {
-      console.error('Error getting file buffer:', error);
+      console.error(`❌ DRIVE DEBUG: Error getting file buffer for ${fileId}:`, error);
+      // Return null for graceful handling, but log detailed error
+      if (error instanceof Error) {
+        console.error(`❌ DRIVE DEBUG: Error details - ${error.message}`);
+        if ('code' in error) {
+          console.error(`❌ DRIVE DEBUG: Error code - ${(error as any).code}`);
+        }
+      }
       return null;
     }
   }
