@@ -7,11 +7,8 @@ import { ObjectStorageService } from "./objectStorage.js";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
 
-// Dynamic imports for libraries without built-in TypeScript definitions
-async function getPdfParse() {
-  const pdfParse = await import('pdf-parse');
-  return pdfParse.default as (buffer: Buffer) => Promise<PDFData>;
-}
+// Import pdf-parse directly to avoid dynamic import issues
+import pdfParse from 'pdf-parse';
 
 async function getWordExtractor() {
   const WordExtractor = await import('word-extractor');
@@ -343,7 +340,6 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
         
         console.log("✅ PDF buffer validation passed, attempting text extraction...");
         
-        const pdfParse = await getPdfParse();
         const data = await pdfParse(buffer);
         const text = data.text?.trim();
         
