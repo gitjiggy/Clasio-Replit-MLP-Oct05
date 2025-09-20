@@ -7,6 +7,11 @@ export const folders = pgTable("folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   color: text("color").default("#f59e0b"),
+  parentId: varchar("parent_id"),
+  isAutoCreated: boolean("is_auto_created").default(false).notNull(),
+  category: text("category"), // For main folders: "Taxes", "Medical", etc.
+  documentType: text("document_type"), // For sub-folders: "Resume", "Contract", etc.
+  gcsPath: text("gcs_path"), // Path in Google Cloud Storage
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
 });
 

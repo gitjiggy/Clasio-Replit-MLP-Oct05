@@ -21,6 +21,15 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
 
+// Predefined main categories for automatic organization
+const MAIN_CATEGORIES = [
+  "Taxes", "Medical", "Insurance", "Legal", "Immigration", 
+  "Financial", "Employment", "Education", "Real Estate", 
+  "Travel", "Personal", "Business"
+] as const;
+
+type MainCategory = typeof MAIN_CATEGORIES[number];
+
 export interface DocumentFilters {
   search?: string;
   fileType?: string;
@@ -66,6 +75,11 @@ export interface IStorage {
 
   // Document Tags
   addDocumentTag(documentTag: InsertDocumentTag): Promise<DocumentTag>;
+  
+  // Automatic Folder Organization
+  findOrCreateCategoryFolder(category: string): Promise<Folder>;
+  findOrCreateSubFolder(parentId: string, documentType: string): Promise<Folder>;
+  organizeDocumentIntoFolder(documentId: string, category: string, documentType: string): Promise<boolean>;
   removeDocumentTags(documentId: string): Promise<void>;
 }
 
@@ -160,11 +174,15 @@ export class DatabaseStorage implements IStorage {
     if (filters.search) {
       // Search in both document name and content
       const nameCondition = ilike(documents.name, `%${filters.search}%`);
-      const contentConditions = and(
+      const contentCondition = and(
         isNotNull(documents.documentContent),
         ilike(documents.documentContent, `%${filters.search}%`)
-      )!;
-      conditions.push(or(nameCondition, contentConditions));
+      );
+      if (contentCondition) {
+        conditions.push(or(nameCondition, contentCondition)!);
+      } else {
+        conditions.push(nameCondition);
+      }
     }
 
     if (filters.fileType && filters.fileType !== 'all') {
@@ -260,11 +278,15 @@ export class DatabaseStorage implements IStorage {
     if (filters.search) {
       // Search in both document name and content
       const nameCondition = ilike(documents.name, `%${filters.search}%`);
-      const contentConditions = and(
+      const contentCondition = and(
         isNotNull(documents.documentContent),
         ilike(documents.documentContent, `%${filters.search}%`)
-      )!;
-      conditions.push(or(nameCondition, contentConditions));
+      );
+      if (contentCondition) {
+        conditions.push(or(nameCondition, contentCondition)!);
+      } else {
+        conditions.push(nameCondition);
+      }
     }
 
     if (filters.fileType && filters.fileType !== 'all') {
@@ -717,6 +739,17 @@ export class DatabaseStorage implements IStorage {
         .where(eq(documents.id, documentId))
         .returning();
 
+      // Automatically organize the document into folders based on AI classification
+      if (updatedDoc && analysis.category && analysis.documentType) {
+        try {
+          await this.organizeDocumentIntoFolder(documentId, analysis.category, analysis.documentType);
+          console.log(`Document ${documentId} automatically organized into ${analysis.category}/${analysis.documentType}`);
+        } catch (orgError) {
+          console.error("Failed to auto-organize document, but continuing:", orgError);
+          // Don't fail the AI analysis if organization fails
+        }
+      }
+
       return !!updatedDoc;
     } catch (error) {
       console.error("Error analyzing document with AI:", error);
@@ -795,6 +828,179 @@ export class DatabaseStorage implements IStorage {
       .limit(100); // Limit to 100 documents at a time for performance
     
     return documentsWithoutContent;
+  }
+
+  // Automatic Folder Organization Methods
+  async findOrCreateCategoryFolder(category: string): Promise<Folder> {
+    await this.ensureInitialized();
+    
+    // Validate that category is one of the predefined categories
+    if (!MAIN_CATEGORIES.includes(category as MainCategory)) {
+      // Default to "Personal" for invalid categories
+      category = "Personal";
+    }
+    
+    // Check if main category folder already exists
+    const existingFolder = await db
+      .select()
+      .from(folders)
+      .where(
+        and(
+          eq(folders.category, category),
+          eq(folders.isAutoCreated, true),
+          sql`parent_id IS NULL` // Main category folders have no parent
+        )
+      )
+      .limit(1);
+    
+    if (existingFolder.length > 0) {
+      return existingFolder[0];
+    }
+    
+    // Create new main category folder
+    const gcsPath = `/categories/${category.toLowerCase()}`;
+    const [newFolder] = await db
+      .insert(folders)
+      .values({
+        name: category,
+        color: this.getCategoryColor(category),
+        parentId: null,
+        isAutoCreated: true,
+        category: category,
+        documentType: null,
+        gcsPath: gcsPath,
+      })
+      .returning();
+    
+    console.log(`Auto-created main category folder: ${category}`);
+    return newFolder;
+  }
+
+  async findOrCreateSubFolder(parentId: string, documentType: string): Promise<Folder> {
+    await this.ensureInitialized();
+    
+    // Normalize document type for folder naming
+    const normalizedType = this.normalizeDocumentType(documentType);
+    
+    // Check if sub-folder already exists under this parent
+    const existingSubFolder = await db
+      .select()
+      .from(folders)
+      .where(
+        and(
+          eq(folders.parentId, parentId),
+          eq(folders.documentType, normalizedType),
+          eq(folders.isAutoCreated, true)
+        )
+      )
+      .limit(1);
+    
+    if (existingSubFolder.length > 0) {
+      return existingSubFolder[0];
+    }
+    
+    // Get parent folder to construct GCS path
+    const parentFolder = await db
+      .select()
+      .from(folders)
+      .where(eq(folders.id, parentId))
+      .limit(1);
+    
+    if (parentFolder.length === 0) {
+      throw new Error(`Parent folder ${parentId} not found`);
+    }
+    
+    // Create new sub-folder
+    const gcsPath = `${parentFolder[0].gcsPath}/${normalizedType.toLowerCase()}`;
+    const [newSubFolder] = await db
+      .insert(folders)
+      .values({
+        name: normalizedType,
+        color: "#9ca3af", // Gray color for sub-folders
+        parentId: parentId,
+        isAutoCreated: true,
+        category: parentFolder[0].category,
+        documentType: normalizedType,
+        gcsPath: gcsPath,
+      })
+      .returning();
+    
+    console.log(`Auto-created sub-folder: ${parentFolder[0].category}/${normalizedType}`);
+    return newSubFolder;
+  }
+
+  async organizeDocumentIntoFolder(documentId: string, category: string, documentType: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+      
+      // Find or create the main category folder
+      const categoryFolder = await this.findOrCreateCategoryFolder(category);
+      
+      // Find or create the document type sub-folder
+      const subFolder = await this.findOrCreateSubFolder(categoryFolder.id, documentType);
+      
+      // Update the document to assign it to the sub-folder
+      const [updatedDoc] = await db
+        .update(documents)
+        .set({
+          folderId: subFolder.id
+        })
+        .where(eq(documents.id, documentId))
+        .returning();
+      
+      return !!updatedDoc;
+    } catch (error) {
+      console.error("Error organizing document into folder:", error);
+      return false;
+    }
+  }
+
+  // Helper methods
+  private getCategoryColor(category: string): string {
+    const categoryColors: Record<string, string> = {
+      "Taxes": "#dc2626", // Red
+      "Medical": "#059669", // Green
+      "Insurance": "#2563eb", // Blue
+      "Legal": "#7c3aed", // Purple
+      "Immigration": "#ea580c", // Orange
+      "Financial": "#0891b2", // Cyan
+      "Employment": "#65a30d", // Lime
+      "Education": "#c2410c", // Amber
+      "Real Estate": "#be123c", // Rose
+      "Travel": "#0d9488", // Teal
+      "Personal": "#6366f1", // Indigo
+      "Business": "#4338ca", // Violet
+    };
+    return categoryColors[category] || "#f59e0b"; // Default gold
+  }
+
+  private normalizeDocumentType(documentType: string): string {
+    // Normalize common document type variations
+    const typeMap: Record<string, string> = {
+      "report": "Reports",
+      "contract": "Contracts", 
+      "letter": "Letters",
+      "invoice": "Invoices",
+      "resume": "Resumes",
+      "cv": "Resumes",
+      "receipt": "Receipts",
+      "statement": "Statements",
+      "form": "Forms",
+      "application": "Applications",
+      "certificate": "Certificates",
+      "license": "Licenses",
+      "policy": "Policies",
+      "agreement": "Agreements",
+      "memo": "Memos",
+      "proposal": "Proposals",
+      "presentation": "Presentations",
+      "spreadsheet": "Spreadsheets",
+      "technical documentation": "Technical Docs",
+    };
+    
+    const normalized = typeMap[documentType.toLowerCase()] || documentType;
+    // Capitalize first letter and ensure proper format
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
 }
