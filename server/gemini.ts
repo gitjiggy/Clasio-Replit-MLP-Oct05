@@ -89,14 +89,40 @@ export async function analyzeDocumentContent(text: string): Promise<{
     let keywordCategory = null;
     let keywordDocumentType = null;
     
+    // HIGHEST PRIORITY: Tax-specific patterns - must come first to override AI misclassification
+    if (/(irs|franchise tax board|form 1040|w[- ]?2|1099|tax return|schedule [a-z]|state tax|federal tax|ca tax|california tax|income tax|tax filing|taxpayer|adjusted gross income|tax year|agi|deduction|exemption|refund|tax liability)/i.test(text)) {
+        keywordCategory = "Taxes";
+        keywordDocumentType = "Tax Document";
+        console.log("🎯 Tax document detected by deterministic rules");
+    }
+    
+    // Resume-specific patterns  
+    else if (/(resume|curriculum vitae|cv|professional experience|work experience|skills|qualifications|career objective|employment history|education background)/i.test(text)) {
+        keywordCategory = "Employment";
+        keywordDocumentType = "Resume";
+        console.log("🎯 Resume document detected by deterministic rules");
+    }
+    
     // Education-specific patterns - made more specific to avoid false positives
-    if (/(back to school night|syllabus|homework assignment|pta meeting|pto meeting|school night|curriculum guide|parent teacher conference|class schedule|school event announcement|academic calendar|teacher communication|school enrollment|grade report)/i.test(text)) {
+    else if (/(back to school night|syllabus|homework assignment|pta meeting|pto meeting|school night|curriculum guide|parent teacher conference|class schedule|school event announcement|academic calendar|teacher communication|school enrollment|grade report)/i.test(text)) {
         keywordCategory = "Education";
         if (/(back to school|school night|pta|pto|school event|meeting|notice|announcement)/i.test(text)) {
             keywordDocumentType = "Event Notice";
         } else if (/(syllabus|curriculum|homework|academic)/i.test(text)) {
             keywordDocumentType = "Academic Document";
         }
+    }
+    
+    // If deterministic rules matched, return immediately without AI
+    if (keywordCategory && keywordDocumentType) {
+        return {
+            keyTopics: keywordCategory === "Taxes" ? ["Tax Forms", "Financial Records", "Government Documents"] :
+                      keywordCategory === "Employment" ? ["Professional Experience", "Career History", "Skills"] :
+                      ["Education", "Academic", "School"],
+            documentType: keywordDocumentType,
+            category: keywordCategory,
+            wordCount: wordCount
+        };
     }
 
     const prompt = `You are a document classification expert. Analyze the following document and provide a JSON response.
