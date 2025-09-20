@@ -233,6 +233,7 @@ export class DatabaseStorage implements IStorage {
       aiSummary: documents.aiSummary,
       aiKeyTopics: documents.aiKeyTopics,
       aiDocumentType: documents.aiDocumentType,
+      aiCategory: documents.aiCategory,
       aiSentiment: documents.aiSentiment,
       aiWordCount: documents.aiWordCount,
       aiAnalyzedAt: documents.aiAnalyzedAt,

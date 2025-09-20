@@ -252,19 +252,13 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
                         return `Failed to download binary file from Drive: ${driveFileId}`;
                     }
                     
-                    // Use existing extraction logic for binary files
+                    // Use enhanced extraction functions for binary files (same as object storage path)
                     if (mimeType === 'application/pdf') {
-                        const pdfParse = await getPdfParse();
-                        const data = await pdfParse(fileBuffer.buffer);
-                        return data.text || '';
+                        return await extractTextFromPDF(fileBuffer.buffer);
                     } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                        const result = await mammoth.extractRawText({ buffer: fileBuffer.buffer });
-                        return result.value || '';
+                        return await extractTextFromWordDocx(fileBuffer.buffer);
                     } else if (mimeType === 'application/msword') {
-                        const WordExtractor = await getWordExtractor();
-                        const extractor = new WordExtractor();
-                        const extracted = await extractor.extract(fileBuffer.buffer);
-                        return extracted.getBody() || '';
+                        return await extractTextFromWordDoc(fileBuffer.buffer);
                     }
                 } else {
                     return `Unsupported file type for Drive extraction: ${mimeType}`;
@@ -322,25 +316,67 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
     }
 }
 
-// PDF text extraction using pdf-parse
+// PDF text extraction using pdf-parse with comprehensive error handling
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     try {
-        console.log("Extracting text from PDF...");
+        console.log(`🔍 Extracting text from PDF (${buffer.length} bytes)...`);
+        
+        // Check if buffer is valid and not empty
+        if (!buffer || buffer.length === 0) {
+            console.error("❌ PDF buffer is empty or invalid");
+            return "Error: PDF file is empty or corrupted.";
+        }
+        
+        // Check for minimum PDF size (PDFs smaller than 100 bytes are likely corrupted)
+        if (buffer.length < 100) {
+            console.error(`❌ PDF too small (${buffer.length} bytes) - likely corrupted during download`);
+            return "Error: PDF file appears to be corrupted or incomplete.";
+        }
+        
+        // Verify PDF header
+        const pdfHeader = buffer.toString('ascii', 0, 4);
+        if (pdfHeader !== '%PDF') {
+            console.error(`❌ Invalid PDF header: ${pdfHeader} (expected %PDF)`);
+            return "Error: File does not appear to be a valid PDF.";
+        }
+        
+        console.log("✅ PDF buffer validation passed, attempting text extraction...");
+        
         const pdfParse = await getPdfParse();
         const data = await pdfParse(buffer);
         const text = data.text?.trim();
         
         if (!text || text.length === 0) {
-            console.log("No text found in PDF, attempting OCR fallback...");
+            console.log("⚠️ No embedded text found in PDF, attempting OCR fallback...");
             // If no text found, try OCR using Gemini vision as fallback
-            return await extractTextFromImageBuffer(buffer, 'application/pdf') + " (extracted via OCR)";
+            try {
+                const ocrText = await extractTextFromImageBuffer(buffer, 'application/pdf');
+                if (ocrText && ocrText.length > 10) {
+                    console.log(`✅ OCR extraction successful: ${ocrText.length} characters`);
+                    return ocrText + " (extracted via OCR)";
+                } else {
+                    console.log("❌ OCR fallback also failed");
+                    return "Error: Unable to extract text from this PDF. It may be an image-based document without readable text.";
+                }
+            } catch (ocrError) {
+                console.error("❌ OCR fallback failed:", ocrError);
+                return "Error: Unable to extract text from this PDF. Both text extraction and OCR failed.";
+            }
         }
         
-        console.log(`PDF text extracted: ${text.length} characters`);
+        console.log(`✅ PDF text extracted successfully: ${text.length} characters`);
         return text;
     } catch (error) {
-        console.error("Error extracting text from PDF:", error);
-        return "Error extracting text from PDF document.";
+        console.error("❌ Error extracting text from PDF:", error);
+        
+        // Provide specific error information for debugging
+        if (error.message.includes('Invalid PDF structure')) {
+            return "Error: PDF file structure is corrupted or unsupported.";
+        } else if (error.message.includes('encrypted')) {
+            return "Error: PDF is password-protected or encrypted.";
+        } else {
+            return `Error extracting text from PDF: ${error.message}`;
+        }
     }
 }
 
