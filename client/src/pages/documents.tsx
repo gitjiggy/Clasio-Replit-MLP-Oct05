@@ -754,7 +754,7 @@ export default function Documents() {
                         )}
                         {document.aiDocumentType && (
                           <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                            Type: {document.aiDocumentType} • Classification: {document.aiSentiment}
+                            Type: {document.aiDocumentType} • Category: {document.aiCategory || 'Uncategorized'}
                           </p>
                         )}
                       </div>

@@ -403,10 +403,10 @@ export function DocumentModal({
                         <div className="font-medium">{document.aiDocumentType}</div>
                       </div>
                     )}
-                    {document.aiSentiment && (
+                    {document.aiCategory && (
                       <div>
                         <div className="text-muted-foreground">Category</div>
-                        <div className="font-medium">{document.aiSentiment}</div>
+                        <div className="font-medium">{document.aiCategory}</div>
                       </div>
                     )}
                     {document.aiWordCount && (
