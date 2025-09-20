@@ -7,7 +7,8 @@ import { ObjectStorageService } from "./objectStorage.js";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
 
-// pdf-parse will be imported dynamically to avoid debug mode issues
+// Import pdf-parse directly
+import pdfParse from 'pdf-parse';
 
 async function getWordExtractor() {
   const WordExtractor = await import('word-extractor');
@@ -339,8 +340,6 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
         
         console.log("✅ PDF buffer validation passed, attempting text extraction...");
         
-        // Import our pdf-parser wrapper to avoid debug mode issues
-        const pdfParse = (await import('./pdf-parser.js')).default;
         const data = await pdfParse(buffer);
         const text = data.text?.trim();
         
