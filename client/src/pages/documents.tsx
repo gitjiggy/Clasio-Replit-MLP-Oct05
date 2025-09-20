@@ -107,11 +107,20 @@ export default function Documents() {
   const categoryFolders = automaticFolders.filter(folder => !folder.parentId);
   const subFolders = automaticFolders.filter(folder => folder.parentId);
   
-  // Create nested structure
-  const hierarchicalFolders = categoryFolders.map(category => ({
-    ...category,
-    subFolders: subFolders.filter(sub => sub.parentId === category.id)
-  }));
+  // Create nested structure and filter out folders with 0 documents using stable backend counts
+  const hierarchicalFolders = categoryFolders
+    .map(category => ({
+      ...category,
+      subFolders: subFolders
+        .filter(sub => sub.parentId === category.id)
+        .filter(sub => (sub as any).documentCount > 0) // Only sub-folders with documents from backend count
+    }))
+    .filter(category => {
+      // Show category if it has documents directly OR has sub-folders with documents
+      const hasDirectDocuments = (category as any).documentCount > 0;
+      const hasSubFoldersWithDocuments = category.subFolders.length > 0;
+      return hasDirectDocuments || hasSubFoldersWithDocuments;
+    });
 
   // Fetch tags
   const { data: tags = [] } = useQuery<Tag[]>({
@@ -135,6 +144,7 @@ export default function Documents() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/folders'] }); // Keep folder counts fresh
       toast({
         title: "Upload successful",
         description: "Document has been uploaded successfully.",
@@ -180,6 +190,7 @@ export default function Documents() {
       trackEvent('ai_analysis_complete', { analysis_type: 'gemini' });
       
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/folders'] }); // Keep folder counts fresh
       toast({
         title: "AI Analysis Complete",
         description: "Document has been analyzed with AI successfully.",
@@ -215,6 +226,7 @@ export default function Documents() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/folders'] }); // Keep folder counts fresh
       toast({
         title: "Document deleted",
         description: "Document has been deleted successfully.",
@@ -413,7 +425,7 @@ export default function Documents() {
                         <span className="font-medium">{category.name}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {documentsData?.documents.filter(doc => doc.folderId === category.id).length || 0}
+                        {(category as any).documentCount || 0}
                       </span>
                     </Button>
                     
@@ -433,7 +445,7 @@ export default function Documents() {
                                 <span>{subFolder.name}</span>
                               </div>
                               <span className="text-xs text-muted-foreground">
-                                {documentsData?.documents.filter(doc => doc.folderId === subFolder.id).length || 0}
+                                {(subFolder as any).documentCount || 0}
                               </span>
                             </Button>
                           </li>
@@ -464,7 +476,7 @@ export default function Documents() {
                         <span>{folder.name}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {documentsData?.documents.filter(doc => doc.folderId === folder.id).length || 0}
+                        {(folder as any).documentCount || 0}
                       </span>
                     </Button>
                   </li>
@@ -594,7 +606,7 @@ export default function Documents() {
                 <SelectContent>
                   <SelectItem value="all">All Folders</SelectItem>
                   {folders
-                    .filter(folder => !folder.parentId) // Only show main category folders (no sub-folders)
+                    .filter(folder => folder.isAutoCreated && !folder.parentId) // Only Smart Organization main categories
                     .map((folder) => (
                     <SelectItem key={folder.id} value={folder.id}>
                       {folder.name}

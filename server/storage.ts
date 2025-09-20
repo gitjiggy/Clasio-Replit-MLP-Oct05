@@ -30,6 +30,9 @@ const MAIN_CATEGORIES = [
 
 type MainCategory = typeof MAIN_CATEGORIES[number];
 
+// Extended types for API responses
+type FolderWithCounts = Folder & { documentCount: number };
+
 export interface DocumentFilters {
   search?: string;
   fileType?: string;
@@ -63,7 +66,7 @@ export interface IStorage {
 
   // Folders
   createFolder(folder: InsertFolder): Promise<Folder>;
-  getFolders(): Promise<Folder[]>;
+  getFolders(): Promise<(Folder & { documentCount: number })[]>;
   updateFolder(id: string, updates: Partial<InsertFolder>): Promise<Folder | undefined>;
   deleteFolder(id: string): Promise<boolean>;
 
@@ -597,12 +600,29 @@ export class DatabaseStorage implements IStorage {
     return folder;
   }
 
-  async getFolders(): Promise<Folder[]> {
+  async getFolders(): Promise<(Folder & { documentCount: number })[]> {
     await this.ensureInitialized();
-    return await db
-      .select()
+    
+    // Get all folders with document counts
+    const foldersWithCounts = await db
+      .select({
+        id: folders.id,
+        name: folders.name,
+        color: folders.color,
+        parentId: folders.parentId,
+        isAutoCreated: folders.isAutoCreated,
+        category: folders.category,
+        documentType: folders.documentType,
+        gcsPath: folders.gcsPath,
+        createdAt: folders.createdAt,
+        documentCount: sql<number>`CAST(COUNT(${documents.id}) AS INTEGER)`,
+      })
       .from(folders)
+      .leftJoin(documents, sql`${documents.folderId} = ${folders.id} AND ${documents.isDeleted} = false`)
+      .groupBy(folders.id)
       .orderBy(folders.name);
+
+    return foldersWithCounts;
   }
 
   async updateFolder(id: string, updates: Partial<InsertFolder>): Promise<Folder | undefined> {
