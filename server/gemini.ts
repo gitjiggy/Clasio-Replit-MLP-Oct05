@@ -367,12 +367,13 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
         console.error("❌ Error extracting text from PDF:", error);
         
         // Provide specific error information for debugging
-        if (error.message.includes('Invalid PDF structure')) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('Invalid PDF structure')) {
             return "Error: PDF file structure is corrupted or unsupported.";
-        } else if (error.message.includes('encrypted')) {
+        } else if (errorMessage.includes('encrypted')) {
             return "Error: PDF is password-protected or encrypted.";
         } else {
-            return `Error extracting text from PDF: ${error.message}`;
+            return `Error extracting text from PDF: ${errorMessage}`;
         }
     }
 }

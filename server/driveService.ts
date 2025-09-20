@@ -198,8 +198,8 @@ export class DriveService {
             
             resolve({
               buffer,
-              mimeType: file.mimeType,
-              name: file.name
+              mimeType: file.mimeType || 'application/octet-stream',
+              name: file.name || 'unknown-file'
             });
           })
           .on('error', (streamError: Error) => {
