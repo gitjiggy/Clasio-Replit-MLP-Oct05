@@ -499,6 +499,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PDF-specific AI analysis endpoint - Ensure PDFs get properly analyzed
+  app.post("/api/documents/analyze-pdfs", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      console.log("🚀 Starting PDF-specific AI analysis...");
+      
+      // Get all PDF documents that need analysis
+      const allDocuments = await storage.getDocuments({
+        search: "",
+        page: 1,
+        limit: 1000,
+        includeContent: false
+      });
+      
+      // Filter for PDFs that need analysis
+      const pdfDocuments = allDocuments.filter((doc: DocumentWithFolderAndTags) => 
+        !doc.isDeleted && 
+        doc.name.toLowerCase().endsWith('.pdf') && (
+          doc.aiCategory === null || 
+          doc.aiAnalyzedAt === null
+        )
+      );
+      
+      if (pdfDocuments.length === 0) {
+        return res.json({
+          success: true,
+          message: "All PDFs are already analyzed",
+          processed: 0,
+          total: 0
+        });
+      }
+
+      console.log(`🎯 Found ${pdfDocuments.length} PDFs needing analysis`);
+
+      let processed = 0;
+      let successful = 0;
+      let needsExtraction = 0;
+
+      // Process PDFs in batches
+      const batchPromise = async () => {
+        for (const doc of pdfDocuments) {
+          try {
+            console.log(`📄 Processing PDF: ${doc.name} (${doc.id})`);
+            
+            // Check if document has extracted content
+            if (!doc.contentExtracted) {
+              console.log(`⚠️ PDF ${doc.name} needs content extraction first`);
+              needsExtraction++;
+              processed++;
+              continue;
+            }
+            
+            // Try AI analysis for PDFs with content
+            let success = false;
+            if (doc.driveFileId) {
+              // Drive document - try analysis (may work if content is already extracted)
+              success = await storage.analyzeDocumentWithAI(doc.id);
+            } else {
+              // Uploaded document
+              success = await storage.analyzeDocumentWithAI(doc.id);
+            }
+            
+            if (success) {
+              successful++;
+              console.log(`✅ Successfully analyzed PDF: ${doc.name}`);
+            } else {
+              console.log(`⚠️ Failed to analyze PDF: ${doc.name}`);
+            }
+            
+            processed++;
+            
+          } catch (error) {
+            console.error(`❌ Error processing PDF ${doc.name}:`, error);
+            processed++;
+          }
+        }
+      };
+
+      // Return immediate response
+      res.json({
+        success: true,
+        message: `PDF analysis started for ${pdfDocuments.length} PDFs`,
+        total: pdfDocuments.length,
+        status: "processing"
+      });
+
+      // Log completion asynchronously
+      batchPromise().then(() => {
+        console.log(`✅ PDF analysis completed: ${successful}/${processed} successful, ${needsExtraction} need content extraction`);
+        console.log(`🎯 PDFs should now have proper AI classification in folders`);
+      }).catch((error) => {
+        console.error("❌ PDF analysis error:", error);
+      });
+
+    } catch (error) {
+      console.error("❌ PDF analysis failed:", error);
+      res.status(500).json({ error: "Failed to start PDF analysis" });
+    }
+  });
+
   // Bulk AI analysis endpoint - Re-analyze documents with improved classification
   app.post("/api/documents/bulk-ai-analysis", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
