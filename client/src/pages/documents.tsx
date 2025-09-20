@@ -94,8 +94,8 @@ export default function Documents() {
     }],
   });
 
-  // Fetch folders
-  const { data: folders = [] } = useQuery<Folder[]>({
+  // Fetch folders with document counts
+  const { data: folders = [] } = useQuery<(Folder & { documentCount: number })[]>({
     queryKey: ['/api/folders'],
   });
 
@@ -113,11 +113,11 @@ export default function Documents() {
       ...category,
       subFolders: subFolders
         .filter(sub => sub.parentId === category.id)
-        .filter(sub => (sub as any).documentCount > 0) // Only sub-folders with documents from backend count
+        .filter(sub => sub.documentCount > 0) // Only sub-folders with documents from backend count
     }))
     .filter(category => {
       // Show category if it has documents directly OR has sub-folders with documents
-      const hasDirectDocuments = (category as any).documentCount > 0;
+      const hasDirectDocuments = category.documentCount > 0;
       const hasSubFoldersWithDocuments = category.subFolders.length > 0;
       return hasDirectDocuments || hasSubFoldersWithDocuments;
     });
@@ -425,7 +425,7 @@ export default function Documents() {
                         <span className="font-medium">{category.name}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {(category as any).documentCount || 0}
+                        {category.documentCount || 0}
                       </span>
                     </Button>
                     
@@ -445,7 +445,7 @@ export default function Documents() {
                                 <span>{subFolder.name}</span>
                               </div>
                               <span className="text-xs text-muted-foreground">
-                                {(subFolder as any).documentCount || 0}
+                                {subFolder.documentCount || 0}
                               </span>
                             </Button>
                           </li>
@@ -476,7 +476,7 @@ export default function Documents() {
                         <span>{folder.name}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {(folder as any).documentCount || 0}
+                        {folder.documentCount || 0}
                       </span>
                     </Button>
                   </li>
