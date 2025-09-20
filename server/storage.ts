@@ -42,7 +42,7 @@ export interface IStorage {
   getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
-  analyzeDocumentWithAI(id: string): Promise<boolean>;
+  analyzeDocumentWithAI(id: string, driveContent?: string): Promise<boolean>;
   extractDocumentContent(id: string): Promise<boolean>;
   getDocumentsWithoutContent(): Promise<Document[]>;
 
@@ -683,9 +683,12 @@ export class DatabaseStorage implements IStorage {
         
         documentText = await extractTextFromDocument(document.filePath, document.mimeType);
         
-        // Check if extraction failed
-        if (documentText.startsWith('Error extracting text') || documentText.length < 10) {
-          console.warn(`Failed to extract text from document ${documentId}: ${document.filePath}`);
+        // Check if extraction failed or returned placeholder content
+        if (documentText.startsWith('Error extracting text') || 
+            documentText.startsWith('Google Drive document content extraction requires authentication') ||
+            documentText.includes('Text extraction from') ||
+            documentText.length < 10) {
+          console.warn(`Failed to extract meaningful text from document ${documentId}: ${document.filePath}`);
           return false;
         }
       }
