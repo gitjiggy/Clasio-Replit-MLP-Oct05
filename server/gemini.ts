@@ -46,8 +46,7 @@ export async function summarizeDocument(text: string): Promise<string> {
     const prompt = `Please provide a very concise 2-3 line summary of this document, focusing only on the most essential information and key points. Be brief and direct:\n\n${text}`;
 
     try {
-        // Use optimized model for document processing
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const resultText = response.text();
