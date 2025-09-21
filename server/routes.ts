@@ -6,6 +6,7 @@ import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth"
 import { ScopedDB } from "./db/scopedQueries";
 import { DriveService } from "./driveService";
 import { strictLimiter, moderateLimiter, standardLimiter, bulkUploadLimiter } from "./rateLimit";
+import { validateFileUpload, FileValidationService, ALL_ALLOWED_MIME_TYPES } from "./middleware/fileValidation";
 import multer from "multer";
 import path from "path";
 import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents, type DocumentWithFolderAndTags } from "@shared/schema";
@@ -13,6 +14,7 @@ import { sql, eq } from "drizzle-orm";
 import { db } from "./db.js";
 import { z } from "zod";
 import { google } from 'googleapis';
+import { logger } from './middleware/logging';
 
 // Middleware to verify Drive access token belongs to the authenticated Firebase user
 async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any) {
@@ -133,34 +135,23 @@ const bulkDocumentCreationSchema = z.object({
   analyzeImmediately: z.boolean().default(false),
 });
 
-// Configure multer for memory storage
+// SMB-Enhanced: Configure multer with dynamic limits based on organization tier
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
+    fileSize: 100 * 1024 * 1024, // Max limit (enterprise tier), actual validation done in middleware
   },
   fileFilter: (req, file, cb) => {
-    // Allow common document types
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'text/plain',
-      'text/csv'
-    ];
-    
-    if (allowedTypes.includes(file.mimetype)) {
+    // Basic MIME type check - comprehensive validation done in FileValidationService
+    if (ALL_ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error(`File type ${file.mimetype} not allowed`));
+      logger.security('file_upload_rejected_mime', { 
+        mimeType: file.mimetype, 
+        filename: file.originalname,
+        organizationId: req.organizationId 
+      });
+      cb(new Error(`File type ${file.mimetype} not allowed for SMB document management`));
     }
   }
 });
@@ -185,19 +176,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get upload URL - protected with authentication and strict rate limiting
+  // Get upload URL - protected with authentication, validation, and strict rate limiting
   app.post("/api/documents/upload-url", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
+      const organizationId = req.organizationId!;
+      const { filename, mimeType, fileSize } = req.body;
+      
+      // Validate required upload parameters
+      if (!filename || !mimeType || !fileSize) {
+        return res.status(400).json({ 
+          error: "filename, mimeType, and fileSize are required for secure uploads" 
+        });
+      }
+      
+      // Get organization for tier-based validation
+      const organization = await ScopedDB.getOrganization(organizationId);
+      if (!organization) {
+        return res.status(400).json({ error: "Invalid organization context" });
+      }
+      
+      // Pre-upload validation using FileValidationService
+      const validation = await FileValidationService.validateUpload(
+        organizationId,
+        fileSize,
+        mimeType,
+        filename,
+        organization.storageUsedMb || 0,
+        organization.plan || 'free'
+      );
+      
+      if (!validation.isValid) {
+        logger.business('file_upload_rejected_pre_validation', {
+          organizationId,
+          filename,
+          fileSize,
+          mimeType,
+          reason: validation.reason,
+          quotaExceeded: validation.quotaExceeded
+        });
+        
+        return res.status(validation.quotaExceeded ? 413 : 400).json({
+          error: validation.reason,
+          quotaExceeded: validation.quotaExceeded,
+          tier: organization.plan || 'free'
+        });
+      }
+      
+      // Generate presigned URL with enforced constraints
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      res.json({ uploadURL });
+      
+      // Log successful URL generation for audit
+      logger.business('upload_url_generated', {
+        organizationId,
+        filename,
+        fileSize,
+        mimeType,
+        tier: organization.plan || 'free'
+      });
+      
+      res.json({ 
+        uploadURL,
+        constraints: {
+          maxFileSize: FileValidationService.getFileSizeLimit(organization.plan || 'free'),
+          allowedMimeTypes: ALL_ALLOWED_MIME_TYPES,
+          remainingStorage: Math.max(0, FileValidationService.getStorageQuota(organization.plan || 'free') - (organization.storageUsedMb || 0))
+        }
+      });
     } catch (error) {
-      console.error("Error generating upload URL:", error);
+      logger.error("Error generating upload URL", error);
       res.status(500).json({ error: "Failed to generate upload URL" });
     }
   });
 
   // Complete document upload
-  app.post("/api/documents", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents", verifyFirebaseToken, validateFileUpload(), strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const { uploadURL, ...uploadData } = req.body;
       
@@ -275,7 +327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk upload URL generation - for when you have more files than patience! 📁✨
-  app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, validateFileUpload(), bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
     console.log('🔍 DEBUG: bulk-upload-urls endpoint hit with body:', req.body);
     try {
       // Validate bulk upload request
@@ -289,27 +341,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { fileCount, folderId, tagIds, analyzeImmediately } = validationResult.data;
-
       // Generate multiple upload URLs with proper structure
       const uploadPromises = Array.from({ length: fileCount }, async () => {
         const url = await objectStorageService.getObjectEntityUploadURL();
-        return {
-          url,
-          method: "PUT" as const
-        };
+        return { url, method: 'PUT' };
       });
-
+      
       const uploadURLs = await Promise.all(uploadPromises);
-
+      
       console.log(`🚀 Generated ${fileCount} upload URLs for bulk upload`);
-
+      
       res.json({
         success: true,
         uploadURLs,
         message: `🎉 Ready to upload ${fileCount} files! Your digital filing cabinet is hungry for more documents!`,
         bulkUploadConfig: {
-          folderId,
+          folderId: folderId || null,
           tagIds,
           analyzeImmediately,
           maxFilesPerBatch: 50,
@@ -328,7 +375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk document creation - the grand finale of your upload symphony! 🎼
-  app.post("/api/documents/bulk", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/bulk", verifyFirebaseToken, validateFileUpload(), bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       // Validate bulk document creation request
       const validationResult = bulkDocumentCreationSchema.safeParse(req.body);
