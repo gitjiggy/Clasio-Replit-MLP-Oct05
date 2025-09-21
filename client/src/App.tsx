@@ -156,15 +156,15 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
+      <TooltipProvider>
+        <Toaster />
+        <AuthProvider>
           <Switch>
             <Route path="/auth/drive" component={AuthDrive} />
             <Route path="/*" component={AuthenticatedApp} />
           </Switch>
-        </TooltipProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }
