@@ -18,6 +18,8 @@ if (!admin.apps.length) {
 export interface AuthenticatedRequest extends Request {
   user?: admin.auth.DecodedIdToken;
   userId?: string;
+  uid?: string; // Firebase UID - alias for userId
+  organizationId?: string; // Current user's organization ID
 }
 
 // Middleware to verify Firebase ID token
@@ -42,6 +44,25 @@ export const verifyFirebaseToken = async (
     // Add user info to request
     req.user = decodedToken;
     req.userId = decodedToken.uid;
+    req.uid = decodedToken.uid; // Alias for compatibility
+    
+    // Get user's active organization - for SMB, users typically have one active org
+    try {
+      const { ScopedDB } = await import('./db/scopedQueries');
+      const userOrgs = await ScopedDB.getUserOrganizations(decodedToken.uid);
+      
+      if (userOrgs.length > 0) {
+        // For SMB: use the first (primary) organization  
+        // TODO: In future, support organization selection via X-Organization-Id header
+        req.organizationId = userOrgs[0].organization.id;
+      } else {
+        // User has no organization - they need to create/join one
+        req.organizationId = undefined;
+      }
+    } catch (error) {
+      console.error('Error fetching user organizations:', error);
+      req.organizationId = undefined;
+    }
     
     next();
   } catch (error) {

@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth";
+import { ScopedDB } from "./db/scopedQueries";
 import { DriveService } from "./driveService";
 import { strictLimiter, moderateLimiter, standardLimiter, bulkUploadLimiter } from "./rateLimit";
 import multer from "multer";
@@ -1520,6 +1521,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     return mimeTypeMap[mimeType] || 'other';
   }
+
+  // === DOCUMENT SHARING ROUTES ===
+  
+  // Share document via email invitation
+  app.post("/api/documents/:id/share", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id: documentId } = req.params;
+      const { email, accessLevel = 'viewer', expiresInDays = 30 } = req.body;
+      
+      // Guard: Check user has organization access
+      if (!req.organizationId || !req.uid) {
+        return res.status(403).json({ error: "User must belong to an organization to share documents" });
+      }
+      
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: "Valid email address is required" });
+      }
+
+      // Use ScopedDB to create share (includes permission checks)
+      const share = await ScopedDB.shareDocument(
+        req.organizationId, 
+        req.uid, 
+        documentId, 
+        email, 
+        accessLevel, 
+        expiresInDays
+      );
+
+      res.json({ 
+        success: true, 
+        share,
+        message: `Document shared with ${email} successfully!` 
+      });
+    } catch (error) {
+      console.error("Error sharing document:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to share document" });
+    }
+  });
+
+  // Get document shares
+  app.get("/api/documents/:id/shares", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id: documentId } = req.params;
+      
+      // Guard: Check user has organization access
+      if (!req.organizationId || !req.uid) {
+        return res.status(403).json({ error: "User must belong to an organization to view document shares" });
+      }
+      
+      // Get document shares (only if user has access to document)
+      const shares = await ScopedDB.getDocumentShares(req.organizationId, req.uid, documentId);
+      
+      res.json({ shares });
+    } catch (error) {
+      console.error("Error fetching document shares:", error);
+      res.status(500).json({ error: "Failed to fetch document shares" });
+    }
+  });
+
+  // Remove document share
+  app.delete("/api/documents/:documentId/shares/:shareId", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { shareId } = req.params;
+      
+      // Guard: Check user has organization access
+      if (!req.organizationId || !req.uid) {
+        return res.status(403).json({ error: "User must belong to an organization to manage document shares" });
+      }
+      
+      await ScopedDB.removeDocumentShare(req.organizationId, req.uid, shareId);
+      
+      res.json({ success: true, message: "Share removed successfully" });
+    } catch (error) {
+      console.error("Error removing document share:", error);
+      res.status(500).json({ error: "Failed to remove document share" });
+    }
+  });
+
+  // Public access to shared documents via token (no auth required)
+  app.get("/api/shared/:token", standardLimiter, async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      const result = await ScopedDB.getDocumentByShareToken(token);
+      if (!result) {
+        return res.status(404).json({ error: "Shared document not found or expired" });
+      }
+      
+      res.json({ 
+        document: result.document, 
+        accessLevel: result.share.accessLevel,
+        sharedBy: result.share.sharedBy 
+      });
+    } catch (error) {
+      console.error("Error accessing shared document:", error);
+      res.status(500).json({ error: "Failed to access shared document" });
+    }
+  });
+
+  // Public content download for shared documents (no auth required)
+  app.get("/api/shared/:token/content", standardLimiter, async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      const result = await ScopedDB.getDocumentByShareToken(token);
+      if (!result) {
+        return res.status(404).json({ error: "Shared document not found or expired" });
+      }
+      
+      const { document, share } = result;
+      
+      // Check if user has view access (both viewer and editor can download)
+      if (!['viewer', 'editor'].includes(share.accessLevel)) {
+        return res.status(403).json({ error: "Insufficient permissions to download document" });
+      }
+
+      // Stream the document file
+      if (document.filePath && document.filePath.length > 0) {
+        try {
+          const objectStorageService = new ObjectStorageService();
+          
+          // Set proper headers for download
+          res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
+          res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
+          
+          // Get the file object and download it
+          const objectFile = await objectStorageService.getObjectEntityFile(document.filePath);
+          await objectStorageService.downloadObject(objectFile, res);
+        } catch (fileError) {
+          console.error("Error streaming shared file:", fileError);
+          res.status(404).json({ error: "Document file not found" });
+        }
+      } else {
+        res.status(404).json({ error: "Document file path not available" });
+      }
+    } catch (error) {
+      console.error("Error downloading shared document:", error);
+      res.status(500).json({ error: "Failed to download shared document" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

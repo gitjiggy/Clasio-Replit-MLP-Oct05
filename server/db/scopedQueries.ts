@@ -300,6 +300,57 @@ export class ScopedDB {
 
     return docsToDelete.length;
   }
+
+  // Get all shares for a document (with proper security)
+  static async getDocumentShares(orgId: string, userId: string, documentId: string) {
+    // First verify document belongs to org and user has access
+    const document = await this.getDocument(orgId, userId, documentId);
+    if (!document) throw new Error('Document not found or no access');
+
+    return db.query.documentShares.findMany({
+      where: eq(documentShares.documentId, documentId),
+      orderBy: desc(documentShares.createdAt)
+    });
+  }
+
+  // Remove a document share (with proper security)
+  static async removeDocumentShare(orgId: string, userId: string, shareId: string) {
+    // Get the share and verify ownership through document
+    const share = await db.query.documentShares.findFirst({
+      where: eq(documentShares.id, shareId)
+    });
+    
+    if (!share) throw new Error('Share not found');
+    
+    // Verify user has access to document (must be owner or share creator)
+    const document = await this.getDocument(orgId, userId, share.documentId);
+    if (!document) throw new Error('No access to document');
+    
+    // Additional check: only share creator or document owner can remove shares
+    if (share.sharedBy !== userId) {
+      const userRole = await this.checkUserOrgAccess(orgId, userId);
+      if (userRole !== 'owner') {
+        throw new Error('Only share creator or organization owner can remove shares');
+      }
+    }
+
+    await db.delete(documentShares).where(eq(documentShares.id, shareId));
+    
+    // Log activity
+    await this.logActivity(
+      orgId,
+      userId,
+      'DOCUMENT_UNSHARED',
+      'document',
+      share.documentId,
+      document.name,
+      { 
+        sharedWithEmail: share.sharedWithEmail,
+        removedBy: userId,
+        originalShareBy: share.sharedBy 
+      }
+    );
+  }
 }
 
 // Export types for middleware
