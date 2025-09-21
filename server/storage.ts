@@ -15,19 +15,6 @@ import {
   type InsertDailyApiUsage,
   type DocumentWithFolderAndTags,
   type DocumentWithVersions,
-  // Enterprise types
-  type BackgroundJob,
-  type AuditLog,
-  type Organization,
-  type UserRole,
-  type DataClassification,
-  type OrganizationSettings,
-  type NewBackgroundJob,
-  type NewAuditLog,
-  type NewOrganization,
-  type NewUserRole,
-  type NewDataClassification,
-  type NewOrganizationSettings,
   documents,
   folders,
   tags,
@@ -35,19 +22,10 @@ import {
   documentVersions,
   aiAnalysisQueue,
   dailyApiUsage,
-  // Keep existing enterprise tables for compatibility
-  organizations,
-  organizationMembers,
-  activityLog,
-  documentShares,
-  // Legacy enterprise tables (keep for now)
-  backgroundJobs,
-  auditLogs,
-  userRoles,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull, isNull } from "drizzle-orm";
+import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
 
 // Predefined main categories for automatic organization
 const MAIN_CATEGORIES = [
@@ -124,27 +102,6 @@ export interface IStorage {
   incrementDailyUsage(date: string, tokens: number, success: boolean): Promise<DailyApiUsage>;
   getDailyUsage(date: string): Promise<DailyApiUsage | null>;
   canProcessAnalysis(): Promise<{canProcess: boolean; remaining: number; resetTime: string}>;
-
-  // Enterprise Background Jobs
-  createBackgroundJob(job: NewBackgroundJob): Promise<BackgroundJob>;
-  getPendingBackgroundJobs(limit?: number): Promise<BackgroundJob[]>;
-  updateBackgroundJobStatus(jobId: string, status: string, updates?: Partial<BackgroundJob>): Promise<boolean>;
-  getBackgroundJobStats(): Promise<any>;
-  getBackgroundJobHistory(organizationId: string, limit?: number): Promise<BackgroundJob[]>;
-
-  // Enterprise Organizations
-  createOrganization(org: NewOrganization): Promise<Organization>;
-  getOrganizationBySubdomain(subdomain: string): Promise<Organization | undefined>;
-  updateOrganization(id: string, updates: Partial<NewOrganization>): Promise<Organization | undefined>;
-
-  // Enterprise User Roles
-  createUserRole(role: NewUserRole): Promise<UserRole>;
-  getUserRole(userId: string, organizationId: string): Promise<UserRole | undefined>;
-  updateUserRole(id: string, updates: Partial<NewUserRole>): Promise<UserRole | undefined>;
-
-  // Enterprise Audit Logs
-  createAuditLog(log: NewAuditLog): Promise<AuditLog>;
-  getAuditLogs(organizationId: string, limit?: number): Promise<AuditLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -282,8 +239,6 @@ export class DatabaseStorage implements IStorage {
       fileType: documents.fileType,
       mimeType: documents.mimeType,
       folderId: documents.folderId,
-      organizationId: documents.organizationId,
-      softDeletedAt: documents.softDeletedAt,
       uploadedAt: documents.uploadedAt,
       isFavorite: documents.isFavorite,
       isDeleted: documents.isDeleted,
@@ -310,11 +265,6 @@ export class DatabaseStorage implements IStorage {
       documentContent: sql<string | null>`NULL`.as('documentContent'),
       contentExtracted: documents.contentExtracted,
       contentExtractedAt: documents.contentExtractedAt,
-      // SMB fields
-      lastAccessedAt: documents.lastAccessedAt,
-      dataClassification: documents.dataClassification,
-      complianceFrameworks: documents.complianceFrameworks,
-      accessCount: documents.accessCount,
     };
 
     const results = await db
@@ -716,7 +666,6 @@ export class DatabaseStorage implements IStorage {
         name: folders.name,
         color: folders.color,
         parentId: folders.parentId,
-        organizationId: folders.organizationId,
         isAutoCreated: folders.isAutoCreated,
         category: folders.category,
         documentType: folders.documentType,
@@ -1460,138 +1409,6 @@ export class DatabaseStorage implements IStorage {
         resetTime: new Date().toISOString()
       };
     }
-  }
-
-  // ===== ENTERPRISE BACKGROUND JOBS =====
-
-  async createBackgroundJob(job: NewBackgroundJob): Promise<BackgroundJob> {
-    const [result] = await db.insert(backgroundJobs).values(job).returning();
-    return result;
-  }
-
-  async getPendingBackgroundJobs(limit = 10): Promise<BackgroundJob[]> {
-    return await db
-      .select()
-      .from(backgroundJobs)
-      .where(
-        and(
-          or(
-            eq(backgroundJobs.status, 'pending'),
-            eq(backgroundJobs.status, 'processing')
-          ),
-          or(
-            isNull(backgroundJobs.scheduledFor),
-            sql`${backgroundJobs.scheduledFor} <= NOW()`
-          )
-        )
-      )
-      .orderBy(desc(backgroundJobs.priority), backgroundJobs.scheduledFor)
-      .limit(limit);
-  }
-
-  async updateBackgroundJobStatus(jobId: string, status: string, updates: Partial<BackgroundJob> = {}): Promise<boolean> {
-    const updateData = { status, updatedAt: new Date(), ...updates };
-    const result = await db
-      .update(backgroundJobs)
-      .set(updateData)
-      .where(eq(backgroundJobs.id, jobId));
-    return (result.rowCount ?? 0) > 0;
-  }
-
-  async getBackgroundJobStats(): Promise<any> {
-    const stats = await db
-      .select({
-        status: backgroundJobs.status,
-        count: count(),
-      })
-      .from(backgroundJobs)
-      .groupBy(backgroundJobs.status);
-
-    return stats.reduce((acc, stat) => {
-      acc[stat.status] = stat.count;
-      return acc;
-    }, {} as Record<string, number>);
-  }
-
-  async getBackgroundJobHistory(organizationId: string, limit = 100): Promise<BackgroundJob[]> {
-    return await db
-      .select()
-      .from(backgroundJobs)
-      .where(eq(backgroundJobs.organizationId, organizationId))
-      .orderBy(desc(backgroundJobs.createdAt))
-      .limit(limit);
-  }
-
-  // ===== ENTERPRISE ORGANIZATIONS =====
-
-  async createOrganization(org: NewOrganization): Promise<Organization> {
-    const [result] = await db.insert(organizations).values(org).returning();
-    return result;
-  }
-
-  async getOrganizationBySubdomain(subdomain: string): Promise<Organization | undefined> {
-    const [result] = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.subdomain, subdomain))
-      .limit(1);
-    return result;
-  }
-
-  async updateOrganization(id: string, updates: Partial<NewOrganization>): Promise<Organization | undefined> {
-    const [result] = await db
-      .update(organizations)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(organizations.id, id))
-      .returning();
-    return result;
-  }
-
-  // ===== ENTERPRISE USER ROLES =====
-
-  async createUserRole(role: NewUserRole): Promise<UserRole> {
-    const [result] = await db.insert(userRoles).values(role).returning();
-    return result;
-  }
-
-  async getUserRole(userId: string, organizationId: string): Promise<UserRole | undefined> {
-    const [result] = await db
-      .select()
-      .from(userRoles)
-      .where(
-        and(
-          eq(userRoles.userId, userId),
-          eq(userRoles.organizationId, organizationId),
-          eq(userRoles.isActive, true)
-        )
-      )
-      .limit(1);
-    return result;
-  }
-
-  async updateUserRole(id: string, updates: Partial<NewUserRole>): Promise<UserRole | undefined> {
-    const [result] = await db
-      .update(userRoles)
-      .set(updates)
-      .where(eq(userRoles.id, id))
-      .returning();
-    return result;
-  }
-
-  // ===== ENTERPRISE AUDIT LOGS =====
-
-  async createAuditLog(log: NewAuditLog): Promise<AuditLog> {
-    const [result] = await db.insert(auditLogs).values(log).returning();
-    return result;
-  }
-
-  async getAuditLogs(organizationId: string, limit = 100): Promise<AuditLog[]> {
-    return await db
-      .select()
-      .from(auditLogs)
-      .where(eq(auditLogs.organizationId, organizationId))
-      .orderBy(desc(auditLogs.timestamp))
-      .limit(limit);
   }
 
 }

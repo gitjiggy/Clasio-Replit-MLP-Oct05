@@ -3,16 +3,11 @@ import { pgTable, text, varchar, timestamp, integer, boolean, unique, index, uni
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Import enterprise organization schema
-export * from './organizationSchema';
-import { organizations } from './organizationSchema';
-
 export const folders = pgTable("folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   color: text("color").default("#f59e0b"),
   parentId: varchar("parent_id"),
-  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   isAutoCreated: boolean("is_auto_created").default(false).notNull(),
   category: text("category"), // For main folders: "Taxes", "Medical", etc.
   documentType: text("document_type"), // For sub-folders: "Resume", "Contract", etc.
@@ -33,7 +28,6 @@ export const tags = pgTable("tags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
   color: text("color").default("#3b82f6"),
-  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
 });
 
@@ -46,13 +40,6 @@ export const documents = pgTable("documents", {
   fileType: text("file_type").notNull(),
   mimeType: text("mime_type").notNull(),
   folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
-  
-  // Multi-tenancy support
-  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  
-  // SMB Data lifecycle - soft delete → 30-day purge
-  softDeletedAt: timestamp("soft_deleted_at"),
-  
   uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
   isFavorite: boolean("is_favorite").default(false).notNull(),
   isDeleted: boolean("is_deleted").default(false).notNull(),
@@ -83,24 +70,11 @@ export const documents = pgTable("documents", {
   documentContent: text("document_content"), // Full extracted text content
   contentExtracted: boolean("content_extracted").default(false).notNull(),
   contentExtractedAt: timestamp("content_extracted_at"),
-  
-  // SMB features - simplified from enterprise  
-  lastAccessedAt: timestamp("last_accessed_at"),
-  
-  // Minimal enterprise fields for compatibility
-  dataClassification: text("data_classification").default("internal"),
-  complianceFrameworks: text("compliance_frameworks").array(),
-  accessCount: integer("access_count").default(0),
-}, (table) => ({
-  // Add organization index for SMB multi-tenancy
-  orgIdx: index('documents_org_idx').on(table.organizationId),
-  lastAccessedIdx: index('documents_last_accessed_idx').on(table.lastAccessedAt),
-}));
+});
 
 export const documentVersions = pgTable("document_versions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
-  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   version: integer("version").notNull(),
   filePath: text("file_path").notNull(),
   fileSize: integer("file_size").notNull(),
@@ -131,7 +105,6 @@ export const documentTags = pgTable("document_tags", {
 export const aiAnalysisQueue = pgTable("ai_analysis_queue", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
-  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull(), // Firebase UID for tracking per-user queue
   priority: integer("priority").default(5).notNull(), // 1=highest (user-requested), 5=bulk upload, 8=background
   requestedAt: timestamp("requested_at").default(sql`now()`).notNull(),

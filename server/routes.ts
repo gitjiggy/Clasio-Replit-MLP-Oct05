@@ -3,10 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth";
-import { ScopedDB } from "./db/scopedQueries";
 import { DriveService } from "./driveService";
 import { strictLimiter, moderateLimiter, standardLimiter, bulkUploadLimiter } from "./rateLimit";
-import { validateFileUpload, FileValidationService, ALL_ALLOWED_MIME_TYPES } from "./middleware/fileValidation";
 import multer from "multer";
 import path from "path";
 import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents, type DocumentWithFolderAndTags } from "@shared/schema";
@@ -14,7 +12,6 @@ import { sql, eq } from "drizzle-orm";
 import { db } from "./db.js";
 import { z } from "zod";
 import { google } from 'googleapis';
-import { logger } from './middleware/logging';
 
 // Middleware to verify Drive access token belongs to the authenticated Firebase user
 async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any) {
@@ -135,23 +132,34 @@ const bulkDocumentCreationSchema = z.object({
   analyzeImmediately: z.boolean().default(false),
 });
 
-// SMB-Enhanced: Configure multer with dynamic limits based on organization tier
+// Configure multer for memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 100 * 1024 * 1024, // Max limit (enterprise tier), actual validation done in middleware
+    fileSize: 50 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Basic MIME type check - comprehensive validation done in FileValidationService
-    if (ALL_ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    // Allow common document types
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'text/plain',
+      'text/csv'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      logger.security('file_upload_rejected_mime', { 
-        mimeType: file.mimetype, 
-        filename: file.originalname,
-        organizationId: req.organizationId 
-      });
-      cb(new Error(`File type ${file.mimetype} not allowed for SMB document management`));
+      cb(new Error(`File type ${file.mimetype} not allowed`));
     }
   }
 });
@@ -176,80 +184,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get upload URL - protected with authentication, validation, and strict rate limiting
+  // Get upload URL - protected with authentication and strict rate limiting
   app.post("/api/documents/upload-url", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
-      const organizationId = req.organizationId!;
-      const { filename, mimeType, fileSize } = req.body;
-      
-      // Validate required upload parameters
-      if (!filename || !mimeType || !fileSize) {
-        return res.status(400).json({ 
-          error: "filename, mimeType, and fileSize are required for secure uploads" 
-        });
-      }
-      
-      // Get organization for tier-based validation
-      const organization = await ScopedDB.getOrganization(organizationId);
-      if (!organization) {
-        return res.status(400).json({ error: "Invalid organization context" });
-      }
-      
-      // Pre-upload validation using FileValidationService
-      const validation = await FileValidationService.validateUpload(
-        organizationId,
-        fileSize,
-        mimeType,
-        filename,
-        organization.storageUsedMb || 0,
-        organization.plan || 'free'
-      );
-      
-      if (!validation.isValid) {
-        logger.business('file_upload_rejected_pre_validation', {
-          organizationId,
-          filename,
-          fileSize,
-          mimeType,
-          reason: validation.reason,
-          quotaExceeded: validation.quotaExceeded
-        });
-        
-        return res.status(validation.quotaExceeded ? 413 : 400).json({
-          error: validation.reason,
-          quotaExceeded: validation.quotaExceeded,
-          tier: organization.plan || 'free'
-        });
-      }
-      
-      // Generate presigned URL with enforced constraints
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      
-      // Log successful URL generation for audit
-      logger.business('upload_url_generated', {
-        organizationId,
-        filename,
-        fileSize,
-        mimeType,
-        tier: organization.plan || 'free'
-      });
-      
-      res.json({ 
-        uploadURL,
-        constraints: {
-          maxFileSize: FileValidationService.getFileSizeLimit(organization.plan || 'free'),
-          allowedMimeTypes: ALL_ALLOWED_MIME_TYPES,
-          remainingStorage: Math.max(0, FileValidationService.getStorageQuota(organization.plan || 'free') - (organization.storageUsedMb || 0))
-        }
-      });
+      res.json({ uploadURL });
     } catch (error) {
-      logger.error("Error generating upload URL", error);
+      console.error("Error generating upload URL:", error);
       res.status(500).json({ error: "Failed to generate upload URL" });
     }
   });
 
   // Complete document upload
-  app.post("/api/documents", verifyFirebaseToken, validateFileUpload(), strictLimiter, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const { uploadURL, ...uploadData } = req.body;
       
@@ -327,7 +274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk upload URL generation - for when you have more files than patience! 📁✨
-  app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, validateFileUpload(), bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
     console.log('🔍 DEBUG: bulk-upload-urls endpoint hit with body:', req.body);
     try {
       // Validate bulk upload request
@@ -341,22 +288,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      const { fileCount, folderId, tagIds, analyzeImmediately } = validationResult.data;
+
       // Generate multiple upload URLs with proper structure
       const uploadPromises = Array.from({ length: fileCount }, async () => {
         const url = await objectStorageService.getObjectEntityUploadURL();
-        return { url, method: 'PUT' };
+        return {
+          url,
+          method: "PUT" as const
+        };
       });
-      
+
       const uploadURLs = await Promise.all(uploadPromises);
-      
+
       console.log(`🚀 Generated ${fileCount} upload URLs for bulk upload`);
-      
+
       res.json({
         success: true,
         uploadURLs,
         message: `🎉 Ready to upload ${fileCount} files! Your digital filing cabinet is hungry for more documents!`,
         bulkUploadConfig: {
-          folderId: folderId || null,
+          folderId,
           tagIds,
           analyzeImmediately,
           maxFilesPerBatch: 50,
@@ -375,7 +327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk document creation - the grand finale of your upload symphony! 🎼
-  app.post("/api/documents/bulk", verifyFirebaseToken, validateFileUpload(), bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/bulk", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       // Validate bulk document creation request
       const validationResult = bulkDocumentCreationSchema.safeParse(req.body);
@@ -1568,146 +1520,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     return mimeTypeMap[mimeType] || 'other';
   }
-
-  // === DOCUMENT SHARING ROUTES ===
-  
-  // Share document via email invitation
-  app.post("/api/documents/:id/share", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
-    try {
-      const { id: documentId } = req.params;
-      const { email, accessLevel = 'viewer', expiresInDays = 30 } = req.body;
-      
-      // Guard: Check user has organization access
-      if (!req.organizationId || !req.uid) {
-        return res.status(403).json({ error: "User must belong to an organization to share documents" });
-      }
-      
-      if (!email || !email.includes('@')) {
-        return res.status(400).json({ error: "Valid email address is required" });
-      }
-
-      // Use ScopedDB to create share (includes permission checks)
-      const share = await ScopedDB.shareDocument(
-        req.organizationId, 
-        req.uid, 
-        documentId, 
-        email, 
-        accessLevel, 
-        expiresInDays
-      );
-
-      res.json({ 
-        success: true, 
-        share,
-        message: `Document shared with ${email} successfully!` 
-      });
-    } catch (error) {
-      console.error("Error sharing document:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to share document" });
-    }
-  });
-
-  // Get document shares
-  app.get("/api/documents/:id/shares", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
-    try {
-      const { id: documentId } = req.params;
-      
-      // Guard: Check user has organization access
-      if (!req.organizationId || !req.uid) {
-        return res.status(403).json({ error: "User must belong to an organization to view document shares" });
-      }
-      
-      // Get document shares (only if user has access to document)
-      const shares = await ScopedDB.getDocumentShares(req.organizationId, req.uid, documentId);
-      
-      res.json({ shares });
-    } catch (error) {
-      console.error("Error fetching document shares:", error);
-      res.status(500).json({ error: "Failed to fetch document shares" });
-    }
-  });
-
-  // Remove document share
-  app.delete("/api/documents/:documentId/shares/:shareId", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
-    try {
-      const { shareId } = req.params;
-      
-      // Guard: Check user has organization access
-      if (!req.organizationId || !req.uid) {
-        return res.status(403).json({ error: "User must belong to an organization to manage document shares" });
-      }
-      
-      await ScopedDB.removeDocumentShare(req.organizationId, req.uid, shareId);
-      
-      res.json({ success: true, message: "Share removed successfully" });
-    } catch (error) {
-      console.error("Error removing document share:", error);
-      res.status(500).json({ error: "Failed to remove document share" });
-    }
-  });
-
-  // Public access to shared documents via token (no auth required)
-  app.get("/api/shared/:token", standardLimiter, async (req, res) => {
-    try {
-      const { token } = req.params;
-      
-      const result = await ScopedDB.getDocumentByShareToken(token);
-      if (!result) {
-        return res.status(404).json({ error: "Shared document not found or expired" });
-      }
-      
-      res.json({ 
-        document: result.document, 
-        accessLevel: result.share.accessLevel,
-        sharedBy: result.share.sharedBy 
-      });
-    } catch (error) {
-      console.error("Error accessing shared document:", error);
-      res.status(500).json({ error: "Failed to access shared document" });
-    }
-  });
-
-  // Public content download for shared documents (no auth required)
-  app.get("/api/shared/:token/content", standardLimiter, async (req, res) => {
-    try {
-      const { token } = req.params;
-      
-      const result = await ScopedDB.getDocumentByShareToken(token);
-      if (!result) {
-        return res.status(404).json({ error: "Shared document not found or expired" });
-      }
-      
-      const { document, share } = result;
-      
-      // Check if user has view access (both viewer and editor can download)
-      if (!share.accessLevel || !['viewer', 'editor'].includes(share.accessLevel)) {
-        return res.status(403).json({ error: "Insufficient permissions to download document" });
-      }
-
-      // Stream the document file
-      if (document.filePath && document.filePath.length > 0) {
-        try {
-          const objectStorageService = new ObjectStorageService();
-          
-          // Set proper headers for download
-          res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
-          res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
-          
-          // Get the file object and download it
-          const objectFile = await objectStorageService.getObjectEntityFile(document.filePath);
-          await objectStorageService.downloadObject(objectFile, res);
-        } catch (fileError) {
-          console.error("Error streaming shared file:", fileError);
-          res.status(404).json({ error: "Document file not found" });
-        }
-      } else {
-        res.status(404).json({ error: "Document file path not available" });
-      }
-    } catch (error) {
-      console.error("Error downloading shared document:", error);
-      res.status(500).json({ error: "Failed to download shared document" });
-    }
-  });
 
   const httpServer = createServer(app);
   return httpServer;
