@@ -759,13 +759,17 @@ export default function Documents() {
                     </div>
                     
                     {/* AI Analysis Results */}
-                    {document.aiSummary && (
+                    {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
                       <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
                         <div className="flex items-center gap-2 mb-1">
                           <Sparkles className="h-3 w-3 text-blue-600" />
-                          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">AI Analysis</span>
+                          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                            {document.aiSummary ? 'AI Analysis' : 'Classification'}
+                          </span>
                         </div>
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
+                        {document.aiSummary && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
+                        )}
                         {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
                           <div className="flex flex-wrap gap-1">
                             {document.aiKeyTopics.map((topic, index) => (
@@ -775,23 +779,39 @@ export default function Documents() {
                             ))}
                           </div>
                         )}
-                        {document.aiDocumentType && (
+                        {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
                           <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
+                            {(document.overrideDocumentType || document.aiDocumentType) && (
+                              <div className="flex items-center justify-between">
+                                <span>Type: {document.overrideDocumentType || document.aiDocumentType}</span>
+                                <div className="flex items-center gap-1">
+                                  {document.overrideDocumentType && (
+                                    <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
+                                      Custom
+                                    </span>
+                                  )}
+                                  {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
+                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
+                                      {formatConfidence(document.aiDocumentTypeConfidence)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                             <div className="flex items-center justify-between">
-                              <span>Type: {document.aiDocumentType}</span>
-                              {formatConfidence(document.aiDocumentTypeConfidence) && (
-                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
-                                  {formatConfidence(document.aiDocumentTypeConfidence)}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span>Category: {document.aiCategory || 'Uncategorized'}</span>
-                              {formatConfidence(document.aiCategoryConfidence) && (
-                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
-                                  {formatConfidence(document.aiCategoryConfidence)}
-                                </span>
-                              )}
+                              <span>Category: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                              <div className="flex items-center gap-1">
+                                {document.overrideCategory && (
+                                  <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
+                                    Custom
+                                  </span>
+                                )}
+                                {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
+                                    {formatConfidence(document.aiCategoryConfidence)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         )}
