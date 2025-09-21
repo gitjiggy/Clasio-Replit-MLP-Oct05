@@ -264,6 +264,19 @@ export default function Documents() {
     };
   };
 
+  // Bulk upload function for multiple files
+  const getBulkUploadParameters = async (fileCount: number) => {
+    const response = await apiRequest("POST", "/api/documents/bulk-upload-urls", {
+      fileCount,
+      analyzeImmediately: false // Let the queue processor handle priority
+    });
+    const data = await response.json();
+    return {
+      uploadURLs: data.uploadURLs,
+      bulkUploadConfig: data.config
+    };
+  };
+
   const handleUploadComplete = (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
     const file = result.successful?.[0];
     if (file && file.uploadURL) {
@@ -283,6 +296,46 @@ export default function Documents() {
         folderId: selectedFolderId || undefined,
       });
     }
+  };
+
+  // Handle bulk upload completion with fun messaging
+  const handleBulkUploadComplete = (result: {
+    successful: number;
+    failed: number;
+    details: Array<{ success: boolean; originalName: string; error?: string }>;
+    message: string;
+    aiAnalysis: {
+      status: string;
+      message: string;
+      queueStatus: any;
+    };
+  }) => {
+    trackEvent("bulk_documents_uploaded", { 
+      successful: result.successful, 
+      failed: result.failed,
+      total: result.successful + result.failed
+    });
+    
+    // Refresh document lists and folders
+    queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/queue/status"] });
+    
+    // Show success toast with fun messaging
+    const successMessage = result.successful > 0 ? 
+      `🎉 Successfully uploaded ${result.successful} document${result.successful > 1 ? 's' : ''}!` : 
+      "";
+    const failMessage = result.failed > 0 ? 
+      `⚠️ ${result.failed} upload${result.failed > 1 ? 's' : ''} failed` : 
+      "";
+    
+    const toastMessage = [successMessage, failMessage].filter(Boolean).join(" ");
+    
+    toast({
+      title: result.successful > 0 ? "Bulk Upload Success!" : "Upload Issues",
+      description: toastMessage + ` ${result.aiAnalysis.message}`,
+      variant: result.failed > 0 ? "destructive" : "default",
+    });
   };
 
   const getFileTypeFromExtension = (extension: string): string => {
@@ -588,12 +641,15 @@ export default function Documents() {
                 AI Queue
               </Button>
               
-              {/* Upload Button */}
+              {/* Upload Button - Now with bulk upload support! */}
               <ObjectUploader
                 maxNumberOfFiles={5}
                 maxFileSize={50 * 1024 * 1024} // 50MB
+                enableBulkUpload={true}
                 onGetUploadParameters={getUploadParameters}
+                onGetBulkUploadParameters={getBulkUploadParameters}
                 onComplete={handleUploadComplete}
+                onBulkUploadComplete={handleBulkUploadComplete}
                 buttonClassName="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Upload className="mr-2 h-4 w-4" />
