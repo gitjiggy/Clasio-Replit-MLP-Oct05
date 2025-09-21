@@ -279,17 +279,6 @@ export class DatabaseStorage implements IStorage {
       .limit(filters.limit)
       .offset((filters.page - 1) * filters.limit);
 
-    // 🔍 DEBUG: Log what Drizzle actually returns
-    if (results.length > 0) {
-      console.log('🔍 STORAGE DEBUG: Raw Drizzle result for first document:', {
-        id: results[0].document.id,
-        name: results[0].document.name,
-        aiSummary: results[0].document.aiSummary,
-        aiKeyTopics: results[0].document.aiKeyTopics,
-        aiCategory: results[0].document.aiCategory,
-        fullDocument: Object.keys(results[0].document)
-      });
-    }
 
     // Get tags and version information for each document
     const docsWithTags = await Promise.all(
