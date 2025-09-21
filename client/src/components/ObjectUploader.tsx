@@ -155,6 +155,8 @@ export function ObjectUploader({
               console.log('Upload URL structure:', uploadURL); // Debug log
               console.log('Upload method:', uploadURL.method); // Debug log
               
+              console.log(`🚀 Starting upload for ${file.name} to cloud storage...`);
+              
               const response = await fetch(uploadURL.url, {
                 method: uploadURL.method || 'PUT',
                 body: file.data,
@@ -163,9 +165,15 @@ export function ObjectUploader({
                 },
               });
               
+              console.log(`📤 Upload response for ${file.name}:`, response.status, response.statusText);
+              
               if (!response.ok) {
-                throw new Error(`Upload failed: ${response.statusText}`);
+                const errorText = await response.text();
+                console.error(`❌ Upload failed for ${file.name}:`, errorText);
+                throw new Error(`Upload failed for ${file.name}: ${response.status} ${response.statusText} - ${errorText}`);
               }
+              
+              console.log(`✅ Successfully uploaded ${file.name} to cloud storage`);
               
               return {
                 success: true,
