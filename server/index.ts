@@ -1,9 +1,59 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+// Environment variable validation
+function validateEnvironment() {
+  const requiredEnvVars = [
+    'DATABASE_URL',
+    'VITE_FIREBASE_PROJECT_ID',
+  ];
+  
+  const optionalEnvVars = [
+    'GEMINI_API_KEY', // Optional but recommended for AI features
+    'PORT',
+  ];
+
+  const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);
+  
+  if (missing.length > 0) {
+    console.error('❌ Missing required environment variables:');
+    missing.forEach(envVar => console.error(`  - ${envVar}`));
+    console.error('\nPlease set these environment variables before starting the server.');
+    process.exit(1);
+  }
+
+  // Warn about missing optional variables
+  const missingOptional = optionalEnvVars.filter(envVar => !process.env[envVar]);
+  if (missingOptional.length > 0) {
+    console.warn('⚠️  Missing optional environment variables:');
+    missingOptional.forEach(envVar => {
+      if (envVar === 'GEMINI_API_KEY') {
+        console.warn(`  - ${envVar} (AI analysis features will be disabled)`);
+      } else {
+        console.warn(`  - ${envVar}`);
+      }
+    });
+  }
+
+  // Validate DATABASE_URL format
+  if (process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('postgresql://')) {
+    console.error('❌ DATABASE_URL must be a valid PostgreSQL connection string');
+    process.exit(1);
+  }
+
+  console.log('✅ Environment validation passed');
+}
+
+// Run environment validation before starting the server
+validateEnvironment();
+
 const app = express();
+
+// Configure trust proxy for rate limiting (Replit uses proxies)
+app.set('trust proxy', 1);
 
 // Configure CORS for FlutterFlow and other frontends
 app.use(cors({
@@ -27,6 +77,14 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-drive-access-token']
 }));
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: false, // Allow inline styles/scripts for development
+  crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiters are now in separate module to avoid circular dependencies
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -64,12 +122,34 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    let message = err.message || "Internal Server Error";
+    
+    // Provide more helpful error messages for common scenarios
+    if (status === 500 && !err.message) {
+      message = "An unexpected error occurred. Please try again or contact support if the problem persists.";
+    } else if (status === 404) {
+      message = message || "The requested resource was not found.";
+    } else if (status === 400) {
+      message = message || "The request contains invalid data. Please check your input and try again.";
+    } else if (status === 401) {
+      message = message || "Authentication required. Please sign in and try again.";
+    } else if (status === 403) {
+      message = message || "You don't have permission to access this resource.";
+    } else if (status === 429) {
+      message = message || "Too many requests. Please wait a moment before trying again.";
+    }
 
-    res.status(status).json({ message });
-    throw err;
+    // Log error details for debugging (but don't expose sensitive info to client)
+    console.error(`❌ Error ${status} on ${req.method} ${req.path}:`, err.message || err);
+
+    res.status(status).json({ 
+      error: message,
+      status: status,
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    });
+    // Don't throw after responding - this can crash the server
   });
 
   // importantly only setup vite in development and after

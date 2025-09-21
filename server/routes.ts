@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth";
 import { DriveService } from "./driveService";
+import { strictLimiter, moderateLimiter, standardLimiter } from "./rateLimit";
 import multer from "multer";
 import path from "path";
 import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents, type DocumentWithFolderAndTags } from "@shared/schema";
@@ -52,6 +53,31 @@ async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any
     });
   }
 }
+
+// Zod schemas for input validation and sanitization
+const searchSchema = z.object({
+  search: z.string().max(100).regex(/^[a-zA-Z0-9\s\-_.]+$/).optional(),
+  fileType: z.string().max(50).optional(),
+  folderId: z.string().uuid().optional(),
+  tagId: z.string().uuid().optional(),
+  page: z.string().regex(/^\d+$/).transform(Number).optional(),
+  limit: z.string().regex(/^\d+$/).transform(Number).pipe(z.number().min(1).max(50)).optional()
+});
+
+const uploadSchema = z.object({
+  name: z.string().min(1).max(255).regex(/^[^<>:"/\\|?*]+$/),
+  originalName: z.string().min(1).max(255),
+  fileSize: z.number().positive().max(50 * 1024 * 1024),
+  fileType: z.enum(['pdf', 'doc', 'docx', 'txt', 'jpg', 'png', 'gif', 'webp', 'csv', 'xlsx', 'pptx']),
+  mimeType: z.string().min(1),
+  folderId: z.string().uuid().nullish(),
+  tagIds: z.array(z.string().uuid()).optional()
+});
+
+const analysisSchema = z.object({
+  forceReanalysis: z.boolean().default(false),
+  categories: z.array(z.string().max(50)).max(10).optional()
+});
 
 // Zod schemas for Drive API validation
 const driveSyncSchema = z.object({
@@ -105,6 +131,9 @@ const upload = multer({
 export async function registerRoutes(app: Express): Promise<Server> {
   const objectStorageService = new ObjectStorageService();
 
+  // Apply standard rate limiting to all API routes
+  app.use('/api', standardLimiter);
+
   // Serve documents
   app.get("/objects/:objectPath(*)", async (req, res) => {
     try {
@@ -131,13 +160,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Complete document upload
-  app.post("/api/documents", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents", strictLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const { uploadURL, name, originalName, fileSize, fileType, mimeType, folderId, tagIds } = req.body;
+      const { uploadURL, ...uploadData } = req.body;
       
-      if (!uploadURL || !name || !originalName || !fileSize || !fileType || !mimeType) {
-        return res.status(400).json({ error: "Missing required fields" });
+      // Validate uploadURL separately (required but not in schema)
+      if (!uploadURL) {
+        return res.status(400).json({ error: "Upload URL is required" });
       }
+      
+      // Validate and sanitize upload data
+      const validationResult = uploadSchema.safeParse({
+        ...uploadData,
+        fileSize: parseInt(uploadData.fileSize) // Convert string to number
+      });
+      
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid upload data",
+          details: validationResult.error.issues
+        });
+      }
+      
+      const { name, originalName, fileSize, fileType, mimeType, folderId, tagIds } = validationResult.data;
 
       // Normalize the object path
       const filePath = objectStorageService.normalizeObjectEntityPath(uploadURL);
@@ -195,15 +240,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all documents with filters
   app.get("/api/documents", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const { search, fileType, folderId, tagId, page = 1, limit = 12 } = req.query;
+      // Validate and sanitize query parameters
+      const validationResult = searchSchema.safeParse(req.query);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid search parameters",
+          details: validationResult.error.issues
+        });
+      }
+      
+      const { search, fileType, folderId, tagId, page = 1, limit = 12 } = validationResult.data;
       
       const filters = {
-        search: search as string,
-        fileType: fileType as string,
-        folderId: folderId as string,
-        tagId: tagId as string,
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        search,
+        fileType,
+        folderId,
+        tagId,
+        page,
+        limit,
       };
 
       const documents = await storage.getDocuments(filters);
@@ -304,9 +358,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Analysis endpoint
-  app.post("/api/documents/:id/analyze", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/:id/analyze", strictLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const documentId = req.params.id;
+      
+      // Validate and sanitize analysis parameters
+      const validationResult = analysisSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid analysis parameters",
+          details: validationResult.error.issues
+        });
+      }
+      
+      const { forceReanalysis, categories } = validationResult.data;
       console.log(`📋 AI Analysis request for document: ${documentId}`);
       
       // Check if API key is configured
@@ -382,7 +447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Content extraction endpoint for single document
-  app.post("/api/documents/:id/extract-content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/:id/extract-content", moderateLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const documentId = req.params.id;
       
@@ -444,7 +509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Batch content extraction endpoint
-  app.post("/api/documents/batch-extract-content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/batch-extract-content", moderateLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       console.log("🚀 Starting batch content extraction...");
       
@@ -504,7 +569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PDF-specific AI analysis endpoint - Ensure PDFs get properly analyzed
-  app.post("/api/documents/analyze-pdfs", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/analyze-pdfs", strictLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       console.log("🚀 Starting PDF-specific AI analysis...");
       
@@ -603,7 +668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk AI analysis endpoint - Re-analyze documents with improved classification
-  app.post("/api/documents/bulk-ai-analysis", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/bulk-ai-analysis", strictLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       console.log("🚀 Starting bulk AI analysis with improved classification rules...");
       
@@ -950,7 +1015,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // List documents from Google Drive
-  app.get("/api/drive/documents", verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/drive/documents", moderateLimiter, verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const driveService = (req as any).driveService as DriveService;
       
@@ -983,7 +1048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sync Drive document to local system
-  app.post("/api/drive/sync", verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/drive/sync", strictLimiter, verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
       // Validate request body
       const validatedBody = driveSyncSchema.parse(req.body);
