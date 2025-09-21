@@ -81,7 +81,8 @@ app.use(cors({
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Allow inline styles/scripts for development
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' } // Allow OAuth popup flows
 }));
 
 // Rate limiters are now in separate module to avoid circular dependencies
