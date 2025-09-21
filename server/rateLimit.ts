@@ -1,11 +1,11 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 // Rate limiting configuration - separated to avoid circular dependencies
 
-// User-based key generator for authenticated routes
+// User-based key generator for authenticated routes with proper IPv6 handling
 function userBasedKeyGenerator(req: any) {
-  // Use Firebase UID if available (for authenticated routes), otherwise fall back to IP
-  return req.user?.uid || req.ip;
+  // Use Firebase UID if available (for authenticated routes), otherwise fall back to properly handled IP
+  return req.user?.uid || ipKeyGenerator(req);
 }
 
 export const strictLimiter = rateLimit({

@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { AutocompleteCombobox } from "@/components/ui/autocomplete-combobox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { trackEvent } from "@/lib/analytics";
 import {
   FileText,
   Calendar,
@@ -114,7 +115,17 @@ export function DocumentModal({
       });
       return response;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      // Track custom classification creation
+      trackEvent('custom_classification_created', {
+        category: variables.category,
+        document_type: variables.documentType,
+        timestamp: new Date().toISOString(),
+        document_id: document.id,
+        document_name: document.name,
+        was_ai_classified: !!(document.aiCategory || document.aiDocumentType)
+      });
+      
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
       setIsEditingClassification(false);
