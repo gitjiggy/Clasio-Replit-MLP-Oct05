@@ -152,7 +152,6 @@ export class DriveService {
    */
   async getFileBuffer(fileId: string): Promise<{ buffer: Buffer; mimeType: string; name: string } | null> {
     try {
-      console.log(`🔍 DRIVE DEBUG: Downloading binary file ${fileId}...`);
       
       // Get file metadata first
       const metadata = await this.drive.files.get({
@@ -162,15 +161,14 @@ export class DriveService {
 
       const file = metadata.data;
       if (!file.id || !file.name || !file.mimeType) {
-        console.error(`❌ DRIVE DEBUG: Invalid file metadata for ${fileId}`);
+        console.error("Invalid file metadata");
         throw new Error('Invalid file metadata');
       }
 
-      console.log(`🔍 DRIVE DEBUG: File metadata - Name: ${file.name}, Type: ${file.mimeType}, Size: ${file.size || 'unknown'}`);
 
       // Don't use getFileBuffer for Google Docs - they need to be exported, not downloaded
       if (file.mimeType === 'application/vnd.google-apps.document') {
-        console.error(`❌ DRIVE DEBUG: Attempted to download Google Doc as binary: ${fileId}`);
+        console.error("Attempted to download Google Doc as binary");
         throw new Error('Google Docs should use getFileContent with export, not getFileBuffer');
       }
 
@@ -183,7 +181,6 @@ export class DriveService {
         responseType: 'stream' 
       });
 
-      console.log(`🔍 DRIVE DEBUG: Stream response received, collecting chunks...`);
 
       // Collect stream chunks into buffer array (more reliable than arraybuffer)
       const chunks: Buffer[] = [];
@@ -194,7 +191,6 @@ export class DriveService {
           })
           .on('end', () => {
             const buffer = Buffer.concat(chunks);
-            console.log(`✅ DRIVE DEBUG: File downloaded successfully - ${buffer.length} bytes`);
             
             resolve({
               buffer,
@@ -203,18 +199,18 @@ export class DriveService {
             });
           })
           .on('error', (streamError: Error) => {
-            console.error(`❌ DRIVE DEBUG: Stream error for ${fileId}:`, streamError);
+            console.error(`Stream error for file:`, streamError);
             reject(streamError);
           });
       });
 
     } catch (error) {
-      console.error(`❌ DRIVE DEBUG: Error getting file buffer for ${fileId}:`, error);
+      console.error(`Error getting file buffer:`, error);
       // Return null for graceful handling, but log detailed error
       if (error instanceof Error) {
-        console.error(`❌ DRIVE DEBUG: Error details - ${error.message}`);
+        console.error(`Error details:`, error.message);
         if ('code' in error) {
-          console.error(`❌ DRIVE DEBUG: Error code - ${(error as any).code}`);
+          console.error(`Error code:`, (error as any).code);
         }
       }
       return null;

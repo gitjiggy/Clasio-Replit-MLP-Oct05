@@ -133,9 +133,7 @@ export class ObjectStorageService {
   // Get object content as Buffer for AI processing
   async getObjectBuffer(objectPath: string): Promise<Buffer> {
     try {
-      console.log(`🔍 OBJECT STORAGE DEBUG: Getting buffer for path="${objectPath}"`);
       const file = await this.getObjectEntityFile(objectPath);
-      console.log(`✅ OBJECT STORAGE DEBUG: File found, creating stream...`);
       const stream = file.createReadStream();
       
       const chunks: Buffer[] = [];
@@ -185,18 +183,16 @@ export class ObjectStorageService {
 
   // Gets the object entity file from the object path.
   async getObjectEntityFile(objectPath: string): Promise<File> {
-    console.log(`🔍 OBJECT STORAGE DEBUG: Looking for object at path="${objectPath}"`);
     
     if (!objectPath.startsWith("/objects/")) {
-      console.error(`❌ OBJECT STORAGE DEBUG: Invalid path prefix, expected "/objects/" but got "${objectPath}"`);
+      console.error("Invalid path prefix, expected '/objects/'");
       throw new ObjectNotFoundError();
     }
 
     const parts = objectPath.slice(1).split("/");
-    console.log(`🔍 OBJECT STORAGE DEBUG: Path parts=${JSON.stringify(parts)}`);
     
     if (parts.length < 2) {
-      console.error(`❌ OBJECT STORAGE DEBUG: Insufficient path parts, got ${parts.length}, need at least 2`);
+      console.error("Insufficient path parts for object storage access");
       throw new ObjectNotFoundError();
     }
 
@@ -206,18 +202,15 @@ export class ObjectStorageService {
       entityDir = `${entityDir}/`;
     }
     const objectEntityPath = `${entityDir}${entityId}`;
-    console.log(`🔍 OBJECT STORAGE DEBUG: Final object path="${objectEntityPath}"`);
     
     const { bucketName, objectName } = parseObjectPath(objectEntityPath);
-    console.log(`🔍 OBJECT STORAGE DEBUG: Bucket="${bucketName}", Object="${objectName}"`);
     
     const bucket = objectStorageClient.bucket(bucketName);
     const objectFile = bucket.file(objectName);
     const [exists] = await objectFile.exists();
-    console.log(`🔍 OBJECT STORAGE DEBUG: Object exists=${exists}`);
     
     if (!exists) {
-      console.error(`❌ OBJECT STORAGE DEBUG: Object not found at bucket="${bucketName}", object="${objectName}"`);
+      console.error("Object not found in storage");
       throw new ObjectNotFoundError();
     }
     return objectFile;

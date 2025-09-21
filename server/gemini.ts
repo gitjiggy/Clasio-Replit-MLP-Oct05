@@ -259,12 +259,10 @@ ${text}`;
 
 export async function extractTextFromDocument(filePath: string, mimeType: string, driveAccessToken?: string): Promise<string> {
     try {
-        console.log(`Extracting text from document: ${filePath}, mimeType: ${mimeType}`);
         
         // Handle Google Drive documents
         if (filePath.startsWith('drive:')) {
             const driveFileId = filePath.substring(6); // Remove 'drive:' prefix
-            console.log(`Extracting content from Google Drive document: ${driveFileId}`);
             
             if (!driveAccessToken) {
                 return `Google Drive document content extraction requires authentication. Please provide a valid access token.`;
@@ -363,54 +361,48 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
 // PDF text extraction using pdf-parse with comprehensive error handling
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     try {
-        console.log(`🔍 Extracting text from PDF (${buffer.length} bytes)...`);
         
         // Check if buffer is valid and not empty
         if (!buffer || buffer.length === 0) {
-            console.error("❌ PDF buffer is empty or invalid");
+            console.error("PDF buffer is empty or invalid");
             return "Error: PDF file is empty or corrupted.";
         }
         
         // Check for minimum PDF size (PDFs smaller than 100 bytes are likely corrupted)
         if (buffer.length < 100) {
-            console.error(`❌ PDF too small (${buffer.length} bytes) - likely corrupted during download`);
+            console.error("PDF too small - likely corrupted during download");
             return "Error: PDF file appears to be corrupted or incomplete.";
         }
         
         // Verify PDF header
         const pdfHeader = buffer.toString('ascii', 0, 4);
         if (pdfHeader !== '%PDF') {
-            console.error(`❌ Invalid PDF header: ${pdfHeader} (expected %PDF)`);
+            console.error("Invalid PDF header (expected %PDF)");
             return "Error: File does not appear to be a valid PDF.";
         }
         
-        console.log("✅ PDF buffer validation passed, attempting text extraction...");
         
         const data = await pdfParse(buffer);
         const text = data.text?.trim();
         
         if (!text || text.length === 0) {
-            console.log("⚠️ No embedded text found in PDF, attempting OCR fallback...");
             // If no text found, try OCR using Gemini vision as fallback
             try {
                 const ocrText = await extractTextFromImageBuffer(buffer, 'application/pdf');
                 if (ocrText && ocrText.length > 10) {
-                    console.log(`✅ OCR extraction successful: ${ocrText.length} characters`);
                     return ocrText + " (extracted via OCR)";
                 } else {
-                    console.log("❌ OCR fallback also failed");
                     return "Error: Unable to extract text from this PDF. It may be an image-based document without readable text.";
                 }
             } catch (ocrError) {
-                console.error("❌ OCR fallback failed:", ocrError);
+                console.error("OCR fallback failed:", ocrError);
                 return "Error: Unable to extract text from this PDF. Both text extraction and OCR failed.";
             }
         }
         
-        console.log(`✅ PDF text extracted successfully: ${text.length} characters`);
         return text;
     } catch (error) {
-        console.error("❌ Error extracting text from PDF:", error);
+        console.error("Error extracting text from PDF:", error);
         
         // Provide specific error information for debugging
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -427,15 +419,12 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 // Word document (.docx) text extraction using mammoth
 async function extractTextFromWordDocx(buffer: Buffer): Promise<string> {
     try {
-        console.log("Extracting text from DOCX...");
         const result = await mammoth.extractRawText({ buffer });
         const text = result.value?.trim();
         
         if (result.messages && result.messages.length > 0) {
-            console.log("Mammoth warnings:", result.messages);
         }
         
-        console.log(`DOCX text extracted: ${text?.length || 0} characters`);
         return text || "No text content found in Word document.";
     } catch (error) {
         console.error("Error extracting text from DOCX:", error);
@@ -446,13 +435,11 @@ async function extractTextFromWordDocx(buffer: Buffer): Promise<string> {
 // Legacy Word document (.doc) text extraction using word-extractor
 async function extractTextFromWordDoc(buffer: Buffer): Promise<string> {
     try {
-        console.log("Extracting text from DOC...");
         const WordExtractor = await getWordExtractor();
         const extractor = new WordExtractor();
         const extracted = await extractor.extract(buffer);
         const text = extracted.getBody()?.trim();
         
-        console.log(`DOC text extracted: ${text?.length || 0} characters`);
         return text || "No text content found in Word document.";
     } catch (error) {
         console.error("Error extracting text from DOC:", error);
@@ -463,13 +450,11 @@ async function extractTextFromWordDoc(buffer: Buffer): Promise<string> {
 // Excel text extraction using xlsx
 async function extractTextFromExcel(buffer: Buffer): Promise<string> {
     try {
-        console.log("Extracting text from Excel...");
         const workbook = XLSX.read(buffer, { type: 'buffer' });
         let allText = '';
         
         // Extract text from all worksheets
         workbook.SheetNames.forEach((sheetName, index) => {
-            console.log(`Processing sheet: ${sheetName}`);
             const worksheet = workbook.Sheets[sheetName];
             
             // Convert sheet to array of arrays
@@ -498,7 +483,6 @@ async function extractTextFromExcel(buffer: Buffer): Promise<string> {
         });
         
         const text = allText.trim();
-        console.log(`Excel text extracted: ${text.length} characters from ${workbook.SheetNames.length} sheets`);
         return text || "No text content found in Excel document.";
     } catch (error) {
         console.error("Error extracting text from Excel:", error);

@@ -255,13 +255,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       storage.extractDocumentContent(document.id)
         .then(success => {
           if (success) {
-            console.log(`✅ Content extraction completed for document: ${document.id}`);
           } else {
-            console.error(`❌ Content extraction failed for document: ${document.id}`);
+            console.error("Content extraction failed for document");
           }
         })
         .catch(error => {
-          console.error(`💥 Content extraction error for document ${document.id}:`, error);
+          console.error("Content extraction error for document:", error);
         });
       
       res.status(201).json(documentWithDetails);
@@ -297,7 +296,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const uploadURLs = await Promise.all(uploadPromises);
 
-      console.log(`🚀 Generated ${fileCount} upload URLs for bulk upload`);
 
       res.json({
         success: true,
@@ -348,7 +346,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Normalize folder ID
       const normalizedFolderId = folderId && folderId !== "all" ? folderId : null;
 
-      console.log(`🎪 Starting bulk creation of ${documentsData.length} documents for user ${userId}`);
 
       // Create documents in parallel for speed
       const documentPromises = documentsData.map(async (docData) => {
@@ -390,13 +387,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           storage.extractDocumentContent(document.id)
             .then(success => {
               if (success) {
-                console.log(`✅ Content extraction completed for bulk document: ${document.id}`);
               } else {
-                console.error(`❌ Content extraction failed for bulk document: ${document.id}`);
+                console.error("Content extraction failed for bulk document");
               }
             })
             .catch(error => {
-              console.error(`💥 Content extraction error for bulk document ${document.id}:`, error);
+              console.error("Content extraction error for bulk document:", error);
             });
 
           return { success: true, document, originalName: docData.originalName };
@@ -411,7 +407,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const successful = results.filter(r => r.success);
       const failed = results.filter(r => !r.success);
 
-      console.log(`🎊 Bulk upload completed: ${successful.length}/${documentsData.length} successful`);
 
       // Get queue status for user feedback
       const queueStatus = await storage.getQueueStatus(userId);
@@ -718,18 +713,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { forceReanalysis, categories } = validationResult.data;
-      console.log(`📋 AI Analysis request for document: ${documentId}`);
       
       // Check if API key is configured
       if (!process.env.GEMINI_API_KEY) {
-        console.error(`❌ AI analysis failed: API key not configured (doc: ${documentId})`);
+        console.error("AI analysis failed: API key not configured");
         return res.status(503).json({ error: "AI analysis unavailable - API key not configured" });
       }
       
       // Check if document exists
       const document = await storage.getDocumentById(documentId);
       if (!document) {
-        console.error(`❌ AI analysis failed: Document not found (doc: ${documentId})`);
+        console.error("AI analysis failed: Document not found");
         return res.status(404).json({ error: "Document not found" });
       }
 
@@ -738,7 +732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const timeSinceLastAnalysis = Date.now() - new Date(document.aiAnalyzedAt).getTime();
         const oneMinute = 60 * 1000; // 1 minute in milliseconds
         if (timeSinceLastAnalysis < oneMinute) {
-          console.error(`❌ AI analysis failed: Rate limited (doc: ${documentId})`);
+          console.error("AI analysis failed: Rate limited");
           return res.status(429).json({ 
             error: "Document was recently analyzed. Please wait before analyzing again.",
             retryAfter: Math.ceil((oneMinute - timeSinceLastAnalysis) / 1000)
@@ -750,7 +744,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let success = false;
       
       if (document.driveFileId) {
-        console.log(`🔗 Document is from Google Drive (ID: ${document.driveFileId})`);
         // For Drive documents, try to get the Drive access token but don't require it
         const driveAccessToken = req.headers['x-drive-access-token'] as string;
         
@@ -762,32 +755,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success = false;
         }
       } else {
-        console.log(`📄 Document is uploaded file (not from Drive)`);
         // For uploaded documents, analyze normally
         try {
           success = await storage.analyzeDocumentWithAI(documentId);
-          console.log(`✅ AI analysis completed for uploaded document: ${success}`);
         } catch (aiError) {
-          console.error("❌ AI analysis failed for uploaded file:", aiError);
+          console.error("AI analysis failed for uploaded file:", aiError);
           success = false;
         }
       }
       
       if (!success) {
-        console.error(`❌ AI analysis completion failed (doc: ${documentId}, status: 500)`);
+        console.error("AI analysis completion failed");
         return res.status(500).json({ error: "Failed to analyze document with AI" });
       }
 
       // Return updated document with AI analysis
       const updatedDocument = await storage.getDocumentById(documentId);
-      console.log(`✅ AI analysis completed successfully (doc: ${documentId}, status: 200, branch: ${document.driveFileId ? 'drive' : 'uploaded'})`);
       res.json({
         success: true,
         message: "Document analyzed successfully",
         document: updatedDocument
       });
     } catch (error) {
-      console.error(`❌ AI analysis exception (doc: ${req.params.id}, status: 500):`, error);
+      console.error("AI analysis exception:", error);
       res.status(500).json({ error: "Failed to analyze document" });
     }
   });
@@ -807,7 +797,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check if this is a Google Drive document
       if (document.driveFileId) {
-        console.log(`📄 Extracting content from Drive document: ${document.name}`);
         
         // For Drive documents, we need the user's Google access token
         const driveAccessToken = req.headers['x-drive-access-token'] as string;
@@ -857,7 +846,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Batch content extraction endpoint
   app.post("/api/documents/batch-extract-content", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
-      console.log("🚀 Starting batch content extraction...");
       
       // Get documents without extracted content
       const documentsWithoutContent = await storage.getDocumentsWithoutContent();
@@ -871,7 +859,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log(`📄 Found ${documentsWithoutContent.length} documents needing content extraction`);
 
       // Process documents in batches (don't wait for all to complete)
       let processed = 0;
@@ -903,9 +890,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log completion asynchronously
       processingPromise.then(() => {
-        console.log(`✅ Batch content extraction completed: ${successful}/${processed} successful`);
       }).catch((error) => {
-        console.error("❌ Batch content extraction error:", error);
+        console.error("Batch content extraction error:", error);
       });
       
     } catch (error) {
@@ -917,7 +903,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // PDF-specific AI analysis endpoint - Ensure PDFs get properly analyzed
   app.post("/api/documents/analyze-pdfs", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
-      console.log("🚀 Starting PDF-specific AI analysis...");
       
       // Get all PDF documents that need analysis
       const allDocuments = await storage.getDocuments({
@@ -945,7 +930,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log(`🎯 Found ${pdfDocuments.length} PDFs needing analysis`);
 
       let processed = 0;
       let successful = 0;
@@ -955,11 +939,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const batchPromise = async () => {
         for (const doc of pdfDocuments) {
           try {
-            console.log(`📄 Processing PDF: ${doc.name} (${doc.id})`);
             
             // Check if document has extracted content
             if (!doc.contentExtracted) {
-              console.log(`⚠️ PDF ${doc.name} needs content extraction first`);
               needsExtraction++;
               processed++;
               continue;
@@ -977,15 +959,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             if (success) {
               successful++;
-              console.log(`✅ Successfully analyzed PDF: ${doc.name}`);
             } else {
-              console.log(`⚠️ Failed to analyze PDF: ${doc.name}`);
             }
             
             processed++;
             
           } catch (error) {
-            console.error(`❌ Error processing PDF ${doc.name}:`, error);
+            console.error("Error processing PDF document:", error);
             processed++;
           }
         }
@@ -1001,14 +981,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log completion asynchronously
       batchPromise().then(() => {
-        console.log(`✅ PDF analysis completed: ${successful}/${processed} successful, ${needsExtraction} need content extraction`);
-        console.log(`🎯 PDFs should now have proper AI classification in folders`);
       }).catch((error) => {
-        console.error("❌ PDF analysis error:", error);
+        console.error("PDF analysis error:", error);
       });
 
     } catch (error) {
-      console.error("❌ PDF analysis failed:", error);
+      console.error("PDF analysis failed:", error);
       res.status(500).json({ error: "Failed to start PDF analysis" });
     }
   });
@@ -1016,7 +994,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bulk AI analysis endpoint - Re-analyze documents with improved classification
   app.post("/api/documents/bulk-ai-analysis", strictLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      console.log("🚀 Starting bulk AI analysis with improved classification rules...");
       
       // Get all documents and filter those that need AI analysis
       const allDocuments = await storage.getDocuments({
@@ -1046,7 +1023,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log(`🎯 Found ${documentsForAnalysis.length} documents needing AI re-analysis`);
 
       // Process documents in batches with concurrency limit
       let processed = 0;
@@ -1061,12 +1037,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await Promise.all(
             batch.map(async (doc: DocumentWithFolderAndTags) => {
               try {
-                console.log(`🔍 Analyzing document: ${doc.name} (${doc.id})`);
                 
                 let success = false;
                 if (doc.driveFileId) {
                   // Drive document - need user's access token for authentication
-                  console.log(`📄 Skipping Drive document ${doc.name} (requires user interaction)`);
                   processed++;
                   return { id: doc.id, success: false, reason: "drive_auth_required" };
                 } else {
@@ -1076,14 +1050,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 if (success) {
                   successful++;
-                  console.log(`✅ Successfully analyzed: ${doc.name}`);
                 } else {
-                  console.log(`⚠️ Failed to analyze: ${doc.name}`);
                 }
                 
                 return { id: doc.id, success };
               } catch (error) {
-                console.error(`❌ Error analyzing document ${doc.name}:`, error);
+                console.error("Error analyzing document:", error);
                 return { id: doc.id, success: false };
               } finally {
                 processed++;
@@ -1108,14 +1080,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log completion asynchronously
       batchPromise().then(() => {
-        console.log(`✅ Bulk AI analysis completed: ${successful}/${processed} successful`);
-        console.log(`🎯 Tax documents should now be properly classified as "Taxes/Tax Document"`);
       }).catch((error) => {
-        console.error("❌ Bulk AI analysis error:", error);
+        console.error("Bulk AI analysis error:", error);
       });
 
     } catch (error) {
-      console.error("❌ Bulk AI analysis failed:", error);
+      console.error("Bulk AI analysis failed:", error);
       res.status(500).json({ error: "Failed to start bulk AI analysis" });
     }
   });
@@ -1462,11 +1432,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           if (isTextExportable && driveFile.content && !driveFile.content.startsWith('[Binary file:')) {
             // For Google Docs and text files, use the exported content directly
-            console.log(`🔤 Using exported text content for AI analysis: ${driveFile.name}`);
             await storage.analyzeDocumentWithAI(document.id, driveFile.content, driveAccessToken);
           } else {
             // For binary files (PDFs, Word docs, etc.), let storage handle binary download and extraction
-            console.log(`📄 Using binary download for AI analysis: ${driveFile.name} (${driveFile.mimeType})`);
             await storage.analyzeDocumentWithAI(document.id, undefined, driveAccessToken);
           }
         } catch (aiError) {

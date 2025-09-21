@@ -20,7 +20,7 @@ function validateEnvironment() {
   const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);
   
   if (missing.length > 0) {
-    console.error('❌ Missing required environment variables:');
+    console.error('Missing required environment variables:');
     missing.forEach(envVar => console.error(`  - ${envVar}`));
     console.error('\nPlease set these environment variables before starting the server.');
     process.exit(1);
@@ -29,7 +29,7 @@ function validateEnvironment() {
   // Warn about missing optional variables
   const missingOptional = optionalEnvVars.filter(envVar => !process.env[envVar]);
   if (missingOptional.length > 0) {
-    console.warn('⚠️  Missing optional environment variables:');
+    console.warn('Missing optional environment variables:');
     missingOptional.forEach(envVar => {
       if (envVar === 'GEMINI_API_KEY') {
         console.warn(`  - ${envVar} (AI analysis features will be disabled)`);
@@ -41,11 +41,11 @@ function validateEnvironment() {
 
   // Validate DATABASE_URL format
   if (process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('postgresql://')) {
-    console.error('❌ DATABASE_URL must be a valid PostgreSQL connection string');
+    console.error('DATABASE_URL must be a valid PostgreSQL connection string');
     process.exit(1);
   }
 
-  console.log('✅ Environment validation passed');
+  console.log('Environment validation passed');
 }
 
 // Run environment validation before starting the server
@@ -144,7 +144,7 @@ app.use((req, res, next) => {
     }
 
     // Log error details for debugging (but don't expose sensitive info to client)
-    console.error(`❌ Error ${status} on ${req.method} ${req.path}:`, err.message || err);
+    console.error(`Error ${status} on ${req.method} ${req.path}:`, err.message || err);
 
     res.status(status).json({ 
       error: message,

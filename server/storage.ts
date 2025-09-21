@@ -146,7 +146,6 @@ export class DatabaseStorage implements IStorage {
         await db.insert(tags).values(defaultTags);
       }
     } catch (error) {
-      console.log("Database initialization skipped:", error);
     }
   }
 
@@ -814,7 +813,6 @@ export class DatabaseStorage implements IStorage {
       if (updatedDoc && analysis.category && analysis.documentType) {
         try {
           await this.organizeDocumentIntoFolder(documentId, analysis.category, analysis.documentType);
-          console.log(`Document ${documentId} automatically organized into ${analysis.category}/${analysis.documentType}`);
         } catch (orgError) {
           console.error("Failed to auto-organize document, but continuing:", orgError);
           // Don't fail the AI analysis if organization fails
@@ -833,7 +831,6 @@ export class DatabaseStorage implements IStorage {
       // Import here to avoid circular dependencies
       const { extractTextFromDocument } = await import("./gemini.js");
       
-      console.log(`Starting content extraction for document: ${documentId}`);
       
       // Get the document
       const document = await this.getDocumentById(documentId);
@@ -844,7 +841,6 @@ export class DatabaseStorage implements IStorage {
 
       // Skip if content already extracted
       if (document.contentExtracted) {
-        console.log(`Content already extracted for document: ${documentId}`);
         return true;
       }
 
@@ -855,7 +851,6 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Extract text content - pass Drive access token if provided
-      console.log(`Extracting content from: ${document.filePath} (${document.mimeType})`);
       const documentText = await extractTextFromDocument(document.filePath, document.mimeType, driveAccessToken);
       
       // Check if extraction failed with authentication error
@@ -877,7 +872,6 @@ export class DatabaseStorage implements IStorage {
 
       const success = !!updatedDoc;
       if (success) {
-        console.log(`Content extraction completed for document: ${documentId} (${documentText.length} characters)`);
       } else {
         console.error(`Failed to update document with extracted content: ${documentId}`);
       }
@@ -936,7 +930,6 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     if (insertResult.length > 0) {
-      console.log(`Auto-created main category folder: ${category}`);
       return insertResult[0];
     }
     
@@ -999,7 +992,6 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     if (insertResult.length > 0) {
-      console.log(`Auto-created sub-folder: ${parentFolder[0].category}/${normalizedType}`);
       return insertResult[0];
     }
     
@@ -1158,13 +1150,11 @@ export class DatabaseStorage implements IStorage {
           .limit(1);
         
         if (existingJob[0]) {
-          console.log(`📋 Document ${documentId} already queued for analysis`);
           return existingJob[0];
         }
         throw new Error("Failed to enqueue document and no existing job found");
       }
 
-      console.log(`📋 Queued document ${documentId} for AI analysis (priority: ${priority}, estimated tokens: ${estimatedTokens})`);
       return queueJob;
     } catch (error) {
       console.error(`❌ Failed to enqueue document ${documentId} for analysis:`, error);
@@ -1181,7 +1171,6 @@ export class DatabaseStorage implements IStorage {
       const quotaCheck = await this.canProcessAnalysis();
       
       if (!quotaCheck.canProcess) {
-        console.log(`🚫 Daily quota reached (${quotaCheck.remaining} remaining). Next reset: ${quotaCheck.resetTime}`);
         return null;
       }
 
@@ -1212,7 +1201,6 @@ export class DatabaseStorage implements IStorage {
         .where(eq(aiAnalysisQueue.id, nextJob.id))
         .returning();
 
-      console.log(`🔄 Dequeued job ${processingJob.id} for document ${processingJob.documentId} (priority: ${processingJob.priority})`);
       return processingJob;
     } catch (error) {
       console.error("❌ Failed to dequeue analysis job:", error);
@@ -1238,7 +1226,6 @@ export class DatabaseStorage implements IStorage {
         .returning();
 
       if (updatedJob) {
-        console.log(`✅ Updated queue job ${jobId} status to ${status}`);
         return true;
       }
       
