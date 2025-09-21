@@ -248,11 +248,15 @@ export function ObjectUploader({
               
               console.log('📋 Bulk document creation request:', requestBody);
               
+              const firebaseToken = await getFirebaseIdToken();
+              console.log('🔍 DEBUG: Firebase token length:', firebaseToken?.length || 0);
+              console.log('🔍 DEBUG: Firebase token preview:', firebaseToken?.substring(0, 50) + '...');
+              
               const response = await fetch('/api/documents/bulk', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${await getFirebaseIdToken()}`,
+                  'Authorization': `Bearer ${firebaseToken}`,
                 },
                 body: JSON.stringify(requestBody),
               });
