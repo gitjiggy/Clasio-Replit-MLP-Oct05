@@ -1,0 +1,163 @@
+⏺ Excellent questions! Let me provide specific guidance for each area:
+
+⏺ Read(server/routes.ts)
+  ⎿  Read 200 lines (ctrl+o to expand)
+
+⏺ Search(pattern: "app\.(get|post|put|delete)", path: "server/routes.ts", output_mode: "content")
+  ⎿  Found 28 lines (ctrl+o to expand)
+
+⏺ 🎯 Rate Limiting Scope Recommendations
+
+  TIERED APPROACH - Apply different limits based on resource intensity:
+
+  Tier 1: STRICT (High Resource)
+
+  // 5 requests per 15 minutes
+  const strictLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: "Too many resource-intensive requests"
+  });
+  Apply to:
+  - /api/documents (POST - file uploads)
+  - /api/documents/:id/analyze (AI analysis)
+  - /api/documents/bulk-ai-analysis
+  - /api/documents/analyze-pdfs
+  - /api/drive/sync
+
+  Tier 2: MODERATE (API Heavy)
+
+  // 30 requests per 15 minutes  
+  const moderateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30
+  });
+  Apply to:
+  - /api/documents/:id/extract-content
+  - /api/documents/batch-extract-content
+  - /api/drive/documents
+
+  Tier 3: STANDARD (Regular API)
+
+  // 100 requests per 15 minutes
+  const standardLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100
+  });
+  Apply to: All other /api/* endpoints
+
+  ---
+  🗄️ Database Index Recommendations
+
+⏺ CRITICAL Indexes (Add these first):
+
+  -- User-scoped queries (most important)
+  CREATE INDEX documents_user_folder_idx ON documents(user_id, folder_id) WHERE is_deleted = false;
+  CREATE INDEX documents_user_category_idx ON documents(user_id, ai_category) WHERE is_deleted = false;
+  CREATE INDEX documents_upload_date_idx ON documents(uploaded_at DESC) WHERE is_deleted = false;
+
+  -- Document versions (version history queries)
+  CREATE INDEX document_versions_doc_version_idx ON document_versions(document_id, version DESC);
+  CREATE INDEX document_versions_doc_active_idx ON document_versions(document_id) WHERE is_active = true;
+  CREATE INDEX document_versions_upload_date_idx ON document_versions(uploaded_at DESC);
+
+  -- Search performance
+  CREATE INDEX documents_content_search_idx ON documents USING gin(to_tsvector('english', document_content));
+  CREATE INDEX documents_name_search_idx ON documents USING gin(to_tsvector('english', name));
+
+  -- Drive integration
+  CREATE INDEX documents_drive_file_idx ON documents(drive_file_id) WHERE drive_file_id IS NOT NULL;
+  CREATE INDEX documents_sync_status_idx ON documents(drive_sync_status, drive_synced_at);
+
+  ---
+  🔒 Critical Input Validation Endpoints
+
+  HIGH PRIORITY (Implement first):
+
+  1. Search Endpoints (routes.ts:196-200)
+  const searchSchema = z.object({
+    search: z.string().max(100).regex(/^[a-zA-Z0-9\s\-_.]+$/).optional(),
+    fileType: z.string().max(50).optional(),
+    folderId: z.string().uuid().optional(),
+    page: z.string().regex(/^\d+$/).transform(Number).optional(),
+    limit: z.string().regex(/^\d+$/).transform(Number).pipe(z.number().min(1).max(50)).optional()
+  });
+
+  2. Document Upload (routes.ts:134-193)
+  const uploadSchema = z.object({
+    name: z.string().min(1).max(255).regex(/^[^<>:"/\\|?*]+$/),
+    originalName: z.string().min(1).max(255),
+    fileSize: z.number().positive().max(50 * 1024 * 1024),
+    fileType: z.enum(['pdf', 'doc', 'docx', 'txt', 'jpg', 'png']),
+    folderId: z.string().uuid().nullish()
+  });
+
+  3. AI Analysis Input (routes.ts:307)
+  const analysisSchema = z.object({
+    forceReanalysis: z.boolean().default(false),
+    categories: z.array(z.string().max(50)).max(10).optional()
+  });
+
+  MEDIUM PRIORITY:
+
+  - Drive sync parameters validation
+  - Bulk operations input validation
+  - Folder/tag name sanitization
+
+  ---
+  📦 Package Installation
+
+⏺ YES - Install these packages:
+
+  npm install express-rate-limit express-validator helmet
+
+  Why each package:
+  - express-rate-limit: Rate limiting (as discussed)
+  - express-validator: More robust input validation than just Zod
+  - helmet: Additional security headers
+
+  ---
+  🚀 Implementation Priority Order
+
+  Week 1 (Critical):
+
+  1. Rate limiting on upload/AI endpoints (prevents abuse)
+  2. Basic input validation (prevents injection attacks)
+  3. User-scoped database indexes (performance)
+
+  Week 2 (Important):
+
+  4. Document versions indexes
+  5. Search performance indexes
+  6. Comprehensive input validation
+
+  Week 3 (Enhancement):
+
+  7. Content search indexes (GIN)
+  8. Drive integration indexes
+  9. Advanced rate limiting with user-based limits
+
+  ---
+  💡 Quick Implementation Template
+
+  // Add to server/index.ts after CORS setup
+  import rateLimit from 'express-rate-limit';
+
+  const strictLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const moderateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+  });
+
+  // Apply in routes.ts
+  app.post("/api/documents", strictLimiter, verifyFirebaseToken, ...);
+  app.post("/api/documents/:id/analyze", strictLimiter, verifyFirebaseToken, ...);
+
+  This approach gives you maximum security impact with minimal development time. Focus on the high-resource
+  endpoints first, then expand coverage.
