@@ -78,6 +78,9 @@ export function DocumentModal({
   searchQuery,
   onDownload 
 }: DocumentModalProps) {
+  // Early return BEFORE any hooks are called to prevent hooks order violations
+  if (!document) return null;
+
   const [contentExpanded, setContentExpanded] = useState(false);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [isEditingClassification, setIsEditingClassification] = useState(false);
@@ -90,20 +93,20 @@ export function DocumentModal({
 
   // Fetch document content on-demand when modal opens
   const { data: contentData, isLoading: isLoadingContent } = useQuery({
-    queryKey: [`/api/documents/${document?.id}/content`],
-    enabled: open && !!document?.id && !document?.documentContent, // Only fetch if modal is open and content is not already available
+    queryKey: [`/api/documents/${document.id}/content`],
+    enabled: open && !document.documentContent, // Only fetch if modal is open and content is not already available
   });
   
-  // Fetch folders for classification editing - ALWAYS call this hook
+  // Fetch folders for classification editing
   const { data: folders = [] } = useQuery<FolderType[]>({
     queryKey: ['/api/folders'],
-    enabled: open && !!document, // Only fetch when modal is open and has document
+    enabled: open, // Only fetch when modal is open
   });
   
   // Update classification mutation
   const updateClassificationMutation = useMutation({
     mutationFn: async (data: { category: string; documentType: string }) => {
-      const response = await apiRequest(`/api/documents/${document?.id}/classification`, {
+      const response = await apiRequest(`/api/documents/${document.id}/classification`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -130,13 +133,11 @@ export function DocumentModal({
 
   // Initialize edit values when starting to edit
   useEffect(() => {
-    if (isEditingClassification && document) {
+    if (isEditingClassification) {
       setEditCategory(document.overrideCategory || document.aiCategory || '');
       setEditDocumentType(document.overrideDocumentType || document.aiDocumentType || '');
     }
   }, [isEditingClassification, document]);
-
-  if (!document) return null;
 
   // Build proper folder/subfolder hierarchy for classification editing
   const automaticFolders = folders.filter(folder => folder.isAutoCreated);
