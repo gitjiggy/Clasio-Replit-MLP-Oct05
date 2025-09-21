@@ -81,8 +81,16 @@ const analysisSchema = z.object({
 
 // Classification update schema
 const classificationUpdateSchema = z.object({
-  category: z.enum(["Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"]),
-  documentType: z.enum(["Resume", "Cover Letter", "Contract", "Invoice", "Receipt", "Tax Document", "Medical Record", "Insurance Document", "Legal Document", "Immigration Document", "Financial Statement", "Employment Document", "Event Notice", "Academic Document", "Real Estate Document", "Travel Document", "Personal Statement", "Technical Documentation", "Business Report"])
+  category: z.string()
+    .min(1, "Category cannot be empty")
+    .max(100, "Category name too long")
+    .trim()
+    .regex(/^[^<>:"/\\|?*\u0000-\u001F]+$/, "Category contains invalid characters"),
+  documentType: z.string()
+    .min(1, "Document type cannot be empty")
+    .max(100, "Document type name too long")
+    .trim()
+    .regex(/^[^<>:"/\\|?*\u0000-\u001F]+$/, "Document type contains invalid characters")
 });
 
 // Zod schemas for Drive API validation
