@@ -275,9 +275,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Bulk upload URL generation - for when you have more files than patience! 📁✨
   app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+    console.log('🔍 DEBUG: bulk-upload-urls endpoint hit with body:', req.body);
     try {
       // Validate bulk upload request
       const validationResult = bulkUploadRequestSchema.safeParse(req.body);
+      console.log('🔍 DEBUG: validation result:', validationResult);
       if (!validationResult.success) {
         return res.status(400).json({ 
           error: "Hold up! 🛑 Your bulk upload request has some issues...",
