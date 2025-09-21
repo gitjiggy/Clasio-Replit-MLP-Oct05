@@ -101,6 +101,44 @@ export const documentTags = pgTable("document_tags", {
   tagId: varchar("tag_id").references(() => tags.id, { onDelete: "cascade" }).notNull(),
 });
 
+// AI Analysis Queue for cost-controlled batch processing
+export const aiAnalysisQueue = pgTable("ai_analysis_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  userId: text("user_id").notNull(), // Firebase UID for tracking per-user queue
+  priority: integer("priority").default(5).notNull(), // 1=highest (user-requested), 5=bulk upload, 8=background
+  requestedAt: timestamp("requested_at").default(sql`now()`).notNull(),
+  scheduledAt: timestamp("scheduled_at"), // When it should be processed
+  processedAt: timestamp("processed_at"), // When it was actually processed
+  status: text("status").default("pending").notNull(), // pending, processing, completed, failed
+  retryCount: integer("retry_count").default(0).notNull(),
+  failureReason: text("failure_reason"), // Why it failed (for debugging)
+  estimatedTokens: integer("estimated_tokens"), // Estimated token usage for cost tracking
+}, (table) => ({
+  // Index for efficient queue processing
+  queueProcessingIndex: index("ai_queue_processing_idx").on(table.status, table.priority, table.scheduledAt),
+  // Index for user queue status queries
+  userQueueIndex: index("ai_queue_user_idx").on(table.userId, table.status),
+  // Prevent duplicate queue entries for same document
+  uniqueDocumentInQueue: uniqueIndex("ai_queue_unique_document_idx")
+    .on(table.documentId)
+    .where(sql`status IN ('pending', 'processing')`),
+}));
+
+// Daily API usage tracking for cost control
+export const dailyApiUsage = pgTable("daily_api_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  date: text("date").notNull(), // YYYY-MM-DD format
+  requestCount: integer("request_count").default(0).notNull(), // Total requests made
+  tokenCount: integer("token_count").default(0).notNull(), // Total tokens used
+  successCount: integer("success_count").default(0).notNull(), // Successful requests
+  failureCount: integer("failure_count").default(0).notNull(), // Failed requests
+  lastUpdated: timestamp("last_updated").default(sql`now()`).notNull(),
+}, (table) => ({
+  // Ensure one record per date
+  uniqueDateIndex: uniqueIndex("daily_usage_unique_date_idx").on(table.date),
+}));
+
 export const insertFolderSchema = createInsertSchema(folders).omit({
   id: true,
   createdAt: true,
@@ -127,17 +165,31 @@ export const insertDocumentTagSchema = createInsertSchema(documentTags).omit({
   id: true,
 });
 
+export const insertAiAnalysisQueueSchema = createInsertSchema(aiAnalysisQueue).omit({
+  id: true,
+  requestedAt: true,
+});
+
+export const insertDailyApiUsageSchema = createInsertSchema(dailyApiUsage).omit({
+  id: true,
+  lastUpdated: true,
+});
+
 export type InsertFolder = z.infer<typeof insertFolderSchema>;
 export type InsertTag = z.infer<typeof insertTagSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
 export type InsertDocumentTag = z.infer<typeof insertDocumentTagSchema>;
+export type InsertAiAnalysisQueue = z.infer<typeof insertAiAnalysisQueueSchema>;
+export type InsertDailyApiUsage = z.infer<typeof insertDailyApiUsageSchema>;
 
 export type Folder = typeof folders.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type DocumentVersion = typeof documentVersions.$inferSelect;
 export type DocumentTag = typeof documentTags.$inferSelect;
+export type AiAnalysisQueue = typeof aiAnalysisQueue.$inferSelect;
+export type DailyApiUsage = typeof dailyApiUsage.$inferSelect;
 
 export type DocumentWithFolderAndTags = Document & {
   folder?: Folder;
