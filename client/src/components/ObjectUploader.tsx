@@ -146,6 +146,8 @@ export function ObjectUploader({
           let bulkResponse;
           try {
             bulkResponse = await onGetBulkUploadParameters(files.length);
+            console.log('🔍 DEBUG: bulkResponse structure:', bulkResponse);
+            console.log('🔍 DEBUG: bulkResponse.bulkUploadConfig:', bulkResponse?.bulkUploadConfig);
           } catch (error) {
             console.error("Error getting bulk upload URLs:", error);
             if (error instanceof Error && (error.message.includes("429") || error.message.includes("speed racer") || error.message.includes("Too many bulk uploads"))) {

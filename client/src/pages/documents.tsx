@@ -273,7 +273,7 @@ export default function Documents() {
     const data = await response.json();
     return {
       uploadURLs: data.uploadURLs,
-      bulkUploadConfig: data.config
+      bulkUploadConfig: data.bulkUploadConfig  // ✅ FIXED! Now matches backend response
     };
   };
 
