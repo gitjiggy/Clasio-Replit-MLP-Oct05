@@ -285,8 +285,42 @@ export function ObjectUploader({
                 setUploadProgress(0);
               }, 2000);
             } catch (error) {
-              console.error('Bulk document creation failed:', error);
-              // Handle bulk creation failure
+              console.error('💥 DETAILED ERROR: Bulk document creation failed:', {
+                error,
+                errorMessage: error instanceof Error ? error.message : String(error),
+                errorStack: error instanceof Error ? error.stack : undefined,
+                errorName: error instanceof Error ? error.name : typeof error,
+                stringifiedError: JSON.stringify(error, null, 2)
+              });
+              
+              // Handle bulk creation failure with user-friendly message
+              setUploadStatus("⚠️ Files uploaded but failed to register in database. Contact support if this persists.");
+              setUploadProgress(100);
+              
+              // Still notify about upload completion but with error details
+              setTimeout(() => {
+                onBulkUploadComplete({
+                  successful: 0, // Mark as failed since database creation failed
+                  failed: successful.length,
+                  details: successful.map(result => ({
+                    ...result,
+                    success: false,
+                    error: `Database registration failed: ${error instanceof Error ? error.message : String(error)}`
+                  })),
+                  message: "Files uploaded to storage but database registration failed",
+                  aiAnalysis: {
+                    status: "failed",
+                    message: "Database registration failed - no AI analysis performed",
+                    queueStatus: { pending: 0, processing: 0, completed: 0, failed: successful.length }
+                  },
+                });
+                
+                // Clear files from Uppy and close modal
+                uppyInstance.cancelAll();
+                setShowModal(false);
+                setUploadStatus("");
+                setUploadProgress(0);
+              }, 3000);
             }
           }
         } catch (error) {
