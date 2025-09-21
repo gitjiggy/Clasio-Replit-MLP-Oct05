@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { aiQueueProcessor } from "./aiQueueProcessor";
+import { enterpriseJobQueue } from "./services/jobQueue";
 
 // Environment variable validation
 function validateEnvironment() {
@@ -166,6 +167,10 @@ app.use((req, res, next) => {
   // Start AI Queue Processor for background document analysis 🚀
   console.log('🤖 Starting AI Queue Processor for smart document analysis...');
   aiQueueProcessor.start();
+
+  // Start Enterprise Job Queue for multi-tenant background processing 🏢
+  console.log('🏢 Starting Enterprise Job Queue for background processing...');
+  enterpriseJobQueue.start();
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
