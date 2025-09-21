@@ -60,22 +60,31 @@ export async function analyzeDocumentContent(text: string): Promise<{
     documentType: string;
     category: string;
     wordCount: number;
+    conciseTitle: string;
+    categoryConfidence: number;
+    documentTypeConfidence: number;
 }> {
     if (!text || text.trim().length === 0) {
         return {
             keyTopics: [],
-            documentType: "Other",
+            documentType: "Technical Documentation",
             category: "Personal",
-            wordCount: 0
+            wordCount: 0,
+            conciseTitle: "Empty Document",
+            categoryConfidence: 50,
+            documentTypeConfidence: 50
         };
     }
 
     if (!process.env.GEMINI_API_KEY) {
         return {
             keyTopics: ["API key required"],
-            documentType: "Other",
+            documentType: "Technical Documentation",
             category: "Personal",
-            wordCount: text.split(/\s+/).length
+            wordCount: text.split(/\s+/).length,
+            conciseTitle: "Untitled Document",
+            categoryConfidence: 0,
+            documentTypeConfidence: 0
         };
     }
 
@@ -99,8 +108,9 @@ export async function analyzeDocumentContent(text: string): Promise<{
     const prompt = `You are a document classification expert. Analyze the following document and provide a JSON response.
 
 STRICT REQUIREMENTS:
-1. Key topics: Extract up to 5 most important topics as an array of strings
-2. Document type: Must be EXACTLY one of these options:
+1. Concise Title: Generate a 4-7 word descriptive title that captures the document's essence
+2. Key topics: Extract up to 5 most important topics as an array of strings
+3. Document type: Must be EXACTLY one of these options (NEVER use "Other"):
    - "Resume"
    - "Cover Letter" 
    - "Contract"
@@ -120,23 +130,29 @@ STRICT REQUIREMENTS:
    - "Personal Statement"
    - "Technical Documentation"
    - "Business Report"
-   - "Other"
 
-3. Category: Must be EXACTLY one of these: "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
+4. Category: Must be EXACTLY one of these: "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
+
+5. Confidence scores: Provide confidence (0.0 to 1.0) for both category and document type classifications
+
+IMPORTANT: If uncertain about classification, choose the CLOSEST matching option. NEVER use "Other" - always pick the best fit from the available options.
 
 EXAMPLES:
-- "2022 Fall Back to School Night" → {"documentType": "Event Notice", "category": "Education"}
-- "John Smith Resume 2024" → {"documentType": "Resume", "category": "Business"}
-- "Stanford Personal Statement Draft" → {"documentType": "Personal Statement", "category": "Education"}
+- "2022 Fall Back to School Night" → {"conciseTitle": "School Event Notification", "documentType": "Event Notice", "category": "Education", "categoryConfidence": 0.95, "documentTypeConfidence": 0.90}
+- "John Smith Resume 2024" → {"conciseTitle": "Professional Resume Document", "documentType": "Resume", "category": "Employment", "categoryConfidence": 0.98, "documentTypeConfidence": 0.99}
+- "Stanford Personal Statement Draft" → {"conciseTitle": "College Application Essay", "documentType": "Personal Statement", "category": "Education", "categoryConfidence": 0.92, "documentTypeConfidence": 0.88}
 
 ${keywordCategory ? `HINT: Based on content analysis, this appears to be category "${keywordCategory}"` : ''}
 ${keywordDocumentType ? ` and type "${keywordDocumentType}"` : ''}
 
 Format response as JSON only:
 {
+  "conciseTitle": "4-7 Word Title",
   "keyTopics": ["topic1", "topic2", "topic3"],
   "documentType": "Document Type",
-  "category": "Category"
+  "category": "Category",
+  "categoryConfidence": 0.95,
+  "documentTypeConfidence": 0.90
 }
 
 Document content:
@@ -156,7 +172,10 @@ ${text}`;
         const response = await result.response;
         const rawJson = response.text();
         
-        console.log(`AI Analysis Response: ${rawJson}`);
+        // Log AI response only in debug mode to avoid exposing sensitive content
+        if (process.env.DEBUG_AI === '1') {
+            console.debug(`AI Analysis Response: ${rawJson}`);
+        }
 
         if (rawJson) {
             // With responseMimeType: "application/json", the response should be clean JSON
@@ -168,7 +187,7 @@ ${text}`;
                 "Medical Record", "Insurance Document", "Legal Document", "Immigration Document",
                 "Financial Statement", "Employment Document", "Event Notice", "Academic Document",
                 "Real Estate Document", "Travel Document", "Personal Statement", 
-                "Technical Documentation", "Business Report", "Other"
+                "Technical Documentation", "Business Report"
             ];
             
             const validCategories = [
@@ -176,26 +195,50 @@ ${text}`;
                 "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
             ];
             
-            // Apply keyword overrides if detected
-            let finalDocumentType = validDocumentTypes.includes(data.documentType) ? data.documentType : "Other";
+            // Confidence normalization helper - handles various input formats and clamps to 0-100
+            const normalizeConfidence = (value: any): number => {
+                let num = Number(value);
+                if (!Number.isFinite(num)) num = 0.5;
+                if (num <= 1) num *= 100; // Convert 0-1 scale to 0-100
+                return Math.max(0, Math.min(100, Math.round(num)));
+            };
+            
+            // Extract and validate confidence scores
+            const categoryConfidence = normalizeConfidence(data.categoryConfidence);
+            const documentTypeConfidence = normalizeConfidence(data.documentTypeConfidence);
+            
+            // Apply keyword overrides if detected, with fallback logic to prevent "Other"
+            let finalDocumentType = validDocumentTypes.includes(data.documentType) ? data.documentType : "Technical Documentation";
             let finalCategory = validCategories.includes(data.category) ? data.category : "Personal";
             
-            // Only use keyword overrides as tie-breakers when AI confidence is low
-            // Prefer the AI model's structured output with temperature=0
+            // Apply keyword overrides when AI confidence is low (<50) or when classification is invalid
             if (keywordCategory && validCategories.includes(keywordCategory) && 
-                (!data.category || !validCategories.includes(data.category))) {
+                (categoryConfidence < 50 || !validCategories.includes(data.category))) {
                 finalCategory = keywordCategory;
             }
             if (keywordDocumentType && validDocumentTypes.includes(keywordDocumentType) && 
-                (!data.documentType || !validDocumentTypes.includes(data.documentType))) {
+                (documentTypeConfidence < 50 || !validDocumentTypes.includes(data.documentType))) {
                 finalDocumentType = keywordDocumentType;
             }
+            
+            // Validate and clean concise title (4-7 words)
+            let conciseTitle = data.conciseTitle || "Untitled Document";
+            const titleWords = conciseTitle.trim().split(/\s+/);
+            if (titleWords.length < 4) {
+                conciseTitle = titleWords.concat(["Document", "File", "Content"]).slice(0, 4).join(" ");
+            } else if (titleWords.length > 7) {
+                conciseTitle = titleWords.slice(0, 7).join(" ");
+            }
+            
             
             return {
                 keyTopics: Array.isArray(data.keyTopics) ? data.keyTopics.slice(0, 5) : ["Analysis unavailable"],
                 documentType: finalDocumentType,
                 category: finalCategory,
-                wordCount
+                wordCount,
+                conciseTitle,
+                categoryConfidence,
+                documentTypeConfidence
             };
         } else {
             throw new Error("Empty response from model");
@@ -204,9 +247,12 @@ ${text}`;
         console.error("Error analyzing document content:", error);
         return {
             keyTopics: ["Analysis unavailable"],
-            documentType: "Other",
+            documentType: "Technical Documentation",
             category: "Personal",
-            wordCount
+            wordCount,
+            conciseTitle: "Analysis Failed",
+            categoryConfidence: 0,
+            documentTypeConfidence: 0
         };
     }
 }
