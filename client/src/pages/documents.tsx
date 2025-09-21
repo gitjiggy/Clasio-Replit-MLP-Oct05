@@ -670,7 +670,12 @@ export default function Documents() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {documentsData?.documents.map((document) => (
-                <Card key={document.id} className="hover:shadow-lg transition-shadow duration-200" data-testid={`document-card-${document.id}`}>
+                <Card 
+                  key={document.id} 
+                  className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
+                  onClick={() => handleViewDocument(document)}
+                  data-testid={`document-card-${document.id}`}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-2 flex-1 min-w-0">
@@ -686,7 +691,13 @@ export default function Documents() {
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-auto p-1" data-testid={`menu-${document.id}`}>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-auto p-1" 
+                            onClick={(e) => e.stopPropagation()}
+                            data-testid={`menu-${document.id}`}
+                          >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -791,7 +802,10 @@ export default function Documents() {
                       <Button
                         size="sm"
                         className="flex-1"
-                        onClick={() => handleDownload(document)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownload(document);
+                        }}
                         data-testid={`download-${document.id}`}
                       >
                         <Download className="mr-1 h-3 w-3" />
@@ -800,7 +814,8 @@ export default function Documents() {
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           // Open document details/preview
                           if (document.driveWebViewLink) {
                             window.open(document.driveWebViewLink, '_blank');
@@ -815,7 +830,10 @@ export default function Documents() {
                       <Button
                         size="sm"
                         variant={document.aiSummary ? "secondary" : "outline"}
-                        onClick={() => analyzeDocumentMutation.mutate(document.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          analyzeDocumentMutation.mutate(document.id);
+                        }}
                         disabled={analyzeDocumentMutation.isPending}
                         data-testid={`analyze-ai-${document.id}`}
                       >
