@@ -237,6 +237,12 @@ export class DatabaseStorage implements IStorage {
       aiSentiment: documents.aiSentiment,
       aiWordCount: documents.aiWordCount,
       aiAnalyzedAt: documents.aiAnalyzedAt,
+      aiConciseName: documents.aiConciseName,
+      aiCategoryConfidence: documents.aiCategoryConfidence,
+      aiDocumentTypeConfidence: documents.aiDocumentTypeConfidence,
+      overrideCategory: documents.overrideCategory,
+      overrideDocumentType: documents.overrideDocumentType,
+      classificationOverridden: documents.classificationOverridden,
       // Exclude documentContent for performance
       documentContent: sql<string | null>`NULL`.as('documentContent'),
       contentExtracted: documents.contentExtracted,
@@ -255,7 +261,7 @@ export class DatabaseStorage implements IStorage {
       .limit(filters.limit)
       .offset((filters.page - 1) * filters.limit);
 
-    // Get tags for each document
+    // Get tags and version information for each document
     const docsWithTags = await Promise.all(
       results.map(async (result) => {
         const docTags = await db
@@ -264,10 +270,29 @@ export class DatabaseStorage implements IStorage {
           .leftJoin(tags, eq(documentTags.tagId, tags.id))
           .where(eq(documentTags.documentId, result.document.id));
 
+        // Get version information
+        const currentVersionInfo = await db
+          .select({
+            version: documentVersions.version,
+          })
+          .from(documentVersions)
+          .where(and(
+            eq(documentVersions.documentId, result.document.id),
+            eq(documentVersions.isActive, true)
+          ))
+          .limit(1);
+
+        const totalVersions = await db
+          .select({ count: count() })
+          .from(documentVersions)
+          .where(eq(documentVersions.documentId, result.document.id));
+
         return {
           ...result.document,
           folder: result.folder || undefined,
           tags: docTags.map(dt => dt.tag).filter(Boolean) as Tag[],
+          currentVersionNumber: currentVersionInfo[0]?.version || 1,
+          versionCount: totalVersions[0]?.count || 1,
         };
       })
     );

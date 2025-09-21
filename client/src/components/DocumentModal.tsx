@@ -24,13 +24,14 @@ import {
   ChevronDown
 } from "lucide-react";
 import type { DocumentWithFolderAndTags } from "@shared/schema";
+import { getDocumentDisplayName, getDocumentTooltip, type DocumentWithVersionInfo } from "@/lib/documentDisplay";
 
 interface DocumentModalProps {
-  document: DocumentWithFolderAndTags | null;
+  document: DocumentWithVersionInfo | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   searchQuery?: string;
-  onDownload?: (document: DocumentWithFolderAndTags) => void;
+  onDownload?: (document: DocumentWithVersionInfo) => void;
 }
 
 // Component to highlight search terms in text
@@ -276,9 +277,9 @@ export function DocumentModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="flex items-center text-lg">
+          <DialogTitle className="flex items-center text-lg" title={getDocumentTooltip(document)} data-testid={`document-name-modal-${document.id}`}>
             <FileText className="h-5 w-5 mr-2" />
-            <HighlightedText text={document.name} searchQuery={searchQuery} />
+            <HighlightedText text={getDocumentDisplayName(document)} searchQuery={searchQuery} />
           </DialogTitle>
           <DialogDescription>
             Document details and content preview

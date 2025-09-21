@@ -16,6 +16,7 @@ import { trackEvent } from "@/lib/analytics";
 import { getGoogleAccessToken } from "@/lib/firebase";
 import type { UploadResult } from "@uppy/core";
 import type { DocumentWithFolderAndTags, DocumentWithVersions, DocumentVersion, Folder, Tag } from "@shared/schema";
+import { getDocumentDisplayName, getDocumentTooltip, type DocumentWithVersionInfo } from "@/lib/documentDisplay";
 import { 
   Search, 
   Upload, 
@@ -42,7 +43,7 @@ import {
 } from "lucide-react";
 
 interface DocumentsResponse {
-  documents: DocumentWithFolderAndTags[];
+  documents: DocumentWithVersionInfo[];
   pagination: {
     page: number;
     limit: number;
@@ -667,8 +668,8 @@ export default function Documents() {
                       <div className="flex items-center space-x-2 flex-1 min-w-0">
                         {getFileIcon(document.fileType)}
                         <div className="min-w-0">
-                          <h3 className="text-sm font-medium text-foreground truncate" title={document.name}>
-                            {document.name}
+                          <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
+                            {getDocumentDisplayName(document)}
                           </h3>
                           <p className="text-xs text-muted-foreground">
                             {formatFileSize(document.fileSize || 0)}
