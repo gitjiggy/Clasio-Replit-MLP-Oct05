@@ -46,7 +46,7 @@ export const standardLimiter = rateLimit({
 
 export const bulkUploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // 50 bulk operations per window (increased for testing)
+  max: 500, // 500 bulk operations per window (dev testing)
   message: {
     error: "Whoa there, speed racer! 🚀 Too many bulk uploads. Even our servers need to catch their breath sometimes!",
     retryAfter: "15 minutes",
