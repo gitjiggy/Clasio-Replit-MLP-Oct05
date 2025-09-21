@@ -122,6 +122,8 @@ export function ObjectUploader({
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
   const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>("");
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   
   const [uppy] = useState(() => {
     const uppyInstance = new Uppy({
@@ -147,8 +149,14 @@ export function ObjectUploader({
           const uploadPromises = files.map(async (file, index) => {
             try {
               const uploadURL = bulkResponse.uploadURLs[index];
+              setUploadStatus(`📤 Uploading "${file.name}" - our digital postman is hard at work!`);
+              setUploadProgress(40 + (index / files.length) * 40);
+              
+              console.log('Upload URL structure:', uploadURL); // Debug log
+              console.log('Upload method:', uploadURL.method); // Debug log
+              
               const response = await fetch(uploadURL.url, {
-                method: uploadURL.method,
+                method: uploadURL.method || 'PUT',
                 body: file.data,
                 headers: {
                   'Content-Type': file.type || 'application/octet-stream',
@@ -179,6 +187,9 @@ export function ObjectUploader({
           const uploadResults = await Promise.all(uploadPromises);
           const successful = uploadResults.filter(r => r.success);
           const failed = uploadResults.filter(r => !r.success);
+          
+          setUploadStatus("🎉 Files uploaded! Now registering them in our digital library...");
+          setUploadProgress(80);
           
           // Create documents via bulk API
           if (successful.length > 0) {
@@ -212,17 +223,25 @@ export function ObjectUploader({
               
               const bulkResult = await response.json();
               
-              onBulkUploadComplete({
-                successful: successful.length,
-                failed: failed.length,
-                details: uploadResults,
-                message: bulkResult.message,
-                aiAnalysis: bulkResult.aiAnalysis,
-              });
+              setUploadStatus("🎊 Success! Your documents are now safely stored and ready for AI analysis!");
+              setUploadProgress(100);
               
-              // Clear files from Uppy
-              uppyInstance.cancelAll();
-              setShowModal(false);
+              // Show completion message for a moment
+              setTimeout(() => {
+                onBulkUploadComplete({
+                  successful: successful.length,
+                  failed: failed.length,
+                  details: uploadResults,
+                  message: bulkResult.message,
+                  aiAnalysis: bulkResult.aiAnalysis,
+                });
+                
+                // Clear files from Uppy and close modal
+                uppyInstance.cancelAll();
+                setShowModal(false);
+                setUploadStatus("");
+                setUploadProgress(0);
+              }, 2000);
             } catch (error) {
               console.error('Bulk document creation failed:', error);
               // Handle bulk creation failure
@@ -251,9 +270,51 @@ export function ObjectUploader({
 
   return (
     <div>
-      <Button onClick={() => setShowModal(true)} className={buttonClassName}>
-        {children}
+      <Button 
+        onClick={() => setShowModal(true)} 
+        className={buttonClassName}
+        disabled={isBulkUploading}
+        data-testid="button-upload"
+      >
+        {isBulkUploading ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            Uploading...
+          </>
+        ) : (
+          children
+        )}
       </Button>
+
+      {/* Upload Status Overlay */}
+      {isBulkUploading && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <div className="text-center space-y-4">
+              <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {uploadStatus || "Processing your files..."}
+              </div>
+              
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {uploadProgress}% complete
+              </div>
+              
+              {uploadProgress < 100 && (
+                <div className="text-xs text-gray-500 dark:text-gray-500">
+                  Please don't close this window while we work our magic! ✨
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <DashboardModal
         uppy={uppy}
