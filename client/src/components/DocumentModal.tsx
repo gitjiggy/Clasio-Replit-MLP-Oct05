@@ -94,10 +94,10 @@ export function DocumentModal({
     enabled: open && !!document?.id && !document?.documentContent, // Only fetch if modal is open and content is not already available
   });
   
-  // Fetch folders for classification editing
+  // Fetch folders for classification editing - ALWAYS call this hook
   const { data: folders = [] } = useQuery<FolderType[]>({
     queryKey: ['/api/folders'],
-    enabled: isEditingClassification, // Only fetch when editing
+    enabled: open && !!document, // Only fetch when modal is open and has document
   });
   
   // Update classification mutation
