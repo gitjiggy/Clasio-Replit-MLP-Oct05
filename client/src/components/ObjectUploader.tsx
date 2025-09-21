@@ -249,8 +249,19 @@ export function ObjectUploader({
               
               console.log('📋 Bulk document creation request:', requestBody);
               
-              // Use apiRequest instead of manual fetch to ensure proper Firebase auth
-              const response = await apiRequest('POST', '/api/documents/bulk', requestBody);
+              // Get fresh Firebase token using the same method as bulk-upload-urls
+              const { auth } = await import("@/lib/firebase");
+              const firebaseToken = auth.currentUser ? await auth.currentUser.getIdToken() : "";
+              console.log('🔍 DEBUG: Firebase token length:', firebaseToken?.length || 0);
+              
+              const response = await fetch('/api/documents/bulk', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${firebaseToken}`,
+                },
+                body: JSON.stringify(requestBody),
+              });
               
               console.log('📤 Bulk document creation response status:', response.status);
               
