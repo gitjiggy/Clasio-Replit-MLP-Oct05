@@ -687,6 +687,11 @@ export default function Documents() {
                           <p className="text-xs text-muted-foreground">
                             {formatFileSize(document.fileSize || 0)}
                           </p>
+                          {document.originalName && (
+                            <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
+                              {document.originalName}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <DropdownMenu>
