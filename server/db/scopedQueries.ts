@@ -65,12 +65,16 @@ export class ScopedDB {
     const org = await this.getOrganization(orgId);
     if (!org) throw new Error('Organization not found');
     
-    if (org.documentCount >= org.maxDocuments) {
-      throw new Error(`Document limit reached (${org.maxDocuments} documents). Please upgrade your plan.`);
+    const currentDocCount = org.documentCount || 0;
+    const maxDocs = org.maxDocuments || 500;
+    if (currentDocCount >= maxDocs) {
+      throw new Error(`Document limit reached (${maxDocs} documents). Please upgrade your plan.`);
     }
 
     const fileSizeMb = Math.ceil((data.fileSize || 0) / 1024 / 1024);
-    if ((org.storageUsedMb + fileSizeMb) > org.maxStorageMb) {
+    const currentStorage = org.storageUsedMb || 0;
+    const maxStorage = org.maxStorageMb || 1000;
+    if ((currentStorage + fileSizeMb) > maxStorage) {
       throw new Error(`Storage limit reached. Please upgrade your plan.`);
     }
 
@@ -181,7 +185,9 @@ export class ScopedDB {
   static async checkAiQuota(orgId: string): Promise<boolean> {
     const org = await this.getOrganization(orgId);
     if (!org) return false;
-    return org.aiAnalysesThisMonth < org.maxAiAnalysesPerMonth;
+    const currentAnalyses = org.aiAnalysesThisMonth || 0;
+    const maxAnalyses = org.maxAiAnalysesPerMonth || 100;
+    return currentAnalyses < maxAnalyses;
   }
 
   static async incrementAiUsage(orgId: string) {

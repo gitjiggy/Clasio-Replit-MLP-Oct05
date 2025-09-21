@@ -11,6 +11,10 @@ export const organizations = pgTable('organizations', {
   ownerId: text('owner_id').notNull(), // Firebase UID
   plan: text('plan').notNull().default('free'), // free, pro
   createdAt: timestamp('created_at').default(sql`now()`).notNull(),
+  updatedAt: timestamp('updated_at').default(sql`now()`).notNull(),
+  
+  // Minimal compatibility fields
+  subdomain: text('subdomain').unique(),
 
   // Usage tracking - critical for SMB cost control
   documentCount: integer('document_count').default(0),
@@ -144,3 +148,64 @@ export const PLAN_LIMITS = {
     maxAiAnalysesPerMonth: 1000,
   },
 } as const;
+
+// Legacy Enterprise Tables (kept for compatibility during transition)
+export const backgroundJobs = pgTable('background_jobs', {
+  id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  status: text('status').notNull().default('pending'),
+  priority: integer('priority').notNull().default(5),
+  idempotencyKey: text('idempotency_key').unique(),
+  payload: text('payload').notNull(),
+  result: text('result'),
+  errorMessage: text('error_message'),
+  scheduledFor: timestamp('scheduled_for').default(sql`now()`),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(3),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').default(sql`now()`).notNull(),
+  updatedAt: timestamp('updated_at').default(sql`now()`).notNull(),
+});
+
+export const auditLogs = pgTable('audit_logs', {
+  id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: text('user_id'),
+  action: text('action').notNull(),
+  resourceType: text('resource_type').notNull(),
+  resourceId: text('resource_id'),
+  details: text('details'),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  timestamp: timestamp('timestamp').default(sql`now()`).notNull(),
+});
+
+export const userRoles = pgTable('user_roles', {
+  id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: text('user_id').notNull(),
+  organizationId: varchar('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  permissions: text('permissions').array(),
+  invitedBy: text('invited_by'),
+  invitedAt: timestamp('invited_at').default(sql`now()`),
+  acceptedAt: timestamp('accepted_at'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').default(sql`now()`).notNull(),
+});
+
+// Legacy types for compatibility
+export type BackgroundJob = typeof backgroundJobs.$inferSelect;
+export type NewBackgroundJob = typeof backgroundJobs.$inferInsert;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
+export type UserRole = typeof userRoles.$inferSelect;
+export type NewUserRole = typeof userRoles.$inferInsert;
+
+// Additional compatibility types
+export type DataClassification = { id: string; name: string; }; // Minimal stub
+export type NewDataClassification = { name: string; };
+export type OrganizationSettings = { id: string; organizationId: string; }; // Minimal stub  
+export type NewOrganizationSettings = { organizationId: string; };

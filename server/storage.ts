@@ -35,11 +35,15 @@ import {
   documentVersions,
   aiAnalysisQueue,
   dailyApiUsage,
-  // SMB tables - simplified from enterprise
+  // Keep existing enterprise tables for compatibility
   organizations,
   organizationMembers,
   activityLog,
   documentShares,
+  // Legacy enterprise tables (keep for now)
+  backgroundJobs,
+  auditLogs,
+  userRoles,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -279,6 +283,7 @@ export class DatabaseStorage implements IStorage {
       mimeType: documents.mimeType,
       folderId: documents.folderId,
       organizationId: documents.organizationId,
+      softDeletedAt: documents.softDeletedAt,
       uploadedAt: documents.uploadedAt,
       isFavorite: documents.isFavorite,
       isDeleted: documents.isDeleted,
@@ -305,10 +310,10 @@ export class DatabaseStorage implements IStorage {
       documentContent: sql<string | null>`NULL`.as('documentContent'),
       contentExtracted: documents.contentExtracted,
       contentExtractedAt: documents.contentExtractedAt,
-      // Enterprise fields
+      // SMB fields
+      lastAccessedAt: documents.lastAccessedAt,
       dataClassification: documents.dataClassification,
       complianceFrameworks: documents.complianceFrameworks,
-      lastAccessedAt: documents.lastAccessedAt,
       accessCount: documents.accessCount,
     };
 

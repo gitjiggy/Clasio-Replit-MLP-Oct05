@@ -84,8 +84,13 @@ export const documents = pgTable("documents", {
   contentExtracted: boolean("content_extracted").default(false).notNull(),
   contentExtractedAt: timestamp("content_extracted_at"),
   
-  // SMB features - simplified from enterprise
+  // SMB features - simplified from enterprise  
   lastAccessedAt: timestamp("last_accessed_at"),
+  
+  // Minimal enterprise fields for compatibility
+  dataClassification: text("data_classification").default("internal"),
+  complianceFrameworks: text("compliance_frameworks").array(),
+  accessCount: integer("access_count").default(0),
 }, (table) => ({
   // Add organization index for SMB multi-tenancy
   orgIdx: index('documents_org_idx').on(table.organizationId),
