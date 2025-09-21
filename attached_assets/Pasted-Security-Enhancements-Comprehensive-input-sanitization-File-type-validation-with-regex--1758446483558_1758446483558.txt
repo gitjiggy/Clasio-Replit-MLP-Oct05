@@ -1,0 +1,75 @@
+Security Enhancements:
+    - Comprehensive input sanitization
+    - File type validation with regex patterns
+    - Proper error handling with validation details
+
+  🚨 MISSING: Rate Limiter Implementation File
+
+  You need to create the rate limiter file that's being imported:
+
+  npm install express-rate-limit
+
+  Then create /server/rateLimit.ts:
+
+  import rateLimit from 'express-rate-limit';
+
+  // Strict limiting for high-resource operations
+  export const strictLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 requests per window
+    message: {
+      error: "Too many resource-intensive requests",
+      retryAfter: "15 minutes"
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Moderate limiting for API-heavy operations  
+  export const moderateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 30, // 30 requests per window
+    message: {
+      error: "Too many API requests",
+      retryAfter: "15 minutes"
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Standard limiting for regular API calls
+  export const standardLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes 
+    max: 100, // 100 requests per window
+    message: {
+      error: "Too many requests",
+      retryAfter: "15 minutes"
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  🗄️ STILL NEEDED: Database Indexes
+
+  The database indexes I recommended earlier are still needed:
+
+  -- Add these indexes for performance
+  CREATE INDEX documents_user_folder_idx ON documents(user_id, folder_id) WHERE is_deleted = false;
+  CREATE INDEX documents_user_category_idx ON documents(user_id, ai_category) WHERE is_deleted = false;
+  CREATE INDEX documents_upload_date_idx ON documents(uploaded_at DESC) WHERE is_deleted = false;
+
+  -- Document versions indexes
+  CREATE INDEX document_versions_doc_version_idx ON document_versions(document_id, version DESC);
+  CREATE INDEX document_versions_upload_date_idx ON document_versions(uploaded_at DESC);
+
+  -- Search performance
+  CREATE INDEX documents_content_search_idx ON documents USING gin(to_tsvector('english', document_content));
+
+  📋 SUMMARY: You're 90% Complete!
+
+  The major security and performance improvements are already implemented! You just need:
+
+  1. Install package: npm install express-rate-limit
+  2. Create rate limiter file: /server/rateLimit.ts (code above)
+  3. Add database indexes: Run the SQL statements above
+  4. Test the application: Ensure everything works with the new rate limiting
