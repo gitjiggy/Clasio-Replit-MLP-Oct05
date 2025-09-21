@@ -824,6 +824,17 @@ export default function Documents() {
                             {tag.name}
                           </Badge>
                         ))}
+                        {/* 🔍 TEMPORARY DEBUG: Visual test for AI data */}
+                        {document.aiSummary && (
+                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                            ✅ AI Data Found
+                          </Badge>
+                        )}
+                        {!document.aiSummary && (
+                          <Badge variant="secondary" className="text-xs bg-red-100 text-red-800">
+                            ❌ No AI Data
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     
@@ -833,6 +844,21 @@ export default function Documents() {
                     </div>
                     
                     {/* AI Analysis Results */}
+                    {(() => {
+                      console.log('🔍 DEBUG: Document AI fields:', {
+                        id: document.id,
+                        name: document.name,
+                        aiSummary: document.aiSummary,
+                        aiKeyTopics: document.aiKeyTopics,
+                        aiCategory: document.aiCategory,
+                        aiDocumentType: document.aiDocumentType,
+                        hasAiSummary: !!document.aiSummary,
+                        hasOverrideType: !!document.overrideDocumentType,
+                        hasOverrideCategory: !!document.overrideCategory,
+                        conditionMet: !!(document.aiSummary || document.overrideDocumentType || document.overrideCategory)
+                      });
+                      return null;
+                    })()}
                     {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
                       <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
                         <div className="flex items-center gap-2 mb-1">

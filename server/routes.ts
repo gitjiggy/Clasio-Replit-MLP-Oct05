@@ -481,6 +481,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const documents = await storage.getDocuments(filters);
       const total = await storage.getDocumentsCount(filters);
       
+      // 🔍 DEBUG: Log first document's AI fields to see what's being returned
+      if (documents.length > 0) {
+        console.log('🔍 API DEBUG: First document AI fields:', {
+          id: documents[0].id,
+          name: documents[0].name,
+          aiSummary: documents[0].aiSummary ? 'HAS SUMMARY' : 'NO SUMMARY',
+          aiKeyTopics: documents[0].aiKeyTopics ? `${documents[0].aiKeyTopics.length} topics` : 'NO TOPICS',
+          aiCategory: documents[0].aiCategory || 'NO CATEGORY',
+          aiDocumentType: documents[0].aiDocumentType || 'NO TYPE'
+        });
+      }
+      
       res.json({
         documents,
         pagination: {
