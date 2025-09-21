@@ -25,7 +25,7 @@ class AIQueueProcessor {
   private lastTokenRefill = Date.now();
 
   constructor() {
-    console.log('🚀 AI Queue Processor initialized! Ready to process documents with style!');
+    // AI Queue Processor initialized
   }
 
   /**
@@ -48,19 +48,19 @@ class AIQueueProcessor {
   public start(): void {
     // Only start if Gemini API key is available
     if (!process.env.GEMINI_API_KEY) {
-      console.log('⏸️ AI Queue Processor not started - GEMINI_API_KEY not configured');
+      console.log('AI Queue Processor not started - GEMINI_API_KEY not configured');
       return;
     }
 
     if (this.processingInterval) {
-      console.log('🤖 AI Queue Processor is already running! No need to double-book our digital worker!');
+      console.log('AI Queue Processor is already running');
       return;
     }
 
-    console.log('🎭 Starting AI Queue Processor - preparing for document analysis extravaganza!');
+    console.log('Starting AI Queue Processor');
     this.processingInterval = setInterval(() => {
       this.processQueue().catch(error => {
-        console.error('💥 Queue processing hiccup:', error);
+        console.error('Queue processing error:', error);
       });
     }, this.PROCESSING_INTERVAL_MS);
   }
@@ -72,7 +72,7 @@ class AIQueueProcessor {
     if (this.processingInterval) {
       clearInterval(this.processingInterval);
       this.processingInterval = null;
-      console.log('⏸️ AI Queue Processor stopped - our digital brain is taking a well-deserved break!');
+      console.log('AI Queue Processor stopped');
     }
   }
 
@@ -97,7 +97,7 @@ class AIQueueProcessor {
       const dailyUsage = dailyUsageRecord?.requestCount || 0;
       
       if (dailyUsage >= this.DAILY_REQUEST_LIMIT) {
-        console.log(`🛑 Daily quota reached (${dailyUsage}/${this.DAILY_REQUEST_LIMIT})! Our AI is resting until tomorrow! 😴`);
+        console.log(`Daily quota reached (${dailyUsage}/${this.DAILY_REQUEST_LIMIT})`);
         return;
       }
 
@@ -116,12 +116,12 @@ class AIQueueProcessor {
       this.tokenBucket--;
 
       try {
-        console.log(`🎨 Starting AI analysis for document ${nextJob.documentId} (Priority: ${nextJob.priority})`);
+        // Processing document ${nextJob.documentId}
         
         // Get document details for analysis
         const document = await storage.getDocumentById(nextJob.documentId);
         if (!document) {
-          throw new Error(`Document ${nextJob.documentId} not found - it seems to have vanished! 🎭`);
+          throw new Error(`Document ${nextJob.documentId} not found`);
         }
 
         // Get document content for analysis
@@ -148,17 +148,17 @@ class AIQueueProcessor {
           });
           
           // Mark queue item as completed with celebration! 🎉
-          await storage.updateQueueJobStatus(nextJob.id, 'completed', 'AI analysis completed successfully! 🎉');
+          await storage.updateQueueJobStatus(nextJob.id, 'completed', 'AI analysis completed successfully');
           
           // Track usage for quota management - exactly 1 request per analysis
           await storage.incrementDailyUsage(today, 1, true);
           
-          console.log(`✅ AI analysis completed for document ${nextJob.documentId}! Digital insights delivered! 🧠✨`);
+          // AI analysis completed for document ${nextJob.documentId}
         } else {
-          throw new Error('AI analysis returned empty results - our digital brain needs more coffee! ☕');
+          throw new Error('AI analysis returned empty results');
         }
       } catch (error) {
-        console.error(`❌ AI analysis failed for document ${nextJob.documentId}:`, error);
+        console.error(`AI analysis failed for document ${nextJob.documentId}:`, error);
         
         // Handle retries with grace and humor
         const newRetryCount = nextJob.retryCount + 1;
@@ -169,16 +169,16 @@ class AIQueueProcessor {
           const errorMessage = `Retry ${newRetryCount}/${maxRetries}: ${error instanceof Error ? error.message : String(error)}`;
           
           await storage.updateQueueJobStatus(nextJob.id, 'pending', errorMessage);
-          console.log(`🔄 Scheduling retry ${newRetryCount}/${maxRetries} for document ${nextJob.documentId}`);
+          console.log(`Scheduling retry ${newRetryCount}/${maxRetries} for document ${nextJob.documentId}`);
         } else {
           // Max retries exceeded - time to give up gracefully
           await storage.updateQueueJobStatus(nextJob.id, 'failed', `Max retries exceeded: ${error instanceof Error ? error.message : String(error)}`);
-          console.log(`💔 Max retries exceeded for document ${nextJob.documentId} - sometimes even digital magic has limits!`);
+          console.log(`Max retries exceeded for document ${nextJob.documentId}`);
         }
       }
 
     } catch (error) {
-      console.error('🚨 Queue processor encountered an unexpected error:', error);
+      console.error('Queue processor encountered an unexpected error:', error);
     } finally {
       this.isProcessing = false;
     }
@@ -201,7 +201,7 @@ class AIQueueProcessor {
    */
   public async processDocumentImmediately(documentId: string, userId: string): Promise<boolean> {
     try {
-      console.log(`⚡ Processing document ${documentId} immediately - VIP treatment activated!`);
+      console.log(`Processing document ${documentId} immediately`);
       
       // Check daily quota
       const today = new Date().toISOString().split('T')[0];
@@ -209,14 +209,14 @@ class AIQueueProcessor {
       const dailyUsage = dailyUsageRecord?.requestCount || 0;
       
       if (dailyUsage >= this.DAILY_REQUEST_LIMIT) {
-        console.log(`🛑 Cannot process immediately - daily quota reached! Even VIPs must respect the limits! 😅`);
+        console.log(`Cannot process immediately - daily quota reached`);
         return false;
       }
 
       // Check rate limit
       this.refillTokenBucket();
       if (this.tokenBucket <= 0) {
-        console.log(`⏰ Cannot process immediately - rate limit reached! Even VIPs must wait for tokens!`);
+        console.log(`Cannot process immediately - rate limit reached`);
         return false;
       }
 
@@ -226,14 +226,14 @@ class AIQueueProcessor {
       // Get document details
       const document = await storage.getDocumentById(documentId);
       if (!document) {
-        console.error(`📄 Document ${documentId} not found for immediate processing!`);
+        console.error(`Document ${documentId} not found for immediate processing`);
         return false;
       }
 
       // Get document content for analysis
       const content = await storage.getDocumentContent(documentId);
       if (!content) {
-        console.error(`📄 No content available for document ${documentId}`);
+        console.error(`No content available for document ${documentId}`);
         return false;
       }
 
@@ -257,31 +257,31 @@ class AIQueueProcessor {
         // Track usage - exactly 1 request per analysis
         await storage.incrementDailyUsage(today, 1, true);
         
-        console.log(`🎯 Immediate processing completed for document ${documentId}! Lightning-fast AI magic! ⚡`);
+        console.log(`Immediate processing completed for document ${documentId}`);
         return true;
       } else {
-        console.error(`🤔 AI analysis failed for immediate processing of document ${documentId}`);
+        console.error(`AI analysis failed for immediate processing of document ${documentId}`);
         return false;
       }
     } catch (error) {
-      console.error(`💥 Immediate processing failed for document ${documentId}:`, error);
+      console.error(`Immediate processing failed for document ${documentId}:`, error);
       return false;
     }
   }
 }
 
-// Create singleton instance - one processor to rule them all! 💍
+// Create singleton instance
 export const aiQueueProcessor = new AIQueueProcessor();
 
-// Graceful shutdown handling - even robots need proper goodbyes! 👋
+// Graceful shutdown handling
 process.on('SIGINT', () => {
-  console.log('🛑 Received SIGINT - shutting down AI Queue Processor gracefully...');
+  console.log('Received SIGINT - shutting down AI Queue Processor gracefully');
   aiQueueProcessor.stop();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.log('🛑 Received SIGTERM - shutting down AI Queue Processor gracefully...');
+  console.log('Received SIGTERM - shutting down AI Queue Processor gracefully');
   aiQueueProcessor.stop();
   process.exit(0);
 });

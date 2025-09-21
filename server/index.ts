@@ -163,8 +163,8 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Start AI Queue Processor for background document analysis 🚀
-  console.log('🤖 Starting AI Queue Processor for smart document analysis...');
+  // Start AI Queue Processor for background document analysis
+  console.log('Starting AI Queue Processor for document analysis');
   aiQueueProcessor.start();
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
