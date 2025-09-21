@@ -43,3 +43,16 @@ export const standardLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: userBasedKeyGenerator,
 });
+
+export const bulkUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 bulk operations per window
+  message: {
+    error: "Whoa there, speed racer! 🚀 Too many bulk uploads. Even our servers need to catch their breath sometimes!",
+    retryAfter: "15 minutes",
+    funnyMessage: "Our hamsters powering the upload servers are getting dizzy from all that spinning! 🐹💫"
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userBasedKeyGenerator,
+});

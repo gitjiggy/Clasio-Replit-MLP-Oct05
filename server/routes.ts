@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth";
 import { DriveService } from "./driveService";
-import { strictLimiter, moderateLimiter, standardLimiter } from "./rateLimit";
+import { strictLimiter, moderateLimiter, standardLimiter, bulkUploadLimiter } from "./rateLimit";
 import multer from "multer";
 import path from "path";
 import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents, type DocumentWithFolderAndTags } from "@shared/schema";
@@ -110,6 +110,28 @@ const driveDocumentsQuerySchema = z.object({
   }),
 });
 
+// Bulk upload schemas
+const bulkUploadRequestSchema = z.object({
+  fileCount: z.number().min(1).max(50), // Allow up to 50 files at once
+  folderId: z.string().uuid().nullish(),
+  tagIds: z.array(z.string().uuid()).optional(),
+  analyzeImmediately: z.boolean().default(false), // Whether to analyze immediately or queue
+});
+
+const bulkDocumentCreationSchema = z.object({
+  documents: z.array(z.object({
+    uploadURL: z.string().min(1),
+    name: z.string().min(1).max(255).regex(/^[^<>:"/\\|?*]+$/),
+    originalName: z.string().min(1).max(255),
+    fileSize: z.number().positive().max(50 * 1024 * 1024),
+    fileType: z.enum(['pdf', 'doc', 'docx', 'txt', 'jpg', 'png', 'gif', 'webp', 'csv', 'xlsx', 'pptx']),
+    mimeType: z.string().min(1),
+  })).min(1).max(50),
+  folderId: z.string().uuid().nullish(),
+  tagIds: z.array(z.string().uuid()).optional(),
+  analyzeImmediately: z.boolean().default(false),
+});
+
 // Configure multer for memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -210,7 +232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name,
         originalName,
         filePath,
-        fileSize: parseInt(fileSize),
+        fileSize, // Already converted to number by validation
         fileType,
         mimeType,
         folderId: normalizedFolderId,
@@ -248,6 +270,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating document:", error);
       res.status(500).json({ error: "Failed to create document" });
+    }
+  });
+
+  // Bulk upload URL generation - for when you have more files than patience! 📁✨
+  app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Validate bulk upload request
+      const validationResult = bulkUploadRequestSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Hold up! 🛑 Your bulk upload request has some issues...",
+          details: validationResult.error.issues,
+          funnyMessage: "Even our most eager file-uploading robots need proper instructions! 🤖📋"
+        });
+      }
+
+      const { fileCount, folderId, tagIds, analyzeImmediately } = validationResult.data;
+
+      // Generate multiple upload URLs
+      const uploadPromises = Array.from({ length: fileCount }, () => 
+        objectStorageService.getObjectEntityUploadURL()
+      );
+
+      const uploadURLs = await Promise.all(uploadPromises);
+
+      console.log(`🚀 Generated ${fileCount} upload URLs for bulk upload`);
+
+      res.json({
+        success: true,
+        uploadURLs,
+        message: `🎉 Ready to upload ${fileCount} files! Your digital filing cabinet is hungry for more documents!`,
+        bulkUploadConfig: {
+          folderId,
+          tagIds,
+          analyzeImmediately,
+          maxFilesPerBatch: 50,
+          funnyTip: analyzeImmediately 
+            ? "AI analysis selected! Our digital brain will start munching on your files immediately! 🧠✨"
+            : "AI analysis queued! Your files will get the VIP treatment when our AI sommelier is ready! 🍷🤖"
+        }
+      });
+    } catch (error) {
+      console.error("Error generating bulk upload URLs:", error);
+      res.status(500).json({ 
+        error: "Failed to generate bulk upload URLs",
+        funnyMessage: "Our upload URL generator seems to be having a coffee break ☕ Please try again in a moment!"
+      });
+    }
+  });
+
+  // Bulk document creation - the grand finale of your upload symphony! 🎼
+  app.post("/api/documents/bulk", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Validate bulk document creation request
+      const validationResult = bulkDocumentCreationSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Oops! 🎪 Your bulk upload circus needs some organizing...",
+          details: validationResult.error.issues,
+          funnyMessage: "Even the most talented juggler needs to know which balls to catch! 🤹‍♂️"
+        });
+      }
+
+      const { documents: documentsData, folderId, tagIds, analyzeImmediately } = validationResult.data;
+      const userId = req.user?.uid;
+
+      if (!userId) {
+        return res.status(401).json({ 
+          error: "User authentication required",
+          funnyMessage: "Who goes there?! 🕵️‍♀️ Our security guards need to know who's uploading all these files!"
+        });
+      }
+
+      // Normalize folder ID
+      const normalizedFolderId = folderId && folderId !== "all" ? folderId : null;
+
+      console.log(`🎪 Starting bulk creation of ${documentsData.length} documents for user ${userId}`);
+
+      // Create documents in parallel for speed
+      const documentPromises = documentsData.map(async (docData) => {
+        try {
+          const filePath = objectStorageService.normalizeObjectEntityPath(docData.uploadURL);
+
+          const documentData = {
+            name: docData.name,
+            originalName: docData.originalName,
+            filePath,
+            fileSize: docData.fileSize,
+            fileType: docData.fileType,
+            mimeType: docData.mimeType,
+            folderId: normalizedFolderId,
+            isFavorite: false,
+            isDeleted: false,
+          };
+
+          const validatedData = insertDocumentSchema.parse(documentData);
+          const document = await storage.createDocument(validatedData);
+
+          // Add tags if provided
+          if (tagIds && Array.isArray(tagIds)) {
+            for (const tagId of tagIds) {
+              await storage.addDocumentTag({ documentId: document.id, tagId });
+            }
+          }
+
+          // Queue for AI analysis or trigger immediately
+          if (analyzeImmediately) {
+            // High priority for immediate analysis
+            await storage.enqueueDocumentForAnalysis(document.id, userId, 1);
+          } else {
+            // Normal priority for bulk upload
+            await storage.enqueueDocumentForAnalysis(document.id, userId, 5);
+          }
+
+          // Trigger background content extraction (don't wait for it)
+          storage.extractDocumentContent(document.id)
+            .then(success => {
+              if (success) {
+                console.log(`✅ Content extraction completed for bulk document: ${document.id}`);
+              } else {
+                console.error(`❌ Content extraction failed for bulk document: ${document.id}`);
+              }
+            })
+            .catch(error => {
+              console.error(`💥 Content extraction error for bulk document ${document.id}:`, error);
+            });
+
+          return { success: true, document, originalName: docData.originalName };
+        } catch (error) {
+          console.error(`Error creating document ${docData.originalName}:`, error);
+          return { success: false, originalName: docData.originalName, error: error instanceof Error ? error.message : String(error) };
+        }
+      });
+
+      // Wait for all documents to be processed
+      const results = await Promise.all(documentPromises);
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
+
+      console.log(`🎊 Bulk upload completed: ${successful.length}/${documentsData.length} successful`);
+
+      // Get queue status for user feedback
+      const queueStatus = await storage.getQueueStatus(userId);
+
+      res.status(201).json({
+        success: true,
+        message: failed.length === 0 
+          ? `🎉 Fantastic! All ${successful.length} files uploaded successfully! Your digital library just got a major upgrade!`
+          : `📊 Upload completed: ${successful.length} succeeded, ${failed.length} had issues. Don't worry, we're not keeping score! 😅`,
+        results: {
+          successful: successful.length,
+          failed: failed.length,
+          details: results
+        },
+        aiAnalysis: {
+          status: analyzeImmediately ? "priority_processing" : "queued",
+          message: analyzeImmediately 
+            ? "🚀 AI analysis is running in the fast lane! Results coming hot off the digital press!"
+            : "🎭 AI analysis queued with style! Your documents are waiting for their moment in the spotlight!",
+          queueStatus,
+          funnyTip: queueStatus.pending > 10 
+            ? "Looks like you're keeping our AI very busy! ☕ Maybe time for a coffee break while it catches up?"
+            : "Our AI is ready and raring to analyze your documents! 🤖⚡"
+        },
+        tips: [
+          failed.length > 0 ? "💡 Pro tip: Check the failed uploads for any file format or size issues!" : null,
+          "🌟 Your documents are now searchable and ready for AI magic!",
+          analyzeImmediately ? "⚡ Priority analysis means faster results!" : "🕐 Queued analysis ensures quality processing for all!"
+        ].filter(Boolean)
+      });
+    } catch (error) {
+      console.error("Error in bulk document creation:", error);
+      res.status(500).json({ 
+        error: "Failed to create bulk documents",
+        funnyMessage: "Our digital filing cabinet seems to be having a tantrum! 📁💥 Please try again!"
+      });
     }
   });
 
