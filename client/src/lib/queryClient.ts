@@ -16,22 +16,19 @@ async function getAuthHeaders(): Promise<{ [key: string]: string }> {
       // Force refresh if token is near expiry to prevent failures
       const token = await auth.currentUser.getIdToken();
       headers['Authorization'] = `Bearer ${token}`;
-      console.log('🔑 Firebase ID token retrieved successfully for API request');
     } catch (error) {
-      console.error('❌ Failed to get Firebase ID token:', error);
+      console.error('Failed to get Firebase ID token:', error);
       // Try to force refresh once
       try {
-        console.log('🔄 Attempting to force refresh Firebase token...');
         const freshToken = await auth.currentUser.getIdToken(true);
         headers['Authorization'] = `Bearer ${freshToken}`;
-        console.log('✅ Firebase ID token force refreshed successfully');
       } catch (refreshError) {
-        console.error('❌ Failed to refresh Firebase ID token:', refreshError);
+        console.error('Failed to refresh Firebase ID token:', refreshError);
         throw new Error('Authentication failed. Please refresh the page and sign in again.');
       }
     }
   } else {
-    console.warn('⚠️ No Firebase user authenticated - request will be sent without auth header');
+    console.warn('No Firebase user authenticated - request will be sent without auth header');
   }
   
   return headers;

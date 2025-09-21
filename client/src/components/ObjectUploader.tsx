@@ -147,8 +147,6 @@ export function ObjectUploader({
           let bulkResponse;
           try {
             bulkResponse = await onGetBulkUploadParameters(files.length);
-            console.log('🔍 DEBUG: bulkResponse structure:', bulkResponse);
-            console.log('🔍 DEBUG: bulkResponse.bulkUploadConfig:', bulkResponse?.bulkUploadConfig);
           } catch (error) {
             console.error("Error getting bulk upload URLs:", error);
             if (error instanceof Error && (error.message.includes("429") || error.message.includes("speed racer") || error.message.includes("Too many bulk uploads"))) {
@@ -171,10 +169,7 @@ export function ObjectUploader({
               setUploadStatus(`📤 Uploading "${file.name}" - our digital postman is hard at work!`);
               setUploadProgress(40 + (index / files.length) * 40);
               
-              console.log('Upload URL structure:', uploadURL); // Debug log
-              console.log('Upload method:', uploadURL.method); // Debug log
               
-              console.log(`🚀 Starting upload for ${file.name} to cloud storage...`);
               
               const response = await fetch(uploadURL.url, {
                 method: uploadURL.method || 'PUT',
@@ -184,15 +179,13 @@ export function ObjectUploader({
                 },
               });
               
-              console.log(`📤 Upload response for ${file.name}:`, response.status, response.statusText);
               
               if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`❌ Upload failed for ${file.name}:`, errorText);
+                console.error(`Upload failed for ${file.name}:`, errorText);
                 throw new Error(`Upload failed for ${file.name}: ${response.status} ${response.statusText} - ${errorText}`);
               }
               
-              console.log(`✅ Successfully uploaded ${file.name} to cloud storage`);
               
               return {
                 success: true,
@@ -215,21 +208,11 @@ export function ObjectUploader({
           const successful = uploadResults.filter(r => r.success);
           const failed = uploadResults.filter(r => !r.success);
           
-          console.log('🔍 DEBUG: Upload results analysis:', {
-            totalResults: uploadResults.length,
-            successfulCount: successful.length,
-            failedCount: failed.length,
-            uploadResults,
-            successfulResults: successful,
-            failedResults: failed
-          });
-          
           setUploadStatus("🎉 Files uploaded! Now registering them in our digital library...");
           setUploadProgress(80);
           
           // Create documents via bulk API
           if (successful.length > 0) {
-            console.log('🎯 DEBUG: Entering bulk document creation with', successful.length, 'successful uploads');
             const documentsData = successful.map(result => ({
               uploadURL: (result as any).uploadURL,
               name: result.originalName.replace(/\.[^/.]+$/, ""), // Remove extension
@@ -247,12 +230,10 @@ export function ObjectUploader({
                 analyzeImmediately: bulkResponse.bulkUploadConfig.analyzeImmediately,
               };
               
-              console.log('📋 Bulk document creation request:', requestBody);
               
               // Get fresh Firebase token using the same method as bulk-upload-urls
               const { auth } = await import("@/lib/firebase");
               const firebaseToken = auth.currentUser ? await auth.currentUser.getIdToken() : "";
-              console.log('🔍 DEBUG: Firebase token length:', firebaseToken?.length || 0);
               
               const response = await fetch('/api/documents/bulk', {
                 method: 'POST',
@@ -263,11 +244,10 @@ export function ObjectUploader({
                 body: JSON.stringify(requestBody),
               });
               
-              console.log('📤 Bulk document creation response status:', response.status);
               
               if (!response.ok) {
                 const errorText = await response.text();
-                console.error('📤 Bulk document creation error response:', errorText);
+                console.error('Bulk document creation failed:', response.status, response.statusText);
                 throw new Error(`Bulk document creation failed: ${response.status} ${response.statusText} - ${errorText}`);
               }
               
@@ -293,13 +273,7 @@ export function ObjectUploader({
                 setUploadProgress(0);
               }, 2000);
             } catch (error) {
-              console.error('💥 DETAILED ERROR: Bulk document creation failed:', {
-                error,
-                errorMessage: error instanceof Error ? error.message : String(error),
-                errorStack: error instanceof Error ? error.stack : undefined,
-                errorName: error instanceof Error ? error.name : typeof error,
-                stringifiedError: JSON.stringify(error, null, 2)
-              });
+              console.error('Bulk document creation failed:', error instanceof Error ? error.message : String(error));
               
               // Handle bulk creation failure with user-friendly message
               setUploadStatus("⚠️ Files uploaded but failed to register in database. Contact support if this persists.");

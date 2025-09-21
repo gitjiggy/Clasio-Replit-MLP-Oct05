@@ -32,12 +32,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         const authResult = await handleAuthRedirect();
         if (authResult) {
-          console.log("✅ Auth redirect handled successfully");
-          console.log("✅ Google access token saved:", authResult.googleAccessToken ? "YES" : "NO");
           setUser(authResult.user);
         }
       } catch (error) {
-        console.error("❌ Auth redirect failed:", error);
+        console.error("Auth redirect failed:", error);
       }
     };
 

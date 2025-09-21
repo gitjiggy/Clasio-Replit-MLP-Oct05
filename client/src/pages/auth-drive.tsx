@@ -24,15 +24,11 @@ export default function AuthDrive() {
     setError('');
     
     try {
-      console.log('=== NEW TAB: Drive consent flow ===');
-      console.log('Running in top-level window:', window.top === window.self);
       
       const result = await signInWithPopup(auth, driveGoogleProvider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const googleAccessToken = credential?.accessToken;
       
-      console.log('✅ Drive consent successful');
-      console.log('✅ Access token received:', !!googleAccessToken);
       
       if (googleAccessToken) {
         // Store the token with timestamp
@@ -56,7 +52,7 @@ export default function AuthDrive() {
       }
       
     } catch (error: any) {
-      console.error('❌ Drive auth failed:', error);
+      console.error('Drive auth failed:', error);
       setStatus('error');
       setError(error.message || 'Authentication failed');
       

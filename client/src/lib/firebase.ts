@@ -45,32 +45,19 @@ driveGoogleProvider.setCustomParameters({
 
 // Basic Firebase authentication (NO Drive scopes) - Works reliably with popup
 export const signInWithGoogle = async () => {
-  console.log("=== DEBUG: Basic Firebase authentication (NO Drive scopes) ===");
-  console.log("Firebase config:", {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY ? "✅ Present" : "❌ Missing",
-    authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    currentDomain: window.location.origin
-  });
-  console.log("Basic scopes only (no Drive)");
   
   try {
     const result = await signInWithPopup(auth, basicGoogleProvider);
-    console.log("✅ User signed in via POPUP:", result.user.displayName);
-    console.log("📝 Note: Drive access requires separate consent");
     
     return { user: result.user };
   } catch (error: any) {
-    console.error("❌ Basic authentication failed:", error);
+    console.error("Basic authentication failed:", error);
     throw new Error("Authentication failed: " + error.message);
   }
 };
 
 // NEW TAB WORKAROUND: Drive consent flow - Opens in new tab to avoid iframe issues
 export const connectGoogleDrive = async (): Promise<string> => {
-  console.log("=== NEW TAB: Drive consent flow ===");
-  console.log("Opening Drive authorization in new tab to bypass iframe restrictions...");
   
   return new Promise((resolve, reject) => {
     // Open auth page in new tab/window
@@ -81,7 +68,7 @@ export const connectGoogleDrive = async (): Promise<string> => {
     );
     
     if (!authWindow) {
-      console.error("❌ Popup blocked");
+      console.error("Popup blocked");
       reject(new Error("Popup was blocked. Please allow popups and try again."));
       return;
     }
@@ -94,8 +81,6 @@ export const connectGoogleDrive = async (): Promise<string> => {
       }
       
       if (event.data.type === 'DRIVE_AUTH_SUCCESS') {
-        console.log("✅ Drive auth successful via new tab");
-        console.log("✅ Token received:", !!event.data.token);
         
         // Store the token with timestamp in the main window
         if (event.data.token) {
@@ -109,7 +94,7 @@ export const connectGoogleDrive = async (): Promise<string> => {
         resolve(event.data.token);
         
       } else if (event.data.type === 'DRIVE_AUTH_ERROR') {
-        console.error("❌ Drive auth failed:", event.data.error);
+        console.error("Drive auth failed:", event.data.error);
         
         // Clean up
         window.removeEventListener('message', messageListener);
@@ -125,14 +110,12 @@ export const connectGoogleDrive = async (): Promise<string> => {
     // Check if the window was closed manually
     const checkClosed = setInterval(() => {
       if (authWindow.closed) {
-        console.log("🚪 Auth window closed manually");
         clearInterval(checkClosed);
         window.removeEventListener('message', messageListener);
         reject(new Error("Authentication was cancelled"));
       }
     }, 1000);
     
-    console.log("⏳ Waiting for authentication in new tab...");
   });
 };
 
@@ -144,13 +127,9 @@ export const signOutUser = async () => {
 
 // Handle redirect result after Google sign-in (fallback method)
 export const handleAuthRedirect = async () => {
-  console.log("=== DEBUG: Handling auth redirect (fallback method) ===");
-  console.log("Current URL:", window.location.href);
-  console.log("Current domain:", window.location.origin);
   
   try {
     const result = await getRedirectResult(auth);
-    console.log("getRedirectResult:", result);
     
     if (result) {
       // This gives you a Google Access Token. You can use it to access Google APIs.
@@ -159,8 +138,6 @@ export const handleAuthRedirect = async () => {
 
       // The signed-in user info.
       const user = result.user;
-      console.log("✅ User signed in successfully via REDIRECT:", user.displayName);
-      console.log("✅ Google access token:", googleAccessToken ? "received" : "missing");
       
       // Store the Google access token for Drive API calls
       if (googleAccessToken) {
@@ -169,16 +146,9 @@ export const handleAuthRedirect = async () => {
       
       return { user, googleAccessToken };
     }
-    console.log("No redirect result found");
     return null;
   } catch (error: any) {
-    console.error("❌ Auth redirect error details:", {
-      code: error.code,
-      message: error.message,
-      customData: error.customData,
-      credential: error.credential,
-      stack: error.stack
-    });
+    console.error("Auth redirect error:", error.code, error.message);
     throw new Error(error.message || "Authentication failed");
   }
 };
@@ -194,7 +164,6 @@ export const getGoogleAccessToken = (): string | null => {
     const fiftyMinutes = 50 * 60 * 1000; // 50 minutes in milliseconds
     
     if (tokenAge > fiftyMinutes) {
-      console.log("🕒 Drive access token is likely expired, clearing...");
       clearGoogleAccessToken();
       return null;
     }
