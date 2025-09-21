@@ -142,8 +142,24 @@ export function ObjectUploader({
           const files = uppyInstance.getFiles();
           if (files.length === 0) return;
 
-          // Get bulk upload URLs
-          const bulkResponse = await onGetBulkUploadParameters(files.length);
+          // Get bulk upload URLs with rate limit error handling
+          let bulkResponse;
+          try {
+            bulkResponse = await onGetBulkUploadParameters(files.length);
+          } catch (error) {
+            console.error("Error getting bulk upload URLs:", error);
+            if (error instanceof Error && (error.message.includes("429") || error.message.includes("speed racer") || error.message.includes("Too many bulk uploads"))) {
+              setUploadStatus("🐹 Our upload hamsters need a coffee break! Please wait a few minutes and try again.");
+              setUploadProgress(0);
+              setIsBulkUploading(false);
+              setTimeout(() => {
+                setUploadStatus("");
+                setShowModal(false);
+              }, 5000);
+              return;
+            }
+            throw error;
+          }
           
           // Upload files to their respective URLs
           const uploadPromises = files.map(async (file, index) => {
