@@ -8,6 +8,37 @@ import AwsS3 from "@uppy/aws-s3";
 import type { UploadResult } from "@uppy/core";
 import { Button } from "@/components/ui/button";
 
+// Helper function to get file type from filename
+const getFileTypeFromName = (filename: string): string => {
+  const extension = filename.toLowerCase().split('.').pop();
+  switch (extension) {
+    case 'pdf': return 'pdf';
+    case 'doc': case 'docx': return 'doc';
+    case 'txt': return 'txt';
+    case 'jpg': case 'jpeg': return 'jpg';
+    case 'png': return 'png';
+    case 'gif': return 'gif';
+    case 'webp': return 'webp';
+    case 'csv': return 'csv';
+    case 'xlsx': case 'xls': return 'xlsx';
+    case 'pptx': case 'ppt': return 'pptx';
+    default: return 'txt';
+  }
+};
+
+// Helper function to get Firebase ID token
+const getFirebaseIdToken = async (): Promise<string> => {
+  try {
+    // Import the actual firebase function
+    const { getGoogleAccessToken } = await import("@/lib/firebase");
+    const idToken = await getGoogleAccessToken();
+    return idToken || "";
+  } catch (error) {
+    console.error("Failed to get Firebase ID token:", error);
+    return "";
+  }
+};
+
 interface ObjectUploaderProps {
   maxNumberOfFiles?: number;
   maxFileSize?: number;
@@ -20,6 +51,34 @@ interface ObjectUploaderProps {
   ) => void;
   buttonClassName?: string;
   children: ReactNode;
+  // Bulk upload support
+  enableBulkUpload?: boolean;
+  onGetBulkUploadParameters?: (fileCount: number) => Promise<{
+    uploadURLs: Array<{ method: "PUT"; url: string }>;
+    bulkUploadConfig: {
+      folderId?: string | null;
+      tagIds?: string[];
+      analyzeImmediately?: boolean;
+      message: string;
+      funnyTip: string;
+    };
+  }>;
+  onBulkUploadComplete?: (result: {
+    successful: number;
+    failed: number;
+    details: Array<{ success: boolean; originalName: string; error?: string }>;
+    message: string;
+    aiAnalysis: {
+      status: string;
+      message: string;
+      queueStatus: {
+        pending: number;
+        processing: number;
+        completed: number;
+        failed: number;
+      };
+    };
+  }) => void;
 }
 
 /**
@@ -57,24 +116,138 @@ export function ObjectUploader({
   onComplete,
   buttonClassName,
   children,
+  enableBulkUpload = false,
+  onGetBulkUploadParameters,
+  onBulkUploadComplete,
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
-  const [uppy] = useState(() =>
-    new Uppy({
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  
+  const [uppy] = useState(() => {
+    const uppyInstance = new Uppy({
       restrictions: {
         maxNumberOfFiles,
         maxFileSize,
       },
       autoProceed: false,
-    })
-      .use(AwsS3, {
-        shouldUseMultipart: false,
-        getUploadParameters: onGetUploadParameters,
-      })
-      .on("complete", (result) => {
-        onComplete?.(result);
-      })
-  );
+    });
+
+    if (enableBulkUpload && onGetBulkUploadParameters && onBulkUploadComplete) {
+      // Bulk upload mode - custom upload handling
+      uppyInstance.on("upload", async () => {
+        setIsBulkUploading(true);
+        try {
+          const files = uppyInstance.getFiles();
+          if (files.length === 0) return;
+
+          // Get bulk upload URLs
+          const bulkResponse = await onGetBulkUploadParameters(files.length);
+          
+          // Upload files to their respective URLs
+          const uploadPromises = files.map(async (file, index) => {
+            try {
+              const uploadURL = bulkResponse.uploadURLs[index];
+              const response = await fetch(uploadURL.url, {
+                method: uploadURL.method,
+                body: file.data,
+                headers: {
+                  'Content-Type': file.type || 'application/octet-stream',
+                },
+              });
+              
+              if (!response.ok) {
+                throw new Error(`Upload failed: ${response.statusText}`);
+              }
+              
+              return {
+                success: true,
+                originalName: file.name || 'unknown',
+                uploadURL: uploadURL.url,
+                fileSize: file.size,
+                fileType: getFileTypeFromName(file.name || 'unknown'),
+                mimeType: file.type || 'application/octet-stream',
+              };
+            } catch (error) {
+              return {
+                success: false,
+                originalName: file.name || 'unknown',
+                error: error instanceof Error ? error.message : String(error),
+              };
+            }
+          });
+          
+          const uploadResults = await Promise.all(uploadPromises);
+          const successful = uploadResults.filter(r => r.success);
+          const failed = uploadResults.filter(r => !r.success);
+          
+          // Create documents via bulk API
+          if (successful.length > 0) {
+            const documentsData = successful.map(result => ({
+              uploadURL: (result as any).uploadURL,
+              name: result.originalName.replace(/\.[^/.]+$/, ""), // Remove extension
+              originalName: result.originalName,
+              fileSize: (result as any).fileSize,
+              fileType: (result as any).fileType,
+              mimeType: (result as any).mimeType,
+            }));
+            
+            try {
+              const response = await fetch('/api/documents/bulk', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${await getFirebaseIdToken()}`,
+                },
+                body: JSON.stringify({
+                  documents: documentsData,
+                  folderId: bulkResponse.bulkUploadConfig.folderId,
+                  tagIds: bulkResponse.bulkUploadConfig.tagIds,
+                  analyzeImmediately: bulkResponse.bulkUploadConfig.analyzeImmediately,
+                }),
+              });
+              
+              if (!response.ok) {
+                throw new Error(`Bulk document creation failed: ${response.statusText}`);
+              }
+              
+              const bulkResult = await response.json();
+              
+              onBulkUploadComplete({
+                successful: successful.length,
+                failed: failed.length,
+                details: uploadResults,
+                message: bulkResult.message,
+                aiAnalysis: bulkResult.aiAnalysis,
+              });
+              
+              // Clear files from Uppy
+              uppyInstance.cancelAll();
+              setShowModal(false);
+            } catch (error) {
+              console.error('Bulk document creation failed:', error);
+              // Handle bulk creation failure
+            }
+          }
+        } catch (error) {
+          console.error('Bulk upload failed:', error);
+        } finally {
+          setIsBulkUploading(false);
+        }
+      });
+    } else {
+      // Single upload mode - use existing AWS S3 plugin
+      uppyInstance
+        .use(AwsS3, {
+          shouldUseMultipart: false,
+          getUploadParameters: onGetUploadParameters,
+        })
+        .on("complete", (result) => {
+          onComplete?.(result);
+        });
+    }
+    
+    return uppyInstance;
+  });
 
   return (
     <div>

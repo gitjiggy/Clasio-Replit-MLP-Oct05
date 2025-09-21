@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Separator } from "@/components/ui/separator";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { DocumentModal } from "@/components/DocumentModal";
+import { QueueStatusDashboard } from "@/components/QueueStatusDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { trackEvent } from "@/lib/analytics";
@@ -70,6 +71,7 @@ export default function Documents() {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [queueDashboardOpen, setQueueDashboardOpen] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -575,6 +577,17 @@ export default function Documents() {
                 </Button>
               </div>
               
+              {/* Queue Status Button */}
+              <Button
+                variant="outline"
+                onClick={() => setQueueDashboardOpen(true)}
+                className="flex items-center gap-2"
+                data-testid="button-queue-status"
+              >
+                <Brain className="h-4 w-4" />
+                AI Queue
+              </Button>
+              
               {/* Upload Button */}
               <ObjectUploader
                 maxNumberOfFiles={5}
@@ -924,6 +937,12 @@ export default function Documents() {
         onOpenChange={setDocumentModalOpen}
         searchQuery={searchQuery}
         onDownload={handleDownload}
+      />
+      
+      {/* Queue Status Dashboard */}
+      <QueueStatusDashboard
+        isOpen={queueDashboardOpen}
+        onClose={() => setQueueDashboardOpen(false)}
       />
     </div>
   );

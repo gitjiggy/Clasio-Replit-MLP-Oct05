@@ -522,6 +522,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get AI analysis queue status - for when you want to know what our digital brain is up to! 🧠📊
+  app.get("/api/queue/status", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ 
+          error: "User authentication required",
+          funnyMessage: "Who goes there?! 🕵️‍♀️ Our queue status is classified information!"
+        });
+      }
+
+      // Get queue status for the user
+      const queueStatus = await storage.getQueueStatus(userId);
+      
+      // Get daily quota usage  
+      const today = new Date().toISOString().split('T')[0];
+      const dailyUsage = await storage.getDailyUsage(today);
+      
+      // Calculate some fun stats
+      const totalRequests = queueStatus.pending + queueStatus.processing + queueStatus.completed + queueStatus.failed;
+      const completionRate = totalRequests > 0 ? Math.round((queueStatus.completed / totalRequests) * 100) : 0;
+      const dailyQuotaUsed = dailyUsage?.requestCount || 0;
+      const dailyQuotaLimit = 1200; // Our safety buffer
+      const quotaPercentage = Math.round((dailyQuotaUsed / dailyQuotaLimit) * 100);
+
+      // Generate funny messages based on queue status
+      let statusMessage = "🤖 Our AI is ready and waiting for action!";
+      let priorityTip = "💡 Pro tip: Priority 1 gets VIP treatment, priority 5 is chill mode!";
+      
+      if (queueStatus.pending > 10) {
+        statusMessage = "🍿 Our AI is quite popular today! Your documents are in a VIP queue!";
+        priorityTip = "☕ Maybe time for a coffee break while our digital brain catches up?";
+      } else if (queueStatus.pending > 0) {
+        statusMessage = `📋 ${queueStatus.pending} documents waiting for their AI makeover!`;
+      } else if (queueStatus.processing > 0) {
+        statusMessage = "⚡ AI analysis in progress! Digital magic is happening right now!";
+      }
+
+      if (quotaPercentage > 80) {
+        statusMessage += " 🚨 Daily quota is getting cozy - our AI needs rest too!";
+      }
+
+      res.json({
+        success: true,
+        queueStatus,
+        dailyQuota: {
+          used: dailyQuotaUsed,
+          limit: dailyQuotaLimit,
+          percentage: quotaPercentage,
+          remaining: dailyQuotaLimit - dailyQuotaUsed,
+        },
+        statistics: {
+          totalRequests,
+          completionRate,
+          funnyStats: {
+            coffeeBreaksNeeded: Math.ceil(queueStatus.pending / 5),
+            aiHappinessLevel: Math.max(0, 100 - queueStatus.failed * 10),
+            digitalMagicLevel: queueStatus.completed > 10 ? "🌟 Legendary" : queueStatus.completed > 5 ? "✨ Magical" : "🔮 Apprentice"
+          }
+        },
+        messages: {
+          statusMessage,
+          priorityTip,
+          quotaWarning: quotaPercentage > 80 ? "🛑 Approaching daily limit! Time for our AI to take a breather!" : null,
+          encouragement: queueStatus.completed > 0 ? `🎉 ${queueStatus.completed} documents successfully analyzed! You're on fire!` : "🚀 Ready to analyze your first document!"
+        },
+        tips: [
+          "🎯 Higher priority = faster processing!",
+          "📊 Bulk uploads are automatically queued for efficient processing",
+          "☕ Our AI works best with a steady flow - no need to rush!",
+          quotaPercentage < 50 ? "🌟 Plenty of quota left - upload away!" : "⏰ Consider spreading uploads throughout the day"
+        ].filter(Boolean)
+      });
+    } catch (error) {
+      console.error("Error fetching queue status:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch queue status",
+        funnyMessage: "Our status dashboard seems to be having a coffee break! ☕ Please try again!"
+      });
+    }
+  });
+
   // Update document
   app.put("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
