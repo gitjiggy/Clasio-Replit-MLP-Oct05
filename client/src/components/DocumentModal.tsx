@@ -557,6 +557,7 @@ export function DocumentModal({
                               emptyMessage="No category found."
                               className="h-8"
                               allowCustom={true}
+                              testId="category"
                             />
                           </div>
                           
@@ -572,6 +573,7 @@ export function DocumentModal({
                               className="h-8"
                               allowCustom={true}
                               disabled={!editCategory}
+                              testId="document-type"
                             />
                           </div>
 

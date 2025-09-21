@@ -26,6 +26,7 @@ interface AutocompleteComboboxProps {
   className?: string;
   disabled?: boolean;
   allowCustom?: boolean;
+  testId?: string;
 }
 
 export function AutocompleteCombobox({
@@ -38,6 +39,7 @@ export function AutocompleteCombobox({
   className,
   disabled = false,
   allowCustom = true,
+  testId,
 }: AutocompleteComboboxProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
@@ -68,6 +70,7 @@ export function AutocompleteCombobox({
           aria-expanded={open}
           className={cn("justify-between", className)}
           disabled={disabled}
+          data-testid={testId ? `button-combobox-${testId}` : undefined}
         >
           {value || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -80,6 +83,7 @@ export function AutocompleteCombobox({
             value={searchValue}
             onValueChange={setSearchValue}
             onKeyDown={handleKeyDown}
+            data-testid={testId ? `input-combobox-${testId}` : undefined}
           />
           <CommandList>
             <CommandEmpty>
@@ -88,6 +92,7 @@ export function AutocompleteCombobox({
                   <button
                     className="w-full text-left p-2 hover:bg-accent rounded-md"
                     onClick={() => handleSelect(searchValue.trim())}
+                    data-testid={testId ? `button-create-${testId}` : undefined}
                   >
                     Create "{searchValue.trim()}"
                   </button>
@@ -102,6 +107,7 @@ export function AutocompleteCombobox({
                   key={option}
                   value={option}
                   onSelect={() => handleSelect(option)}
+                  data-testid={testId ? `item-${testId}-${option.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}` : undefined}
                 >
                   <Check
                     className={cn(
