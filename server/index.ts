@@ -6,7 +6,21 @@ import { setupVite, serveStatic, log } from "./vite";
 import { aiQueueProcessor } from "./aiQueueProcessor";
 import { enterpriseJobQueue } from "./services/jobQueue";
 
-// Environment variable validation
+// SMB-Enhanced: Initialize error tracking and structured logging FIRST
+import { initializeSentry } from './middleware/sentry';
+import { 
+  logger, 
+  requestLoggingMiddleware, 
+  errorLoggingMiddleware, 
+  organizationContextMiddleware 
+} from './middleware/logging';
+import { sentryContextMiddleware, sentryExpressRequestMiddleware, sentryExpressErrorMiddleware } from './middleware/sentry';
+import * as Sentry from '@sentry/node';
+
+// Initialize Sentry before anything else for SMB error tracking
+initializeSentry();
+
+// SMB-Enhanced: Environment variable validation with structured logging
 function validateEnvironment() {
   const requiredEnvVars = [
     'DATABASE_URL',
@@ -15,38 +29,45 @@ function validateEnvironment() {
   
   const optionalEnvVars = [
     'GEMINI_API_KEY', // Optional but recommended for AI features
+    'SENTRY_DSN', // Optional but recommended for error tracking
     'PORT',
   ];
 
   const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);
   
   if (missing.length > 0) {
-    console.error('❌ Missing required environment variables:');
-    missing.forEach(envVar => console.error(`  - ${envVar}`));
-    console.error('\nPlease set these environment variables before starting the server.');
+    logger.error('Missing required environment variables', { missingVars: missing });
+    missing.forEach(envVar => logger.error(`Missing: ${envVar}`));
+    logger.error('Please set these environment variables before starting the server.');
     process.exit(1);
   }
 
   // Warn about missing optional variables
   const missingOptional = optionalEnvVars.filter(envVar => !process.env[envVar]);
   if (missingOptional.length > 0) {
-    console.warn('⚠️  Missing optional environment variables:');
+    logger.warn('Missing optional environment variables', { missingOptional });
     missingOptional.forEach(envVar => {
       if (envVar === 'GEMINI_API_KEY') {
-        console.warn(`  - ${envVar} (AI analysis features will be disabled)`);
+        logger.warn(`Missing ${envVar} - AI analysis features will be disabled`);
+      } else if (envVar === 'SENTRY_DSN') {
+        logger.warn(`Missing ${envVar} - Error tracking will be limited to logs`);
       } else {
-        console.warn(`  - ${envVar}`);
+        logger.warn(`Missing ${envVar}`);
       }
     });
   }
 
   // Validate DATABASE_URL format
   if (process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('postgresql://')) {
-    console.error('❌ DATABASE_URL must be a valid PostgreSQL connection string');
+    logger.error('DATABASE_URL must be a valid PostgreSQL connection string');
     process.exit(1);
   }
 
-  console.log('✅ Environment validation passed');
+  logger.info('Environment validation passed', {
+    requiredVarsSet: requiredEnvVars.length,
+    optionalVarsSet: optionalEnvVars.length - missingOptional.length,
+    nodeEnv: process.env.NODE_ENV || 'development'
+  });
 }
 
 // Run environment validation before starting the server
@@ -87,44 +108,31 @@ app.use(helmet({
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' } // Allow OAuth popup flows
 }));
 
+// SMB-Enhanced: Sentry request middleware (must be early for proper scope binding)
+app.use(sentryExpressRequestMiddleware());
+
+// SMB-Enhanced: Structured logging and error tracking middleware
+app.use(requestLoggingMiddleware());
+app.use(organizationContextMiddleware());
+app.use(sentryContextMiddleware());
+
 // Rate limiters are now in separate module to avoid circular dependencies
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
+// Legacy logging middleware replaced by structured logging above
+// The requestLoggingMiddleware() handles comprehensive request/response logging
 
 (async () => {
   const server = await registerRoutes(app);
 
+  // SMB-Enhanced: Sentry error middleware (after routes, before other error handlers)
+  app.use(sentryExpressErrorMiddleware());
+  
+  // SMB-Enhanced: Structured logging error handler  
+  app.use(errorLoggingMiddleware());
+  
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     let message = err.message || "Internal Server Error";
@@ -144,15 +152,22 @@ app.use((req, res, next) => {
       message = message || "Too many requests. Please wait a moment before trying again.";
     }
 
-    // Log error details for debugging (but don't expose sensitive info to client)
-    console.error(`❌ Error ${status} on ${req.method} ${req.path}:`, err.message || err);
+    // Enhanced error logging with business context
+    logger.error('Request error handled', err, {
+      statusCode: status,
+      userMessage: message,
+      originalMessage: err.message
+    }, req);
 
-    res.status(status).json({ 
-      error: message,
-      status: status,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    });
-    // Don't throw after responding - this can crash the server
+    // Don't send response if headers already sent
+    if (!res.headersSent) {
+      res.status(status).json({ 
+        error: message,
+        status: status,
+        requestId: req.requestId, // Include request ID for debugging
+        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+      });
+    }
   });
 
   // importantly only setup vite in development and after
@@ -164,12 +179,13 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Start AI Queue Processor for background document analysis 🚀
-  console.log('🤖 Starting AI Queue Processor for smart document analysis...');
+  // SMB-Enhanced: Start background processors with structured logging
+  logger.info('Starting AI Queue Processor for smart document analysis');
+  logger.business('ai_processor_started', { processor: 'gemini_analysis' });
   aiQueueProcessor.start();
 
-  // Start Enterprise Job Queue for multi-tenant background processing 🏢
-  console.log('🏢 Starting Enterprise Job Queue for background processing...');
+  logger.info('Starting Enterprise Job Queue for multi-tenant background processing');
+  logger.business('job_queue_started', { processor: 'enterprise_jobs' });
   enterpriseJobQueue.start();
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
@@ -182,6 +198,16 @@ app.use((req, res, next) => {
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
+    logger.info('Clasio Document Management Server started', {
+      port,
+      environment: process.env.NODE_ENV || 'development',
+      features: {
+        ai_analysis: !!process.env.GEMINI_API_KEY,
+        error_tracking: !!process.env.SENTRY_DSN,
+        structured_logging: true
+      }
+    });
+    logger.business('server_started', { port, host: '0.0.0.0' });
     log(`serving on port ${port}`);
   });
 })();

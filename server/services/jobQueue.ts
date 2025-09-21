@@ -3,6 +3,7 @@ import { analyzeDocumentContent } from '../gemini.js';
 import type { BackgroundJob, NewBackgroundJob } from '../../shared/organizationSchema.js';
 import { eq, and, or, isNull, lt } from 'drizzle-orm';
 import { ScopedDB } from '../db/scopedQueries.js';
+import { logger } from '../middleware/logging.js';
 
 /**
  * Enhanced Enterprise Job Queue System 🏢⚡
@@ -55,7 +56,14 @@ export class EnterpriseJobQueue {
   private idempotencyCleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    console.log('🏢 Enterprise Job Queue initialized! Ready for multi-tenant background processing!');
+    logger.info('Enterprise Job Queue initialized for multi-tenant background processing', {
+      maxConcurrent: this.MAX_CONCURRENT_JOBS,
+      processingInterval: `${this.PROCESSING_INTERVAL_MS}ms`,
+      rateLimits: {
+        hourly: this.MAX_JOBS_PER_ORG_HOUR,
+        daily: this.MAX_JOBS_PER_ORG_DAY
+      }
+    });
     this.registerDefaultProcessors();
     this.startIdempotencyCleanup();
     this.startRateLimitCleanup();
@@ -95,7 +103,10 @@ export class EnterpriseJobQueue {
       handler: this.processAuditReport.bind(this)
     });
 
-    console.log(`📋 Registered ${this.processors.size} job processors:`, Array.from(this.processors.keys()));
+    logger.info('Job processors registered', {
+      count: this.processors.size,
+      types: Array.from(this.processors.keys())
+    });
   }
 
   /**
@@ -103,7 +114,7 @@ export class EnterpriseJobQueue {
    */
   public registerProcessor(processor: JobProcessor): void {
     this.processors.set(processor.type, processor);
-    console.log(`🔧 Registered job processor: ${processor.type}`);
+    logger.info('Job processor registered', { type: processor.type });
   }
 
   /**
@@ -111,20 +122,20 @@ export class EnterpriseJobQueue {
    */
   public start(): void {
     if (this.processingInterval) {
-      console.log('⏸️ Enterprise Job Queue already running');
+      logger.warn('Enterprise Job Queue start skipped - already running');
       return;
     }
 
-    console.log('🚀 Starting Enterprise Job Queue processor...');
+    logger.info('Starting Enterprise Job Queue processor');
     this.processingInterval = setInterval(() => {
       this.processJobs().catch(error => {
-        console.error('❌ Error in job processing cycle:', error);
+        logger.error('Job processing cycle error', error);
       });
     }, this.PROCESSING_INTERVAL_MS);
 
     // Start immediately
     this.processJobs().catch(error => {
-      console.error('❌ Error in initial job processing:', error);
+      logger.error('Initial job processing error', error);
     });
   }
 
@@ -151,7 +162,7 @@ export class EnterpriseJobQueue {
     this.recentIdempotencyKeys.clear();
     this.organizationJobCounts.clear();
     
-    console.log('🛑 SMB Enterprise Job Queue processor stopped with comprehensive cleanup');
+    logger.info('SMB Enterprise Job Queue processor stopped with comprehensive cleanup');
   }
 
   /**
@@ -413,7 +424,11 @@ export class EnterpriseJobQueue {
       // Mark idempotency key as being processed AFTER successful DB write (organization-scoped)
       this.markIdempotencyKeyProcessing(idempotencyKey, job.organizationId || 'system');
       
-      console.log(`📤 SMB Job enqueued: ${result.type} (${result.id}) for org: ${result.organizationId || 'system'}`);
+      logger.business('job_enqueued', { 
+        jobType: result.type, 
+        jobId: result.id, 
+        organizationId: result.organizationId || 'system' 
+      });
       
       // Log activity for audit trail
       if (result.organizationId && result.createdBy) {
@@ -434,7 +449,7 @@ export class EnterpriseJobQueue {
 
       return result.id;
     } catch (error) {
-      console.error('❌ Failed to enqueue SMB job:', error);
+      logger.error('Failed to enqueue SMB job', error);
       throw error;
     }
   }
@@ -457,7 +472,7 @@ export class EnterpriseJobQueue {
         return;
       }
 
-      console.log(`🔄 Processing ${pendingJobs.length} background jobs...`);
+      logger.info('Processing background jobs', { count: pendingJobs.length });
 
       // Process jobs concurrently
       const jobPromises = pendingJobs.map(job => this.processJob(job));

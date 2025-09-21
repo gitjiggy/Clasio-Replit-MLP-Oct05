@@ -1,6 +1,7 @@
 import { storage } from './storage.js';
 import { analyzeDocumentContent } from './gemini.js';
 import type { AiAnalysisQueue } from '../shared/schema.js';
+import { logger } from './middleware/logging.js';
 
 /**
  * AI Queue Processor - The digital brain's scheduling system! 🧠⚡
@@ -25,7 +26,13 @@ class AIQueueProcessor {
   private lastTokenRefill = Date.now();
 
   constructor() {
-    console.log('🚀 AI Queue Processor initialized! Ready to process documents with style!');
+    logger.info('AI Queue Processor initialized for document analysis', {
+      rateLimits: {
+        requestsPerMinute: this.REQUESTS_PER_MINUTE,
+        dailyRequestLimit: this.DAILY_REQUEST_LIMIT
+      },
+      processingInterval: `${this.PROCESSING_INTERVAL_MS}ms`
+    });
   }
 
   /**
@@ -48,19 +55,19 @@ class AIQueueProcessor {
   public start(): void {
     // Only start if Gemini API key is available
     if (!process.env.GEMINI_API_KEY) {
-      console.log('⏸️ AI Queue Processor not started - GEMINI_API_KEY not configured');
+      logger.warn('AI Queue Processor not started - GEMINI_API_KEY not configured');
       return;
     }
 
     if (this.processingInterval) {
-      console.log('🤖 AI Queue Processor is already running! No need to double-book our digital worker!');
+      logger.warn('AI Queue Processor start skipped - already running');
       return;
     }
 
-    console.log('🎭 Starting AI Queue Processor - preparing for document analysis extravaganza!');
+    logger.info('Starting AI Queue Processor for document analysis');
     this.processingInterval = setInterval(() => {
       this.processQueue().catch(error => {
-        console.error('💥 Queue processing hiccup:', error);
+        logger.error('AI queue processing error', error);
       });
     }, this.PROCESSING_INTERVAL_MS);
   }
