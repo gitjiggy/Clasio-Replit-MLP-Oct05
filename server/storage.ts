@@ -35,13 +35,11 @@ import {
   documentVersions,
   aiAnalysisQueue,
   dailyApiUsage,
-  // Enterprise tables
-  backgroundJobs,
-  auditLogs,
+  // SMB tables - simplified from enterprise
   organizations,
-  userRoles,
-  dataClassifications,
-  organizationSettings,
+  organizationMembers,
+  activityLog,
+  documentShares,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";

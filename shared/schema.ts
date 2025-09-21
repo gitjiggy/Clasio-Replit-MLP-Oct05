@@ -48,7 +48,10 @@ export const documents = pgTable("documents", {
   folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
   
   // Multi-tenancy support
-  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  
+  // SMB Data lifecycle - soft delete → 30-day purge
+  softDeletedAt: timestamp("soft_deleted_at"),
   
   uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
   isFavorite: boolean("is_favorite").default(false).notNull(),
@@ -81,15 +84,11 @@ export const documents = pgTable("documents", {
   contentExtracted: boolean("content_extracted").default(false).notNull(),
   contentExtractedAt: timestamp("content_extracted_at"),
   
-  // Enterprise features
-  dataClassification: text("data_classification").default("internal"),
-  complianceFrameworks: text("compliance_frameworks").array(),
+  // SMB features - simplified from enterprise
   lastAccessedAt: timestamp("last_accessed_at"),
-  accessCount: integer("access_count").default(0),
 }, (table) => ({
-  // Add organization index
+  // Add organization index for SMB multi-tenancy
   orgIdx: index('documents_org_idx').on(table.organizationId),
-  classificationIdx: index('documents_classification_idx').on(table.dataClassification),
   lastAccessedIdx: index('documents_last_accessed_idx').on(table.lastAccessedAt),
 }));
 

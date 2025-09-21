@@ -1,211 +1,92 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, integer, varchar, index, unique, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, varchar, index, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Organizations table - adapted to match existing varchar ID pattern
+// Simplified Organizations with usage tracking and limits
 export const organizations = pgTable('organizations', {
   id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
   name: text('name').notNull(),
-  subdomain: text('subdomain').unique().notNull(), // for multi-tenant routing
-  plan: text('plan').notNull().default('free'), // free, pro, enterprise
-  maxUsers: integer('max_users').notNull().default(5),
-  maxStorage: integer('max_storage_gb').notNull().default(10),
-  isActive: boolean('is_active').notNull().default(true),
+  ownerId: text('owner_id').notNull(), // Firebase UID
+  plan: text('plan').notNull().default('free'), // free, pro
   createdAt: timestamp('created_at').default(sql`now()`).notNull(),
-  updatedAt: timestamp('updated_at').default(sql`now()`).notNull(),
 
-  // Compliance settings
-  dataRetentionDays: integer('data_retention_days').default(2555), // 7 years default
-  requireMfa: boolean('require_mfa').default(false),
-  allowGuestAccess: boolean('allow_guest_access').default(false),
+  // Usage tracking - critical for SMB cost control
+  documentCount: integer('document_count').default(0),
+  storageUsedMb: integer('storage_used_mb').default(0),
+  aiAnalysesThisMonth: integer('ai_analyses_this_month').default(0),
 
-  // Billing
-  billingEmail: text('billing_email'),
-  subscriptionId: text('subscription_id'),
+  // Quotas per plan - enforced in application logic
+  maxDocuments: integer('max_documents').default(500), // Free plan limit
+  maxStorageMb: integer('max_storage_mb').default(1000), // 1GB free
+  maxAiAnalysesPerMonth: integer('max_ai_analyses_per_month').default(100),
+
+  // Billing - simple Stripe integration
+  stripeCustomerId: text('stripe_customer_id'),
   subscriptionStatus: text('subscription_status').default('active'),
-}, (table) => ({
-  subdomainIdx: index('organizations_subdomain_idx').on(table.subdomain),
-}));
+});
 
-// User roles within organizations
-export const userRoles = pgTable('user_roles', {
+// Simple organization members - Owner/Member only (no complex RBAC)
+export const organizationMembers = pgTable('organization_members', {
   id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull(), // Firebase UID
-  organizationId: varchar('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
-  role: text('role').notNull(), // owner, admin, editor, viewer, auditor
-  permissions: text('permissions').array(), // granular permissions
-  invitedBy: text('invited_by'), // Firebase UID of inviter
-  invitedAt: timestamp('invited_at').default(sql`now()`),
-  acceptedAt: timestamp('accepted_at'),
-  isActive: boolean('is_active').notNull().default(true),
-  createdAt: timestamp('created_at').default(sql`now()`).notNull(),
+  role: text('role').notNull().default('member'), // 'owner' or 'member' only
+  invitedBy: text('invited_by'),
+  joinedAt: timestamp('joined_at').default(sql`now()`).notNull(),
+  isActive: boolean('is_active').default(true),
 }, (table) => ({
-  userOrgIdx: index('user_roles_user_org_idx').on(table.userId, table.organizationId),
-  uniqueUserOrg: unique('user_roles_user_org_unique').on(table.userId, table.organizationId),
+  // Ensure one user per org
+  uniqueUserOrg: unique('organization_members_user_org_unique').on(table.organizationId, table.userId),
 }));
 
-// Audit log for all user actions
-export const auditLogs = pgTable('audit_logs', {
+// Light audit history (90 days retention) - compliance minimum
+export const activityLog = pgTable('activity_log', {
   id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
-  userId: text('user_id'), // Firebase UID (null for system actions)
-  action: text('action').notNull(), // CREATE, READ, UPDATE, DELETE, EXPORT, etc.
-  resourceType: text('resource_type').notNull(), // document, user, organization, etc.
-  resourceId: text('resource_id'), // ID of affected resource
-  details: text('details'), // JSON string with action details
-  ipAddress: text('ip_address'),
-  userAgent: text('user_agent'),
+  userId: text('user_id'),
+  action: text('action').notNull(), // CREATED, DELETED, SHARED, etc.
+  resourceType: text('resource_type').notNull(), // document, folder, etc.
+  resourceId: text('resource_id'),
+  resourceName: text('resource_name'),
+  details: text('details'), // JSON string with extra info
   timestamp: timestamp('timestamp').default(sql`now()`).notNull(),
-
-  // Compliance metadata
-  dataClassification: text('data_classification'), // public, internal, confidential, restricted
-  complianceFlags: text('compliance_flags').array(), // GDPR, HIPAA, SOX, etc.
 }, (table) => ({
-  orgTimeIdx: index('audit_logs_org_time_idx').on(table.organizationId, table.timestamp),
-  userTimeIdx: index('audit_logs_user_time_idx').on(table.userId, table.timestamp),
-  actionIdx: index('audit_logs_action_idx').on(table.action),
+  orgTimeIdx: index('activity_log_org_time_idx').on(table.organizationId, table.timestamp),
 }));
 
-// Enhanced background jobs table - extending existing AI queue concept
-export const backgroundJobs = pgTable('background_jobs', {
+// Document sharing (per-document invite by email)
+export const documentShares = pgTable('document_shares', {
   id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
-  type: text('type').notNull(), // ai_analysis, bulk_upload, data_export, data_cleanup, etc.
-  status: text('status').notNull().default('pending'), // pending, processing, completed, failed, cancelled
-  priority: integer('priority').notNull().default(5), // 1-10, higher = more urgent
-
-  // Idempotency
-  idempotencyKey: text('idempotency_key').unique(),
-
-  // Job data
-  payload: text('payload').notNull(), // JSON string
-  result: text('result'), // JSON string with results
-  errorMessage: text('error_message'),
-
-  // Scheduling
-  scheduledFor: timestamp('scheduled_for').default(sql`now()`),
-  startedAt: timestamp('started_at'),
-  completedAt: timestamp('completed_at'),
-
-  // Retry logic
-  attempts: integer('attempts').notNull().default(0),
-  maxAttempts: integer('max_attempts').notNull().default(3),
-
-  // Metadata
-  createdBy: text('created_by'), // Firebase UID
-  createdAt: timestamp('created_at').default(sql`now()`).notNull(),
-  updatedAt: timestamp('updated_at').default(sql`now()`).notNull(),
-}, (table) => ({
-  statusIdx: index('background_jobs_status_idx').on(table.status),
-  scheduledIdx: index('background_jobs_scheduled_idx').on(table.scheduledFor),
-  idempotencyIdx: index('background_jobs_idempotency_idx').on(table.idempotencyKey),
-  orgTypeIdx: index('background_jobs_org_type_idx').on(table.organizationId, table.type),
-}));
-
-// Data classification and lifecycle
-export const dataClassifications = pgTable('data_classifications', {
-  id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   documentId: varchar('document_id').notNull(),
-
-  // Classification
-  classification: text('classification').notNull(), // public, internal, confidential, restricted
-  classifiedBy: text('classified_by'), // Firebase UID or 'system'
-  classifiedAt: timestamp('classified_at').default(sql`now()`).notNull(),
-
-  // Lifecycle
-  retentionPeriodDays: integer('retention_period_days'),
-  deleteAfter: timestamp('delete_after'),
-  isArchived: boolean('is_archived').default(false),
-  archivedAt: timestamp('archived_at'),
-
-  // Compliance
-  complianceFrameworks: text('compliance_frameworks').array(), // GDPR, HIPAA, SOX, etc.
-  legalHoldIds: text('legal_hold_ids').array(),
-
+  sharedBy: text('shared_by').notNull(), // Firebase UID
+  sharedWithEmail: text('shared_with_email'),
+  shareToken: text('share_token').unique(), // for expiring links
+  accessLevel: text('access_level').default('viewer'), // viewer, editor
+  expiresAt: timestamp('expires_at'),
   createdAt: timestamp('created_at').default(sql`now()`).notNull(),
-  updatedAt: timestamp('updated_at').default(sql`now()`).notNull(),
 }, (table) => ({
-  docIdx: index('data_classifications_doc_idx').on(table.documentId),
-  classificationIdx: index('data_classifications_classification_idx').on(table.classification),
-  deleteAfterIdx: index('data_classifications_delete_after_idx').on(table.deleteAfter),
-}));
-
-// Organization settings for fine-grained configuration
-export const organizationSettings = pgTable('organization_settings', {
-  id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
-  
-  // Feature flags
-  aiAnalysisEnabled: boolean('ai_analysis_enabled').default(true),
-  bulkUploadEnabled: boolean('bulk_upload_enabled').default(true),
-  googleDriveIntegration: boolean('google_drive_integration').default(false),
-  
-  // Security settings
-  sessionTimeoutMinutes: integer('session_timeout_minutes').default(480), // 8 hours
-  maxFailedLogins: integer('max_failed_logins').default(5),
-  passwordExpireDays: integer('password_expire_days').default(90),
-  
-  // Storage settings
-  maxFileSize: integer('max_file_size_mb').default(50),
-  allowedFileTypes: text('allowed_file_types').array(),
-  autoArchiveAfterDays: integer('auto_archive_after_days').default(365),
-  
-  // Compliance settings
-  auditRetentionDays: integer('audit_retention_days').default(2555), // 7 years
-  exportFormat: text('export_format').default('pdf'), // pdf, docx, csv
-  
-  createdAt: timestamp('created_at').default(sql`now()`).notNull(),
-  updatedAt: timestamp('updated_at').default(sql`now()`).notNull(),
-}, (table) => ({
-  uniqueOrgSettings: unique('organization_settings_org_unique').on(table.organizationId),
+  shareTokenIdx: index('document_shares_token_idx').on(table.shareToken),
+  documentIdx: index('document_shares_document_idx').on(table.documentId),
 }));
 
 // Relations
-export const organizationsRelations = relations(organizations, ({ many, one }) => ({
-  userRoles: many(userRoles),
-  auditLogs: many(auditLogs),
-  backgroundJobs: many(backgroundJobs),
-  dataClassifications: many(dataClassifications),
-  settings: one(organizationSettings, {
-    fields: [organizations.id],
-    references: [organizationSettings.organizationId],
-  }),
+export const organizationsRelations = relations(organizations, ({ many }) => ({
+  members: many(organizationMembers),
+  activityLog: many(activityLog),
 }));
 
-export const userRolesRelations = relations(userRoles, ({ one }) => ({
+export const organizationMembersRelations = relations(organizationMembers, ({ one }) => ({
   organization: one(organizations, {
-    fields: [userRoles.organizationId],
+    fields: [organizationMembers.organizationId],
     references: [organizations.id],
   }),
 }));
 
-export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+export const activityLogRelations = relations(activityLog, ({ one }) => ({
   organization: one(organizations, {
-    fields: [auditLogs.organizationId],
-    references: [organizations.id],
-  }),
-}));
-
-export const backgroundJobsRelations = relations(backgroundJobs, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [backgroundJobs.organizationId],
-    references: [organizations.id],
-  }),
-}));
-
-export const dataClassificationsRelations = relations(dataClassifications, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [dataClassifications.organizationId],
-    references: [organizations.id],
-  }),
-}));
-
-export const organizationSettingsRelations = relations(organizationSettings, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [organizationSettings.organizationId],
+    fields: [activityLog.organizationId],
     references: [organizations.id],
   }),
 }));
@@ -214,113 +95,52 @@ export const organizationSettingsRelations = relations(organizationSettings, ({ 
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({
   id: true,
   createdAt: true,
-  updatedAt: true,
+  documentCount: true,
+  storageUsedMb: true,
+  aiAnalysesThisMonth: true,
 });
 
-export const insertUserRoleSchema = createInsertSchema(userRoles).omit({
+export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({
   id: true,
-  createdAt: true,
+  joinedAt: true,
 });
 
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+export const insertActivityLogSchema = createInsertSchema(activityLog).omit({
   id: true,
   timestamp: true,
 });
 
-export const insertBackgroundJobSchema = createInsertSchema(backgroundJobs).omit({
+export const insertDocumentShareSchema = createInsertSchema(documentShares).omit({
   id: true,
   createdAt: true,
-  updatedAt: true,
-});
-
-export const insertDataClassificationSchema = createInsertSchema(dataClassifications).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertOrganizationSettingsSchema = createInsertSchema(organizationSettings).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
 });
 
 // Type exports
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = z.infer<typeof insertOrganizationSchema>;
-export type UserRole = typeof userRoles.$inferSelect;
-export type NewUserRole = z.infer<typeof insertUserRoleSchema>;
-export type AuditLog = typeof auditLogs.$inferSelect;
-export type NewAuditLog = z.infer<typeof insertAuditLogSchema>;
-export type BackgroundJob = typeof backgroundJobs.$inferSelect;
-export type NewBackgroundJob = z.infer<typeof insertBackgroundJobSchema>;
-export type DataClassification = typeof dataClassifications.$inferSelect;
-export type NewDataClassification = z.infer<typeof insertDataClassificationSchema>;
-export type OrganizationSettings = typeof organizationSettings.$inferSelect;
-export type NewOrganizationSettings = z.infer<typeof insertOrganizationSettingsSchema>;
+export type OrganizationMember = typeof organizationMembers.$inferSelect;
+export type NewOrganizationMember = z.infer<typeof insertOrganizationMemberSchema>;
+export type ActivityLog = typeof activityLog.$inferSelect;
+export type NewActivityLog = z.infer<typeof insertActivityLogSchema>;
+export type DocumentShare = typeof documentShares.$inferSelect;
+export type NewDocumentShare = z.infer<typeof insertDocumentShareSchema>;
 
-// Permission constants
-export const PERMISSIONS = {
-  // Document permissions
-  DOCUMENTS_READ: 'documents:read',
-  DOCUMENTS_CREATE: 'documents:create',
-  DOCUMENTS_UPDATE: 'documents:update',
-  DOCUMENTS_DELETE: 'documents:delete',
-  DOCUMENTS_EXPORT: 'documents:export',
-  
-  // User management permissions
-  USERS_READ: 'users:read',
-  USERS_INVITE: 'users:invite',
-  USERS_UPDATE: 'users:update',
-  USERS_DELETE: 'users:delete',
-  
-  // Organization permissions
-  ORGANIZATION_READ: 'organization:read',
-  ORGANIZATION_UPDATE: 'organization:update',
-  ORGANIZATION_DELETE: 'organization:delete',
-  ORGANIZATION_SETTINGS: 'organization:settings',
-  
-  // Audit permissions
-  AUDIT_READ: 'audit:read',
-  AUDIT_EXPORT: 'audit:export',
-  
-  // System permissions
-  SYSTEM_ADMIN: 'system:admin',
+// Simple role constants for SMBs
+export const ROLES = {
+  OWNER: 'owner',
+  MEMBER: 'member',
 } as const;
 
-// Role-based permission sets
-export const ROLE_PERMISSIONS = {
-  owner: Object.values(PERMISSIONS),
-  admin: [
-    PERMISSIONS.DOCUMENTS_READ,
-    PERMISSIONS.DOCUMENTS_CREATE,
-    PERMISSIONS.DOCUMENTS_UPDATE,
-    PERMISSIONS.DOCUMENTS_DELETE,
-    PERMISSIONS.DOCUMENTS_EXPORT,
-    PERMISSIONS.USERS_READ,
-    PERMISSIONS.USERS_INVITE,
-    PERMISSIONS.USERS_UPDATE,
-    PERMISSIONS.ORGANIZATION_READ,
-    PERMISSIONS.ORGANIZATION_UPDATE,
-    PERMISSIONS.ORGANIZATION_SETTINGS,
-    PERMISSIONS.AUDIT_READ,
-  ],
-  editor: [
-    PERMISSIONS.DOCUMENTS_READ,
-    PERMISSIONS.DOCUMENTS_CREATE,
-    PERMISSIONS.DOCUMENTS_UPDATE,
-    PERMISSIONS.DOCUMENTS_EXPORT,
-    PERMISSIONS.USERS_READ,
-  ],
-  viewer: [
-    PERMISSIONS.DOCUMENTS_READ,
-    PERMISSIONS.USERS_READ,
-  ],
-  auditor: [
-    PERMISSIONS.DOCUMENTS_READ,
-    PERMISSIONS.USERS_READ,
-    PERMISSIONS.ORGANIZATION_READ,
-    PERMISSIONS.AUDIT_READ,
-    PERMISSIONS.AUDIT_EXPORT,
-  ],
+// Plan limits
+export const PLAN_LIMITS = {
+  free: {
+    maxDocuments: 500,
+    maxStorageMb: 1000, // 1GB
+    maxAiAnalysesPerMonth: 100,
+  },
+  pro: {
+    maxDocuments: 10000,
+    maxStorageMb: 50000, // 50GB
+    maxAiAnalysesPerMonth: 1000,
+  },
 } as const;
