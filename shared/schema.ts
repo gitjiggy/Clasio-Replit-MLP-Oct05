@@ -58,6 +58,14 @@ export const documents = pgTable("documents", {
   aiSentiment: text("ai_sentiment"),
   aiWordCount: integer("ai_word_count"),
   aiAnalyzedAt: timestamp("ai_analyzed_at"),
+  // Enhanced AI fields for improved UX
+  aiConciseName: text("ai_concise_name"), // 4-7 word AI-generated title
+  aiCategoryConfidence: integer("ai_category_confidence"), // 0-100 confidence score
+  aiDocumentTypeConfidence: integer("ai_document_type_confidence"), // 0-100 confidence score
+  // User override fields for classification edits
+  overrideCategory: text("override_category"), // User-selected category override
+  overrideDocumentType: text("override_document_type"), // User-selected document type override
+  classificationOverridden: boolean("classification_overridden").default(false).notNull(),
   // Content Search fields
   documentContent: text("document_content"), // Full extracted text content
   contentExtracted: boolean("content_extracted").default(false).notNull(),
