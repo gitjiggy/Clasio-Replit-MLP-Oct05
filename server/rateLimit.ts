@@ -2,6 +2,12 @@ import rateLimit from "express-rate-limit";
 
 // Rate limiting configuration - separated to avoid circular dependencies
 
+// User-based key generator for authenticated routes
+function userBasedKeyGenerator(req: any) {
+  // Use Firebase UID if available (for authenticated routes), otherwise fall back to IP
+  return req.user?.uid || req.ip;
+}
+
 export const strictLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // 5 requests per window
@@ -11,6 +17,7 @@ export const strictLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userBasedKeyGenerator,
 });
 
 export const moderateLimiter = rateLimit({
@@ -22,6 +29,7 @@ export const moderateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userBasedKeyGenerator,
 });
 
 export const standardLimiter = rateLimit({
@@ -33,4 +41,5 @@ export const standardLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userBasedKeyGenerator,
 });

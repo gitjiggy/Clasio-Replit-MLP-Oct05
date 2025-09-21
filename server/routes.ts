@@ -148,8 +148,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Apply standard rate limiting to all API routes
   app.use('/api', standardLimiter);
 
-  // Serve documents
-  app.get("/objects/:objectPath(*)", async (req, res) => {
+  // Serve documents - protected with authentication and rate limiting
+  app.get("/objects/:objectPath(*)", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       objectStorageService.downloadObject(objectFile, res);
@@ -162,8 +162,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get upload URL
-  app.post("/api/documents/upload-url", async (req, res) => {
+  // Get upload URL - protected with authentication and strict rate limiting
+  app.post("/api/documents/upload-url", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       res.json({ uploadURL });
@@ -174,7 +174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Complete document upload
-  app.post("/api/documents", strictLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const { uploadURL, ...uploadData } = req.body;
       
@@ -358,7 +358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update document classification
-  app.patch("/api/documents/:id/classification", moderateLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.patch("/api/documents/:id/classification", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const documentId = req.params.id;
       
@@ -422,7 +422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Analysis endpoint
-  app.post("/api/documents/:id/analyze", strictLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/:id/analyze", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const documentId = req.params.id;
       
@@ -511,7 +511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Content extraction endpoint for single document
-  app.post("/api/documents/:id/extract-content", moderateLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/:id/extract-content", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const documentId = req.params.id;
       
@@ -573,7 +573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Batch content extraction endpoint
-  app.post("/api/documents/batch-extract-content", moderateLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/batch-extract-content", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       console.log("🚀 Starting batch content extraction...");
       
@@ -633,7 +633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PDF-specific AI analysis endpoint - Ensure PDFs get properly analyzed
-  app.post("/api/documents/analyze-pdfs", strictLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/analyze-pdfs", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       console.log("🚀 Starting PDF-specific AI analysis...");
       
