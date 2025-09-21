@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import {
   FileText,
   Calendar,
@@ -21,10 +24,21 @@ import {
   Search,
   FileX,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Edit2,
+  Check,
+  X
 } from "lucide-react";
-import type { DocumentWithFolderAndTags } from "@shared/schema";
+import type { DocumentWithFolderAndTags, Folder as FolderType } from "@shared/schema";
 import { getDocumentDisplayName, getDocumentTooltip, type DocumentWithVersionInfo } from "@/lib/documentDisplay";
+
+// Helper function to format confidence percentage
+const formatConfidence = (confidence: number | null | undefined): string | null => {
+  if (confidence === null || confidence === undefined) return null;
+  // Handle both 0-1 float and 0-100 integer formats
+  const value = confidence <= 1 ? confidence * 100 : confidence;
+  return `${Math.round(value)}%`;
+};
 
 interface DocumentModalProps {
   document: DocumentWithVersionInfo | null;
@@ -66,15 +80,126 @@ export function DocumentModal({
 }: DocumentModalProps) {
   const [contentExpanded, setContentExpanded] = useState(false);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [isEditingClassification, setIsEditingClassification] = useState(false);
+  const [editCategory, setEditCategory] = useState<string>("");
+  const [editDocumentType, setEditDocumentType] = useState<string>("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch document content on-demand when modal opens
   const { data: contentData, isLoading: isLoadingContent } = useQuery({
     queryKey: [`/api/documents/${document?.id}/content`],
     enabled: open && !!document?.id && !document?.documentContent, // Only fetch if modal is open and content is not already available
   });
+  
+  // Fetch folders for classification editing
+  const { data: folders = [] } = useQuery<FolderType[]>({
+    queryKey: ['/api/folders'],
+    enabled: isEditingClassification, // Only fetch when editing
+  });
+  
+  // Update classification mutation
+  const updateClassificationMutation = useMutation({
+    mutationFn: async (data: { category: string; documentType: string }) => {
+      const response = await apiRequest(`/api/documents/${document?.id}/classification`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+      setIsEditingClassification(false);
+      toast({
+        title: "Classification Updated",
+        description: "Document classification has been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed", 
+        description: error.message || "Failed to update document classification.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Initialize edit values when starting to edit
+  useEffect(() => {
+    if (isEditingClassification && document) {
+      setEditCategory(document.overrideCategory || document.aiCategory || '');
+      setEditDocumentType(document.overrideDocumentType || document.aiDocumentType || '');
+    }
+  }, [isEditingClassification, document]);
 
   if (!document) return null;
+
+  // Build proper folder/subfolder hierarchy for classification editing
+  const automaticFolders = folders.filter(folder => folder.isAutoCreated);
+  
+  // Get category folders (main folders)
+  const categoryFolders = automaticFolders.filter(folder => !folder.parentId && folder.category);
+  const categoryOptions = [...new Set(categoryFolders.map(folder => folder.category).filter(Boolean))] as string[];
+  
+  // Build category to folder ID mapping
+  const categoryToFolderId = new Map<string, string>();
+  categoryFolders.forEach(folder => {
+    if (folder.category) {
+      categoryToFolderId.set(folder.category, folder.id);
+    }
+  });
+  
+  // Get document type options filtered by selected category
+  const getDocumentTypeOptions = (selectedCategory: string): string[] => {
+    const categoryFolderId = categoryToFolderId.get(selectedCategory);
+    if (!categoryFolderId) return [];
+    
+    const subFolders = automaticFolders.filter(folder => 
+      folder.parentId === categoryFolderId && folder.documentType
+    );
+    return [...new Set(subFolders.map(folder => folder.documentType).filter(Boolean))] as string[];
+  };
+  
+  const documentTypeOptions = getDocumentTypeOptions(editCategory);
+
+  const handleStartEdit = () => {
+    setIsEditingClassification(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingClassification(false);
+    setEditCategory(document.overrideCategory || document.aiCategory || '');
+    setEditDocumentType(document.overrideDocumentType || document.aiDocumentType || '');
+  };
+
+  const handleCategoryChange = (newCategory: string) => {
+    setEditCategory(newCategory);
+    // Clear document type when category changes to force user to select a valid type
+    setEditDocumentType('');
+  };
+
+  const handleSaveEdit = () => {
+    if (editCategory && editDocumentType) {
+      // Validate that the document type exists for the selected category
+      const validTypes = getDocumentTypeOptions(editCategory);
+      if (validTypes.includes(editDocumentType)) {
+        updateClassificationMutation.mutate({
+          category: editCategory,
+          documentType: editDocumentType,
+        });
+      } else {
+        toast({
+          title: "Invalid Selection",
+          description: "The selected document type is not available for this category.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
 
   // Use existing content or fetched content (API returns { content })
   const documentContent = document.documentContent || contentData?.content;
@@ -370,7 +495,7 @@ export function DocumentModal({
             <Separator />
 
             {/* AI Analysis */}
-            {(document.aiSummary || document.aiKeyTopics?.length) && (
+            {(document.aiSummary || document.aiKeyTopics?.length || document.aiCategory || document.aiDocumentType) && (
               <>
                 <div className="space-y-4">
                   <h4 className="text-sm font-medium">AI Analysis</h4>
@@ -397,26 +522,129 @@ export function DocumentModal({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    {document.aiDocumentType && (
-                      <div>
-                        <div className="text-muted-foreground">Document Type</div>
-                        <div className="font-medium">{document.aiDocumentType}</div>
+                  {/* Classification Section with Edit Functionality */}
+                  {(document.aiDocumentType || document.aiCategory) && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">Classification</div>
+                        {!isEditingClassification && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleStartEdit}
+                            className="h-7 px-2 text-xs"
+                            data-testid="edit-classification"
+                          >
+                            <Edit2 className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                        )}
                       </div>
-                    )}
-                    {document.aiCategory && (
-                      <div>
-                        <div className="text-muted-foreground">Category</div>
-                        <div className="font-medium">{document.aiCategory}</div>
-                      </div>
-                    )}
-                    {document.aiWordCount && (
-                      <div>
-                        <div className="text-muted-foreground">Word Count</div>
-                        <div className="font-medium">{document.aiWordCount.toLocaleString()}</div>
-                      </div>
-                    )}
-                  </div>
+
+                      {!isEditingClassification ? (
+                        /* Display Mode */
+                        <div className="space-y-2">
+                          {document.aiDocumentType && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">
+                                <span className="text-muted-foreground">Type:</span> {document.overrideDocumentType || document.aiDocumentType}
+                                {document.classificationOverridden && document.overrideDocumentType && (
+                                  <Badge variant="secondary" className="ml-2 text-xs">Edited</Badge>
+                                )}
+                              </span>
+                              {formatConfidence(document.aiDocumentTypeConfidence) && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`modal-confidence-type-${document.id}`}>
+                                  {formatConfidence(document.aiDocumentTypeConfidence)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {document.aiCategory && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">
+                                <span className="text-muted-foreground">Category:</span> {document.overrideCategory || document.aiCategory}
+                                {document.classificationOverridden && document.overrideCategory && (
+                                  <Badge variant="secondary" className="ml-2 text-xs">Edited</Badge>
+                                )}
+                              </span>
+                              {formatConfidence(document.aiCategoryConfidence) && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`modal-confidence-category-${document.id}`}>
+                                  {formatConfidence(document.aiCategoryConfidence)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Edit Mode */
+                        <div className="space-y-3">
+                          <div className="space-y-2">
+                            <label className="text-sm text-muted-foreground">Category</label>
+                            <Select value={editCategory} onValueChange={handleCategoryChange} data-testid="select-category">
+                              <SelectTrigger className="h-8">
+                                <SelectValue placeholder="Select category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categoryOptions.map((category) => (
+                                  <SelectItem key={category} value={category}>
+                                    {category}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label className="text-sm text-muted-foreground">Document Type</label>
+                            <Select value={editDocumentType} onValueChange={setEditDocumentType} data-testid="select-document-type">
+                              <SelectTrigger className="h-8">
+                                <SelectValue placeholder="Select document type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {documentTypeOptions.map((type) => (
+                                  <SelectItem key={type} value={type}>
+                                    {type}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="flex gap-2 pt-2">
+                            <Button
+                              size="sm"
+                              onClick={handleSaveEdit}
+                              disabled={!editCategory || !editDocumentType || updateClassificationMutation.isPending}
+                              className="h-7 px-3 text-xs"
+                              data-testid="save-classification"
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              {updateClassificationMutation.isPending ? 'Saving...' : 'Save'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleCancelEdit}
+                              disabled={updateClassificationMutation.isPending}
+                              className="h-7 px-3 text-xs"
+                              data-testid="cancel-classification"
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Word Count */}
+                  {document.aiWordCount && (
+                    <div className="pt-2">
+                      <div className="text-sm text-muted-foreground">Word Count</div>
+                      <div className="text-sm font-medium">{document.aiWordCount.toLocaleString()}</div>
+                    </div>
+                  )}
                 </div>
                 <Separator />
               </>
