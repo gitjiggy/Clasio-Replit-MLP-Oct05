@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AutocompleteCombobox } from "@/components/ui/autocomplete-combobox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import type { DocumentWithFolderAndTags, Folder as FolderType } from "@shared/schema";
 import { getDocumentDisplayName, getDocumentTooltip, type DocumentWithVersionInfo } from "@/lib/documentDisplay";
+import { searchCategories, searchDocumentTypes } from "@/lib/documentClassifications";
 
 // Helper function to format confidence percentage
 const formatConfidence = (confidence: number | null | undefined): string | null => {
@@ -139,33 +140,9 @@ export function DocumentModal({
     }
   }, [isEditingClassification, document]);
 
-  // Build proper folder/subfolder hierarchy for classification editing
-  const automaticFolders = folders.filter(folder => folder.isAutoCreated);
-  
-  // Get category folders (main folders)
-  const categoryFolders = automaticFolders.filter(folder => !folder.parentId && folder.category);
-  const categoryOptions = [...new Set(categoryFolders.map(folder => folder.category).filter(Boolean))] as string[];
-  
-  // Build category to folder ID mapping
-  const categoryToFolderId = new Map<string, string>();
-  categoryFolders.forEach(folder => {
-    if (folder.category) {
-      categoryToFolderId.set(folder.category, folder.id);
-    }
-  });
-  
-  // Get document type options filtered by selected category
-  const getDocumentTypeOptions = (selectedCategory: string): string[] => {
-    const categoryFolderId = categoryToFolderId.get(selectedCategory);
-    if (!categoryFolderId) return [];
-    
-    const subFolders = automaticFolders.filter(folder => 
-      folder.parentId === categoryFolderId && folder.documentType
-    );
-    return [...new Set(subFolders.map(folder => folder.documentType).filter(Boolean))] as string[];
-  };
-  
-  const documentTypeOptions = getDocumentTypeOptions(editCategory);
+  // Get comprehensive category and document type options for autocomplete
+  const categoryOptions = searchCategories("");
+  const documentTypeOptions = searchDocumentTypes("", editCategory);
 
   const handleStartEdit = () => {
     setIsEditingClassification(true);
@@ -185,20 +162,10 @@ export function DocumentModal({
 
   const handleSaveEdit = () => {
     if (editCategory && editDocumentType) {
-      // Validate that the document type exists for the selected category
-      const validTypes = getDocumentTypeOptions(editCategory);
-      if (validTypes.includes(editDocumentType)) {
-        updateClassificationMutation.mutate({
-          category: editCategory,
-          documentType: editDocumentType,
-        });
-      } else {
-        toast({
-          title: "Invalid Selection",
-          description: "The selected document type is not available for this category.",
-          variant: "destructive",
-        });
-      }
+      updateClassificationMutation.mutate({
+        category: editCategory,
+        documentType: editDocumentType,
+      });
     }
   };
 
@@ -581,34 +548,31 @@ export function DocumentModal({
                         <div className="space-y-3">
                           <div className="space-y-2">
                             <label className="text-sm text-muted-foreground">Category</label>
-                            <Select value={editCategory} onValueChange={handleCategoryChange} data-testid="select-category">
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="Select category" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {categoryOptions.map((category) => (
-                                  <SelectItem key={category} value={category}>
-                                    {category}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <AutocompleteCombobox
+                              value={editCategory}
+                              onValueChange={handleCategoryChange}
+                              options={categoryOptions}
+                              placeholder="Select or type category..."
+                              searchPlaceholder="Search categories..."
+                              emptyMessage="No category found."
+                              className="h-8"
+                              allowCustom={true}
+                            />
                           </div>
                           
                           <div className="space-y-2">
                             <label className="text-sm text-muted-foreground">Document Type</label>
-                            <Select value={editDocumentType} onValueChange={setEditDocumentType} data-testid="select-document-type">
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="Select document type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {documentTypeOptions.map((type) => (
-                                  <SelectItem key={type} value={type}>
-                                    {type}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <AutocompleteCombobox
+                              value={editDocumentType}
+                              onValueChange={setEditDocumentType}
+                              options={documentTypeOptions}
+                              placeholder="Select or type document type..."
+                              searchPlaceholder="Search document types..."
+                              emptyMessage="No document type found."
+                              className="h-8"
+                              allowCustom={true}
+                              disabled={!editCategory}
+                            />
                           </div>
 
                           <div className="flex gap-2 pt-2">
