@@ -1035,11 +1035,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertDocumentSchema.parse(documentData);
       const document = await storage.createDocument(validatedData);
 
-      // Store Drive content for AI analysis
-      if (runAiAnalysis && driveFile.content && driveFile.content !== `[Binary file: ${driveFile.name}]`) {
-        // Run AI analysis on the existing document with Drive content
+      // Run AI analysis if requested
+      if (runAiAnalysis) {
         try {
-          await storage.analyzeDocumentWithAI(document.id, driveFile.content);
+          // Determine if this file type supports direct text export
+          const textExportableMimeTypes = [
+            'application/vnd.google-apps.document',
+            'text/plain', 
+            'text/csv', 
+            'text/html'
+          ];
+          
+          const isTextExportable = textExportableMimeTypes.includes(driveFile.mimeType);
+          const driveAccessToken = req.headers['x-drive-access-token'] as string;
+          
+          if (isTextExportable && driveFile.content && !driveFile.content.startsWith('[Binary file:')) {
+            // For Google Docs and text files, use the exported content directly
+            console.log(`🔤 Using exported text content for AI analysis: ${driveFile.name}`);
+            await storage.analyzeDocumentWithAI(document.id, driveFile.content, driveAccessToken);
+          } else {
+            // For binary files (PDFs, Word docs, etc.), let storage handle binary download and extraction
+            console.log(`📄 Using binary download for AI analysis: ${driveFile.name} (${driveFile.mimeType})`);
+            await storage.analyzeDocumentWithAI(document.id, undefined, driveAccessToken);
+          }
         } catch (aiError) {
           console.error("AI analysis failed, but continuing without analysis:", aiError);
           // Don't let AI analysis errors crash the document sync
