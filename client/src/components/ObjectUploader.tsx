@@ -7,6 +7,7 @@ import "@uppy/dashboard/dist/style.min.css";
 import AwsS3 from "@uppy/aws-s3";
 import type { UploadResult } from "@uppy/core";
 import { Button } from "@/components/ui/button";
+import { apiRequest } from "@/lib/queryClient";
 
 // Helper function to get file type from filename
 const getFileTypeFromName = (filename: string): string => {
@@ -248,18 +249,8 @@ export function ObjectUploader({
               
               console.log('📋 Bulk document creation request:', requestBody);
               
-              const firebaseToken = await getFirebaseIdToken();
-              console.log('🔍 DEBUG: Firebase token length:', firebaseToken?.length || 0);
-              console.log('🔍 DEBUG: Firebase token preview:', firebaseToken?.substring(0, 50) + '...');
-              
-              const response = await fetch('/api/documents/bulk', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${firebaseToken}`,
-                },
-                body: JSON.stringify(requestBody),
-              });
+              // Use apiRequest instead of manual fetch to ensure proper Firebase auth
+              const response = await apiRequest('POST', '/api/documents/bulk', requestBody);
               
               console.log('📤 Bulk document creation response status:', response.status);
               
