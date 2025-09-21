@@ -83,8 +83,8 @@ export function initializeSentry() {
 }
 
 /**
- * SMB-Enhanced: Organization context middleware for Sentry
- * Enriches request-bound Sentry scope with organization and user context
+ * SMB-Enhanced: Organization context middleware for Sentry (v10+ compatible)
+ * Sets per-request context that will be captured by setupExpressErrorHandler
  */
 export function sentryContextMiddleware() {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -93,36 +93,38 @@ export function sentryContextMiddleware() {
       return next();
     }
     
-    // Get the current request-bound scope (set by Sentry.Handlers.requestHandler)
-    const currentScope = Sentry.getCurrentScope();
-    
-    // Enrich the request-bound scope with SMB context
-    currentScope.setTag('requestId', req.requestId);
-    currentScope.setContext('request', {
-      method: req.method,
-      url: req.url,
-      query: req.query,
-      headers: {
-        userAgent: req.get('User-Agent'),
-        contentType: req.get('Content-Type')
+    // Use configureScope to set context for the current request
+    Sentry.configureScope((scope) => {
+      // Set request-specific tags and context
+      scope.setTag('requestId', req.requestId);
+      scope.setContext('http', {
+        method: req.method,
+        url: req.url,
+        query: req.query,
+        headers: {
+          userAgent: req.get('User-Agent'),
+          contentType: req.get('Content-Type')
+        },
+        ip: req.ip
+      });
+
+      // Set organization context for SMB multi-tenancy
+      if (req.organizationId) {
+        scope.setTag('organizationId', req.organizationId);
+        scope.setContext('organization', {
+          id: req.organizationId,
+          segment: 'SMB'
+        });
+      }
+
+      // Set user context
+      if (req.uid) {
+        scope.setUser({
+          id: req.uid,
+          segment: 'SMB'
+        });
       }
     });
-
-    // Set organization context for SMB multi-tenancy
-    if (req.organizationId) {
-      currentScope.setTag('organizationId', req.organizationId);
-      currentScope.setContext('organization', {
-        id: req.organizationId
-      });
-    }
-
-    // Set user context
-    if (req.uid) {
-      Sentry.setUser({
-        id: req.uid,
-        segment: 'SMB' // All users are SMB in this system
-      });
-    }
 
     next();
   };

@@ -14,7 +14,7 @@ import {
   errorLoggingMiddleware, 
   organizationContextMiddleware 
 } from './middleware/logging';
-import { sentryContextMiddleware, sentryExpressRequestMiddleware, sentryExpressErrorMiddleware } from './middleware/sentry';
+import { sentryContextMiddleware } from './middleware/sentry';
 import * as Sentry from '@sentry/node';
 
 // Initialize Sentry before anything else for SMB error tracking
@@ -108,9 +108,6 @@ app.use(helmet({
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' } // Allow OAuth popup flows
 }));
 
-// SMB-Enhanced: Sentry request middleware (must be early for proper scope binding)
-app.use(sentryExpressRequestMiddleware());
-
 // SMB-Enhanced: Structured logging and error tracking middleware
 app.use(requestLoggingMiddleware());
 app.use(organizationContextMiddleware());
@@ -127,8 +124,10 @@ app.use(express.urlencoded({ extended: false }));
 (async () => {
   const server = await registerRoutes(app);
 
-  // SMB-Enhanced: Sentry error middleware (after routes, before other error handlers)
-  app.use(sentryExpressErrorMiddleware());
+  // SMB-Enhanced: Sentry error handler (v10+ single setup - after routes, before other handlers)
+  if (process.env.SENTRY_DSN) {
+    Sentry.setupExpressErrorHandler(app);
+  }
   
   // SMB-Enhanced: Structured logging error handler  
   app.use(errorLoggingMiddleware());

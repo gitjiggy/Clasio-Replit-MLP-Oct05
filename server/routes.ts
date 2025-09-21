@@ -1633,7 +1633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { document, share } = result;
       
       // Check if user has view access (both viewer and editor can download)
-      if (!['viewer', 'editor'].includes(share.accessLevel)) {
+      if (!share.accessLevel || !['viewer', 'editor'].includes(share.accessLevel)) {
         return res.status(403).json({ error: "Insufficient permissions to download document" });
       }
 
