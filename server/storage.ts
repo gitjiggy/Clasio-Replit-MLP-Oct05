@@ -4,11 +4,15 @@ import {
   type Tag,
   type DocumentTag,
   type DocumentVersion,
+  type AiAnalysisQueue,
+  type DailyApiUsage,
   type InsertDocument,
   type InsertFolder,
   type InsertTag,
   type InsertDocumentTag,
   type InsertDocumentVersion,
+  type InsertAiAnalysisQueue,
+  type InsertDailyApiUsage,
   type DocumentWithFolderAndTags,
   type DocumentWithVersions,
   documents,
@@ -16,6 +20,8 @@ import {
   tags,
   documentTags,
   documentVersions,
+  aiAnalysisQueue,
+  dailyApiUsage,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -84,6 +90,18 @@ export interface IStorage {
   findOrCreateSubFolder(parentId: string, documentType: string): Promise<Folder>;
   organizeDocumentIntoFolder(documentId: string, category: string, documentType: string): Promise<boolean>;
   removeDocumentTags(documentId: string): Promise<void>;
+
+  // AI Analysis Queue Management
+  enqueueDocumentForAnalysis(documentId: string, userId: string, priority?: number): Promise<AiAnalysisQueue>;
+  dequeueNextAnalysisJob(): Promise<AiAnalysisQueue | null>;
+  updateQueueJobStatus(jobId: string, status: string, failureReason?: string): Promise<boolean>;
+  getQueueStatus(userId?: string): Promise<{pending: number; processing: number; completed: number; failed: number}>;
+  getQueueJobsByUser(userId: string): Promise<AiAnalysisQueue[]>;
+  
+  // Daily API Usage Tracking  
+  incrementDailyUsage(date: string, tokens: number, success: boolean): Promise<DailyApiUsage>;
+  getDailyUsage(date: string): Promise<DailyApiUsage | null>;
+  canProcessAnalysis(): Promise<{canProcess: boolean; remaining: number; resetTime: string}>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1093,6 +1111,292 @@ export class DatabaseStorage implements IStorage {
     
     // Ensure we have a valid slug
     return slug || 'uncategorized';
+  }
+
+  // AI Analysis Queue Management Methods
+  async enqueueDocumentForAnalysis(documentId: string, userId: string, priority: number = 5): Promise<AiAnalysisQueue> {
+    await this.ensureInitialized();
+    
+    try {
+      // Estimate tokens based on document content or size
+      const document = await this.getDocumentById(documentId);
+      let estimatedTokens = 3000; // Default estimate
+      
+      if (document && document.documentContent) {
+        // Rough estimate: 1 token ≈ 4 characters
+        estimatedTokens = Math.ceil(document.documentContent.length / 4) + 1000; // Add buffer for prompt
+      } else if (document && document.fileSize) {
+        // Estimate based on file size (very rough)
+        estimatedTokens = Math.min(Math.ceil(document.fileSize / 5), 8000); // Cap at 8k tokens
+      }
+
+      const [queueJob] = await db
+        .insert(aiAnalysisQueue)
+        .values({
+          documentId,
+          userId,
+          priority,
+          estimatedTokens,
+          status: "pending",
+          scheduledAt: new Date(), // Schedule immediately by default
+        })
+        .onConflictDoNothing() // Handle duplicate prevention from unique index
+        .returning();
+
+      if (!queueJob) {
+        // Job already exists, get existing one
+        const existingJob = await db
+          .select()
+          .from(aiAnalysisQueue)
+          .where(
+            and(
+              eq(aiAnalysisQueue.documentId, documentId),
+              inArray(aiAnalysisQueue.status, ["pending", "processing"])
+            )
+          )
+          .limit(1);
+        
+        if (existingJob[0]) {
+          console.log(`📋 Document ${documentId} already queued for analysis`);
+          return existingJob[0];
+        }
+        throw new Error("Failed to enqueue document and no existing job found");
+      }
+
+      console.log(`📋 Queued document ${documentId} for AI analysis (priority: ${priority}, estimated tokens: ${estimatedTokens})`);
+      return queueJob;
+    } catch (error) {
+      console.error(`❌ Failed to enqueue document ${documentId} for analysis:`, error);
+      throw error;
+    }
+  }
+
+  async dequeueNextAnalysisJob(): Promise<AiAnalysisQueue | null> {
+    await this.ensureInitialized();
+    
+    try {
+      // Check daily quota first
+      const today = new Date().toISOString().split('T')[0];
+      const quotaCheck = await this.canProcessAnalysis();
+      
+      if (!quotaCheck.canProcess) {
+        console.log(`🚫 Daily quota reached (${quotaCheck.remaining} remaining). Next reset: ${quotaCheck.resetTime}`);
+        return null;
+      }
+
+      // Get next job by priority and schedule time
+      const [nextJob] = await db
+        .select()
+        .from(aiAnalysisQueue)
+        .where(
+          and(
+            eq(aiAnalysisQueue.status, "pending"),
+            sql`scheduled_at <= NOW()`
+          )
+        )
+        .orderBy(aiAnalysisQueue.priority, aiAnalysisQueue.requestedAt)
+        .limit(1);
+
+      if (!nextJob) {
+        return null;
+      }
+
+      // Mark as processing
+      const [processingJob] = await db
+        .update(aiAnalysisQueue)
+        .set({
+          status: "processing",
+          processedAt: new Date(),
+        })
+        .where(eq(aiAnalysisQueue.id, nextJob.id))
+        .returning();
+
+      console.log(`🔄 Dequeued job ${processingJob.id} for document ${processingJob.documentId} (priority: ${processingJob.priority})`);
+      return processingJob;
+    } catch (error) {
+      console.error("❌ Failed to dequeue analysis job:", error);
+      return null;
+    }
+  }
+
+  async updateQueueJobStatus(jobId: string, status: string, failureReason?: string): Promise<boolean> {
+    await this.ensureInitialized();
+    
+    try {
+      const updateData: any = { status };
+      
+      if (status === "failed" && failureReason) {
+        updateData.failureReason = failureReason;
+        updateData.retryCount = sql`retry_count + 1`;
+      }
+
+      const [updatedJob] = await db
+        .update(aiAnalysisQueue)
+        .set(updateData)
+        .where(eq(aiAnalysisQueue.id, jobId))
+        .returning();
+
+      if (updatedJob) {
+        console.log(`✅ Updated queue job ${jobId} status to ${status}`);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`❌ Failed to update queue job ${jobId} status:`, error);
+      return false;
+    }
+  }
+
+  async getQueueStatus(userId?: string): Promise<{pending: number; processing: number; completed: number; failed: number}> {
+    await this.ensureInitialized();
+    
+    try {
+      const whereClause = userId ? eq(aiAnalysisQueue.userId, userId) : undefined;
+      
+      const statusCounts = await db
+        .select({
+          status: aiAnalysisQueue.status,
+          count: count()
+        })
+        .from(aiAnalysisQueue)
+        .where(whereClause)
+        .groupBy(aiAnalysisQueue.status);
+
+      const result = {
+        pending: 0,
+        processing: 0,
+        completed: 0,
+        failed: 0
+      };
+
+      statusCounts.forEach(item => {
+        if (item.status in result) {
+          (result as any)[item.status] = item.count;
+        }
+      });
+
+      return result;
+    } catch (error) {
+      console.error("❌ Failed to get queue status:", error);
+      return { pending: 0, processing: 0, completed: 0, failed: 0 };
+    }
+  }
+
+  async getQueueJobsByUser(userId: string): Promise<AiAnalysisQueue[]> {
+    await this.ensureInitialized();
+    
+    try {
+      const jobs = await db
+        .select()
+        .from(aiAnalysisQueue)
+        .where(eq(aiAnalysisQueue.userId, userId))
+        .orderBy(desc(aiAnalysisQueue.requestedAt))
+        .limit(50); // Limit to recent 50 jobs
+
+      return jobs;
+    } catch (error) {
+      console.error(`❌ Failed to get queue jobs for user ${userId}:`, error);
+      return [];
+    }
+  }
+
+  // Daily API Usage Tracking Methods
+  async incrementDailyUsage(date: string, tokens: number, success: boolean): Promise<DailyApiUsage> {
+    await this.ensureInitialized();
+    
+    try {
+      // Try to update existing record first
+      const [existingUsage] = await db
+        .select()
+        .from(dailyApiUsage)
+        .where(eq(dailyApiUsage.date, date))
+        .limit(1);
+
+      if (existingUsage) {
+        // Update existing record
+        const [updatedUsage] = await db
+          .update(dailyApiUsage)
+          .set({
+            requestCount: sql`request_count + 1`,
+            tokenCount: sql`token_count + ${tokens}`,
+            successCount: success ? sql`success_count + 1` : existingUsage.successCount,
+            failureCount: !success ? sql`failure_count + 1` : existingUsage.failureCount,
+            lastUpdated: new Date(),
+          })
+          .where(eq(dailyApiUsage.id, existingUsage.id))
+          .returning();
+
+        return updatedUsage;
+      } else {
+        // Create new record
+        const [newUsage] = await db
+          .insert(dailyApiUsage)
+          .values({
+            date,
+            requestCount: 1,
+            tokenCount: tokens,
+            successCount: success ? 1 : 0,
+            failureCount: success ? 0 : 1,
+          })
+          .returning();
+
+        return newUsage;
+      }
+    } catch (error) {
+      console.error(`❌ Failed to increment daily usage for ${date}:`, error);
+      throw error;
+    }
+  }
+
+  async getDailyUsage(date: string): Promise<DailyApiUsage | null> {
+    await this.ensureInitialized();
+    
+    try {
+      const [usage] = await db
+        .select()
+        .from(dailyApiUsage)
+        .where(eq(dailyApiUsage.date, date))
+        .limit(1);
+
+      return usage || null;
+    } catch (error) {
+      console.error(`❌ Failed to get daily usage for ${date}:`, error);
+      return null;
+    }
+  }
+
+  async canProcessAnalysis(): Promise<{canProcess: boolean; remaining: number; resetTime: string}> {
+    await this.ensureInitialized();
+    
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const usage = await this.getDailyUsage(today);
+      
+      // Gemini 2.5 Flash-lite free tier limits: 1,500 requests per day
+      const DAILY_LIMIT = 1200; // Use 1200 to leave safety buffer
+      const used = usage?.requestCount || 0;
+      const remaining = Math.max(0, DAILY_LIMIT - used);
+      
+      // Calculate next reset time (midnight Pacific Time)
+      const tomorrow = new Date();
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+      tomorrow.setUTCHours(8, 0, 0, 0); // 8 UTC = midnight Pacific (PST)
+      
+      return {
+        canProcess: remaining > 0,
+        remaining,
+        resetTime: tomorrow.toISOString()
+      };
+    } catch (error) {
+      console.error("❌ Failed to check daily quota:", error);
+      // In case of error, allow processing to avoid blocking system
+      return {
+        canProcess: true,
+        remaining: 1000,
+        resetTime: new Date().toISOString()
+      };
+    }
   }
 
 }
