@@ -52,6 +52,14 @@ interface DocumentsResponse {
   };
 }
 
+// Helper function to format confidence percentage
+const formatConfidence = (confidence: number | null | undefined): string | null => {
+  if (confidence === null || confidence === undefined) return null;
+  // Handle both 0-1 float and 0-100 integer formats
+  const value = confidence <= 1 ? confidence * 100 : confidence;
+  return `${Math.round(value)}%`;
+};
+
 export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFileType, setSelectedFileType] = useState("all");
@@ -757,9 +765,24 @@ export default function Documents() {
                           </div>
                         )}
                         {document.aiDocumentType && (
-                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                            Type: {document.aiDocumentType} • Category: {document.aiCategory || 'Uncategorized'}
-                          </p>
+                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span>Type: {document.aiDocumentType}</span>
+                              {formatConfidence(document.aiDocumentTypeConfidence) && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
+                                  {formatConfidence(document.aiDocumentTypeConfidence)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Category: {document.aiCategory || 'Uncategorized'}</span>
+                              {formatConfidence(document.aiCategoryConfidence) && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
+                                  {formatConfidence(document.aiCategoryConfidence)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
