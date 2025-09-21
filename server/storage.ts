@@ -754,6 +754,10 @@ export class DatabaseStorage implements IStorage {
           aiSentiment: "neutral", // TODO: Add actual sentiment analysis
           aiWordCount: analysis.wordCount,
           aiAnalyzedAt: new Date(),
+          // Enhanced AI fields
+          aiConciseName: analysis.conciseTitle,
+          aiCategoryConfidence: analysis.categoryConfidence,
+          aiDocumentTypeConfidence: analysis.documentTypeConfidence,
           // Save the document content for search functionality
           documentContent: documentText,
           contentExtracted: true,

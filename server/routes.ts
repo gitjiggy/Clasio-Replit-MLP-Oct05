@@ -79,6 +79,12 @@ const analysisSchema = z.object({
   categories: z.array(z.string().max(50)).max(10).optional()
 });
 
+// Classification update schema
+const classificationUpdateSchema = z.object({
+  category: z.enum(["Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"]),
+  documentType: z.enum(["Resume", "Cover Letter", "Contract", "Invoice", "Receipt", "Tax Document", "Medical Record", "Insurance Document", "Legal Document", "Immigration Document", "Financial Statement", "Employment Document", "Event Notice", "Academic Document", "Real Estate Document", "Travel Document", "Personal Statement", "Technical Documentation", "Business Report"])
+});
+
 // Zod schemas for Drive API validation
 const driveSyncSchema = z.object({
   driveFileId: z.string().min(1, "Drive file ID is required"),
@@ -340,6 +346,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating document:", error);
       res.status(500).json({ error: "Failed to update document" });
+    }
+  });
+
+  // Update document classification
+  app.patch("/api/documents/:id/classification", moderateLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const documentId = req.params.id;
+      
+      // Validate input
+      const validationResult = classificationUpdateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid classification parameters",
+          details: validationResult.error.issues
+        });
+      }
+      
+      const { category, documentType } = validationResult.data;
+      
+      // Check if document exists
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // Update document with user override classifications
+      const updatedDocument = await storage.updateDocument(documentId, {
+        overrideCategory: category,
+        overrideDocumentType: documentType,
+        classificationOverridden: true
+      });
+      
+      if (!updatedDocument) {
+        return res.status(500).json({ error: "Failed to update document classification" });
+      }
+      
+      // Reorganize document into the correct folder based on new classification
+      const organizeSuccess = await storage.organizeDocumentIntoFolder(documentId, category, documentType);
+      if (!organizeSuccess) {
+        console.warn(`Failed to reorganize document ${documentId} into folder for category: ${category}, type: ${documentType}`);
+        // Don't fail the request, as the classification was still updated
+      }
+      
+      // Return the updated document with folder information
+      const finalDocument = await storage.getDocumentById(documentId);
+      res.json(finalDocument);
+      
+    } catch (error) {
+      console.error("Error updating document classification:", error);
+      res.status(500).json({ error: "Failed to update document classification" });
     }
   });
 
