@@ -288,10 +288,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { fileCount, folderId, tagIds, analyzeImmediately } = validationResult.data;
 
-      // Generate multiple upload URLs
-      const uploadPromises = Array.from({ length: fileCount }, () => 
-        objectStorageService.getObjectEntityUploadURL()
-      );
+      // Generate multiple upload URLs with proper structure
+      const uploadPromises = Array.from({ length: fileCount }, async () => {
+        const url = await objectStorageService.getObjectEntityUploadURL();
+        return {
+          url,
+          method: "PUT" as const
+        };
+      });
 
       const uploadURLs = await Promise.all(uploadPromises);
 
