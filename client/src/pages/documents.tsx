@@ -122,6 +122,7 @@ export default function Documents() {
       return hasDirectDocuments || hasSubFoldersWithDocuments;
     });
 
+
   // Fetch tags
   const { data: tags = [] } = useQuery<Tag[]>({
     queryKey: ['/api/tags'],
