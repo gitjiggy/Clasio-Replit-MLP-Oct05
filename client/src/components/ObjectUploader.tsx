@@ -203,22 +203,30 @@ export function ObjectUploader({
             }));
             
             try {
+              const requestBody = {
+                documents: documentsData,
+                folderId: bulkResponse.bulkUploadConfig.folderId,
+                tagIds: bulkResponse.bulkUploadConfig.tagIds,
+                analyzeImmediately: bulkResponse.bulkUploadConfig.analyzeImmediately,
+              };
+              
+              console.log('📋 Bulk document creation request:', requestBody);
+              
               const response = await fetch('/api/documents/bulk', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${await getFirebaseIdToken()}`,
                 },
-                body: JSON.stringify({
-                  documents: documentsData,
-                  folderId: bulkResponse.bulkUploadConfig.folderId,
-                  tagIds: bulkResponse.bulkUploadConfig.tagIds,
-                  analyzeImmediately: bulkResponse.bulkUploadConfig.analyzeImmediately,
-                }),
+                body: JSON.stringify(requestBody),
               });
               
+              console.log('📤 Bulk document creation response status:', response.status);
+              
               if (!response.ok) {
-                throw new Error(`Bulk document creation failed: ${response.statusText}`);
+                const errorText = await response.text();
+                console.error('📤 Bulk document creation error response:', errorText);
+                throw new Error(`Bulk document creation failed: ${response.status} ${response.statusText} - ${errorText}`);
               }
               
               const bulkResult = await response.json();
