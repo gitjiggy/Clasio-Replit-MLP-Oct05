@@ -212,11 +212,21 @@ export function ObjectUploader({
           const successful = uploadResults.filter(r => r.success);
           const failed = uploadResults.filter(r => !r.success);
           
+          console.log('🔍 DEBUG: Upload results analysis:', {
+            totalResults: uploadResults.length,
+            successfulCount: successful.length,
+            failedCount: failed.length,
+            uploadResults,
+            successfulResults: successful,
+            failedResults: failed
+          });
+          
           setUploadStatus("🎉 Files uploaded! Now registering them in our digital library...");
           setUploadProgress(80);
           
           // Create documents via bulk API
           if (successful.length > 0) {
+            console.log('🎯 DEBUG: Entering bulk document creation with', successful.length, 'successful uploads');
             const documentsData = successful.map(result => ({
               uploadURL: (result as any).uploadURL,
               name: result.originalName.replace(/\.[^/.]+$/, ""), // Remove extension
