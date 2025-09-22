@@ -1106,6 +1106,63 @@ export class DatabaseStorage implements IStorage {
     return slug || 'uncategorized';
   }
 
+  // Method to organize all unorganized documents
+  async organizeAllUnorganizedDocuments(): Promise<{ organized: number; errors: string[] }> {
+    try {
+      await this.ensureInitialized();
+      
+      console.log("Starting organization of unorganized documents...");
+      
+      // Get all documents that have AI categories but no folder assignment
+      const unorganizedDocs = await db
+        .select({
+          id: documents.id,
+          name: documents.name,
+          aiCategory: documents.aiCategory,
+          aiDocumentType: documents.aiDocumentType,
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.isDeleted, false),
+            sql`${documents.aiCategory} IS NOT NULL`,
+            sql`${documents.folderId} IS NULL`
+          )
+        );
+
+      console.log(`Found ${unorganizedDocs.length} unorganized documents:`, unorganizedDocs.map(d => ({ name: d.name, category: d.aiCategory, type: d.aiDocumentType })));
+
+      let organized = 0;
+      const errors: string[] = [];
+
+      for (const doc of unorganizedDocs) {
+        if (doc.aiCategory && doc.aiDocumentType) {
+          try {
+            const success = await this.organizeDocumentIntoFolder(doc.id, doc.aiCategory, doc.aiDocumentType);
+            if (success) {
+              organized++;
+              console.log(`✓ Organized "${doc.name}" into ${doc.aiCategory}/${doc.aiDocumentType}`);
+            } else {
+              errors.push(`Failed to organize "${doc.name}"`);
+            }
+          } catch (error) {
+            const errorMsg = `Error organizing "${doc.name}": ${error instanceof Error ? error.message : 'Unknown error'}`;
+            errors.push(errorMsg);
+            console.error(errorMsg);
+          }
+        } else {
+          errors.push(`"${doc.name}" missing AI category or document type`);
+        }
+      }
+
+      console.log(`Organization complete: ${organized} organized, ${errors.length} errors`);
+      return { organized, errors };
+    } catch (error) {
+      console.error("Error in organizeAllUnorganizedDocuments:", error);
+      throw error;
+    }
+  }
+
   // AI Analysis Queue Management Methods
   async enqueueDocumentForAnalysis(documentId: string, userId: string, priority: number = 5): Promise<AiAnalysisQueue> {
     await this.ensureInitialized();

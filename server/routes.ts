@@ -1457,6 +1457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
   // Helper function to determine file type from MIME type
   function getFileTypeFromMimeType(mimeType: string): string {
     const mimeTypeMap: { [key: string]: string } = {

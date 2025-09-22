@@ -110,8 +110,7 @@ export default function Documents() {
     queryKey: ['/api/folders'],
   });
 
-  // Separate manual and automatic folders
-  const manualFolders = folders.filter(folder => !folder.isAutoCreated);
+  // Get automatic folders only (Smart Organization)
   const automaticFolders = folders.filter(folder => folder.isAutoCreated);
   
   // Build hierarchical structure for automatic folders
@@ -525,32 +524,6 @@ export default function Documents() {
             </div>
           )}
 
-          {/* Manual Folders */}
-          {manualFolders.length > 0 && (
-            <div className="mt-8">
-              <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Manual Folders</h3>
-              <ul className="mt-2 space-y-1">
-                {manualFolders.map((folder) => (
-                  <li key={folder.id}>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-between px-3 py-2 text-sm text-foreground hover:bg-accent opacity-70"
-                      onClick={() => setSelectedFolderId(selectedFolderId === folder.id ? "" : folder.id)}
-                      data-testid={`manual-folder-${folder.name.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <div className="flex items-center">
-                        <FolderOpen className="mr-3 h-4 w-4 text-gray-400" />
-                        <span>{folder.name}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {folder.documentCount || 0}
-                      </span>
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
           
           <div className="mt-8">
             <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tags</h3>
