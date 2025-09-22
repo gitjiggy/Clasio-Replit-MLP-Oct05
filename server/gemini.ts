@@ -40,7 +40,7 @@ export async function summarizeDocument(text: string): Promise<string> {
         return "AI analysis unavailable - API key not configured.";
     }
 
-    const prompt = `Write a concise 2-3 line description explaining what this document is about and its purpose. Write in clear, descriptive English sentences. DO NOT list topics or bullet points. Focus on what the document contains, what it's for, or what action it represents. Be specific and informative:\n\n${text}`;
+    const prompt = `Generate a professional, concise 2-3 line description of this document's content and purpose. Write in sophisticated, direct language without starting with "This document" or "The document". Use active voice and specific details. Avoid generic phrases and focus on the document's actual value, function, or key information. Be crisp and authoritative:\n\n${text}`;
 
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
