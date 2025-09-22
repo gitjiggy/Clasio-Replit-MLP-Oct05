@@ -330,8 +330,22 @@ export class DatabaseStorage implements IStorage {
     await this.ensureInitialized();
     
     try {
-      // Process the conversational query using Flash-lite
-      const queryAnalysis = await processConversationalQuery(query);
+      // Smart fallback: For simple queries, bypass AI processing to avoid rate limits
+      const isSimpleQuery = query.length < 20 && query.split(' ').length <= 2 && !/[?!]/.test(query);
+      
+      let queryAnalysis;
+      if (isSimpleQuery) {
+        // Direct search for simple queries - no AI needed
+        console.log(`Direct search for simple query: "${query}"`);
+        queryAnalysis = {
+          intent: "simple_search",
+          keywords: query.toLowerCase().split(/\s+/).filter(w => w.length > 2),
+          semanticQuery: query.toLowerCase()
+        };
+      } else {
+        // Process the conversational query using Flash-lite for complex queries
+        queryAnalysis = await processConversationalQuery(query);
+      }
       
       // Apply base filters
       const conditions = [eq(documents.isDeleted, false)];
@@ -388,17 +402,17 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // Smart search across AI metadata with semantic understanding
+      // Enhanced hybrid search: AI metadata + full document content
       if (queryAnalysis.keywords.length > 0) {
-        const searchConditions = [];
+        const allSearchConditions = [];
         
         for (const keyword of queryAnalysis.keywords) {
           const keywordConditions = [
-            // Search in document name (exact matches prioritized)
+            // Search in document names (highest priority)
             ilike(documents.name, `%${keyword}%`),
             ilike(documents.originalName, `%${keyword}%`),
             
-            // Search in AI-generated fields (core semantic search)
+            // Search in AI-generated metadata (high priority)
             and(isNotNull(documents.aiSummary), ilike(documents.aiSummary, `%${keyword}%`)),
             and(isNotNull(documents.aiConciseName), ilike(documents.aiConciseName, `%${keyword}%`)),
             
@@ -406,40 +420,76 @@ export class DatabaseStorage implements IStorage {
             and(isNotNull(documents.aiCategory), ilike(documents.aiCategory, `%${keyword}%`)),
             and(isNotNull(documents.overrideCategory), ilike(documents.overrideCategory, `%${keyword}%`)),
             and(isNotNull(documents.aiDocumentType), ilike(documents.aiDocumentType, `%${keyword}%`)),
-            and(isNotNull(documents.overrideDocumentType), ilike(documents.overrideDocumentType, `%${keyword}%`))
+            and(isNotNull(documents.overrideDocumentType), ilike(documents.overrideDocumentType, `%${keyword}%`)),
+            
+            // ENHANCED: Search full document content (medium priority)
+            and(isNotNull(documents.documentContent), ilike(documents.documentContent, `%${keyword}%`))
           ];
           
-          // Advanced: Search in key topics array (PostgreSQL array operations)
+          // IMPROVED: Better search in key topics array with substring matching
           try {
-            const keyTopicsCondition = sql`${documents.aiKeyTopics} && ARRAY[${keyword}]::text[]`;
-            keywordConditions.push(keyTopicsCondition);
+            // Exact array overlap (fast)
+            const keyTopicsExactCondition = sql`${documents.aiKeyTopics} && ARRAY[${keyword}]::text[]`;
+            keywordConditions.push(keyTopicsExactCondition);
             
-            // Also search case-insensitively within array elements
-            const keyTopicsLikeCondition = sql`EXISTS (
+            // Substring search within array elements (comprehensive)
+            const keyTopicsSubstringCondition = sql`EXISTS (
               SELECT 1 FROM unnest(${documents.aiKeyTopics}) AS topic 
               WHERE topic ILIKE ${`%${keyword}%`}
             )`;
-            keywordConditions.push(keyTopicsLikeCondition);
+            keywordConditions.push(keyTopicsSubstringCondition);
           } catch (error) {
-            console.warn("Array search fallback for keyword:", keyword);
+            console.warn("Array search fallback for keyword:", keyword, error);
           }
           
-          searchConditions.push(or(...keywordConditions.filter(Boolean))!);
+          allSearchConditions.push(or(...keywordConditions.filter(Boolean))!);
         }
         
-        if (searchConditions.length > 0) {
+        if (allSearchConditions.length > 0) {
           // Use OR for multiple keywords (any can match) for better recall
-          conditions.push(or(...searchConditions)!);
+          conditions.push(or(...allSearchConditions)!);
         }
       } else if (queryAnalysis.semanticQuery) {
-        // Fallback: search semantic query directly in AI metadata
+        // Enhanced fallback: search semantic query in all available fields
         const naturalSearchConditions = [
+          // Names and AI metadata
+          ilike(documents.name, `%${queryAnalysis.semanticQuery}%`),
+          ilike(documents.originalName, `%${queryAnalysis.semanticQuery}%`),
           and(isNotNull(documents.aiSummary), ilike(documents.aiSummary, `%${queryAnalysis.semanticQuery}%`)),
           and(isNotNull(documents.aiConciseName), ilike(documents.aiConciseName, `%${queryAnalysis.semanticQuery}%`)),
-          ilike(documents.name, `%${queryAnalysis.semanticQuery}%`)
+          
+          // Full document content
+          and(isNotNull(documents.documentContent), ilike(documents.documentContent, `%${queryAnalysis.semanticQuery}%`))
         ];
         
         conditions.push(or(...naturalSearchConditions.filter(Boolean))!);
+      }
+      
+      // IMPROVED: Apply AI filters only for high-confidence, specific queries
+      // Relax filters for generic single-word searches to prevent over-filtering
+      const isGenericQuery = queryAnalysis.keywords.length === 1 && queryAnalysis.keywords[0].length < 8;
+      const hasHighConfidenceIntent = queryAnalysis.intent && !queryAnalysis.intent.includes('general_search');
+      
+      if (!isGenericQuery && hasHighConfidenceIntent) {
+        // Apply category filter only for specific, high-confidence queries
+        if (queryAnalysis.categoryFilter) {
+          conditions.push(
+            or(
+              eq(documents.aiCategory, queryAnalysis.categoryFilter),
+              eq(documents.overrideCategory, queryAnalysis.categoryFilter)
+            )!
+          );
+        }
+        
+        // Apply document type filter only for specific, high-confidence queries  
+        if (queryAnalysis.documentTypeFilter) {
+          conditions.push(
+            or(
+              eq(documents.aiDocumentType, queryAnalysis.documentTypeFilter),
+              eq(documents.overrideDocumentType, queryAnalysis.documentTypeFilter)
+            )!
+          );
+        }
       }
       
       // Execute search with metadata fields
