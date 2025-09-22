@@ -135,7 +135,7 @@ class AIQueueProcessor {
         
         if (analysisResult) {
           // Generate proper 2-3 line English summary for AI Analysis section
-          const { summarizeDocument } = await import('../gemini.js');
+          const { summarizeDocument } = await import('./gemini.js');
           const properSummary = await summarizeDocument(content);
           
           // Update document with AI insights using updateDocument
@@ -265,7 +265,7 @@ class AIQueueProcessor {
       
       if (analysisResult) {
         // Generate proper 2-3 line English summary for AI Analysis section
-        const { summarizeDocument } = await import('../gemini.js');
+        const { summarizeDocument } = await import('./gemini.js');
         const properSummary = await summarizeDocument(content);
         
         // Update document with results
