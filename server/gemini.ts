@@ -257,6 +257,19 @@ ${text}`;
     }
 }
 
+// Utility function to sanitize extracted text for PostgreSQL storage
+function sanitizeTextForDatabase(text: string): string {
+    if (!text) return "";
+    
+    return text
+        // Remove null bytes and other control characters that cause PostgreSQL issues
+        .replace(/\x00/g, '') // Remove null bytes
+        .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove other control chars except \t, \n, \r
+        // Normalize whitespace
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 export async function extractTextFromDocument(filePath: string, mimeType: string, driveAccessToken?: string): Promise<string> {
     try {
         
@@ -278,7 +291,7 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
                     mimeType === 'text/plain' || mimeType === 'text/csv' || mimeType === 'text/html') {
                     const fileContent = await driveService.getFileContent(driveFileId);
                     if (fileContent && fileContent.content !== `[Binary file: ${fileContent.name}]`) {
-                        return fileContent.content;
+                        return sanitizeTextForDatabase(fileContent.content);
                     }
                     return `Failed to extract text content from Drive file: ${driveFileId}`;
                 } 
@@ -320,7 +333,7 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
         
         // For text files, convert buffer to string
         if (mimeType === 'text/plain' || mimeType === 'text/csv') {
-            return fileBuffer.toString('utf-8');
+            return sanitizeTextForDatabase(fileBuffer.toString('utf-8'));
         }
         
         // For PDF files
@@ -400,7 +413,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
             }
         }
         
-        return text;
+        return sanitizeTextForDatabase(text);
     } catch (error) {
         console.error("Error extracting text from PDF:", error);
         
@@ -425,7 +438,7 @@ async function extractTextFromWordDocx(buffer: Buffer): Promise<string> {
         if (result.messages && result.messages.length > 0) {
         }
         
-        return text || "No text content found in Word document.";
+        return sanitizeTextForDatabase(text || "No text content found in Word document.");
     } catch (error) {
         console.error("Error extracting text from DOCX:", error);
         return "Error extracting text from Word document.";
@@ -440,7 +453,7 @@ async function extractTextFromWordDoc(buffer: Buffer): Promise<string> {
         const extracted = await extractor.extract(buffer);
         const text = extracted.getBody()?.trim();
         
-        return text || "No text content found in Word document.";
+        return sanitizeTextForDatabase(text || "No text content found in Word document.");
     } catch (error) {
         console.error("Error extracting text from DOC:", error);
         return "Error extracting text from legacy Word document.";
@@ -483,7 +496,7 @@ async function extractTextFromExcel(buffer: Buffer): Promise<string> {
         });
         
         const text = allText.trim();
-        return text || "No text content found in Excel document.";
+        return sanitizeTextForDatabase(text || "No text content found in Excel document.");
     } catch (error) {
         console.error("Error extracting text from Excel:", error);
         return "Error extracting text from Excel document.";
@@ -511,7 +524,7 @@ async function extractTextFromImageBuffer(imageBuffer: Buffer, mimeType: string)
         const response = await result.response;
         const text = response.text();
 
-        return text || "No text could be extracted from this image.";
+        return sanitizeTextForDatabase(text || "No text could be extracted from this image.");
     } catch (error) {
         console.error("Error extracting text from image:", error);
         return "Error extracting text from image.";
