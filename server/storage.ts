@@ -389,16 +389,19 @@ export class DatabaseStorage implements IStorage {
       // Enhanced query processing with better fallbacks
       let queryAnalysis;
       
-      // Smart fallback: For simple queries, bypass AI processing to avoid rate limits
-      const isSimpleQuery = query.length < 20 && query.split(' ').length <= 2 && !/[?!]/.test(query);
+      // Smart bypass: For truly simple queries (single meaningful words), bypass AI processing
+      const meaningfulWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !/^(the|and|or|but|in|on|at|to|for|of|with|by|from|up|about|into|through|my|your|their|his|her|its|where|what|when|who|how|why)$/.test(w));
+      const isReallySimpleQuery = meaningfulWords.length === 1 && meaningfulWords[0].length > 3 && !/['"?!]/.test(query);
       
-      if (isSimpleQuery) {
-        // Direct search for simple queries - no AI needed
+      if (isReallySimpleQuery) {
+        // Direct search for truly simple single-word queries only
         console.log(`Direct search for simple query: "${query}"`);
         queryAnalysis = {
           intent: "simple_search",
-          keywords: query.toLowerCase().split(/\s+/).filter(w => w.length > 2),
-          semanticQuery: query.toLowerCase()
+          keywords: meaningfulWords,
+          semanticQuery: query.toLowerCase(),
+          categoryFilter: undefined,
+          documentTypeFilter: undefined
         };
       } else {
         try {

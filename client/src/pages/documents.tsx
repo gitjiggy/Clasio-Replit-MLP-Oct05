@@ -90,12 +90,13 @@ export default function Documents() {
   const [conversationalResponse, setConversationalResponse] = useState<string | null>(null);
   const [searchIntent, setSearchIntent] = useState<string | null>(null);
   const [searchKeywords, setSearchKeywords] = useState<string[]>([]);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
 
-  // Handle search with debouncing
+  // Handle search with debouncing for both analytics and API calls
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
     
@@ -104,13 +105,18 @@ export default function Documents() {
       clearTimeout(searchTimeout);
     }
     
-    // Set new timeout for analytics tracking
-    if (query.trim()) {
-      const timeout = setTimeout(() => {
+    // Set new timeout for both analytics tracking and API search
+    const timeout = setTimeout(() => {
+      // Update debounced search query for API calls
+      setDebouncedSearchQuery(query);
+      
+      // Track analytics
+      if (query.trim()) {
         trackEvent('search', { search_term: query.trim() });
-      }, 500); // 500ms debounce
-      setSearchTimeout(timeout);
-    }
+      }
+    }, 800); // 800ms debounce for conversational search
+    
+    setSearchTimeout(timeout);
   };
 
   // Fetch documents (traditional search)
@@ -125,15 +131,15 @@ export default function Documents() {
     enabled: !isConversationalMode || !searchQuery.trim(), // Disable when in conversational mode with query
   });
 
-  // Fetch conversational search results
+  // Fetch conversational search results with proper debouncing
   const { data: conversationalData, isLoading: conversationalLoading, error: conversationalError } = useQuery<ConversationalSearchResponse>({
     queryKey: ['/api/documents/search', { 
-      query: searchQuery,
+      query: debouncedSearchQuery,
       fileType: selectedFileType === "all" ? "" : selectedFileType, 
       folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
       tagId: selectedTagId
     }],
-    enabled: isConversationalMode && !!searchQuery.trim(), // Only run when in conversational mode with query
+    enabled: isConversationalMode && !!debouncedSearchQuery.trim() && debouncedSearchQuery.length > 2, // Only run when debounced query is ready and meaningful
     staleTime: 30000, // Cache for 30 seconds
   });
 
