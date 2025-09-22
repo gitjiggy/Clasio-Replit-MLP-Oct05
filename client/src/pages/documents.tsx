@@ -89,7 +89,10 @@ export default function Documents() {
   const [conversationalResponse, setConversationalResponse] = useState<string | null>(null);
   const [searchIntent, setSearchIntent] = useState<string | null>(null);
   const [searchKeywords, setSearchKeywords] = useState<string[]>([]);
-  // Proper debouncing implementation with useRef
+  // AI search execution control - only search when button is clicked
+  const [executeAISearch, setExecuteAISearch] = useState(false);
+  const [aiSearchQuery, setAISearchQuery] = useState("");
+  // Traditional search debouncing
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -126,6 +129,20 @@ export default function Documents() {
     };
   }, []);
 
+  // Handle Go! button click for AI search
+  const handleGoButtonClick = () => {
+    if (searchQuery.trim().length > 2) {
+      setAISearchQuery(searchQuery);
+      setExecuteAISearch(true);
+      // Clear previous results
+      setConversationalResponse(null);
+      setSearchIntent(null);
+      setSearchKeywords([]);
+      // Track analytics
+      trackEvent('search', { search_term: searchQuery.trim() });
+    }
+  };
+
   // Fetch documents (traditional search) - only when NOT in conversational mode
   const { data: documentsData, isLoading: documentsLoading } = useQuery<DocumentsResponse>({
     queryKey: ['/api/documents', { 
@@ -140,18 +157,25 @@ export default function Documents() {
     refetchOnWindowFocus: false, // Prevent unnecessary refetches
   });
 
-  // Fetch conversational search results - only when in conversational mode with meaningful query
+  // Fetch conversational search results - only when "Go!" button is clicked
   const { data: conversationalData, isLoading: conversationalLoading, error: conversationalError } = useQuery<ConversationalSearchResponse>({
     queryKey: ['/api/documents/search', { 
-      query: debouncedSearchQuery,
+      query: aiSearchQuery,
       fileType: selectedFileType === "all" ? "" : selectedFileType, 
       folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
       tagId: selectedTagId
     }],
-    enabled: isConversationalMode && debouncedSearchQuery.length > 2,
+    enabled: executeAISearch && aiSearchQuery.length > 2,
     staleTime: 30000,
-    refetchOnWindowFocus: false, // Prevent unnecessary refetches
+    refetchOnWindowFocus: false,
   });
+
+  // Reset AI search execution flag when query completes
+  useEffect(() => {
+    if (executeAISearch && !conversationalLoading) {
+      setExecuteAISearch(false);
+    }
+  }, [executeAISearch, conversationalLoading]);
 
   // Fetch folders with document counts
   const { data: folders = [] } = useQuery<(Folder & { documentCount: number })[]>({
@@ -725,7 +749,13 @@ export default function Documents() {
                       : "Search documents..."}
                     value={searchQuery}
                     onChange={(e) => handleSearchChange(e.target.value)}
-                    className={`w-80 pl-10 pr-12 ${isConversationalMode ? 'border-blue-500 focus:border-blue-600' : ''}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && isConversationalMode) {
+                        e.preventDefault();
+                        handleGoButtonClick();
+                      }
+                    }}
+                    className={`w-80 pl-10 ${isConversationalMode ? 'pr-20 border-blue-500 focus:border-blue-600' : 'pr-12'}`}
                     data-testid="search-input"
                   />
                   {isConversationalMode ? (
@@ -734,6 +764,21 @@ export default function Documents() {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   )}
                   
+                  {/* AI Search Go Button - only show in conversational mode */}
+                  {isConversationalMode && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleGoButtonClick}
+                      disabled={searchQuery.trim().length <= 2 || conversationalLoading}
+                      className="absolute right-10 top-1/2 transform -translate-y-1/2 h-8 px-3"
+                      title="Execute AI search"
+                      data-testid="button-ai-search-go"
+                    >
+                      {conversationalLoading ? "..." : "Go!"}
+                    </Button>
+                  )}
+
                   {/* Conversational Mode Toggle */}
                   <Button
                     variant="ghost"
@@ -753,6 +798,8 @@ export default function Documents() {
                         setSearchKeywords([]);
                       }
                       setDebouncedSearchQuery(""); // Clear debounced query to prevent cross-mode fetches
+                      setExecuteAISearch(false); // Clear AI search execution flag
+                      setAISearchQuery(""); // Clear AI search query
                     }}
                     className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
                     title={isConversationalMode ? "Switch to traditional search" : "Switch to AI conversational search"}
