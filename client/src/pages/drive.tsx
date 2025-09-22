@@ -299,16 +299,16 @@ export default function Drive() {
                         description: "Please allow popups for this site and try again.",
                         variant: "destructive"
                       });
-                    } else if (error.message.includes("cancelled")) {
+                    } else if (error.message.includes("cancelled") || error.message.includes("Authorization was cancelled")) {
+                      // Don't show error toast for user cancellation - it's intentional
                       toast({
-                        title: "Authorization Cancelled",
-                        description: "You can try connecting to Google Drive again anytime.",
-                        variant: "destructive"
+                        title: "Drive Connection",
+                        description: "You can connect to Google Drive anytime to access your documents.",
                       });
                     } else {
                       toast({
-                        title: "Connection failed",
-                        description: "Failed to connect to Google Drive. Please try again.",
+                        title: "Connection Issue",
+                        description: "Unable to connect to Google Drive. Please try again.",
                         variant: "destructive"
                       });
                     }
