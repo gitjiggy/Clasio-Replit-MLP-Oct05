@@ -500,9 +500,32 @@ export default function Documents() {
     setDocumentModalOpen(true);
   };
 
-  const handleDownload = (document: DocumentWithFolderAndTags) => {
-    // Open the document viewer page in a new tab
-    window.open(`/viewer/${document.id}`, '_blank');
+  const handleDownload = async (document: DocumentWithFolderAndTags) => {
+    try {
+      // For all documents (both uploaded and Google Drive), use our download API
+      const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link element to trigger download
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = document.name || 'document';
+      window.document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      window.document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Fallback to viewer page
+      window.open(`/viewer/${document.id}`, '_blank');
+    }
   };
 
   const clearFilters = () => {
@@ -1087,19 +1110,19 @@ export default function Documents() {
                     <div className="flex items-center space-x-2">
                       <Button
                         size="sm"
-                        className="flex-1"
+                        className="flex-none w-20"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDownload(document);
                         }}
                         data-testid={`download-${document.id}`}
                       >
-                        <Download className="mr-1 h-3 w-3" />
-                        Download
+                        <Download className="h-3 w-3" />
                       </Button>
                       <Button 
                         size="sm" 
                         variant="outline" 
+                        className="flex-1"
                         onClick={async (e) => {
                           e.stopPropagation();
                           // Direct document viewing - bypass intermediate page
@@ -1132,6 +1155,7 @@ export default function Documents() {
                       <Button
                         size="sm"
                         variant={document.aiSummary ? "secondary" : "outline"}
+                        className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           analyzeDocumentMutation.mutate(document.id);
