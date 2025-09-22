@@ -647,8 +647,8 @@ export class DatabaseStorage implements IStorage {
   async getFolders(): Promise<(Folder & { documentCount: number })[]> {
     await this.ensureInitialized();
     
-    // Get all folders with document counts
-    const foldersWithCounts = await db
+    // Get all folders with their basic info
+    const allFolders = await db
       .select({
         id: folders.id,
         name: folders.name,
@@ -659,12 +659,49 @@ export class DatabaseStorage implements IStorage {
         documentType: folders.documentType,
         gcsPath: folders.gcsPath,
         createdAt: folders.createdAt,
-        documentCount: sql<number>`CAST(COUNT(${documents.id}) AS INTEGER)`,
       })
       .from(folders)
-      .leftJoin(documents, sql`${documents.folderId} = ${folders.id} AND ${documents.isDeleted} = false`)
-      .groupBy(folders.id)
       .orderBy(folders.name);
+
+    // Calculate document counts for each folder
+    const foldersWithCounts = await Promise.all(
+      allFolders.map(async (folder) => {
+        let documentCount = 0;
+
+        if (!folder.parentId) {
+          // For main category folders (no parent), count all documents in subfolders
+          const subfolderDocs = await db
+            .select({
+              count: sql<number>`CAST(COUNT(${documents.id}) AS INTEGER)`,
+            })
+            .from(folders)
+            .leftJoin(documents, sql`${documents.folderId} = ${folders.id} AND ${documents.isDeleted} = false`)
+            .where(eq(folders.parentId, folder.id));
+
+          documentCount = subfolderDocs[0]?.count || 0;
+        } else {
+          // For subfolders, count direct documents
+          const directDocs = await db
+            .select({
+              count: sql<number>`CAST(COUNT(${documents.id}) AS INTEGER)`,
+            })
+            .from(documents)
+            .where(
+              and(
+                eq(documents.folderId, folder.id),
+                eq(documents.isDeleted, false)
+              )
+            );
+
+          documentCount = directDocs[0]?.count || 0;
+        }
+
+        return {
+          ...folder,
+          documentCount,
+        };
+      })
+    );
 
     return foldersWithCounts;
   }
