@@ -254,6 +254,36 @@ export default function Documents() {
     },
   });
 
+  // Delete all documents mutation (for testing)
+  const deleteAllDocumentsMutation = useMutation({
+    mutationFn: async () => {
+      if (!documentsData?.documents) return { success: true };
+      
+      // Delete all documents one by one
+      const deletePromises = documentsData.documents.map(doc => 
+        apiRequest("DELETE", `/api/documents/${doc.id}`)
+      );
+      
+      await Promise.all(deletePromises);
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+      toast({
+        title: "All documents deleted",
+        description: "All documents have been deleted successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Delete all failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const getUploadParameters = async () => {
     const response = await apiRequest("POST", "/api/documents/upload-url", {});
     const data = await response.json();
@@ -614,6 +644,20 @@ export default function Documents() {
                 AI Queue
               </Button>
               
+              {/* Delete All Button (for testing) */}
+              {documentsData?.documents && documentsData.documents.length > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={() => deleteAllDocumentsMutation.mutate()}
+                  disabled={deleteAllDocumentsMutation.isPending}
+                  className="flex items-center gap-2"
+                  data-testid="button-delete-all"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {deleteAllDocumentsMutation.isPending ? 'Deleting All...' : 'Delete All'}
+                </Button>
+              )}
+              
               {/* Upload Button - Now with bulk upload support! */}
               <ObjectUploader
                 maxNumberOfFiles={5}
@@ -714,8 +758,7 @@ export default function Documents() {
               {documentsData?.documents.map((document) => (
                 <Card 
                   key={document.id} 
-                  className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
-                  onClick={() => handleViewDocument(document)}
+                  className="hover:shadow-lg transition-shadow duration-200" 
                   data-testid={`document-card-${document.id}`}
                 >
                   <CardContent className="p-4">
@@ -905,6 +948,18 @@ export default function Documents() {
                         data-testid={`analyze-ai-${document.id}`}
                       >
                         <Brain className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteDocumentMutation.mutate(document.id);
+                        }}
+                        disabled={deleteDocumentMutation.isPending}
+                        data-testid={`delete-${document.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </CardContent>
