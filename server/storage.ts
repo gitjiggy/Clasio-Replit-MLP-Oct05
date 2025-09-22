@@ -26,6 +26,7 @@ import {
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
+import { processConversationalQuery, generateConversationalResponse } from "./gemini.js";
 
 // Predefined main categories for automatic organization
 const MAIN_CATEGORIES = [
@@ -317,6 +318,200 @@ export class DatabaseStorage implements IStorage {
     );
 
     return docsWithTags;
+  }
+
+  // Enhanced conversational search using AI metadata
+  async searchConversational(query: string, filters: Omit<DocumentFilters, 'search'> = {}): Promise<{
+    documents: DocumentWithFolderAndTags[];
+    response: string;
+    intent: string;
+    keywords: string[];
+  }> {
+    await this.ensureInitialized();
+    
+    try {
+      // Process the conversational query using Flash-lite
+      const queryAnalysis = await processConversationalQuery(query);
+      
+      // Apply base filters
+      const conditions = [eq(documents.isDeleted, false)];
+      
+      // Add category filter from AI analysis or explicit filters
+      if (queryAnalysis.categoryFilter) {
+        // Check both AI category and user-overridden category
+        const categoryCondition = or(
+          eq(documents.aiCategory, queryAnalysis.categoryFilter),
+          eq(documents.overrideCategory, queryAnalysis.categoryFilter)
+        );
+        if (categoryCondition) {
+          conditions.push(categoryCondition);
+        }
+      }
+      
+      // Add document type filter from AI analysis
+      if (queryAnalysis.documentTypeFilter) {
+        const docTypeCondition = or(
+          eq(documents.aiDocumentType, queryAnalysis.documentTypeFilter),
+          eq(documents.overrideDocumentType, queryAnalysis.documentTypeFilter)
+        );
+        if (docTypeCondition) {
+          conditions.push(docTypeCondition);
+        }
+      }
+      
+      // Apply additional filters (file type, folder, tag)
+      if (filters.fileType && filters.fileType !== 'all') {
+        conditions.push(eq(documents.fileType, filters.fileType));
+      }
+      
+      if (filters.folderId && filters.folderId !== 'all') {
+        conditions.push(eq(documents.folderId, filters.folderId));
+      }
+      
+      if (filters.tagId) {
+        const docsWithTag = await db
+          .select({ documentId: documentTags.documentId })
+          .from(documentTags)
+          .where(eq(documentTags.tagId, filters.tagId));
+        
+        const docIds = docsWithTag.map(dt => dt.documentId);
+        if (docIds.length > 0) {
+          conditions.push(inArray(documents.id, docIds));
+        } else {
+          // No documents with this tag
+          return {
+            documents: [],
+            response: `No documents found with the specified tag.`,
+            intent: queryAnalysis.intent,
+            keywords: queryAnalysis.keywords
+          };
+        }
+      }
+      
+      // Smart search across AI metadata
+      if (queryAnalysis.keywords.length > 0) {
+        const searchConditions = [];
+        
+        for (const keyword of queryAnalysis.keywords) {
+          const keywordConditions = [
+            // Search in document name
+            ilike(documents.name, `%${keyword}%`),
+            // Search in AI summary
+            and(isNotNull(documents.aiSummary), ilike(documents.aiSummary, `%${keyword}%`)),
+            // Search in concise title
+            and(isNotNull(documents.aiConciseName), ilike(documents.aiConciseName, `%${keyword}%`))
+          ];
+          
+          // Search in key topics array (PostgreSQL array contains)
+          const keyTopicsCondition = sql`${documents.aiKeyTopics} && ARRAY[${keyword}]::text[]`;
+          keywordConditions.push(keyTopicsCondition);
+          
+          searchConditions.push(or(...keywordConditions.filter(Boolean))!);
+        }
+        
+        if (searchConditions.length > 0) {
+          // Use AND for multiple keywords (all must match somewhere)
+          conditions.push(and(...searchConditions)!);
+        }
+      }
+      
+      // Execute search with metadata fields
+      const foundDocuments = await db
+        .select({
+          id: documents.id,
+          name: documents.name,
+          originalName: documents.originalName,
+          filePath: documents.filePath,
+          fileSize: documents.fileSize,
+          fileType: documents.fileType,
+          mimeType: documents.mimeType,
+          folderId: documents.folderId,
+          uploadedAt: documents.uploadedAt,
+          isFavorite: documents.isFavorite,
+          isDeleted: documents.isDeleted,
+          driveFileId: documents.driveFileId,
+          driveWebViewLink: documents.driveWebViewLink,
+          isFromDrive: documents.isFromDrive,
+          driveLastModified: documents.driveLastModified,
+          driveSyncStatus: documents.driveSyncStatus,
+          driveSyncedAt: documents.driveSyncedAt,
+          aiSummary: documents.aiSummary,
+          aiKeyTopics: documents.aiKeyTopics,
+          aiDocumentType: documents.aiDocumentType,
+          aiCategory: documents.aiCategory,
+          aiSentiment: documents.aiSentiment,
+          aiWordCount: documents.aiWordCount,
+          aiAnalyzedAt: documents.aiAnalyzedAt,
+          aiConciseName: documents.aiConciseName,
+          aiCategoryConfidence: documents.aiCategoryConfidence,
+          aiDocumentTypeConfidence: documents.aiDocumentTypeConfidence,
+          overrideCategory: documents.overrideCategory,
+          overrideDocumentType: documents.overrideDocumentType,
+          classificationOverridden: documents.classificationOverridden,
+          contentExtracted: documents.contentExtracted,
+          contentExtractedAt: documents.contentExtractedAt
+        })
+        .from(documents)
+        .where(and(...conditions))
+        .orderBy(desc(documents.uploadedAt))
+        .limit(filters.limit || 12);
+      
+      // Fetch folder and tag information for each document
+      const documentsWithFoldersAndTags: DocumentWithFolderAndTags[] = [];
+      
+      for (const doc of foundDocuments) {
+        const folder = doc.folderId 
+          ? (await db.select().from(folders).where(eq(folders.id, doc.folderId)))[0] || null
+          : null;
+        
+        const docTags = await db
+          .select({
+            id: tags.id,
+            name: tags.name,
+            color: tags.color,
+            createdAt: tags.createdAt,
+          })
+          .from(tags)
+          .innerJoin(documentTags, eq(tags.id, documentTags.tagId))
+          .where(eq(documentTags.documentId, doc.id));
+        
+        documentsWithFoldersAndTags.push({
+          ...doc,
+          folder,
+          tags: docTags,
+        });
+      }
+      
+      // Generate conversational response using Flash-lite
+      const conversationalResponse = await generateConversationalResponse(
+        query,
+        documentsWithFoldersAndTags,
+        queryAnalysis.intent
+      );
+      
+      return {
+        documents: documentsWithFoldersAndTags,
+        response: conversationalResponse,
+        intent: queryAnalysis.intent,
+        keywords: queryAnalysis.keywords
+      };
+      
+    } catch (error) {
+      console.error("Error in conversational search:", error);
+      
+      // Fallback to regular search if conversational search fails
+      const fallbackResults = await this.getDocuments({
+        search: query,
+        ...filters
+      });
+      
+      return {
+        documents: fallbackResults,
+        response: `Found ${fallbackResults.length} documents matching "${query}".`,
+        intent: "general_search",
+        keywords: [query]
+      };
+    }
   }
 
   async getDocumentsCount(filters: DocumentFilters): Promise<number> {

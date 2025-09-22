@@ -487,6 +487,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced conversational search endpoint using Flash-lite
+  app.get("/api/documents/search", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { query, fileType, folderId, tagId, limit = 12 } = req.query;
+      
+      // Validate required query parameter
+      if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        return res.status(400).json({ 
+          error: "Query parameter is required for conversational search" 
+        });
+      }
+      
+      // Validate and sanitize other parameters
+      const filters = {
+        fileType: typeof fileType === 'string' ? fileType : undefined,
+        folderId: typeof folderId === 'string' ? folderId : undefined,
+        tagId: typeof tagId === 'string' ? tagId : undefined,
+        limit: typeof limit === 'string' ? Math.min(parseInt(limit) || 12, 50) : 12,
+      };
+      
+      // Use conversational search from storage
+      const searchResult = await storage.searchConversational(query.trim(), filters);
+      
+      res.json({
+        documents: searchResult.documents,
+        response: searchResult.response,
+        intent: searchResult.intent,
+        keywords: searchResult.keywords,
+        query: query.trim(),
+        totalResults: searchResult.documents.length
+      });
+    } catch (error) {
+      console.error("Error in conversational search:", error);
+      res.status(500).json({ 
+        error: "Failed to perform conversational search",
+        message: "Our AI assistant seems to be taking a coffee break! ☕ Please try again in a moment."
+      });
+    }
+  });
+
   // Get document content on-demand
   app.get("/api/documents/:id/content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
