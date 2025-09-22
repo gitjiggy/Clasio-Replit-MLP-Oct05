@@ -7,7 +7,7 @@ import { DriveService } from "./driveService";
 import { strictLimiter, moderateLimiter, standardLimiter, bulkUploadLimiter } from "./rateLimit";
 import multer from "multer";
 import path from "path";
-import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, documentVersions, documents, type DocumentWithFolderAndTags } from "@shared/schema";
+import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, insertDocumentTagSchema, documentVersions, documents, type DocumentWithFolderAndTags } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { db } from "./db.js";
 import { z } from "zod";
@@ -1320,6 +1320,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting tag:", error);
       res.status(500).json({ error: "Failed to delete tag" });
+    }
+  });
+
+  // Document-Tags endpoints
+  app.post("/api/document-tags", async (req, res) => {
+    try {
+      const validatedData = insertDocumentTagSchema.parse(req.body);
+      const documentTag = await storage.addDocumentTag(validatedData);
+      res.status(201).json(documentTag);
+    } catch (error) {
+      console.error("Error adding tag to document:", error);
+      res.status(500).json({ error: "Failed to add tag to document" });
+    }
+  });
+
+  app.delete("/api/document-tags/:documentId/:tagId", async (req, res) => {
+    try {
+      const { documentId, tagId } = req.params;
+      await storage.removeDocumentTag(documentId, tagId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing tag from document:", error);
+      res.status(500).json({ error: "Failed to remove tag from document" });
     }
   });
 

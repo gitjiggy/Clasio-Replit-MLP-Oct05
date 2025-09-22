@@ -84,6 +84,7 @@ export interface IStorage {
 
   // Document Tags
   addDocumentTag(documentTag: InsertDocumentTag): Promise<DocumentTag>;
+  removeDocumentTag(documentId: string, tagId: string): Promise<void>;
   
   // Automatic Folder Organization
   findOrCreateCategoryFolder(category: string): Promise<Folder>;
@@ -782,6 +783,14 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(documentTags)
       .where(eq(documentTags.documentId, documentId));
+  }
+
+  async removeDocumentTag(documentId: string, tagId: string): Promise<void> {
+    await db
+      .delete(documentTags)
+      .where(
+        sql`${documentTags.documentId} = ${documentId} AND ${documentTags.tagId} = ${tagId}`
+      );
   }
 
   // AI Analysis
