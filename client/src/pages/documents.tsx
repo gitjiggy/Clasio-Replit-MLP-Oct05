@@ -90,7 +90,7 @@ export default function Documents() {
   const [conversationalResponse, setConversationalResponse] = useState<string | null>(null);
   const [searchIntent, setSearchIntent] = useState<string | null>(null);
   const [searchKeywords, setSearchKeywords] = useState<string[]>([]);
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
