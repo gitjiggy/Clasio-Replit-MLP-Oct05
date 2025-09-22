@@ -909,7 +909,7 @@ export default function Documents() {
                           <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
                             {(document.overrideDocumentType || document.aiDocumentType) && (
                               <div className="flex items-center justify-between">
-                                <span>Type: {document.overrideDocumentType || document.aiDocumentType}</span>
+                                <span>Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
                                 <div className="flex items-center gap-1">
                                   {document.overrideDocumentType && (
                                     <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
@@ -925,7 +925,7 @@ export default function Documents() {
                               </div>
                             )}
                             <div className="flex items-center justify-between">
-                              <span>Category: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                              <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
                               <div className="flex items-center gap-1">
                                 {document.overrideCategory && (
                                   <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>

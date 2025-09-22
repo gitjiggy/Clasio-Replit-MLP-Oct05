@@ -716,7 +716,7 @@ export function DocumentModal({
                           {document.aiDocumentType && (
                             <div className="flex items-center justify-between">
                               <span className="text-sm">
-                                <span className="text-muted-foreground">Type:</span> {document.overrideDocumentType || document.aiDocumentType}
+                                <span className="text-muted-foreground">Sub-folder:</span> {document.overrideDocumentType || document.aiDocumentType}
                                 {document.classificationOverridden && document.overrideDocumentType && (
                                   <Badge variant="secondary" className="ml-2 text-xs">Edited</Badge>
                                 )}
@@ -731,7 +731,7 @@ export function DocumentModal({
                           {document.aiCategory && (
                             <div className="flex items-center justify-between">
                               <span className="text-sm">
-                                <span className="text-muted-foreground">Category:</span> {document.overrideCategory || document.aiCategory}
+                                <span className="text-muted-foreground">Folder:</span> {document.overrideCategory || document.aiCategory}
                                 {document.classificationOverridden && document.overrideCategory && (
                                   <Badge variant="secondary" className="ml-2 text-xs">Edited</Badge>
                                 )}
