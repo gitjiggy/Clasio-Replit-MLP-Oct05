@@ -1100,11 +1100,30 @@ export default function Documents() {
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          // Open document details/preview
-                          // Open the document viewer page in a new tab
-                          window.open(`/viewer/${document.id}`, '_blank');
+                          // Direct document viewing - bypass intermediate page
+                          try {
+                            // For Google Drive documents, open Drive viewer directly
+                            if (document.driveWebViewLink) {
+                              window.open(document.driveWebViewLink, '_blank');
+                              return;
+                            }
+
+                            // For uploaded documents, fetch and display in new tab
+                            const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
+                            if (!response.ok) {
+                              throw new Error('View failed');
+                            }
+
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            window.open(url, '_blank');
+                          } catch (error) {
+                            console.error('View failed:', error);
+                            // Fallback to viewer page if direct view fails
+                            window.open(`/viewer/${document.id}`, '_blank');
+                          }
                         }}
                         data-testid={`preview-${document.id}`}
                       >
