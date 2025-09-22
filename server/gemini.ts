@@ -566,7 +566,12 @@ export async function processConversationalQuery(query: string): Promise<{
         throw new Error("Gemini API key not configured");
     }
 
-    const prompt = `Analyze this conversational search query and extract search intent and keywords.
+    const prompt = `You are a smart document search assistant. Extract keywords from natural language search queries.
+
+IMPORTANT: Focus on extracting the actual search terms users want to find, especially from questions like:
+- "do I have any documents with the term X?" → extract "X"
+- "find documents containing Y" → extract "Y"  
+- "show me files about Z" → extract "Z"
 
 AVAILABLE CATEGORIES: "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
 
@@ -574,12 +579,18 @@ AVAILABLE DOCUMENT TYPES: "Resume", "Cover Letter", "Contract", "Invoice", "Rece
 
 Query: "${query}"
 
+EXAMPLES:
+- "do I have any documents with the term mcasd?" → keywords: ["mcasd"]
+- "find my tax documents" → keywords: ["tax"], categoryFilter: "Taxes"
+- "show me insurance papers" → keywords: ["insurance"], categoryFilter: "Insurance"
+- "documents containing EIN number" → keywords: ["EIN", "number"]
+
 Extract:
-1. Intent: What is the user trying to find? (e.g., "find_tax_identifier", "locate_financial_info", "search_medical_records")
-2. Keywords: Key search terms to look for in documents (e.g., ["EIN", "tax ID", "employer identification"])
-3. Category filter: If query implies a specific category, return it exactly as listed above
-4. Document type filter: If query implies a specific document type, return it exactly as listed above  
-5. Semantic query: Rephrase as a search-optimized query for finding relevant document summaries
+1. Intent: What is the user trying to find?
+2. Keywords: The actual terms to search for in document content (be very liberal - include any specific terms mentioned)
+3. Category filter: If query clearly implies a specific category, return it exactly as listed above
+4. Document type filter: If query clearly implies a specific document type, return it exactly as listed above  
+5. Semantic query: Rephrase as a search-optimized query
 
 Format as JSON:
 {

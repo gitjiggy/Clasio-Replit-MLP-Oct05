@@ -320,6 +320,60 @@ export class DatabaseStorage implements IStorage {
     return docsWithTags;
   }
 
+  // Smart fallback for extracting keywords from conversational queries
+  private extractKeywordsFromConversationalQuery(query: string) {
+    const lowerQuery = query.toLowerCase();
+    
+    // Common conversational patterns and keyword extraction
+    const patterns = [
+      // "do I have any documents with the term X?"
+      /(?:do\s+i\s+have|are\s+there).*?(?:documents?|files?).*?(?:with\s+the\s+term|containing|about)\s+["']?([^"'?\s]+)["']?/i,
+      // "find documents containing X"
+      /(?:find|search|show|get).*?(?:documents?|files?).*?(?:containing|with|about)\s+["']?([^"'?\s]+)["']?/i,
+      // "documents about X" or "files with X"
+      /(?:documents?|files?).*?(?:about|with|containing)\s+["']?([^"'?\s]+)["']?/i,
+      // Extract quoted terms
+      /["']([^"']+)["']/g,
+      // Extract terms after "term", "keyword", "word"
+      /(?:term|keyword|word)\s+["']?([^"'?\s]+)["']?/i
+    ];
+    
+    const extractedKeywords: string[] = [];
+    
+    // Try each pattern
+    for (const pattern of patterns) {
+      const matches = lowerQuery.match(pattern);
+      if (matches) {
+        // Add captured groups (excluding the full match)
+        for (let i = 1; i < matches.length; i++) {
+          if (matches[i] && matches[i].length > 2) {
+            extractedKeywords.push(matches[i].trim());
+          }
+        }
+      }
+    }
+    
+    // If no patterns matched, extract meaningful words (excluding common stop words)
+    if (extractedKeywords.length === 0) {
+      const stopWords = new Set(['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'among', 'any', 'some', 'all', 'each', 'few', 'more', 'most', 'other', 'such', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'can', 'will', 'just', 'should', 'now', 'document', 'documents', 'file', 'files', 'have', 'find', 'search', 'show', 'get', 'containing', 'with', 'about', 'term']);
+      
+      const words = lowerQuery.split(/\s+/).filter(word => 
+        word.length > 2 && 
+        !stopWords.has(word) && 
+        !/^[?!.,;:()]+$/.test(word)
+      );
+      extractedKeywords.push(...words);
+    }
+    
+    console.log(`Extracted keywords from "${query}":`, extractedKeywords);
+    
+    return {
+      intent: "conversational_search",
+      keywords: extractedKeywords,
+      semanticQuery: query.toLowerCase()
+    };
+  }
+
   // Enhanced conversational search using AI metadata
   async searchConversational(query: string, filters: Omit<DocumentFilters, 'search'> = {}): Promise<{
     documents: DocumentWithFolderAndTags[];
@@ -330,10 +384,12 @@ export class DatabaseStorage implements IStorage {
     await this.ensureInitialized();
     
     try {
+      // Enhanced query processing with better fallbacks
+      let queryAnalysis;
+      
       // Smart fallback: For simple queries, bypass AI processing to avoid rate limits
       const isSimpleQuery = query.length < 20 && query.split(' ').length <= 2 && !/[?!]/.test(query);
       
-      let queryAnalysis;
       if (isSimpleQuery) {
         // Direct search for simple queries - no AI needed
         console.log(`Direct search for simple query: "${query}"`);
@@ -343,8 +399,14 @@ export class DatabaseStorage implements IStorage {
           semanticQuery: query.toLowerCase()
         };
       } else {
-        // Process the conversational query using Flash-lite for complex queries
-        queryAnalysis = await processConversationalQuery(query);
+        try {
+          // Process the conversational query using Flash-lite for complex queries
+          queryAnalysis = await processConversationalQuery(query);
+        } catch (error) {
+          console.warn("AI processing failed, using smart fallback:", error.message);
+          // Enhanced fallback: Extract keywords from conversational questions
+          queryAnalysis = this.extractKeywordsFromConversationalQuery(query);
+        }
       }
       
       // Apply base filters
