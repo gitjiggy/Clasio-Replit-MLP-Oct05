@@ -30,7 +30,7 @@ import {
   Check,
   X
 } from "lucide-react";
-import type { DocumentWithFolderAndTags, Folder as FolderType } from "@shared/schema";
+import type { DocumentWithFolderAndTags, Folder as FolderType, Tag as TagType } from "@shared/schema";
 import { getDocumentDisplayName, getDocumentTooltip, type DocumentWithVersionInfo } from "@/lib/documentDisplay";
 import { searchCategories, searchDocumentTypes } from "@/lib/documentClassifications";
 
@@ -88,6 +88,8 @@ export function DocumentModal({
   const [isEditingClassification, setIsEditingClassification] = useState(false);
   const [editCategory, setEditCategory] = useState<string>("");
   const [editDocumentType, setEditDocumentType] = useState<string>("");
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [newTagName, setNewTagName] = useState<string>("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   
   const { toast } = useToast();
@@ -102,6 +104,12 @@ export function DocumentModal({
   // Fetch folders for classification editing
   const { data: folders = [] } = useQuery<FolderType[]>({
     queryKey: ['/api/folders'],
+    enabled: open, // Only fetch when modal is open
+  });
+  
+  // Fetch available tags for tagging
+  const { data: availableTags = [] } = useQuery<TagType[]>({
+    queryKey: ['/api/tags'],
     enabled: open, // Only fetch when modal is open
   });
   
@@ -143,6 +151,84 @@ export function DocumentModal({
     },
   });
 
+  // Create new tag mutation
+  const createTagMutation = useMutation({
+    mutationFn: async (tagName: string) => {
+      const response = await apiRequest('/api/tags', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: tagName }),
+      });
+      return response;
+    },
+    onSuccess: (newTag) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tags'] });
+      // Automatically add the new tag to the document
+      addTagToDocumentMutation.mutate(newTag.id);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Create Tag",
+        description: error.message || "Failed to create new tag.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Add tag to document mutation
+  const addTagToDocumentMutation = useMutation({
+    mutationFn: async (tagId: string) => {
+      const response = await apiRequest('/api/document-tags', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId: document.id, tagId }),
+      });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tags'] });
+      setIsAddingTag(false);
+      setNewTagName("");
+      toast({
+        title: "Tag Added",
+        description: "Tag has been added to the document successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Add Tag",
+        description: error.message || "Failed to add tag to document.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Remove tag from document mutation
+  const removeTagFromDocumentMutation = useMutation({
+    mutationFn: async (tagId: string) => {
+      const response = await apiRequest(`/api/document-tags/${document.id}/${tagId}`, {
+        method: "DELETE",
+      });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tags'] });
+      toast({
+        title: "Tag Removed",
+        description: "Tag has been removed from the document successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Remove Tag",
+        description: error.message || "Failed to remove tag from document.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Initialize edit values when starting to edit
   useEffect(() => {
     if (isEditingClassification) {
@@ -178,6 +264,37 @@ export function DocumentModal({
         documentType: editDocumentType,
       });
     }
+  };
+
+  // Tag management handlers
+  const handleAddTag = (tagName: string) => {
+    const existingTag = availableTags.find(tag => tag.name.toLowerCase() === tagName.toLowerCase());
+    
+    if (existingTag) {
+      // Check if document already has this tag
+      const hasTag = document.tags.some(tag => tag.id === existingTag.id);
+      if (hasTag) {
+        toast({
+          title: "Tag Already Added",
+          description: "This document already has this tag.",
+          variant: "destructive",
+        });
+        return;
+      }
+      // Add existing tag to document
+      addTagToDocumentMutation.mutate(existingTag.id);
+    } else {
+      // Create new tag and add to document
+      createTagMutation.mutate(tagName);
+    }
+  };
+
+  const handleRemoveTag = (tagId: string) => {
+    removeTagFromDocumentMutation.mutate(tagId);
+  };
+
+  const getTagOptions = () => {
+    return availableTags.map(tag => tag.name);
   };
 
   // Use existing content or fetched content (API returns { content })
@@ -451,21 +568,73 @@ export function DocumentModal({
                     <Tag className="h-4 w-4 mr-1" />
                     Tags
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {document.tags.length > 0 ? (
-                      document.tags.map((tag) => (
-                        <Badge 
-                          key={tag.id} 
-                          variant="secondary"
-                          style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
-                          data-testid={`tag-${tag.id}`}
+                  <div className="space-y-2">
+                    {/* Existing Tags */}
+                    <div className="flex flex-wrap gap-1">
+                      {document.tags.length > 0 ? (
+                        document.tags.map((tag) => (
+                          <Badge 
+                            key={tag.id} 
+                            variant="secondary"
+                            className="cursor-pointer hover:opacity-80 transition-opacity"
+                            style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+                            onClick={() => handleRemoveTag(tag.id)}
+                            title="Click to remove tag"
+                            data-testid={`tag-${tag.id}`}
+                          >
+                            {tag.name}
+                            <X className="h-3 w-3 ml-1" />
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No tags</span>
+                      )}
+                    </div>
+                    
+                    {/* Add Tag Section */}
+                    <div className="flex items-center space-x-2">
+                      {!isAddingTag ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsAddingTag(true)}
+                          className="text-xs h-7"
+                          data-testid="add-tag-button"
                         >
-                          {tag.name}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-sm text-muted-foreground">No tags</span>
-                    )}
+                          + Add Tag
+                        </Button>
+                      ) : (
+                        <div className="flex items-center space-x-2 flex-1">
+                          <AutocompleteCombobox
+                            value={newTagName}
+                            onValueChange={(value) => {
+                              setNewTagName(value);
+                              if (value && value.trim()) {
+                                handleAddTag(value.trim());
+                              }
+                            }}
+                            options={getTagOptions()}
+                            placeholder="Select or create tag..."
+                            searchPlaceholder="Search tags..."
+                            allowCustom={true}
+                            className="flex-1 h-7 text-xs"
+                            testId="tag-combobox"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setIsAddingTag(false);
+                              setNewTagName("");
+                            }}
+                            className="h-7 px-2"
+                            data-testid="cancel-add-tag"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
