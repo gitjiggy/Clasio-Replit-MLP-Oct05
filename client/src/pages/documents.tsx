@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,7 +82,6 @@ export default function Documents() {
   const [selectedTagId, setSelectedTagId] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [queueDashboardOpen, setQueueDashboardOpen] = useState(false);
   
   // Conversational search state
@@ -90,36 +89,44 @@ export default function Documents() {
   const [conversationalResponse, setConversationalResponse] = useState<string | null>(null);
   const [searchIntent, setSearchIntent] = useState<string | null>(null);
   const [searchKeywords, setSearchKeywords] = useState<string[]>([]);
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+  // Proper debouncing implementation with useRef
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
 
-  // Handle search with debouncing for both analytics and API calls
-  const handleSearchChange = (query: string) => {
+  // Proper debounced search implementation
+  const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
     
     // Clear existing timeout
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
     }
     
-    // Set new timeout for both analytics tracking and API search
-    const timeout = setTimeout(() => {
-      // Update debounced search query for API calls
+    // Set new timeout for debounced search
+    debounceTimeoutRef.current = setTimeout(() => {
       setDebouncedSearchQuery(query);
       
       // Track analytics
       if (query.trim()) {
         trackEvent('search', { search_term: query.trim() });
       }
-    }, 800); // 800ms debounce for conversational search
-    
-    setSearchTimeout(timeout);
-  };
+    }, 800);
+  }, []);
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  // Fetch documents (traditional search) - now with proper debouncing
+  // Fetch documents (traditional search) - only when NOT in conversational mode
   const { data: documentsData, isLoading: documentsLoading } = useQuery<DocumentsResponse>({
     queryKey: ['/api/documents', { 
       search: debouncedSearchQuery, 
@@ -128,10 +135,12 @@ export default function Documents() {
       tagId: selectedTagId, 
       page: currentPage 
     }],
-    enabled: !isConversationalMode, // Only run when NOT in conversational mode
+    enabled: !isConversationalMode && (debouncedSearchQuery.length === 0 || debouncedSearchQuery.length > 2),
+    staleTime: 30000,
+    refetchOnWindowFocus: false, // Prevent unnecessary refetches
   });
 
-  // Fetch conversational search results with proper debouncing
+  // Fetch conversational search results - only when in conversational mode with meaningful query
   const { data: conversationalData, isLoading: conversationalLoading, error: conversationalError } = useQuery<ConversationalSearchResponse>({
     queryKey: ['/api/documents/search', { 
       query: debouncedSearchQuery,
@@ -139,8 +148,9 @@ export default function Documents() {
       folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
       tagId: selectedTagId
     }],
-    enabled: isConversationalMode && !!debouncedSearchQuery.trim() && debouncedSearchQuery.length > 2, // Only run when in conversational mode with meaningful query
-    staleTime: 30000, // Cache for 30 seconds
+    enabled: isConversationalMode && debouncedSearchQuery.length > 2,
+    staleTime: 30000,
+    refetchOnWindowFocus: false, // Prevent unnecessary refetches
   });
 
   // Fetch folders with document counts
@@ -729,6 +739,11 @@ export default function Documents() {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
+                      // Clear any pending debounce
+                      if (debounceTimeoutRef.current) {
+                        clearTimeout(debounceTimeoutRef.current);
+                      }
+                      
                       setIsConversationalMode(!isConversationalMode);
                       // Clear search when switching modes
                       if (searchQuery) {
@@ -737,6 +752,7 @@ export default function Documents() {
                         setSearchIntent(null);
                         setSearchKeywords([]);
                       }
+                      setDebouncedSearchQuery(""); // Clear debounced query to prevent cross-mode fetches
                     }}
                     className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
                     title={isConversationalMode ? "Switch to traditional search" : "Switch to AI conversational search"}
