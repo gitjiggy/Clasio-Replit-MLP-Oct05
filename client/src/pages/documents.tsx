@@ -89,44 +89,37 @@ export default function Documents() {
   const [conversationalResponse, setConversationalResponse] = useState<string | null>(null);
   const [searchIntent, setSearchIntent] = useState<string | null>(null);
   const [searchKeywords, setSearchKeywords] = useState<string[]>([]);
+  // Custom useDebounce hook implementation
+  const useDebounce = (value: string, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
+  };
+
   // AI search execution control - only search when button is clicked
   const [executeAISearch, setExecuteAISearch] = useState(false);
   const [aiSearchQuery, setAISearchQuery] = useState("");
-  // Traditional search debouncing
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Traditional search debouncing using custom hook
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
 
-  // Proper debounced search implementation
+  // Simplified search change handler
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
-    
-    // Clear existing timeout
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-    
-    // Set new timeout for debounced search
-    debounceTimeoutRef.current = setTimeout(() => {
-      setDebouncedSearchQuery(query);
-      
-      // Track analytics
-      if (query.trim()) {
-        trackEvent('search', { search_term: query.trim() });
-      }
-    }, 800);
-  }, []);
-  
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-    };
+    // Debouncing is handled automatically by the useDebounce hook
   }, []);
 
   // Handle Go! button click for AI search
@@ -165,17 +158,38 @@ export default function Documents() {
       folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
       tagId: selectedTagId
     }],
+    queryFn: async ({ signal }) => {
+      const params = new URLSearchParams({
+        query: aiSearchQuery,
+        ...(selectedFileType !== "all" && { fileType: selectedFileType }),
+        ...(selectedFolderId !== "all" && { folderId: selectedFolderId }),
+        ...(selectedTagId && { tagId: selectedTagId })
+      });
+      
+      const response = await fetch(`/api/documents/search?${params}`, { signal });
+      if (!response.ok) {
+        const error: any = new Error(`AI search failed: ${response.statusText}`);
+        error.status = response.status; // Preserve status code for 429 detection
+        throw error;
+      }
+      return response.json();
+    },
     enabled: executeAISearch && aiSearchQuery.length > 2,
     staleTime: 30000,
     refetchOnWindowFocus: false,
+    retry: (failureCount, error: any) => {
+      // Don't retry on rate limit errors
+      if (error?.status === 429) return false;
+      return failureCount < 2; // Reduce retries for AI calls
+    },
   });
 
-  // Reset AI search execution flag when query completes
+  // Reset AI search execution flag when query settles (success or error)
   useEffect(() => {
-    if (executeAISearch && !conversationalLoading) {
+    if (executeAISearch && (conversationalData || conversationalError)) {
       setExecuteAISearch(false);
     }
-  }, [executeAISearch, conversationalLoading]);
+  }, [executeAISearch, conversationalData, conversationalError]);
 
   // Fetch folders with document counts
   const { data: folders = [] } = useQuery<(Folder & { documentCount: number })[]>({
@@ -784,11 +798,6 @@ export default function Documents() {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      // Clear any pending debounce
-                      if (debounceTimeoutRef.current) {
-                        clearTimeout(debounceTimeoutRef.current);
-                      }
-                      
                       setIsConversationalMode(!isConversationalMode);
                       // Clear search when switching modes
                       if (searchQuery) {
@@ -797,7 +806,6 @@ export default function Documents() {
                         setSearchIntent(null);
                         setSearchKeywords([]);
                       }
-                      setDebouncedSearchQuery(""); // Clear debounced query to prevent cross-mode fetches
                       setExecuteAISearch(false); // Clear AI search execution flag
                       setAISearchQuery(""); // Clear AI search query
                     }}
