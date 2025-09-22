@@ -907,6 +907,21 @@ export default function Documents() {
                         )}
                         {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
                           <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                              <div className="flex items-center gap-1">
+                                {document.overrideCategory && (
+                                  <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
+                                    Custom
+                                  </span>
+                                )}
+                                {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
+                                    Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                             {(document.overrideDocumentType || document.aiDocumentType) && (
                               <div className="flex items-center justify-between">
                                 <span>Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
@@ -924,21 +939,6 @@ export default function Documents() {
                                 </div>
                               </div>
                             )}
-                            <div className="flex items-center justify-between">
-                              <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
-                              <div className="flex items-center gap-1">
-                                {document.overrideCategory && (
-                                  <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
-                                    Custom
-                                  </span>
-                                )}
-                                {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
-                                  <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
-                                    Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
                           </div>
                         )}
                       </div>
