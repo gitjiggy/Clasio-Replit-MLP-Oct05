@@ -674,9 +674,14 @@ export class DatabaseStorage implements IStorage {
             .select({
               count: sql<number>`CAST(COUNT(${documents.id}) AS INTEGER)`,
             })
-            .from(folders)
-            .leftJoin(documents, sql`${documents.folderId} = ${folders.id} AND ${documents.isDeleted} = false`)
-            .where(eq(folders.parentId, folder.id));
+            .from(documents)
+            .innerJoin(folders, eq(documents.folderId, folders.id))
+            .where(
+              and(
+                eq(folders.parentId, folder.id),
+                eq(documents.isDeleted, false)
+              )
+            );
 
           documentCount = subfolderDocs[0]?.count || 0;
         } else {
