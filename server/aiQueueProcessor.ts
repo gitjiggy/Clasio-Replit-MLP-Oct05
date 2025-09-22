@@ -136,7 +136,7 @@ class AIQueueProcessor {
         if (analysisResult) {
           // Update document with AI insights using updateDocument
           await storage.updateDocument(nextJob.documentId, {
-            aiSummary: `${analysisResult.conciseTitle} - Key topics: ${analysisResult.keyTopics.join(', ')}`,
+            aiSummary: analysisResult.conciseTitle,
             aiKeyTopics: analysisResult.keyTopics,
             aiDocumentType: analysisResult.documentType,
             aiCategory: analysisResult.category,
@@ -262,7 +262,7 @@ class AIQueueProcessor {
       if (analysisResult) {
         // Update document with results
         await storage.updateDocument(documentId, {
-          aiSummary: `${analysisResult.conciseTitle} - Key topics: ${analysisResult.keyTopics.join(', ')}`,
+          aiSummary: analysisResult.conciseTitle,
           aiKeyTopics: analysisResult.keyTopics,
           aiDocumentType: analysisResult.documentType,
           aiCategory: analysisResult.category,
