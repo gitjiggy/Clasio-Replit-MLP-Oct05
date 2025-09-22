@@ -576,14 +576,23 @@ export function DocumentModal({
                           <Badge 
                             key={tag.id} 
                             variant="secondary"
-                            className="cursor-pointer hover:opacity-80 transition-opacity"
+                            className="flex items-center gap-1"
                             style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
-                            onClick={() => handleRemoveTag(tag.id)}
-                            title="Click to remove tag"
                             data-testid={`tag-${tag.id}`}
                           >
-                            {tag.name}
-                            <X className="h-3 w-3 ml-1" />
+                            <span>{tag.name}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveTag(tag.id);
+                              }}
+                              disabled={removeTagFromDocumentMutation.isPending}
+                              className="hover:bg-black/10 dark:hover:bg-white/10 rounded-full p-0.5 transition-colors disabled:opacity-50"
+                              title="Remove tag"
+                              data-testid={`remove-tag-${tag.id}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </Badge>
                         ))
                       ) : (
@@ -598,28 +607,39 @@ export function DocumentModal({
                           variant="outline"
                           size="sm"
                           onClick={() => setIsAddingTag(true)}
+                          disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
                           className="text-xs h-7"
                           data-testid="add-tag-button"
                         >
-                          + Add Tag
+                          {(createTagMutation.isPending || addTagToDocumentMutation.isPending) ? 'Adding...' : '+ Add Tag'}
                         </Button>
                       ) : (
                         <div className="flex items-center space-x-2 flex-1">
                           <AutocompleteCombobox
                             value={newTagName}
-                            onValueChange={(value) => {
-                              setNewTagName(value);
-                              if (value && value.trim()) {
-                                handleAddTag(value.trim());
-                              }
-                            }}
+                            onValueChange={setNewTagName}
                             options={getTagOptions()}
                             placeholder="Select or create tag..."
                             searchPlaceholder="Search tags..."
                             allowCustom={true}
                             className="flex-1 h-7 text-xs"
+                            disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
                             testId="tag-combobox"
                           />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (newTagName.trim()) {
+                                handleAddTag(newTagName.trim());
+                              }
+                            }}
+                            disabled={!newTagName.trim() || createTagMutation.isPending || addTagToDocumentMutation.isPending}
+                            className="h-7 px-3 text-xs"
+                            data-testid="confirm-add-tag"
+                          >
+                            {(createTagMutation.isPending || addTagToDocumentMutation.isPending) ? 'Adding...' : 'Add'}
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -627,6 +647,7 @@ export function DocumentModal({
                               setIsAddingTag(false);
                               setNewTagName("");
                             }}
+                            disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
                             className="h-7 px-2"
                             data-testid="cancel-add-tag"
                           >
