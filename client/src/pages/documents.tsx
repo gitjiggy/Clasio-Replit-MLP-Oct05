@@ -40,7 +40,10 @@ import {
   CheckCircle,
   Plus,
   Brain,
-  Sparkles
+  Sparkles,
+  MessageCircle,
+  Zap,
+  X
 } from "lucide-react";
 
 interface DocumentsResponse {
@@ -51,6 +54,15 @@ interface DocumentsResponse {
     total: number;
     pages: number;
   };
+}
+
+interface ConversationalSearchResponse {
+  documents: DocumentWithVersionInfo[];
+  response: string;
+  intent: string;
+  keywords: string[];
+  query: string;
+  totalResults: number;
 }
 
 // Helper function to format confidence percentage
@@ -73,8 +85,15 @@ export default function Documents() {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [queueDashboardOpen, setQueueDashboardOpen] = useState(false);
   
+  // Conversational search state
+  const [isConversationalMode, setIsConversationalMode] = useState(false);
+  const [conversationalResponse, setConversationalResponse] = useState<string | null>(null);
+  const [searchIntent, setSearchIntent] = useState<string | null>(null);
+  const [searchKeywords, setSearchKeywords] = useState<string[]>([]);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
 
   // Handle search with debouncing
   const handleSearchChange = (query: string) => {
@@ -94,7 +113,7 @@ export default function Documents() {
     }
   };
 
-  // Fetch documents
+  // Fetch documents (traditional search)
   const { data: documentsData, isLoading: documentsLoading } = useQuery<DocumentsResponse>({
     queryKey: ['/api/documents', { 
       search: searchQuery, 
@@ -103,13 +122,26 @@ export default function Documents() {
       tagId: selectedTagId, 
       page: currentPage 
     }],
+    enabled: !isConversationalMode || !searchQuery.trim(), // Disable when in conversational mode with query
+  });
+
+  // Fetch conversational search results
+  const { data: conversationalData, isLoading: conversationalLoading, error: conversationalError } = useQuery<ConversationalSearchResponse>({
+    queryKey: ['/api/documents/search', { 
+      query: searchQuery,
+      fileType: selectedFileType === "all" ? "" : selectedFileType, 
+      folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
+      tagId: selectedTagId
+    }],
+    enabled: isConversationalMode && !!searchQuery.trim(), // Only run when in conversational mode with query
+    staleTime: 30000, // Cache for 30 seconds
   });
 
   // Fetch folders with document counts
   const { data: folders = [] } = useQuery<(Folder & { documentCount: number })[]>({
     queryKey: ['/api/folders'],
   });
-
+  
   // Get automatic folders only (Smart Organization)
   const automaticFolders = folders.filter(folder => folder.isAutoCreated);
   
@@ -137,6 +169,27 @@ export default function Documents() {
   const { data: tags = [] } = useQuery<Tag[]>({
     queryKey: ['/api/tags'],
   });
+
+  // Compute final documents and loading state
+  const currentDocuments = isConversationalMode && conversationalData 
+    ? conversationalData.documents 
+    : documentsData?.documents || [];
+  
+  const isLoading = isConversationalMode ? conversationalLoading : documentsLoading;
+
+  // Update conversational response when data changes
+  useEffect(() => {
+    if (conversationalData) {
+      setConversationalResponse(conversationalData.response);
+      setSearchIntent(conversationalData.intent);
+      setSearchKeywords(conversationalData.keywords);
+    } else if (!isConversationalMode) {
+      // Clear conversational state when switching back to traditional search
+      setConversationalResponse(null);
+      setSearchIntent(null);
+      setSearchKeywords([]);
+    }
+  }, [conversationalData, isConversationalMode]);
 
   // Upload mutation
   const uploadMutation = useMutation({
@@ -616,22 +669,66 @@ export default function Documents() {
             <div className="flex items-center space-x-4">
               <h2 className="text-lg font-semibold text-foreground">All Documents</h2>
               <span className="text-sm text-muted-foreground" data-testid="document-count">
-                {documentsData?.pagination.total || 0} documents
+                {isConversationalMode && conversationalData 
+                  ? `${conversationalData.totalResults} documents found`
+                  : `${documentsData?.pagination.total || 0} documents`
+                }
               </span>
             </div>
             
             <div className="flex items-center space-x-3">
-              {/* Search */}
-              <div className="relative">
-                <Input
-                  type="text"
-                  placeholder="Search documents..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="w-64 pl-10"
-                  data-testid="search-input"
-                />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              {/* Enhanced Search with Conversational Mode */}
+              <div className="relative flex items-center">
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder={isConversationalMode 
+                      ? "Ask about your documents... (e.g., 'what's my EIN?')" 
+                      : "Search documents..."}
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className={`w-80 pl-10 pr-12 ${isConversationalMode ? 'border-blue-500 focus:border-blue-600' : ''}`}
+                    data-testid="search-input"
+                  />
+                  {isConversationalMode ? (
+                    <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-500" />
+                  ) : (
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  )}
+                  
+                  {/* Conversational Mode Toggle */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setIsConversationalMode(!isConversationalMode);
+                      // Clear search when switching modes
+                      if (searchQuery) {
+                        setSearchQuery("");
+                        setConversationalResponse(null);
+                        setSearchIntent(null);
+                        setSearchKeywords([]);
+                      }
+                    }}
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                    title={isConversationalMode ? "Switch to traditional search" : "Switch to AI conversational search"}
+                    data-testid="button-search-mode-toggle"
+                  >
+                    {isConversationalMode ? (
+                      <Search className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Zap className="h-4 w-4 text-blue-500" />
+                    )}
+                  </Button>
+                </div>
+                
+                {/* Search Mode Indicator */}
+                {isConversationalMode && (
+                  <Badge variant="outline" className="ml-2 text-blue-600 border-blue-300">
+                    <Brain className="h-3 w-3 mr-1" />
+                    AI Search
+                  </Badge>
+                )}
               </div>
               
               {/* View Toggle */}
@@ -680,7 +777,7 @@ export default function Documents() {
               </Button>
               
               {/* Delete All Button (for testing) */}
-              {documentsData?.documents && documentsData.documents.length > 0 && (
+              {currentDocuments && currentDocuments.length > 0 && (
                 <Button
                   variant="destructive"
                   onClick={() => deleteAllDocumentsMutation.mutate()}
@@ -710,6 +807,50 @@ export default function Documents() {
             </div>
           </div>
         </header>
+
+        {/* Conversational Search Response */}
+        {isConversationalMode && conversationalResponse && (
+          <div className="bg-blue-50 dark:bg-blue-950/20 border-b border-blue-200 dark:border-blue-800 px-6 py-4">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <Brain className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2 mb-2">
+                  <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    AI Assistant Response
+                  </h3>
+                  {searchIntent && (
+                    <Badge variant="outline" className="text-blue-700 border-blue-300 bg-blue-50 dark:bg-blue-900/50">
+                      {searchIntent}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                  {conversationalResponse}
+                </p>
+                {searchKeywords.length > 0 && (
+                  <div className="flex items-center space-x-2 mt-3">
+                    <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Keywords:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {searchKeywords.map((keyword, index) => (
+                        <Badge 
+                          key={index} 
+                          variant="secondary" 
+                          className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                        >
+                          {keyword}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="bg-card border-b border-border px-6 py-3">
@@ -762,7 +903,7 @@ export default function Documents() {
 
         {/* Documents Grid */}
         <div className="flex-1 overflow-auto p-6">
-          {documentsLoading ? (
+          {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Card key={i} className="animate-pulse">
@@ -778,7 +919,7 @@ export default function Documents() {
                 </Card>
               ))}
             </div>
-          ) : documentsData?.documents.length === 0 ? (
+          ) : currentDocuments.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No documents found</h3>
@@ -790,7 +931,7 @@ export default function Documents() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {documentsData?.documents.map((document) => (
+              {currentDocuments.map((document) => (
                 <Card 
                   key={document.id} 
                   className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
