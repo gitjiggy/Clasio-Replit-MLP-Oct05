@@ -11,6 +11,7 @@ import { UserMenu } from "@/components/UserMenu";
 import Documents from "@/pages/documents";
 import Drive from "@/pages/drive";
 import AuthDrive from "@/pages/auth-drive";
+import DocumentViewer from "@/pages/document-viewer";
 import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
 import { initGA } from "./lib/analytics";
@@ -94,6 +95,7 @@ function Router() {
         <Route path="/" component={Documents} />
         <Route path="/documents" component={Documents} />
         <Route path="/drive" component={Drive} />
+        <Route path="/viewer/:id" component={DocumentViewer} />
         <Route component={NotFound} />
       </Switch>
     </>

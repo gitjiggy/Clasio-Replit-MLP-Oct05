@@ -170,6 +170,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Apply standard rate limiting to all API routes
   app.use('/api', standardLimiter);
 
+  // Download documents by document ID - protected with authentication and rate limiting
+  app.get("/api/documents/:documentId/download", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { documentId } = req.params;
+      
+      // Get document from database
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // For Drive documents, redirect to Drive viewer
+      if (document.driveWebViewLink) {
+        return res.redirect(document.driveWebViewLink);
+      }
+      
+      // For uploaded documents, serve from object storage
+      if (document.filePath) {
+        const objectFile = await objectStorageService.getObjectEntityFile(document.filePath);
+        objectStorageService.downloadObject(objectFile, res);
+      } else {
+        return res.status(404).json({ error: "Document file not found" });
+      }
+    } catch (error) {
+      console.error("Error retrieving document:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Serve documents - protected with authentication and rate limiting
   app.get("/objects/:objectPath(*)", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {

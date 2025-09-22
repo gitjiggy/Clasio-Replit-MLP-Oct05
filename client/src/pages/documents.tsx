@@ -501,9 +501,8 @@ export default function Documents() {
   };
 
   const handleDownload = (document: DocumentWithFolderAndTags) => {
-    if (document.filePath) {
-      window.open(document.filePath, '_blank');
-    }
+    // Open the document viewer page in a new tab
+    window.open(`/viewer/${document.id}`, '_blank');
   };
 
   const clearFilters = () => {
@@ -1104,11 +1103,8 @@ export default function Documents() {
                         onClick={(e) => {
                           e.stopPropagation();
                           // Open document details/preview
-                          if (document.driveWebViewLink) {
-                            window.open(document.driveWebViewLink, '_blank');
-                          } else if (document.filePath) {
-                            window.open(document.filePath, '_blank');
-                          }
+                          // Open the document viewer page in a new tab
+                          window.open(`/viewer/${document.id}`, '_blank');
                         }}
                         data-testid={`preview-${document.id}`}
                       >
