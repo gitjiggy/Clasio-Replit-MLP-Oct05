@@ -1203,6 +1203,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Smart Organization endpoint - organize all unorganized documents
+  app.post("/api/documents/organize-all", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      console.log("🗂️ Starting Smart Organization for all unorganized documents...");
+      const result = await storage.organizeAllUnorganizedDocuments();
+      
+      console.log(`✅ Smart Organization complete: ${result.organized} organized, ${result.errors.length} errors`);
+      
+      res.json({
+        success: true,
+        message: `Successfully organized ${result.organized} documents into smart folders`,
+        organized: result.organized,
+        errors: result.errors
+      });
+    } catch (error) {
+      console.error("Error in Smart Organization:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to organize documents",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Folders endpoints
   app.get("/api/folders", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {

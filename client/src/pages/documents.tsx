@@ -254,6 +254,29 @@ export default function Documents() {
     },
   });
 
+  // Smart Organization mutation
+  const organizeAllMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/documents/organize-all");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+      toast({
+        title: "Smart Organization Complete",
+        description: data.message || `Organized ${data.organized} documents into smart folders`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Smart Organization failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Delete all documents mutation (for testing)
   const deleteAllDocumentsMutation = useMutation({
     mutationFn: async () => {
@@ -642,6 +665,18 @@ export default function Documents() {
               >
                 <Brain className="h-4 w-4" />
                 AI Queue
+              </Button>
+              
+              {/* Smart Organization Button */}
+              <Button
+                variant="outline"
+                onClick={() => organizeAllMutation.mutate()}
+                disabled={organizeAllMutation.isPending}
+                className="flex items-center gap-2"
+                data-testid="button-organize-all"
+              >
+                <Sparkles className="h-4 w-4" />
+                {organizeAllMutation.isPending ? 'Organizing...' : 'Smart Organization'}
               </Button>
               
               {/* Delete All Button (for testing) */}

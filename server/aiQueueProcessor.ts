@@ -147,6 +147,25 @@ class AIQueueProcessor {
             aiAnalyzedAt: new Date()
           });
           
+          // 🗂️ SMART ORGANIZATION: Automatically organize document into appropriate folder
+          try {
+            if (analysisResult.category && analysisResult.documentType) {
+              const organized = await storage.organizeDocumentIntoFolder(
+                nextJob.documentId, 
+                analysisResult.category, 
+                analysisResult.documentType
+              );
+              if (organized) {
+                console.log(`✅ Smart Organization: "${document.name}" → ${analysisResult.category}/${analysisResult.documentType}`);
+              } else {
+                console.warn(`⚠️ Smart Organization failed for "${document.name}"`);
+              }
+            }
+          } catch (orgError) {
+            // Don't fail the entire analysis if organization fails
+            console.error(`❌ Smart Organization error for "${document.name}":`, orgError);
+          }
+          
           // Mark queue item as completed with celebration! 🎉
           await storage.updateQueueJobStatus(nextJob.id, 'completed', 'AI analysis completed successfully');
           
@@ -253,6 +272,25 @@ class AIQueueProcessor {
           aiWordCount: analysisResult.wordCount,
           aiAnalyzedAt: new Date()
         });
+        
+        // 🗂️ SMART ORGANIZATION: Automatically organize document into appropriate folder (immediate path)
+        try {
+          if (analysisResult.category && analysisResult.documentType) {
+            const organized = await storage.organizeDocumentIntoFolder(
+              documentId, 
+              analysisResult.category, 
+              analysisResult.documentType
+            );
+            if (organized) {
+              console.log(`✅ Smart Organization (immediate): "${document.name}" → ${analysisResult.category}/${analysisResult.documentType}`);
+            } else {
+              console.warn(`⚠️ Smart Organization (immediate) failed for "${document.name}"`);
+            }
+          }
+        } catch (orgError) {
+          // Don't fail the entire analysis if organization fails
+          console.error(`❌ Smart Organization (immediate) error for "${document.name}":`, orgError);
+        }
         
         // Track usage - exactly 1 request per analysis
         await storage.incrementDailyUsage(today, 1, true);
