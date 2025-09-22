@@ -388,31 +388,58 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // Smart search across AI metadata
+      // Smart search across AI metadata with semantic understanding
       if (queryAnalysis.keywords.length > 0) {
         const searchConditions = [];
         
         for (const keyword of queryAnalysis.keywords) {
           const keywordConditions = [
-            // Search in document name
+            // Search in document name (exact matches prioritized)
             ilike(documents.name, `%${keyword}%`),
-            // Search in AI summary
+            ilike(documents.originalName, `%${keyword}%`),
+            
+            // Search in AI-generated fields (core semantic search)
             and(isNotNull(documents.aiSummary), ilike(documents.aiSummary, `%${keyword}%`)),
-            // Search in concise title
-            and(isNotNull(documents.aiConciseName), ilike(documents.aiConciseName, `%${keyword}%`))
+            and(isNotNull(documents.aiConciseName), ilike(documents.aiConciseName, `%${keyword}%`)),
+            
+            // Search in AI categories and document types
+            and(isNotNull(documents.aiCategory), ilike(documents.aiCategory, `%${keyword}%`)),
+            and(isNotNull(documents.overrideCategory), ilike(documents.overrideCategory, `%${keyword}%`)),
+            and(isNotNull(documents.aiDocumentType), ilike(documents.aiDocumentType, `%${keyword}%`)),
+            and(isNotNull(documents.overrideDocumentType), ilike(documents.overrideDocumentType, `%${keyword}%`))
           ];
           
-          // Search in key topics array (PostgreSQL array contains)
-          const keyTopicsCondition = sql`${documents.aiKeyTopics} && ARRAY[${keyword}]::text[]`;
-          keywordConditions.push(keyTopicsCondition);
+          // Advanced: Search in key topics array (PostgreSQL array operations)
+          try {
+            const keyTopicsCondition = sql`${documents.aiKeyTopics} && ARRAY[${keyword}]::text[]`;
+            keywordConditions.push(keyTopicsCondition);
+            
+            // Also search case-insensitively within array elements
+            const keyTopicsLikeCondition = sql`EXISTS (
+              SELECT 1 FROM unnest(${documents.aiKeyTopics}) AS topic 
+              WHERE topic ILIKE ${`%${keyword}%`}
+            )`;
+            keywordConditions.push(keyTopicsLikeCondition);
+          } catch (error) {
+            console.warn("Array search fallback for keyword:", keyword);
+          }
           
           searchConditions.push(or(...keywordConditions.filter(Boolean))!);
         }
         
         if (searchConditions.length > 0) {
-          // Use AND for multiple keywords (all must match somewhere)
-          conditions.push(and(...searchConditions)!);
+          // Use OR for multiple keywords (any can match) for better recall
+          conditions.push(or(...searchConditions)!);
         }
+      } else if (queryAnalysis.semanticQuery) {
+        // Fallback: search semantic query directly in AI metadata
+        const naturalSearchConditions = [
+          and(isNotNull(documents.aiSummary), ilike(documents.aiSummary, `%${queryAnalysis.semanticQuery}%`)),
+          and(isNotNull(documents.aiConciseName), ilike(documents.aiConciseName, `%${queryAnalysis.semanticQuery}%`)),
+          ilike(documents.name, `%${queryAnalysis.semanticQuery}%`)
+        ];
+        
+        conditions.push(or(...naturalSearchConditions.filter(Boolean))!);
       }
       
       // Execute search with metadata fields
