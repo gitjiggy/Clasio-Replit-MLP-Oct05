@@ -530,3 +530,148 @@ async function extractTextFromImageBuffer(imageBuffer: Buffer, mimeType: string)
         return "Error extracting text from image.";
     }
 }
+
+// Enhanced conversational search functions using Gemini 2.5 Flash-lite
+export async function generateEmbedding(text: string, taskType: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT' = 'RETRIEVAL_DOCUMENT'): Promise<number[]> {
+    if (!text || text.trim().length === 0) {
+        throw new Error("Text is required for embedding generation");
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+        throw new Error("Gemini API key not configured");
+    }
+
+    try {
+        const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+        const result = await model.embedContent({
+            content: text,
+            taskType: taskType
+        });
+        
+        return result.embedding.values;
+    } catch (error) {
+        console.error("Error generating embedding:", error);
+        throw new Error("Failed to generate embedding");
+    }
+}
+
+export async function processConversationalQuery(query: string): Promise<{
+    intent: string;
+    keywords: string[];
+    categoryFilter?: string;
+    documentTypeFilter?: string;
+    semanticQuery: string;
+}> {
+    if (!process.env.GEMINI_API_KEY) {
+        throw new Error("Gemini API key not configured");
+    }
+
+    const prompt = `Analyze this conversational search query and extract search intent and keywords.
+
+AVAILABLE CATEGORIES: "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
+
+AVAILABLE DOCUMENT TYPES: "Resume", "Cover Letter", "Contract", "Invoice", "Receipt", "Tax Document", "Medical Record", "Insurance Document", "Legal Document", "Immigration Document", "Financial Statement", "Employment Document", "Event Notice", "Academic Document", "Real Estate Document", "Travel Document", "Personal Statement", "Technical Documentation", "Business Report"
+
+Query: "${query}"
+
+Extract:
+1. Intent: What is the user trying to find? (e.g., "find_tax_identifier", "locate_financial_info", "search_medical_records")
+2. Keywords: Key search terms to look for in documents (e.g., ["EIN", "tax ID", "employer identification"])
+3. Category filter: If query implies a specific category, return it exactly as listed above
+4. Document type filter: If query implies a specific document type, return it exactly as listed above  
+5. Semantic query: Rephrase as a search-optimized query for finding relevant document summaries
+
+Format as JSON:
+{
+  "intent": "intent_description",
+  "keywords": ["keyword1", "keyword2", "keyword3"],
+  "categoryFilter": "Category or null",
+  "documentTypeFilter": "Document Type or null", 
+  "semanticQuery": "optimized search query"
+}`;
+
+    try {
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.5-flash-lite",
+            generationConfig: {
+                temperature: 0,
+                maxOutputTokens: 500,
+                responseMimeType: "application/json"
+            }
+        });
+        
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const rawJson = response.text();
+        
+        if (rawJson) {
+            const data = JSON.parse(rawJson);
+            return {
+                intent: data.intent || "general_search",
+                keywords: Array.isArray(data.keywords) ? data.keywords : [],
+                categoryFilter: data.categoryFilter || undefined,
+                documentTypeFilter: data.documentTypeFilter || undefined,
+                semanticQuery: data.semanticQuery || query
+            };
+        }
+        
+        // Fallback if AI fails
+        return {
+            intent: "general_search", 
+            keywords: [query],
+            semanticQuery: query
+        };
+    } catch (error) {
+        console.error("Error processing conversational query:", error);
+        // Return fallback response
+        return {
+            intent: "general_search",
+            keywords: [query],
+            semanticQuery: query
+        };
+    }
+}
+
+export async function generateConversationalResponse(query: string, matchingDocuments: any[], intent: string): Promise<string> {
+    if (!process.env.GEMINI_API_KEY) {
+        return `Found ${matchingDocuments.length} documents matching "${query}".`;
+    }
+
+    const documentsContext = matchingDocuments.slice(0, 5).map(doc => ({
+        name: doc.name,
+        type: doc.aiDocumentType || doc.fileType,
+        category: doc.aiCategory,
+        summary: doc.aiSummary,
+        keyTopics: doc.aiKeyTopics || []
+    }));
+
+    const prompt = `User asked: "${query}"
+Search intent: ${intent}
+Found documents: ${JSON.stringify(documentsContext, null, 2)}
+
+Generate a helpful, conversational response that:
+1. Directly answers the user's question if specific information is found
+2. Lists relevant documents with brief descriptions  
+3. Uses natural language, not technical jargon
+4. Mentions document names and key details
+5. If no specific answer found, suggests what was found instead
+
+Keep response concise (2-3 sentences max) and helpful.`;
+
+    try {
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.5-flash-lite",
+            generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 200
+            }
+        });
+        
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return response.text() || `Found ${matchingDocuments.length} documents matching "${query}".`;
+    } catch (error) {
+        console.error("Error generating conversational response:", error);
+        return `Found ${matchingDocuments.length} documents matching "${query}".`;
+    }
+}
