@@ -379,8 +379,8 @@ export function DocumentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center text-lg" title={getDocumentTooltip(document)} data-testid={`document-name-modal-${document.id}`}>
             <FileText className="h-5 w-5 mr-2" />
             <HighlightedText text={getDocumentDisplayName(document)} searchQuery={searchQuery} />
@@ -390,7 +390,7 @@ export function DocumentModal({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-6">
+        <ScrollArea className="flex-1 min-h-0 pr-6">
           <div className="space-y-6">
             {/* Basic Information */}
             <div className="grid grid-cols-2 gap-4">
@@ -634,7 +634,7 @@ export function DocumentModal({
         </ScrollArea>
 
         {/* Actions */}
-        <div className="flex justify-between items-center pt-4 border-t">
+        <div className="flex justify-between items-center pt-4 border-t flex-shrink-0">
           <div className="flex items-center space-x-2 text-xs text-muted-foreground">
             {document.isFromDrive && (
               <Badge variant="outline" className="text-xs">

@@ -793,8 +793,9 @@ export default function Documents() {
               {documentsData?.documents.map((document) => (
                 <Card 
                   key={document.id} 
-                  className="hover:shadow-lg transition-shadow duration-200" 
+                  className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
                   data-testid={`document-card-${document.id}`}
+                  onClick={() => handleViewDocument(document)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
