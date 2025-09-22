@@ -918,7 +918,7 @@ export default function Documents() {
                                   )}
                                   {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
                                     <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
-                                      {formatConfidence(document.aiDocumentTypeConfidence)}
+                                      Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
                                     </span>
                                   )}
                                 </div>
@@ -934,7 +934,7 @@ export default function Documents() {
                                 )}
                                 {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
                                   <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
-                                    {formatConfidence(document.aiCategoryConfidence)}
+                                    Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
                                   </span>
                                 )}
                               </div>
