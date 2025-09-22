@@ -370,12 +370,14 @@ export class DatabaseStorage implements IStorage {
     return {
       intent: "conversational_search",
       keywords: extractedKeywords,
-      semanticQuery: query.toLowerCase()
+      semanticQuery: query.toLowerCase(),
+      categoryFilter: undefined,
+      documentTypeFilter: undefined
     };
   }
 
   // Enhanced conversational search using AI metadata
-  async searchConversational(query: string, filters: Omit<DocumentFilters, 'search'> = {}): Promise<{
+  async searchConversational(query: string, filters: Partial<Omit<DocumentFilters, 'search'>> = {}): Promise<{
     documents: DocumentWithFolderAndTags[];
     response: string;
     intent: string;
@@ -403,7 +405,7 @@ export class DatabaseStorage implements IStorage {
           // Process the conversational query using Flash-lite for complex queries
           queryAnalysis = await processConversationalQuery(query);
         } catch (error) {
-          console.warn("AI processing failed, using smart fallback:", error.message);
+          console.warn("AI processing failed, using smart fallback:", error instanceof Error ? error.message : String(error));
           // Enhanced fallback: Extract keywords from conversational questions
           queryAnalysis = this.extractKeywordsFromConversationalQuery(query);
         }
@@ -587,6 +589,7 @@ export class DatabaseStorage implements IStorage {
           overrideCategory: documents.overrideCategory,
           overrideDocumentType: documents.overrideDocumentType,
           classificationOverridden: documents.classificationOverridden,
+          documentContent: documents.documentContent,
           contentExtracted: documents.contentExtracted,
           contentExtractedAt: documents.contentExtractedAt
         })
@@ -616,7 +619,7 @@ export class DatabaseStorage implements IStorage {
         
         documentsWithFoldersAndTags.push({
           ...doc,
-          folder,
+          folder: folder || undefined,
           tags: docTags,
         });
       }
@@ -638,9 +641,15 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Error in conversational search:", error);
       
-      // Fallback to regular search if conversational search fails
+      // Enhanced fallback: Extract keywords using smart fallback even when entire search fails
+      const smartFallback = this.extractKeywordsFromConversationalQuery(query);
+      console.log("Using enhanced fallback with keywords:", smartFallback.keywords);
+      
+      // Fallback to regular search but use extracted keywords for better results
       const fallbackResults = await this.getDocuments({
-        search: query,
+        search: smartFallback.keywords.join(' '), // Use extracted keywords instead of full query
+        limit: filters.limit || 20,
+        page: filters.page || 1,
         ...filters
       });
       
@@ -648,7 +657,7 @@ export class DatabaseStorage implements IStorage {
         documents: fallbackResults,
         response: `Found ${fallbackResults.length} documents matching "${query}".`,
         intent: "general_search",
-        keywords: [query]
+        keywords: smartFallback.keywords  // Use extracted keywords instead of entire query
       };
     }
   }
