@@ -17,11 +17,11 @@ import type { AiAnalysisQueue } from '../shared/schema.js';
 class AIQueueProcessor {
   private isProcessing = false;
   private processingInterval: NodeJS.Timeout | null = null;
-  private readonly REQUESTS_PER_MINUTE = 15;
+  private readonly REQUESTS_PER_MINUTE = 60; // Increased from 15 to handle bulk uploads better
   private readonly DAILY_REQUEST_LIMIT = 1200; // Safety buffer from 1500
-  private readonly PROCESSING_INTERVAL_MS = 15000; // Check every 15 seconds
+  private readonly PROCESSING_INTERVAL_MS = 5000; // Check every 5 seconds (faster processing)
   private readonly RETRY_DELAY_MS = 60000; // 1 minute retry for failed requests
-  private tokenBucket = 15; // Start with full bucket
+  private tokenBucket = 60; // Start with full bucket (matches REQUESTS_PER_MINUTE)
   private lastTokenRefill = Date.now();
 
   constructor() {
