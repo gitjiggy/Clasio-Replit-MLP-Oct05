@@ -119,16 +119,16 @@ export default function Documents() {
     setSearchTimeout(timeout);
   };
 
-  // Fetch documents (traditional search)
+  // Fetch documents (traditional search) - now with proper debouncing
   const { data: documentsData, isLoading: documentsLoading } = useQuery<DocumentsResponse>({
     queryKey: ['/api/documents', { 
-      search: searchQuery, 
+      search: debouncedSearchQuery, 
       fileType: selectedFileType === "all" ? "" : selectedFileType, 
       folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
       tagId: selectedTagId, 
       page: currentPage 
     }],
-    enabled: !isConversationalMode || !searchQuery.trim(), // Disable when in conversational mode with query
+    enabled: !isConversationalMode, // Only run when NOT in conversational mode
   });
 
   // Fetch conversational search results with proper debouncing
@@ -139,7 +139,7 @@ export default function Documents() {
       folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
       tagId: selectedTagId
     }],
-    enabled: isConversationalMode && !!debouncedSearchQuery.trim() && debouncedSearchQuery.length > 2, // Only run when debounced query is ready and meaningful
+    enabled: isConversationalMode && !!debouncedSearchQuery.trim() && debouncedSearchQuery.length > 2, // Only run when in conversational mode with meaningful query
     staleTime: 30000, // Cache for 30 seconds
   });
 
