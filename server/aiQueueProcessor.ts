@@ -134,9 +134,13 @@ class AIQueueProcessor {
         const analysisResult = await analyzeDocumentContent(content);
         
         if (analysisResult) {
+          // Generate proper 2-3 line English summary for AI Analysis section
+          const { summarizeDocument } = await import('../gemini.js');
+          const properSummary = await summarizeDocument(content);
+          
           // Update document with AI insights using updateDocument
           await storage.updateDocument(nextJob.documentId, {
-            aiSummary: analysisResult.conciseTitle,
+            aiSummary: properSummary,
             aiKeyTopics: analysisResult.keyTopics,
             aiDocumentType: analysisResult.documentType,
             aiCategory: analysisResult.category,
@@ -260,9 +264,13 @@ class AIQueueProcessor {
       const analysisResult = await analyzeDocumentContent(content);
       
       if (analysisResult) {
+        // Generate proper 2-3 line English summary for AI Analysis section
+        const { summarizeDocument } = await import('../gemini.js');
+        const properSummary = await summarizeDocument(content);
+        
         // Update document with results
         await storage.updateDocument(documentId, {
-          aiSummary: analysisResult.conciseTitle,
+          aiSummary: properSummary,
           aiKeyTopics: analysisResult.keyTopics,
           aiDocumentType: analysisResult.documentType,
           aiCategory: analysisResult.category,
