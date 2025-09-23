@@ -989,6 +989,9 @@ export class DatabaseStorage implements IStorage {
   }> {
     await this.ensureInitialized();
     
+    // Add performance monitoring to search functions
+    const startTime = performance.now();
+    
     try {
       // Enhanced query processing with better fallbacks
       let queryAnalysis;
@@ -1681,6 +1684,10 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
+      // Add performance monitoring to search functions
+      const duration = performance.now() - startTime;
+      console.log(`Search completed in ${duration.toFixed(2)}ms`);
+      
       return {
         documents: documentsWithFoldersAndTags, // Keep for backward compatibility 
         relevantDocuments,
@@ -1713,6 +1720,10 @@ export class DatabaseStorage implements IStorage {
         responseMessage = `I found ${fallbackResults.length} document${fallbackResults.length === 1 ? '' : 's'} that might be relevant to your search.`;
       }
 
+      // Add performance monitoring to search functions (fallback path)
+      const duration = performance.now() - startTime;
+      console.log(`Search completed in ${duration.toFixed(2)}ms (fallback)`);
+      
       return {
         documents: fallbackResults, // Keep for backward compatibility
         relevantDocuments: fallbackResults, // For fallback, treat all as relevant
