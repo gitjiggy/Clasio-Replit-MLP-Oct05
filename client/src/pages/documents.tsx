@@ -1125,7 +1125,7 @@ export default function Documents() {
                   <Brain className="h-5 w-5 text-blue-600" />
                   <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">AI Search Results</h3>
                   <Badge variant="secondary" className="text-xs">
-                    {aiSearchResults.scoringMethod} • {aiSearchResults.totalResults} found
+                    {aiSearchResults.totalResults} found
                   </Badge>
                 </div>
                 <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
@@ -1365,7 +1365,7 @@ export default function Documents() {
                     <div className="flex items-center space-x-2">
                       <Button
                         size="sm"
-                        className="flex-1"
+                        className="flex-1 max-w-[100px]"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDownload(document);
@@ -1378,6 +1378,7 @@ export default function Documents() {
                       <Button 
                         size="sm" 
                         variant="outline" 
+                        className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           // Open document details/preview
@@ -1393,6 +1394,7 @@ export default function Documents() {
                       </Button>
                       <Button
                         size="sm"
+                        className="flex-1"
                         variant={document.aiSummary ? "secondary" : "outline"}
                         onClick={(e) => {
                           e.stopPropagation();
