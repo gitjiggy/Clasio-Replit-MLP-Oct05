@@ -568,14 +568,21 @@ export class DatabaseStorage implements IStorage {
       content: 0.30
     };
     
+    console.log(`    Semantic debug for "${doc.name}":`);
+    
     // Title embedding
     if (doc.titleEmbedding) {
       const titleEmb = parseEmbeddingFromJSON(doc.titleEmbedding);
       if (titleEmb) {
         const similarity = calculateCosineSimilarity(queryEmbedding, titleEmb);
+        console.log(`      Title cosine similarity: ${similarity.toFixed(4)} (weight: ${fieldWeights.title})`);
         totalScore += similarity * fieldWeights.title;
         totalWeight += fieldWeights.title;
+      } else {
+        console.log(`      Title embedding parsing failed`);
       }
+    } else {
+      console.log(`      No title embedding`);
     }
     
     // Key topics embedding
@@ -583,9 +590,14 @@ export class DatabaseStorage implements IStorage {
       const keyTopicsEmb = parseEmbeddingFromJSON(doc.keyTopicsEmbedding);
       if (keyTopicsEmb) {
         const similarity = calculateCosineSimilarity(queryEmbedding, keyTopicsEmb);
+        console.log(`      Key topics cosine similarity: ${similarity.toFixed(4)} (weight: ${fieldWeights.keyTopics})`);
         totalScore += similarity * fieldWeights.keyTopics;
         totalWeight += fieldWeights.keyTopics;
+      } else {
+        console.log(`      Key topics embedding parsing failed`);
       }
+    } else {
+      console.log(`      No key topics embedding`);
     }
     
     // Summary embedding  
@@ -593,9 +605,14 @@ export class DatabaseStorage implements IStorage {
       const summaryEmb = parseEmbeddingFromJSON(doc.summaryEmbedding);
       if (summaryEmb) {
         const similarity = calculateCosineSimilarity(queryEmbedding, summaryEmb);
+        console.log(`      Summary cosine similarity: ${similarity.toFixed(4)} (weight: ${fieldWeights.summary}) ← KEY FOR MRI DOC`);
         totalScore += similarity * fieldWeights.summary;
         totalWeight += fieldWeights.summary;
+      } else {
+        console.log(`      Summary embedding parsing failed`);
       }
+    } else {
+      console.log(`      No summary embedding`);
     }
     
     // Content embedding
@@ -603,9 +620,14 @@ export class DatabaseStorage implements IStorage {
       const contentEmb = parseEmbeddingFromJSON(doc.contentEmbedding);
       if (contentEmb) {
         const similarity = calculateCosineSimilarity(queryEmbedding, contentEmb);
+        console.log(`      Content cosine similarity: ${similarity.toFixed(4)} (weight: ${fieldWeights.content})`);
         totalScore += similarity * fieldWeights.content;
         totalWeight += fieldWeights.content;
+      } else {
+        console.log(`      Content embedding parsing failed`);
       }
+    } else {
+      console.log(`      No content embedding`);
     }
     
     return totalWeight > 0 ? totalScore / totalWeight : 0;
@@ -763,6 +785,7 @@ export class DatabaseStorage implements IStorage {
       try {
         // Stage 1: Semantic Scoring (50% weight)
         const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding);
+        console.log(`  → Semantic details for "${doc.name}": checking embeddings...`);
         
         // Stage 2: Lexical Scoring (35% weight) 
         const lexicalScore = await this.calculateLexicalScore(doc, query);
@@ -1248,8 +1271,14 @@ export class DatabaseStorage implements IStorage {
       // STAGE 2: Selective AI Deep Analysis (only for top candidates)
       const documentsWithConfidenceScores = [];
       
-      // Smart query routing: detect simple queries and skip AI analysis
-      const isSimpleQuery = queryAnalysis.intent === "simple_search" || 
+      // Smart query routing: detect truly simple queries that don't benefit from semantic analysis
+      // Person names and complex concepts should use semantic analysis for better matching
+      const isPersonNameQuery = queryAnalysis.intent.includes('person') || 
+                               queryAnalysis.intent.includes('specific names') ||
+                               /\b(mr|mrs|dr|ms)\b/i.test(query);
+      
+      const isSimpleQuery = queryAnalysis.intent === "simple_search" && 
+                           !isPersonNameQuery &&
                            (queryAnalysis.keywords.length === 1 && queryAnalysis.keywords[0].length > 3);
       
       if (isSimpleQuery) {
