@@ -449,11 +449,23 @@ export class DatabaseStorage implements IStorage {
   // NEW 3-Stage Scoring System Helper Functions
   
   private preFilterCandidates(allDocuments: any[], query: string): any[] {
-    return allDocuments.filter(doc =>
-      doc.aiWordCount > 50 && // AND condition for minimum quality
-      (this.documentTypeMatches(doc.aiDocumentType, query) || 
-       this.titleSummaryContainsKeywords(doc, query)) // OR for content relevance
-    ).slice(0, 50); // Max 50 for cosine similarity calculations
+    return allDocuments.filter(doc => {
+      // More lenient filtering - document must have either:
+      // 1. AI analysis with word count > 50, OR
+      // 2. Basic content (name/summary) regardless of AI analysis
+      const hasMinimumContent = (doc.aiWordCount && doc.aiWordCount > 50) || 
+                               (doc.name && doc.name.length > 5) ||
+                               (doc.aiSummary && doc.aiSummary.length > 20);
+      
+      // More permissive matching - include document if ANY of these match:
+      const hasRelevantContent = 
+        this.documentTypeMatches(doc.aiDocumentType, query) ||
+        this.titleSummaryContainsKeywords(doc, query) ||
+        this.categoryMatches(doc.aiCategory, query) ||
+        this.semanticTopicMatch(doc, query);
+      
+      return hasMinimumContent && hasRelevantContent;
+    }).slice(0, 50); // Max 50 for cosine similarity calculations
   }
   
   private documentTypeMatches(documentType: string | null, query: string): boolean {
@@ -467,6 +479,38 @@ export class DatabaseStorage implements IStorage {
     const searchText = `${doc.name || ''} ${doc.originalName || ''} ${doc.aiSummary || ''}`.toLowerCase();
     const queryWords = query.toLowerCase().split(/\s+/);
     return queryWords.some(word => word.length > 2 && searchText.includes(word));
+  }
+
+  private categoryMatches(category: string | null, query: string): boolean {
+    if (!category) return false;
+    const queryLower = query.toLowerCase();
+    const categoryLower = category.toLowerCase();
+    
+    // Direct matches
+    if (queryLower.includes(categoryLower) || categoryLower.includes(queryLower)) {
+      return true;
+    }
+    
+    // Semantic category matching for real estate queries
+    const realEstateTerms = ['escrow', 'heritage', 'property', 'mortgage', 'closing', 'deed', 'title'];
+    const isRealEstateQuery = realEstateTerms.some(term => queryLower.includes(term));
+    const isRealEstateCategory = ['real estate', 'taxes', 'financial'].includes(categoryLower);
+    
+    return isRealEstateQuery && isRealEstateCategory;
+  }
+
+  private semanticTopicMatch(doc: any, query: string): boolean {
+    // Check AI key topics for semantic matches
+    if (!doc.aiKeyTopics || !Array.isArray(doc.aiKeyTopics)) return false;
+    
+    const queryLower = query.toLowerCase();
+    const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+    
+    // Check if any query words match key topics
+    return doc.aiKeyTopics.some((topic: string) => {
+      const topicLower = topic.toLowerCase();
+      return queryWords.some(word => topicLower.includes(word) || word.includes(topicLower));
+    });
   }
   
   private async calculateSemanticScore(doc: any, queryEmbedding: number[]): Promise<number> {
