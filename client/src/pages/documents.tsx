@@ -123,16 +123,46 @@ export default function Documents() {
   }, []);
 
   // Handle Go! button click for AI search
-  const handleGoButtonClick = () => {
-    if (searchQuery.trim().length > 2) {
-      setAISearchQuery(searchQuery);
-      setExecuteAISearch(true);
+  const handleGoButtonClick = async () => {
+    if (!isConversationalMode || searchQuery.trim().length <= 2) {
+      return; // Guard against invalid states
+    }
+
+    try {
       // Clear previous results
       setConversationalResponse(null);
       setSearchIntent(null);
       setSearchKeywords([]);
+
+      // Build query parameters from current UI state
+      const params = {
+        query: searchQuery.trim(),
+        ...(selectedFileType !== "all" && { fileType: selectedFileType }),
+        ...(selectedFolderId !== "all" && { folderId: selectedFolderId }),
+        ...(selectedTagId && { tagId: selectedTagId })
+      };
+
+      console.info('AI search firing', params);
+
+      // Fetch conversational search directly
+      const result = await queryClient.fetchQuery<ConversationalSearchResponse>({
+        queryKey: ['/api/documents/search', params],
+        staleTime: 30000,
+      });
+
+      // Update state with results
+      setConversationalResponse(result.response);
+      setSearchIntent(result.intent);
+      setSearchKeywords(result.keywords);
+      setAISearchQuery(searchQuery.trim());
+
       // Track analytics
       trackEvent('search', { search_term: searchQuery.trim() });
+    } catch (error) {
+      console.error('Conversational search failed:', error);
+      setConversationalResponse("I encountered an error while searching. Please try again.");
+      setSearchIntent(null);
+      setSearchKeywords([]);
     }
   };
 
@@ -151,30 +181,14 @@ export default function Documents() {
   });
 
   // Fetch conversational search results - only when "Go!" button is clicked
-  const { data: conversationalData, isLoading: conversationalLoading, error: conversationalError } = useQuery<ConversationalSearchResponse>({
+  const { data: conversationalData, isLoading: conversationalLoading, error: conversationalError, refetch: refetchConversational } = useQuery<ConversationalSearchResponse>({
     queryKey: ['/api/documents/search', { 
       query: aiSearchQuery,
       fileType: selectedFileType === "all" ? "" : selectedFileType, 
       folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
       tagId: selectedTagId
     }],
-    queryFn: async ({ signal }) => {
-      const params = new URLSearchParams({
-        query: aiSearchQuery,
-        ...(selectedFileType !== "all" && { fileType: selectedFileType }),
-        ...(selectedFolderId !== "all" && { folderId: selectedFolderId }),
-        ...(selectedTagId && { tagId: selectedTagId })
-      });
-      
-      const response = await fetch(`/api/documents/search?${params}`, { signal });
-      if (!response.ok) {
-        const error: any = new Error(`AI search failed: ${response.statusText}`);
-        error.status = response.status; // Preserve status code for 429 detection
-        throw error;
-      }
-      return response.json();
-    },
-    enabled: executeAISearch && aiSearchQuery.length > 2,
+    enabled: false, // Disabled by default - only trigger via refetch()
     staleTime: 30000,
     refetchOnWindowFocus: false,
     retry: (failureCount, error: any) => {
@@ -183,6 +197,13 @@ export default function Documents() {
       return failureCount < 2; // Reduce retries for AI calls
     },
   });
+
+  // Trigger conversational search when AI search is executed
+  useEffect(() => {
+    if (executeAISearch && aiSearchQuery.length > 2) {
+      refetchConversational();
+    }
+  }, [executeAISearch, aiSearchQuery, refetchConversational]);
 
   // Reset AI search execution flag when query settles (success or error)
   useEffect(() => {
@@ -799,13 +820,10 @@ export default function Documents() {
                     size="sm"
                     onClick={() => {
                       setIsConversationalMode(!isConversationalMode);
-                      // Clear search when switching modes
-                      if (searchQuery) {
-                        setSearchQuery("");
-                        setConversationalResponse(null);
-                        setSearchIntent(null);
-                        setSearchKeywords([]);
-                      }
+                      // Don't clear search query - preserve user input when switching modes
+                      setConversationalResponse(null);
+                      setSearchIntent(null);
+                      setSearchKeywords([]);
                       setExecuteAISearch(false); // Clear AI search execution flag
                       setAISearchQuery(""); // Clear AI search query
                     }}
