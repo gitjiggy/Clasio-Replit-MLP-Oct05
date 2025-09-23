@@ -1358,12 +1358,15 @@ export class DatabaseStorage implements IStorage {
       
       // Improved filtering: Include multiple confidence tiers for better recall
       if (highConfidenceDocs.length > 0) {
-        // High confidence exists: include high + some medium
-        filteredDocuments = [...highConfidenceDocs, ...mediumConfidenceDocs.slice(0, 2)];
+        // High confidence exists: include high + medium + some low for comprehensive results
+        filteredDocuments = [...highConfidenceDocs, ...mediumConfidenceDocs.slice(0, 2), ...lowConfidenceDocs.slice(0, 2)];
         confidenceLevel = 'high';
         console.log(`Found ${highConfidenceDocs.length} high-confidence matches (>80%)`);
         if (mediumConfidenceDocs.length > 0) {
           console.log(`Also including ${Math.min(2, mediumConfidenceDocs.length)} medium-confidence matches`);
+        }
+        if (lowConfidenceDocs.length > 0) {
+          console.log(`Also including ${Math.min(2, lowConfidenceDocs.length)} low-confidence matches`);
         }
       } else if (mediumConfidenceDocs.length > 0) {
         // Medium confidence exists: include medium + some low  
