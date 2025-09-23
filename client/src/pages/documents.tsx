@@ -1219,7 +1219,7 @@ export default function Documents() {
                 </div>
                 <div className="text-sm text-blue-800 dark:text-blue-200 mb-2">
                   {aiSearchResults.response.includes('•') ? (
-                    // Format bulleted responses
+                    // Format numbered responses
                     <div className="space-y-2">
                       {aiSearchResults.response.split('•').filter(part => part.trim()).map((part, index) => (
                         <div key={index} className={index === 0 ? 'mb-2' : 'flex items-start gap-2'}>
@@ -1227,9 +1227,9 @@ export default function Documents() {
                             // First part is the intro text (e.g., "I found 3 documents...")
                             <span className="font-medium">{part.trim()}</span>
                           ) : (
-                            // Subsequent parts are the bullet points
+                            // Subsequent parts are the numbered points
                             <>
-                              <span className="text-blue-600 dark:text-blue-400 font-bold mt-0.5">•</span>
+                              <span className="text-blue-600 dark:text-blue-400 font-bold mt-0.5 min-w-[1.25rem]">{index}.</span>
                               <span className="flex-1">{part.trim()}</span>
                             </>
                           )}
