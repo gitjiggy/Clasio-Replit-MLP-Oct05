@@ -630,7 +630,39 @@ export class DatabaseStorage implements IStorage {
       console.log(`      No content embedding`);
     }
     
-    return totalWeight > 0 ? totalScore / totalWeight : 0;
+    const finalSemanticScore = totalWeight > 0 ? totalScore / totalWeight : 0;
+    console.log(`      → Final semantic score: ${finalSemanticScore.toFixed(4)}`);
+    return finalSemanticScore;
+  }
+  
+  private calculateTieredScore(semanticScore: number, lexicalScore: number, qualityScore: number): number {
+    // Convert all scores to 0-1 scale first
+    const semantic = semanticScore;
+    const lexical = lexicalScore; 
+    const quality = qualityScore;
+    
+    console.log(`    Tiered scoring: semantic=${semantic.toFixed(3)}, lexical=${lexical.toFixed(3)}, quality=${quality.toFixed(3)}`);
+    
+    // Tier 1: High confidence semantic matches
+    if (semantic >= 0.8) {
+      const tier1Score = Math.round(semantic * 100); // Return 80-100% directly
+      console.log(`    → Tier 1 (high semantic): ${tier1Score}%`);
+      return tier1Score / 100;
+    }
+    
+    // Tier 2: Moderate semantic matches  
+    if (semantic >= 0.4) {
+      const combined = (semantic * 0.6) + (lexical * 0.3) + (quality * 0.1);
+      const tier2Score = Math.round(combined * 100);
+      console.log(`    → Tier 2 (moderate semantic): ${tier2Score}%`);
+      return tier2Score / 100;
+    }
+    
+    // Tier 3: Low semantic matches - lexical dominant
+    const fallback = (lexical * 0.7) + (quality * 0.3);
+    const tier3Score = Math.round(fallback * 100);
+    console.log(`    → Tier 3 (lexical dominant): ${tier3Score}%`);
+    return tier3Score / 100;
   }
   
   private async calculateLexicalScore(doc: any, searchTerms: string): Promise<number> {
@@ -793,8 +825,8 @@ export class DatabaseStorage implements IStorage {
         // Stage 3: Quality Boost (15% weight)
         const qualityBoost = await this.calculateQualityBoost(doc, userId);
         
-        // Final Score = (semantic × 0.5) + (lexical × 0.35) + (quality × 0.15) - normalized to 0-1
-        const finalScore = (semanticScore * 0.5) + (lexicalScore * 0.35) + (qualityBoost * 0.15);
+        // Tiered scoring approach - prevents good semantic matches from being artificially capped
+        const finalScore = this.calculateTieredScore(semanticScore, lexicalScore, qualityBoost);
         
         console.log(`Document "${doc.name}": semantic=${semanticScore.toFixed(3)}, lexical=${lexicalScore.toFixed(3)}, quality=${qualityBoost.toFixed(3)}, final=${finalScore.toFixed(3)}`);
         
