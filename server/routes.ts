@@ -583,6 +583,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New AI-powered search endpoint with enhanced scoring
+  app.post("/api/search", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+
+      const { query, fileType, folderId, tagId, limit = 12 } = req.body;
+      
+      // Validate required query parameter
+      if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        return res.status(400).json({ 
+          error: "Query parameter is required for AI search" 
+        });
+      }
+
+      // Validate query length
+      const wordCount = query.trim().split(/\s+/).length;
+      if (wordCount > 100) {
+        return res.status(400).json({
+          error: "Query too long",
+          message: `Search query contains ${wordCount} words but maximum allowed is 100 words.`
+        });
+      }
+      
+      // Validate and sanitize filters
+      const filters = {
+        fileType: typeof fileType === 'string' ? fileType : undefined,
+        folderId: typeof folderId === 'string' ? folderId : undefined,
+        tagId: typeof tagId === 'string' ? tagId : undefined,
+        limit: typeof limit === 'number' ? Math.min(limit, 50) : 12,
+      };
+      
+      // Check feature flag for new scoring system
+      const useNewScoring = process.env.USE_NEW_SCORING === 'true';
+      
+      if (useNewScoring) {
+        // Use enhanced AI search with new scoring system
+        const searchResult = await storage.searchConversational(query.trim(), filters, userId);
+        
+        // Apply enhanced scoring to results
+        const enhancedResults = searchResult.documents.map(doc => {
+          let aiScore = 50; // Default score
+          
+          // Simple quality scoring based on document attributes (handle both camelCase and snake_case)
+          if (doc.isFavorite || doc.is_favorite) aiScore += 20;
+          if ((doc.aiWordCount || doc.ai_word_count) > 100) aiScore += 10;
+          if (doc.embeddings_generated || doc.embeddingsGenerated) aiScore += 15;
+          
+          // Boost recent documents
+          const uploadDate = doc.uploadedAt || doc.uploaded_at;
+          if (uploadDate) {
+            const daysSinceUpload = Math.floor((Date.now() - new Date(uploadDate).getTime()) / (1000 * 60 * 60 * 24));
+            if (daysSinceUpload < 30) aiScore += 5;
+          }
+          
+          return {
+            ...doc,
+            aiScore: Math.min(100, aiScore),
+            scoringMethod: 'enhanced'
+          };
+        }).sort((a, b) => b.aiScore - a.aiScore);
+        
+        res.json({
+          documents: enhancedResults,
+          response: searchResult.response,
+          intent: searchResult.intent,
+          keywords: searchResult.keywords,
+          query: query.trim(),
+          totalResults: enhancedResults.length,
+          scoringMethod: 'enhanced',
+          useNewScoring: true
+        });
+      } else {
+        // Use legacy conversational search
+        const searchResult = await storage.searchConversational(query.trim(), filters, userId);
+        
+        res.json({
+          documents: searchResult.documents.map(doc => ({
+            ...doc,
+            aiScore: 50, // Default legacy score
+            scoringMethod: 'legacy'
+          })),
+          response: searchResult.response,
+          intent: searchResult.intent,
+          keywords: searchResult.keywords,
+          query: query.trim(),
+          totalResults: searchResult.documents.length,
+          scoringMethod: 'legacy',
+          useNewScoring: false
+        });
+      }
+    } catch (error) {
+      console.error("Error in AI search:", error);
+      res.status(500).json({ 
+        error: "Failed to perform AI search",
+        message: "AI search service is temporarily unavailable. Please try again."
+      });
+    }
+  });
+
   // Get document content on-demand
   app.get("/api/documents/:id/content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {

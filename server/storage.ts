@@ -118,6 +118,16 @@ export interface IStorage {
   incrementDailyUsage(date: string, tokens: number, success: boolean): Promise<DailyApiUsage>;
   getDailyUsage(date: string): Promise<DailyApiUsage | null>;
   canProcessAnalysis(): Promise<{canProcess: boolean; remaining: number; resetTime: string}>;
+  
+  // Enhanced conversational search using AI metadata
+  searchConversational(query: string, filters?: Partial<Omit<DocumentFilters, 'search'>>, userId?: string): Promise<{
+    documents: DocumentWithFolderAndTags[];
+    relevantDocuments: DocumentWithFolderAndTags[];
+    relatedDocuments: DocumentWithFolderAndTags[];
+    response: string;
+    intent: string;
+    keywords: string[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -939,7 +949,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Enhanced conversational search using AI metadata
-  async searchConversational(query: string, filters: Partial<Omit<DocumentFilters, 'search'>> = {}): Promise<{
+  async searchConversational(query: string, filters: Partial<Omit<DocumentFilters, 'search'>> = {}, userId?: string): Promise<{
     documents: DocumentWithFolderAndTags[];
     relevantDocuments: DocumentWithFolderAndTags[];
     relatedDocuments: DocumentWithFolderAndTags[];
@@ -982,6 +992,11 @@ export class DatabaseStorage implements IStorage {
       
       // Apply base filters
       const conditions = [eq(documents.isDeleted, false)];
+      
+      // SECURITY: Filter by user ownership if userId is provided
+      if (userId) {
+        conditions.push(eq(documents.userId, userId));
+      }
       
       // Add category filter from AI analysis or explicit filters
       if (queryAnalysis.categoryFilter) {

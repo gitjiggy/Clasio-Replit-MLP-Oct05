@@ -333,6 +333,8 @@ export default function Documents() {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [queueDashboardOpen, setQueueDashboardOpen] = useState(false);
   const [searchMode, setSearchMode] = useState<"simple" | "ai">("simple");
+  const [aiSearchResults, setAiSearchResults] = useState<any>(null);
+  const [aiSearchLoading, setAiSearchLoading] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -358,31 +360,52 @@ export default function Documents() {
   // Handle AI Search Go button
   const handleAISearch = async () => {
     if (searchQuery.trim()) {
+      setAiSearchLoading(true);
       const processedQuery = preprocessQuery(searchQuery.trim());
       console.log('AI Search triggered for:', searchQuery);
       console.log('Processed query:', processedQuery);
       
       try {
-        // Get current documents for AI search
-        const allDocs = documentsData?.documents || [];
-        // TODO: Get actual user ID (placeholder for now)
-        const userId = 'current-user';
+        // Call the new /api/search endpoint
+        const response = await apiRequest('/api/search', {
+          method: 'POST',
+          body: JSON.stringify({
+            query: searchQuery.trim(),
+            fileType: selectedFileType === "all" ? undefined : selectedFileType,
+            folderId: selectedFolderId === "all" ? undefined : selectedFolderId,
+            tagId: selectedTagId || undefined,
+            limit: 20
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
         
-        const searchResults = await performAISearch(searchQuery.trim(), userId, allDocs);
-        console.log('AI Search results:', searchResults);
+        console.log('AI Search results:', response);
+        setAiSearchResults(response);
         
         trackEvent('ai_search', { 
           search_term: searchQuery.trim(),
           processed_term: processedQuery,
-          results_count: searchResults.length
+          results_count: response.documents?.length || 0,
+          scoring_method: response.scoringMethod,
+          use_new_scoring: response.useNewScoring
+        });
+        
+        toast({
+          title: "AI Search Complete",
+          description: `Found ${response.documents?.length || 0} relevant documents`,
         });
       } catch (error) {
         console.error('AI Search failed:', error);
+        setAiSearchResults(null);
         toast({
           title: "Search Error",
           description: "AI search failed. Please try again.",
           variant: "destructive"
         });
+      } finally {
+        setAiSearchLoading(false);
       }
     }
   };
@@ -955,11 +978,11 @@ export default function Documents() {
                 {searchMode === "ai" && (
                   <Button
                     onClick={handleAISearch}
-                    disabled={!searchQuery.trim()}
+                    disabled={!searchQuery.trim() || aiSearchLoading}
                     className="bg-blue-600 hover:bg-blue-700"
                     data-testid="ai-search-go"
                   >
-                    Go!
+                    {aiSearchLoading ? "Searching..." : "Go!"}
                   </Button>
                 )}
               </div>
@@ -1092,7 +1115,36 @@ export default function Documents() {
 
         {/* Documents Grid */}
         <div className="flex-1 overflow-auto p-6">
-          {documentsLoading ? (
+          {/* AI Search Results Section */}
+          {searchMode === "ai" && aiSearchResults && (
+            <div className="mb-6">
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Brain className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">AI Search Results</h3>
+                  <Badge variant="secondary" className="text-xs">
+                    {aiSearchResults.scoringMethod} • {aiSearchResults.totalResults} found
+                  </Badge>
+                </div>
+                <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+                  {aiSearchResults.response}
+                </p>
+                {aiSearchResults.keywords && aiSearchResults.keywords.length > 0 && (
+                  <div className="flex gap-1 flex-wrap">
+                    <span className="text-xs text-blue-700 dark:text-blue-300">Keywords:</span>
+                    {aiSearchResults.keywords.map((keyword: string, index: number) => (
+                      <Badge key={index} variant="outline" className="text-xs">
+                        {keyword}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Loading State */}
+          {(documentsLoading || aiSearchLoading) ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Card key={i} className="animate-pulse">
@@ -1108,19 +1160,26 @@ export default function Documents() {
                 </Card>
               ))}
             </div>
-          ) : documentsData?.documents.length === 0 ? (
+          ) : /* Empty State */ 
+          (searchMode === "ai" && aiSearchResults && aiSearchResults.documents.length === 0) || 
+          (searchMode === "simple" && documentsData?.documents.length === 0) ? (
             <div className="text-center py-12">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No documents found</h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                {searchMode === "ai" ? "No AI search results found" : "No documents found"}
+              </h3>
               <p className="text-muted-foreground">
                 {searchQuery || selectedFileType || selectedFolderId || selectedTagId
-                  ? "Try adjusting your filters or search query."
+                  ? searchMode === "ai" 
+                    ? "Try rephrasing your AI search query or using different keywords."
+                    : "Try adjusting your filters or search query."
                   : "Upload your first document to get started."}
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {documentsData?.documents.map((document) => (
+              {/* Display either AI search results or regular documents */}
+              {(searchMode === "ai" && aiSearchResults ? aiSearchResults.documents : documentsData?.documents)?.map((document: any) => (
                 <Card 
                   key={document.id} 
                   className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
@@ -1271,6 +1330,33 @@ export default function Documents() {
                             )}
                           </div>
                         )}
+                      </div>
+                    )}
+                    
+                    {/* AI Search Score Display */}
+                    {searchMode === "ai" && aiSearchResults && document.aiScore !== undefined && (
+                      <div className="mb-3 p-2 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950 dark:to-blue-950 rounded-md border border-purple-200 dark:border-purple-800">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Brain className="h-4 w-4 text-purple-600" />
+                            <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
+                              AI Relevance Score
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="bg-white dark:bg-gray-800 px-2 py-1 rounded-full">
+                              <span className="text-sm font-bold text-purple-700 dark:text-purple-300">
+                                {document.aiScore}%
+                              </span>
+                            </div>
+                            <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
+                                style={{ width: `${Math.min(100, document.aiScore)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
 
