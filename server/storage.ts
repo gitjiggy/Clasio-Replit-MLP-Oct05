@@ -407,10 +407,12 @@ export class DatabaseStorage implements IStorage {
         try {
           // Process the conversational query using Flash-lite for complex queries
           queryAnalysis = await processConversationalQuery(query);
+          console.log(`AI Query Analysis for "${query}":`, queryAnalysis);
         } catch (error) {
           console.warn("AI processing failed, using smart fallback:", error instanceof Error ? error.message : String(error));
           // Enhanced fallback: Extract keywords from conversational questions
           queryAnalysis = this.extractKeywordsFromConversationalQuery(query);
+          console.log(`Fallback Query Analysis for "${query}":`, queryAnalysis);
         }
       }
       
@@ -559,6 +561,9 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
+      console.log(`Search conditions applied for "${query}":`, conditions.length, "conditions");
+      console.log(`Keywords being searched:`, queryAnalysis.keywords);
+      
       // Execute search with metadata fields
       const foundDocuments = await db
         .select({
@@ -626,6 +631,9 @@ export class DatabaseStorage implements IStorage {
           tags: docTags,
         });
       }
+      
+      console.log(`Found ${foundDocuments.length} documents for query "${query}"`);
+      foundDocuments.forEach(doc => console.log(`- ${doc.name} (ID: ${doc.id})`));
       
       // Generate AI-powered conversational response
       const conversationalResponse = await generateConversationalResponse(
