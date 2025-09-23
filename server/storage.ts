@@ -632,33 +632,52 @@ export class DatabaseStorage implements IStorage {
       
       let baseScore = parseFloat(((result.rows[0] as any)?.score || 0).toString());
       
-      // Apply title match bonuses since ts_rank scores are naturally low
+      // Apply match bonuses across all searchable fields (not just title)
       const titleText = (doc.name || '').toLowerCase();
+      const summaryText = (doc.aiSummary || '').toLowerCase();
+      const topicsText = keyTopicsText.toLowerCase();
+      const allSearchableText = `${titleText} ${summaryText} ${topicsText}`;
+      
       const searchLower = searchTerms.toLowerCase();
       const searchTermsList = searchLower.split(' ').map(t => t.trim()).filter(t => t.length > 0);
       
-      console.log(`FTS Debug for "${doc.name}": title="${titleText}", search="${searchLower}", terms=[${searchTermsList.join(',')}], baseScore=${baseScore.toFixed(3)}`);
+      console.log(`FTS Debug for "${doc.name}": search="${searchLower}", terms=[${searchTermsList.join(',')}], baseScore=${baseScore.toFixed(3)}`);
       
-      // Exact title match: massive boost
+      // Check where the terms are found
+      const titleMatches = searchTermsList.filter(term => titleText.includes(term));
+      const summaryMatches = searchTermsList.filter(term => summaryText.includes(term));
+      const topicsMatches = searchTermsList.filter(term => topicsText.includes(term));
+      
+      // Exact name match: highest boost
       if (titleText === searchLower) {
         baseScore = Math.max(baseScore, 0.95);
-        console.log(`  → Exact match bonus: ${baseScore.toFixed(3)}`);
+        console.log(`  → Exact name match bonus: ${baseScore.toFixed(3)}`);
       }
-      // Title contains all search terms: significant boost  
+      // All terms found in name: significant boost  
       else if (searchTermsList.every(term => titleText.includes(term))) {
         baseScore = Math.max(baseScore, 0.8);
-        console.log(`  → All terms found bonus: ${baseScore.toFixed(3)}`);
+        console.log(`  → All terms in name bonus: ${baseScore.toFixed(3)}`);
       }
-      // Title contains some search terms: moderate boost
-      else if (searchTermsList.some(term => titleText.includes(term))) {
-        const foundTerms = searchTermsList.filter(term => titleText.includes(term));
+      // All terms found in summary: high boost (AI analysis is very relevant)
+      else if (searchTermsList.every(term => summaryText.includes(term))) {
+        baseScore = Math.max(baseScore, 0.75);
+        console.log(`  → All terms in AI summary bonus: ${baseScore.toFixed(3)}`);
+      }
+      // All terms found in key topics: good boost
+      else if (searchTermsList.every(term => topicsText.includes(term))) {
+        baseScore = Math.max(baseScore, 0.7);
+        console.log(`  → All terms in key topics bonus: ${baseScore.toFixed(3)}`);
+      }
+      // Some terms found anywhere: moderate boost
+      else if (searchTermsList.some(term => allSearchableText.includes(term))) {
+        const allMatches = Array.from(new Set([...titleMatches, ...summaryMatches, ...topicsMatches]));
         baseScore = Math.max(baseScore, 0.6);
-        console.log(`  → Some terms found bonus (${foundTerms.join(',')}): ${baseScore.toFixed(3)}`);
+        console.log(`  → Some terms found bonus (${allMatches.join(',')}) in name/summary/topics: ${baseScore.toFixed(3)}`);
       }
-      // Pure ts_rank with better normalization (ts_rank is usually 0.0-0.6 range)
+      // Pure ts_rank with better normalization
       else {
         baseScore = Math.min(0.8, baseScore * 2); // Scale up ts_rank scores
-        console.log(`  → No title match, scaled ts_rank: ${baseScore.toFixed(3)}`);
+        console.log(`  → No field match, scaled ts_rank: ${baseScore.toFixed(3)}`);
       }
       
       return Math.min(1, Math.max(0, baseScore));
