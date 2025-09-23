@@ -1177,13 +1177,17 @@ export class DatabaseStorage implements IStorage {
       if (isSimpleQuery) {
         console.log(`Stage 2: Skipping AI analysis for simple query, using improved FTS scores`);
         // For simple queries, use improved FTS scores with title match bonuses
+        // Use extracted keywords instead of full query for better scoring
+        const keywordsForScoring = queryAnalysis.keywords.join(' ') || query;
+        console.log(`Using extracted keywords for scoring: "${keywordsForScoring}" (instead of full query: "${query}")`);
+        
         const scoredDocuments = await Promise.all(candidatesForScoring.map(async (doc) => {
-          // Apply the same lexical scoring improvements used in 3-stage scoring
-          const improvedScore = await this.calculateLexicalScore(doc, query);
+          // Apply lexical scoring using extracted keywords only
+          const improvedScore = await this.calculateLexicalScore(doc, keywordsForScoring);
           return {
             ...doc,
             confidenceScore: Math.round(improvedScore * 100), // Convert to percentage
-            relevanceReason: `Enhanced FTS match (improved score: ${improvedScore.toFixed(3)})`,
+            relevanceReason: `Enhanced FTS match (keywords: "${keywordsForScoring}", score: ${improvedScore.toFixed(3)})`,
             isRelevant: improvedScore > 0.15
           };
         }));
@@ -1199,8 +1203,12 @@ export class DatabaseStorage implements IStorage {
           // NEW 3-STAGE SCORING SYSTEM
           console.log("Using new 3-stage scoring: Semantic (50%) + Lexical (35%) + Quality (15%)");
           
+          // Use extracted keywords for consistent scoring
+          const keywordsForScoring = queryAnalysis.keywords.join(' ') || query;
+          console.log(`Using extracted keywords for 3-stage scoring: "${keywordsForScoring}" (instead of full query: "${query}")`);
+          
           // Apply the new 3-stage scoring
-          const scoredDocuments = await this.new3StageScoring(candidatesForScoring, query, undefined);
+          const scoredDocuments = await this.new3StageScoring(candidatesForScoring, keywordsForScoring, undefined);
           
           // Convert scored documents to expected format (newScore is 0-1 scale)
           documentsWithConfidenceScores.push(...scoredDocuments.map(doc => ({
