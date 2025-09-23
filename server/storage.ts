@@ -218,17 +218,30 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(documents.isDeleted, false)];
 
     if (filters.search) {
-      // Search in both document name and content
+      // Search in document name, content, and tag names
       const nameCondition = ilike(documents.name, `%${filters.search}%`);
       const contentCondition = and(
         isNotNull(documents.documentContent),
         ilike(documents.documentContent, `%${filters.search}%`)
       );
+      
+      // Search in tag names by finding documents that have tags matching the search
+      const tagSearchSubquery = db
+        .select({ documentId: documentTags.documentId })
+        .from(documentTags)
+        .innerJoin(tags, eq(documentTags.tagId, tags.id))
+        .where(ilike(tags.name, `%${filters.search}%`));
+      
+      const tagCondition = inArray(documents.id, tagSearchSubquery);
+      
+      // Combine all search conditions
+      const searchConditions = [nameCondition];
       if (contentCondition) {
-        conditions.push(or(nameCondition, contentCondition)!);
-      } else {
-        conditions.push(nameCondition);
+        searchConditions.push(contentCondition);
       }
+      searchConditions.push(tagCondition);
+      
+      conditions.push(or(...searchConditions)!);
     }
 
     if (filters.fileType && filters.fileType !== 'all') {
@@ -672,13 +685,23 @@ export class DatabaseStorage implements IStorage {
         ? doc.aiKeyTopics.join(' ') 
         : (doc.aiKeyTopics || '');
       
-      // Get base PostgreSQL ts_rank score
+      // Fetch tag names for this document
+      const docTags = await db
+        .select({ name: tags.name })
+        .from(documentTags)
+        .innerJoin(tags, eq(documentTags.tagId, tags.id))
+        .where(eq(documentTags.documentId, doc.id));
+      
+      const tagNamesText = docTags.map(tag => tag.name).join(' ');
+      
+      // Get base PostgreSQL ts_rank score (including tag names)
       const result = await db.execute(sql`
         SELECT ts_rank(
           to_tsvector('english', 
             coalesce(${doc.name || ''},'') || ' ' || 
             coalesce(${doc.aiSummary || ''},'') || ' ' || 
-            coalesce(${keyTopicsText},'')
+            coalesce(${keyTopicsText},'') || ' ' || 
+            coalesce(${tagNamesText},'')
           ), 
           plainto_tsquery('english', ${searchTerms})
         ) as score
@@ -691,7 +714,8 @@ export class DatabaseStorage implements IStorage {
       const summaryText = (doc.aiSummary || '').toLowerCase();
       const topicsText = keyTopicsText.toLowerCase();
       const contentText = (doc.documentContent || '').toLowerCase();
-      const allSearchableText = `${titleText} ${summaryText} ${topicsText} ${contentText}`;
+      const tagText = tagNamesText.toLowerCase();
+      const allSearchableText = `${titleText} ${summaryText} ${topicsText} ${contentText} ${tagText}`;
       
       const searchLower = searchTerms.toLowerCase();
       const searchTermsList = searchLower.split(' ').map(t => t.trim()).filter(t => t.length > 0);
@@ -703,6 +727,7 @@ export class DatabaseStorage implements IStorage {
       const summaryMatches = searchTermsList.filter(term => summaryText.includes(term));
       const topicsMatches = searchTermsList.filter(term => topicsText.includes(term));
       const contentMatches = searchTermsList.filter(term => contentText.includes(term));
+      const tagMatches = searchTermsList.filter(term => tagText.includes(term));
       
       // Exact name match: highest boost
       if (titleText === searchLower) {
@@ -724,6 +749,11 @@ export class DatabaseStorage implements IStorage {
         baseScore = Math.max(baseScore, 0.7);
         console.log(`  → All terms in key topics bonus: ${baseScore.toFixed(3)}`);
       }
+      // All terms found in tags: good boost (tags are important for categorization)
+      else if (searchTermsList.every(term => tagText.includes(term))) {
+        baseScore = Math.max(baseScore, 0.68);
+        console.log(`  → All terms in tags bonus: ${baseScore.toFixed(3)}`);
+      }
       // All terms found in document content: solid boost (content is highly relevant)
       else if (searchTermsList.every(term => contentText.includes(term))) {
         baseScore = Math.max(baseScore, 0.65);
@@ -736,7 +766,7 @@ export class DatabaseStorage implements IStorage {
       }
       // Some terms found anywhere: base boost
       else if (searchTermsList.some(term => allSearchableText.includes(term))) {
-        const allMatches = Array.from(new Set([...titleMatches, ...summaryMatches, ...topicsMatches, ...contentMatches]));
+        const allMatches = Array.from(new Set([...titleMatches, ...summaryMatches, ...topicsMatches, ...contentMatches, ...tagMatches]));
         baseScore = Math.max(baseScore, 0.4);
         console.log(`  → Some terms found bonus (${allMatches.join(',')}) in searchable fields: ${baseScore.toFixed(3)}`);
       }
@@ -1251,35 +1281,47 @@ export class DatabaseStorage implements IStorage {
       const searchTerms = preprocessedQuery || queryAnalysis.keywords.join(' ');
       console.log(`FTS search terms: "${searchTerms}"`);
       
-      // Execute raw SQL for proper PostgreSQL FTS with parameterized queries  
+      // Execute raw SQL for proper PostgreSQL FTS with parameterized queries (including tag names)
       const ftsResults = await db.execute(sql`
         SELECT 
-          id, name, original_name, file_path, file_size, file_type, mime_type, 
-          folder_id, uploaded_at, is_favorite, is_deleted, drive_file_id, 
-          drive_web_view_link, is_from_drive, drive_last_modified, drive_sync_status, 
-          drive_synced_at, ai_summary, ai_key_topics, ai_document_type, ai_category, 
-          ai_sentiment, ai_word_count, ai_analyzed_at, ai_concise_name, 
-          ai_category_confidence, ai_document_type_confidence, override_category, 
-          override_document_type, classification_overridden, document_content, 
-          content_extracted, content_extracted_at, title_embedding, content_embedding, 
-          summary_embedding, key_topics_embedding, embeddings_generated, embeddings_generated_at,
+          d.id, d.name, d.original_name, d.file_path, d.file_size, d.file_type, d.mime_type, 
+          d.folder_id, d.uploaded_at, d.is_favorite, d.is_deleted, d.drive_file_id, 
+          d.drive_web_view_link, d.is_from_drive, d.drive_last_modified, d.drive_sync_status, 
+          d.drive_synced_at, d.ai_summary, d.ai_key_topics, d.ai_document_type, d.ai_category, 
+          d.ai_sentiment, d.ai_word_count, d.ai_analyzed_at, d.ai_concise_name, 
+          d.ai_category_confidence, d.ai_document_type_confidence, d.override_category, 
+          d.override_document_type, d.classification_overridden, d.document_content, 
+          d.content_extracted, d.content_extracted_at, d.title_embedding, d.content_embedding, 
+          d.summary_embedding, d.key_topics_embedding, d.embeddings_generated, d.embeddings_generated_at,
           ts_rank(
             to_tsvector('english', 
-              coalesce(name,'') || ' ' || 
-              coalesce(original_name,'') || ' ' || 
-              coalesce(ai_summary,'') || ' ' || 
-              array_to_string(coalesce(ai_key_topics,'{}'), ' ')
+              coalesce(d.name,'') || ' ' || 
+              coalesce(d.original_name,'') || ' ' || 
+              coalesce(d.ai_summary,'') || ' ' || 
+              array_to_string(coalesce(d.ai_key_topics,'{}'), ' ') || ' ' ||
+              coalesce((
+                SELECT string_agg(t.name, ' ')
+                FROM document_tags dt
+                JOIN tags t ON dt.tag_id = t.id
+                WHERE dt.document_id = d.id
+              ), '')
             ), 
             plainto_tsquery('english', ${searchTerms})
           ) as fts_score
-        FROM documents 
+        FROM documents d
         WHERE 
-          is_deleted = false 
+          d.is_deleted = false 
           AND to_tsvector('english', 
-            coalesce(name,'') || ' ' || 
-            coalesce(original_name,'') || ' ' || 
-            coalesce(ai_summary,'') || ' ' || 
-            array_to_string(coalesce(ai_key_topics,'{}'), ' ')
+            coalesce(d.name,'') || ' ' || 
+            coalesce(d.original_name,'') || ' ' || 
+            coalesce(d.ai_summary,'') || ' ' || 
+            array_to_string(coalesce(d.ai_key_topics,'{}'), ' ') || ' ' ||
+            coalesce((
+              SELECT string_agg(t.name, ' ')
+              FROM document_tags dt
+              JOIN tags t ON dt.tag_id = t.id
+              WHERE dt.document_id = d.id
+            ), '')
           ) @@ plainto_tsquery('english', ${searchTerms})
         ORDER BY fts_score DESC 
         LIMIT 8
