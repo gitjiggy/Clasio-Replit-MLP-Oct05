@@ -61,6 +61,34 @@ const formatConfidence = (confidence: number | null | undefined): string | null 
   return `${Math.round(value)}%`;
 };
 
+// Stop words for AI search preprocessing
+const STOP_WORDS = [
+    // Document terms
+    'document', 'documents', 'doc', 'docs', 'file', 'files', 'paper', 'papers', 
+    'form', 'forms', 'record', 'records', 'report', 'reports', 'copy', 'copies',
+    'scan', 'scans', 'pdf', 'attachment', 'sheet', 'sheets',
+    
+    // Action words
+    'find', 'show', 'get', 'search', 'look', 'give', 'need', 'want', 'help',
+    'locate', 'where', 'what', 'which', 'how', 'when',
+    
+    // Possessives
+    'my', 'mine', 'our', 'ours', 'the', 'this', 'that', 'these', 'those',
+    'any', 'some', 'all',
+    
+    // Storage terms
+    'folder', 'drive', 'storage', 'saved', 'uploaded',
+    
+    // Vague terms
+    'stuff', 'things', 'items', 'something', 'anything', 'about', 'related'
+];
+
+function preprocessQuery(query: string): string {
+    const words = query.toLowerCase().split(/\s+/);
+    const filtered = words.filter(word => !STOP_WORDS.includes(word));
+    return filtered.join(' ');
+}
+
 export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFileType, setSelectedFileType] = useState("all");
@@ -98,9 +126,14 @@ export default function Documents() {
   // Handle AI Search Go button
   const handleAISearch = () => {
     if (searchQuery.trim()) {
+      const processedQuery = preprocessQuery(searchQuery.trim());
       // TODO: Implement AI search functionality
       console.log('AI Search triggered for:', searchQuery);
-      trackEvent('ai_search', { search_term: searchQuery.trim() });
+      console.log('Processed query:', processedQuery);
+      trackEvent('ai_search', { 
+        search_term: searchQuery.trim(),
+        processed_term: processedQuery
+      });
     }
   };
 
