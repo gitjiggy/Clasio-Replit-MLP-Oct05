@@ -1217,9 +1217,30 @@ export default function Documents() {
                     {aiSearchResults.totalResults} found
                   </Badge>
                 </div>
-                <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
-                  {aiSearchResults.response}
-                </p>
+                <div className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+                  {aiSearchResults.response.includes('•') ? (
+                    // Format bulleted responses
+                    <div className="space-y-2">
+                      {aiSearchResults.response.split('•').filter(part => part.trim()).map((part, index) => (
+                        <div key={index} className={index === 0 ? 'mb-2' : 'flex items-start gap-2'}>
+                          {index === 0 ? (
+                            // First part is the intro text (e.g., "I found 3 documents...")
+                            <span className="font-medium">{part.trim()}</span>
+                          ) : (
+                            // Subsequent parts are the bullet points
+                            <>
+                              <span className="text-blue-600 dark:text-blue-400 font-bold mt-0.5">•</span>
+                              <span className="flex-1">{part.trim()}</span>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    // Regular response without bullets
+                    <span>{aiSearchResults.response}</span>
+                  )}
+                </div>
                 {aiSearchResults.keywords && aiSearchResults.keywords.length > 0 && (
                   <div className="flex gap-1 flex-wrap">
                     <span className="text-xs text-blue-700 dark:text-blue-300">Keywords:</span>
