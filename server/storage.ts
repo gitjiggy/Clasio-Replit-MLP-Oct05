@@ -1136,104 +1136,73 @@ export class DatabaseStorage implements IStorage {
     
     if (useFTS) {
       try {
-        console.log(`Phase 1: Fast FTS pre-filtering for query: "${query}"`);
-        const rawFtsResults = await db.execute(sql`
-          SELECT 
-            d.id,
-            d.name,
-            d.original_name,
-            d.file_path,
-            d.file_size,
-            d.file_type,
-            d.mime_type,
-            d.folder_id,
-            d.uploaded_at,
-            d.is_favorite,
-            d.is_deleted,
-            d.drive_file_id,
-            d.drive_web_view_link,
-            d.is_from_drive,
-            d.drive_last_modified,
-            d.drive_sync_status,
-            d.drive_synced_at,
-            d.ai_summary,
-            d.ai_key_topics,
-            d.ai_document_type,
-            d.ai_category,
-            d.ai_sentiment,
-            d.ai_word_count,
-            d.ai_analyzed_at,
-            d.ai_concise_name,
-            d.ai_category_confidence,
-            d.ai_document_type_confidence,
-            d.override_category,
-            d.override_document_type,
-            d.classification_overridden,
-            d.document_content,
-            d.content_extracted,
-            d.content_extracted_at,
-            d.title_embedding,
-            d.content_embedding,
-            d.summary_embedding,
-            d.key_topics_embedding,
-            d.embeddings_generated,
-            d.embeddings_generated_at,
-            ts_rank(to_tsvector('english', coalesce(d.name,'') || ' ' || coalesce(d.original_name,'') || ' ' || coalesce(d.ai_summary,'')), websearch_to_tsquery('english', ${searchTerms})) as fts_score
-          FROM documents d
-          WHERE d.is_deleted = false 
-            AND to_tsvector('english', coalesce(d.name,'') || ' ' || coalesce(d.original_name,'') || ' ' || coalesce(d.ai_summary,'')) @@ websearch_to_tsquery('english', ${searchTerms})
-          ORDER BY fts_score DESC
-          LIMIT 15
-        `);
+        console.log(`Phase 1: Fast ILIKE pre-filtering for query: "${query}"`);
         
-        ftsResults = rawFtsResults.rows.map((row: any) => ({
-          id: row.id,
-          name: row.name,
-          originalName: row.original_name,
-          filePath: row.file_path,
-          fileSize: row.file_size,
-          fileType: row.file_type,
-          mimeType: row.mime_type,
-          folderId: row.folder_id,
-          uploadedAt: row.uploaded_at,
-          isFavorite: row.is_favorite,
-          isDeleted: row.is_deleted,
-          driveFileId: row.drive_file_id,
-          driveWebViewLink: row.drive_web_view_link,
-          isFromDrive: row.is_from_drive,
-          driveLastModified: row.drive_last_modified,
-          driveSyncStatus: row.drive_sync_status,
-          driveSyncedAt: row.drive_synced_at,
-          aiSummary: row.ai_summary,
-          aiKeyTopics: row.ai_key_topics,
-          aiDocumentType: row.ai_document_type,
-          aiCategory: row.ai_category,
-          aiSentiment: row.ai_sentiment,
-          aiWordCount: row.ai_word_count,
-          aiAnalyzedAt: row.ai_analyzed_at,
-          aiConciseName: row.ai_concise_name,
-          aiCategoryConfidence: row.ai_category_confidence,
-          aiDocumentTypeConfidence: row.ai_document_type_confidence,
-          overrideCategory: row.override_category,
-          overrideDocumentType: row.override_document_type,
-          classificationOverridden: row.classification_overridden,
-          documentContent: row.document_content,
-          contentExtracted: row.content_extracted,
-          contentExtractedAt: row.content_extracted_at,
-          titleEmbedding: row.title_embedding,
-          contentEmbedding: row.content_embedding,
-          summaryEmbedding: row.summary_embedding,
-          keyTopicsEmbedding: row.key_topics_embedding,
-          embeddingsGenerated: row.embeddings_generated,
-          embeddingsGeneratedAt: row.embeddings_generated_at,
-          ftsScore: parseFloat(row.fts_score) || 0
+        // Use ILIKE search (same as simple search) instead of FTS for consistency
+        const searchTerm = `%${query}%`;
+        
+        // Build search conditions (same as simple search)
+        const conditions = [eq(documents.isDeleted, false)];
+        
+        // Search in document name, content, and tag names (same as simple search)
+        const nameCondition = ilike(documents.name, searchTerm);
+        const contentCondition = and(
+          isNotNull(documents.documentContent),
+          ilike(documents.documentContent, searchTerm)
+        );
+        
+        // Search in tag names by finding documents that have tags matching the search
+        const tagSearchSubquery = db
+          .select({ documentId: documentTags.documentId })
+          .from(documentTags)
+          .innerJoin(tags, eq(documentTags.tagId, tags.id))
+          .where(ilike(tags.name, searchTerm));
+        
+        const tagCondition = inArray(documents.id, tagSearchSubquery);
+        
+        // Combine all search conditions
+        const searchConditions = [nameCondition, contentCondition, tagCondition];
+        conditions.push(or(...searchConditions)!);
+        
+        // Apply additional filters
+        if (filters?.fileType && filters.fileType !== 'all') {
+          conditions.push(eq(documents.fileType, filters.fileType));
+        }
+        
+        if (filters?.folderId && filters.folderId !== 'all') {
+          conditions.push(eq(documents.folderId, filters.folderId));
+        }
+        
+        if (filters?.tagId) {
+          const docsWithTag = await db
+            .select({ documentId: documentTags.documentId })
+            .from(documentTags)
+            .where(eq(documentTags.tagId, filters.tagId));
+            
+          conditions.push(inArray(documents.id, docsWithTag.map(d => d.documentId)));
+        }
+        
+        // Get documents with ILIKE search (limit to 15 for efficiency)
+        const rawFtsResults = await db
+          .select()
+          .from(documents)
+          .leftJoin(folders, eq(documents.folderId, folders.id))
+          .where(and(...conditions))
+          .orderBy(desc(documents.uploadedAt))
+          .limit(15);
+        
+        ftsResults = rawFtsResults.map((result) => ({
+          ...result.documents,
+          folder: result.folders,
+          tags: [],
+          ftsScore: 1.0 // Give all ILIKE matches a base score
         }));
         
         ftsTime = performance.now() - ftsStartTime;
-        console.log(`FTS phase: ${ftsTime.toFixed(2)}ms, found ${ftsResults.length} candidates`);
+        console.log(`ILIKE phase: ${ftsTime.toFixed(2)}ms, found ${ftsResults.length} candidates`);
         
       } catch (error) {
-        console.warn('FTS query failed, falling back to empty results:', error);
+        console.warn('ILIKE query failed, falling back to empty results:', error);
         ftsResults = [];
         ftsTime = performance.now() - ftsStartTime;
       }
