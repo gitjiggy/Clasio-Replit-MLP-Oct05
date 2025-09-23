@@ -50,9 +50,9 @@ import {
 // Calibrate confidence scores for better user experience
 function calibrateConfidence(rawScore) {
     // Map raw scores to more intuitive confidence ranges
-    if (rawScore >= 70) return Math.min(95, rawScore + 15);  // 70+ becomes 85-95%
+    if (rawScore >= 70) return Math.min(99, rawScore + 25);  // 70+ becomes 95-99%
     if (rawScore >= 50) return Math.min(85, rawScore + 20);  // 50+ becomes 70-85%
-    if (rawScore >= 30) return Math.min(70, rawScore + 25);  // 30+ becomes 55-70%
+    if (rawScore >= 30) return Math.min(60, rawScore + 20);  // 30+ becomes 50-60%
     return rawScore;  // Below 30 stays as-is
 }
 
