@@ -56,6 +56,14 @@ function calibrateConfidence(rawScore) {
     return rawScore;  // Below 30 stays as-is
 }
 
+// Get confidence level label and color based on score
+function getConfidenceLevel(score) {
+    if (score >= 90) return { label: "Very High", color: "text-green-800 dark:text-green-400" };
+    if (score >= 70) return { label: "High", color: "text-green-600 dark:text-green-500" };
+    if (score >= 40) return { label: "Moderate", color: "text-orange-600 dark:text-orange-400" };
+    return { label: "Low", color: "text-yellow-600 dark:text-yellow-400" };
+}
+
 interface DocumentsResponse {
   documents: DocumentWithVersionInfo[];
   pagination: {
@@ -1445,6 +1453,9 @@ export default function Documents() {
                                 style={{ width: `${Math.min(100, calibrateConfidence(document.aiScore))}%` }}
                               />
                             </div>
+                            <span className={`text-xs font-medium ${getConfidenceLevel(calibrateConfidence(document.aiScore)).color}`}>
+                              {getConfidenceLevel(calibrateConfidence(document.aiScore)).label}
+                            </span>
                           </div>
                         </div>
                       </div>
