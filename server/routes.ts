@@ -530,6 +530,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: "Query parameter is required for conversational search" 
         });
       }
+
+      // Validate query length to prevent abuse (max 100 words)
+      const wordCount = query.trim().split(/\s+/).length;
+      if (wordCount > 100) {
+        return res.status(400).json({
+          error: "Query too long",
+          message: `Your search query contains ${wordCount} words but the maximum allowed is 100 words. Please shorten your query and try again.`
+        });
+      }
       
       // Validate and sanitize other parameters
       const filters = {
