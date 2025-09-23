@@ -89,6 +89,28 @@ function preprocessQuery(query: string): string {
     return filtered.join(' ');
 }
 
+// 3-tier confidence scoring system
+function calculateFinalScore(semanticScore: number, lexicalScore: number, qualityScore: number): number {
+    const semantic = semanticScore / 100;
+    const lexical = lexicalScore / 100;
+    const quality = qualityScore / 100;
+    
+    // Tier 1: High confidence semantic matches
+    if (semantic >= 0.75) {
+        return Math.round(semantic * 100);
+    }
+    
+    // Tier 2: Moderate semantic matches
+    if (semantic >= 0.4) {
+        const combined = (semantic * 0.6) + (lexical * 0.3) + (quality * 0.1);
+        return Math.round(combined * 100);
+    }
+    
+    // Tier 3: Low semantic - lexical dominant
+    const fallback = (lexical * 0.7) + (quality * 0.3);
+    return Math.round(fallback * 100);
+}
+
 export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFileType, setSelectedFileType] = useState("all");
