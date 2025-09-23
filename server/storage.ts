@@ -996,7 +996,7 @@ export class DatabaseStorage implements IStorage {
           console.log(`Preprocessing query for AI: "${query}" → "${cleanedQuery}"`);
           
           // Process the conversational query using Flash-lite for complex queries
-          queryAnalysis = processConversationalQuery(cleanedQuery);
+          queryAnalysis = await processConversationalQuery(cleanedQuery);
           console.log(`AI Query Analysis for "${cleanedQuery}":`, queryAnalysis);
         } catch (error) {
           console.warn("AI processing failed, using smart fallback:", error instanceof Error ? error.message : String(error));

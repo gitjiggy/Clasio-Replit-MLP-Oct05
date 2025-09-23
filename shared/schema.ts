@@ -108,6 +108,26 @@ export const documentTags = pgTable("document_tags", {
   tagId: varchar("tag_id").references(() => tags.id, { onDelete: "cascade" }).notNull(),
 });
 
+// Query cache for lightning-fast repeat searches
+export const queryCache = pgTable("query_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  normalizedQuery: text("normalized_query").notNull().unique(), // Normalized query text
+  queryEmbedding: text("query_embedding"), // JSON array of embedding for query
+  keywords: text("keywords").array(), // Extracted keywords
+  categoryFilter: text("category_filter"), // Category filter if any
+  documentTypeFilter: text("document_type_filter"), // Document type filter if any
+  semanticQuery: text("semantic_query"), // Optimized semantic query
+  intent: text("intent"), // Query intent
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  lastUsedAt: timestamp("last_used_at").default(sql`now()`).notNull(),
+  usageCount: integer("usage_count").default(1).notNull(),
+}, (table) => ({
+  // Index for efficient cleanup of old entries
+  lastUsedIndex: index("query_cache_last_used_idx").on(table.lastUsedAt),
+  // Index for usage-based prioritization
+  usageCountIndex: index("query_cache_usage_idx").on(table.usageCount),
+}));
+
 // Document access log for quality boost scoring
 export const documentAccessLog = pgTable("document_access_log", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -187,6 +207,13 @@ export const insertDocumentTagSchema = createInsertSchema(documentTags).omit({
   id: true,
 });
 
+export const insertQueryCacheSchema = createInsertSchema(queryCache).omit({
+  id: true,
+  createdAt: true,
+  lastUsedAt: true,
+  usageCount: true,
+});
+
 export const insertDocumentAccessLogSchema = createInsertSchema(documentAccessLog).omit({
   id: true,
   accessedAt: true,
@@ -207,6 +234,7 @@ export type InsertTag = z.infer<typeof insertTagSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
 export type InsertDocumentTag = z.infer<typeof insertDocumentTagSchema>;
+export type InsertQueryCache = z.infer<typeof insertQueryCacheSchema>;
 export type InsertDocumentAccessLog = z.infer<typeof insertDocumentAccessLogSchema>;
 export type InsertAiAnalysisQueue = z.infer<typeof insertAiAnalysisQueueSchema>;
 export type InsertDailyApiUsage = z.infer<typeof insertDailyApiUsageSchema>;
@@ -216,6 +244,7 @@ export type Tag = typeof tags.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type DocumentVersion = typeof documentVersions.$inferSelect;
 export type DocumentTag = typeof documentTags.$inferSelect;
+export type QueryCache = typeof queryCache.$inferSelect;
 export type DocumentAccessLog = typeof documentAccessLog.$inferSelect;
 export type AiAnalysisQueue = typeof aiAnalysisQueue.$inferSelect;
 export type DailyApiUsage = typeof dailyApiUsage.$inferSelect;
