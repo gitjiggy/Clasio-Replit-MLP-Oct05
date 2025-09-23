@@ -107,6 +107,8 @@ export interface IStorage {
 
   // AI Analysis Queue Management
   enqueueDocumentForAnalysis(documentId: string, userId: string, priority?: number): Promise<AiAnalysisQueue>;
+  enqueueDocumentForEmbedding(documentId: string, userId: string, priority?: number): Promise<AiAnalysisQueue>;
+  bulkEnqueueDocumentsForEmbedding(userId: string, priority?: number): Promise<{queued: number; skipped: number; errors: string[]}>;
   dequeueNextAnalysisJob(): Promise<AiAnalysisQueue | null>;
   updateQueueJobStatus(jobId: string, status: string, failureReason?: string): Promise<boolean>;
   getQueueStatus(userId?: string): Promise<{pending: number; processing: number; completed: number; failed: number}>;
@@ -2171,6 +2173,171 @@ export class DatabaseStorage implements IStorage {
       return queueJob;
     } catch (error) {
       console.error(`❌ Failed to enqueue document ${documentId} for analysis:`, error);
+      throw error;
+    }
+  }
+
+  async enqueueDocumentForEmbedding(documentId: string, userId: string, priority: number = 8): Promise<AiAnalysisQueue> {
+    await this.ensureInitialized();
+    
+    try {
+      // Check if document already has embeddings
+      const document = await this.getDocumentById(documentId);
+      if (document?.embeddingsGenerated) {
+        console.log(`Document ${documentId} already has embeddings, skipping`);
+        // Return a dummy completed job
+        const existingJob = await db
+          .select()
+          .from(aiAnalysisQueue)
+          .where(
+            and(
+              eq(aiAnalysisQueue.documentId, documentId),
+              eq(aiAnalysisQueue.jobType, "embedding_generation")
+            )
+          )
+          .limit(1);
+        
+        if (existingJob[0]) {
+          return existingJob[0];
+        }
+      }
+
+      // Estimate tokens for embedding generation (much lower than analysis)
+      let estimatedTokens = 500; // Base estimate for embeddings
+      
+      if (document && document.documentContent) {
+        // Rough estimate: embeddings use fewer tokens than analysis
+        estimatedTokens = Math.ceil(document.documentContent.length / 8) + 200; // Much lower than analysis
+      } else if (document && document.fileSize) {
+        // Conservative estimate for embedding generation
+        estimatedTokens = Math.min(Math.ceil(document.fileSize / 10), 2000); // Cap at 2k tokens
+      }
+
+      const [queueJob] = await db
+        .insert(aiAnalysisQueue)
+        .values({
+          documentId,
+          userId,
+          jobType: "embedding_generation",
+          priority, // Default 8 for background embedding generation
+          estimatedTokens,
+          status: "pending",
+          scheduledAt: new Date(),
+        })
+        .onConflictDoNothing() // Handle duplicate prevention
+        .returning();
+
+      if (!queueJob) {
+        // Job already exists, get existing one
+        const existingJob = await db
+          .select()
+          .from(aiAnalysisQueue)
+          .where(
+            and(
+              eq(aiAnalysisQueue.documentId, documentId),
+              eq(aiAnalysisQueue.jobType, "embedding_generation"),
+              inArray(aiAnalysisQueue.status, ["pending", "processing"])
+            )
+          )
+          .limit(1);
+        
+        if (existingJob[0]) {
+          return existingJob[0];
+        }
+        throw new Error("Failed to enqueue document for embedding generation and no existing job found");
+      }
+
+      console.log(`📊 Enqueued document ${documentId} for embedding generation`);
+      return queueJob;
+    } catch (error) {
+      console.error(`❌ Failed to enqueue document ${documentId} for embedding generation:`, error);
+      throw error;
+    }
+  }
+
+  async bulkEnqueueDocumentsForEmbedding(userId: string, priority: number = 9): Promise<{queued: number; skipped: number; errors: string[]}> {
+    await this.ensureInitialized();
+    
+    console.log(`📊 Starting bulk embedding generation queue for user ${userId}`);
+    
+    try {
+      // Find all documents that need embeddings (analyzed but no embeddings)
+      const documentsNeedingEmbeddings = await db
+        .select({
+          id: documents.id,
+          name: documents.name,
+          embeddingsGenerated: documents.embeddingsGenerated,
+          aiAnalyzedAt: documents.aiAnalyzedAt
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.isDeleted, false),
+            isNotNull(documents.aiAnalyzedAt), // Only documents that have been analyzed
+            or(
+              eq(documents.embeddingsGenerated, false),
+              sql`${documents.embeddingsGenerated} IS NULL`
+            )
+          )
+        )
+        .orderBy(desc(documents.aiAnalyzedAt)); // Process most recently analyzed first
+
+      console.log(`Found ${documentsNeedingEmbeddings.length} documents needing embeddings`);
+      
+      if (documentsNeedingEmbeddings.length === 0) {
+        return { queued: 0, skipped: 0, errors: [] };
+      }
+
+      let queued = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      // Check if we should limit the bulk operation to avoid overwhelming the queue
+      const maxBulkSize = 50; // Limit bulk operations to 50 documents at a time
+      const documentsToProcess = documentsNeedingEmbeddings.slice(0, maxBulkSize);
+      
+      if (documentsNeedingEmbeddings.length > maxBulkSize) {
+        console.log(`Limiting bulk operation to ${maxBulkSize} documents (${documentsNeedingEmbeddings.length} total need embeddings)`);
+      }
+
+      for (const doc of documentsToProcess) {
+        try {
+          // Check if already in queue
+          const existingJob = await db
+            .select()
+            .from(aiAnalysisQueue)
+            .where(
+              and(
+                eq(aiAnalysisQueue.documentId, doc.id),
+                eq(aiAnalysisQueue.jobType, "embedding_generation"),
+                inArray(aiAnalysisQueue.status, ["pending", "processing"])
+              )
+            )
+            .limit(1);
+
+          if (existingJob.length > 0) {
+            console.log(`Skipping ${doc.name} - already in embedding queue`);
+            skipped++;
+            continue;
+          }
+
+          // Enqueue for embedding generation
+          await this.enqueueDocumentForEmbedding(doc.id, userId, priority);
+          queued++;
+          console.log(`📊 Queued ${doc.name} for embedding generation`);
+
+        } catch (error) {
+          const errorMsg = `Failed to enqueue ${doc.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          errors.push(errorMsg);
+          console.warn(errorMsg);
+        }
+      }
+
+      console.log(`📊 Bulk embedding queue complete: ${queued} queued, ${skipped} skipped, ${errors.length} errors`);
+      return { queued, skipped, errors };
+
+    } catch (error) {
+      console.error('Error in bulkEnqueueDocumentsForEmbedding:', error);
       throw error;
     }
   }

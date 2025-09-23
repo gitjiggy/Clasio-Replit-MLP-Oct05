@@ -127,6 +127,7 @@ export const aiAnalysisQueue = pgTable("ai_analysis_queue", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
   userId: text("user_id").notNull(), // Firebase UID for tracking per-user queue
+  jobType: text("job_type").default("analysis").notNull(), // analysis, embedding_generation
   priority: integer("priority").default(5).notNull(), // 1=highest (user-requested), 5=bulk upload, 8=background
   requestedAt: timestamp("requested_at").default(sql`now()`).notNull(),
   scheduledAt: timestamp("scheduled_at"), // When it should be processed
@@ -140,9 +141,9 @@ export const aiAnalysisQueue = pgTable("ai_analysis_queue", {
   queueProcessingIndex: index("ai_queue_processing_idx").on(table.status, table.priority, table.scheduledAt),
   // Index for user queue status queries
   userQueueIndex: index("ai_queue_user_idx").on(table.userId, table.status),
-  // Prevent duplicate queue entries for same document
-  uniqueDocumentInQueue: uniqueIndex("ai_queue_unique_document_idx")
-    .on(table.documentId)
+  // Prevent duplicate queue entries for same document and job type
+  uniqueDocumentJobInQueue: uniqueIndex("ai_queue_unique_document_job_idx")
+    .on(table.documentId, table.jobType)
     .where(sql`status IN ('pending', 'processing')`),
 }));
 

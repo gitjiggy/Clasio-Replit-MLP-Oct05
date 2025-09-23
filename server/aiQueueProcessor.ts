@@ -1,5 +1,5 @@
 import { storage } from './storage.js';
-import { analyzeDocumentContent } from './gemini.js';
+import { analyzeDocumentContent, generateEmbedding, serializeEmbeddingToJSON } from './gemini.js';
 import type { AiAnalysisQueue } from '../shared/schema.js';
 
 /**
@@ -17,11 +17,11 @@ import type { AiAnalysisQueue } from '../shared/schema.js';
 class AIQueueProcessor {
   private isProcessing = false;
   private processingInterval: NodeJS.Timeout | null = null;
-  private readonly REQUESTS_PER_MINUTE = 60; // Increased from 15 to handle bulk uploads better
+  private readonly REQUESTS_PER_MINUTE = 15; // Free tier limit - respect the limits!
   private readonly DAILY_REQUEST_LIMIT = 1200; // Safety buffer from 1500
   private readonly PROCESSING_INTERVAL_MS = 5000; // Check every 5 seconds (faster processing)
   private readonly RETRY_DELAY_MS = 60000; // 1 minute retry for failed requests
-  private tokenBucket = 60; // Start with full bucket (matches REQUESTS_PER_MINUTE)
+  private tokenBucket = 15; // Start with full bucket (matches REQUESTS_PER_MINUTE)
   private lastTokenRefill = Date.now();
 
   constructor() {
@@ -116,69 +116,161 @@ class AIQueueProcessor {
       this.tokenBucket--;
 
       try {
-        // Processing document ${nextJob.documentId}
+        // Processing document ${nextJob.documentId} for ${nextJob.jobType}
+        console.log(`Processing job type: ${nextJob.jobType} for document ${nextJob.documentId}`);
         
-        // Get document details for analysis
+        // Get document details
         const document = await storage.getDocumentById(nextJob.documentId);
         if (!document) {
           throw new Error(`Document ${nextJob.documentId} not found`);
         }
 
-        // Get document content for analysis
-        const content = await storage.getDocumentContent(nextJob.documentId);
-        if (!content) {
-          throw new Error(`No content available for document ${nextJob.documentId}`);
-        }
-
-        // Perform the magical AI analysis! ✨
-        const analysisResult = await analyzeDocumentContent(content);
-        
-        if (analysisResult) {
-          // Generate proper 2-3 line English summary for AI Analysis section
-          const { summarizeDocument } = await import('./gemini.js');
-          const properSummary = await summarizeDocument(content);
+        if (nextJob.jobType === 'embedding_generation') {
+          // EMBEDDING GENERATION JOB
+          console.log(`📊 Generating embeddings for document: ${document.name}`);
           
-          // Update document with AI insights using updateDocument
-          await storage.updateDocument(nextJob.documentId, {
-            aiSummary: properSummary,
-            aiKeyTopics: analysisResult.keyTopics,
-            aiDocumentType: analysisResult.documentType,
-            aiCategory: analysisResult.category,
-            aiConciseName: analysisResult.conciseTitle,
-            aiCategoryConfidence: analysisResult.categoryConfidence,
-            aiDocumentTypeConfidence: analysisResult.documentTypeConfidence,
-            aiWordCount: analysisResult.wordCount,
-            aiAnalyzedAt: new Date()
-          });
-          
-          // 🗂️ SMART ORGANIZATION: Automatically organize document into appropriate folder
-          try {
-            if (analysisResult.category && analysisResult.documentType) {
-              const organized = await storage.organizeDocumentIntoFolder(
-                nextJob.documentId, 
-                analysisResult.category, 
-                analysisResult.documentType
-              );
-              if (organized) {
-                console.log(`✅ Smart Organization: "${document.name}" → ${analysisResult.category}/${analysisResult.documentType}`);
-              } else {
-                console.warn(`⚠️ Smart Organization failed for "${document.name}"`);
-              }
-            }
-          } catch (orgError) {
-            // Don't fail the entire analysis if organization fails
-            console.error(`❌ Smart Organization error for "${document.name}":`, orgError);
+          // Check if embeddings already exist
+          if (document.embeddingsGenerated) {
+            console.log(`Document ${nextJob.documentId} already has embeddings, marking as completed`);
+            await storage.updateQueueJobStatus(nextJob.id, 'completed', 'Embeddings already exist');
+            await storage.incrementDailyUsage(today, 0, true); // No API usage
+            return;
           }
+
+          // Get document content for embedding generation
+          const content = await storage.getDocumentContent(nextJob.documentId);
+          if (!content || content.trim().length === 0) {
+            console.warn(`No content available for embedding generation: ${document.name}`);
+            await storage.updateQueueJobStatus(nextJob.id, 'completed', 'No content available for embeddings');
+            return;
+          }
+
+          // Generate embeddings for different text components
+          const titleText = document.name || '';
+          const summaryText = document.aiSummary || '';
+          const keyTopicsText = (document.aiKeyTopics || []).join(' ');
           
-          // Mark queue item as completed with celebration! 🎉
-          await storage.updateQueueJobStatus(nextJob.id, 'completed', 'AI analysis completed successfully');
-          
-          // Track usage for quota management - exactly 1 request per analysis
-          await storage.incrementDailyUsage(today, 1, true);
-          
-          // AI analysis completed for document ${nextJob.documentId}
+          // Generate embeddings with retry logic
+          let titleEmbedding: number[] | null = null;
+          let contentEmbedding: number[] | null = null;
+          let summaryEmbedding: number[] | null = null;
+          let keyTopicsEmbedding: number[] | null = null;
+          let apiCalls = 0;
+
+          try {
+            // Title embedding
+            if (titleText.trim().length > 0) {
+              titleEmbedding = await generateEmbedding(titleText, 'RETRIEVAL_DOCUMENT');
+              apiCalls++;
+            }
+
+            // Content embedding (truncate if too long to avoid token limits)
+            const truncatedContent = content.length > 8000 ? content.substring(0, 8000) + '...' : content;
+            contentEmbedding = await generateEmbedding(truncatedContent, 'RETRIEVAL_DOCUMENT');
+            apiCalls++;
+
+            // Summary embedding (if available)
+            if (summaryText.trim().length > 0) {
+              summaryEmbedding = await generateEmbedding(summaryText, 'RETRIEVAL_DOCUMENT');
+              apiCalls++;
+            }
+
+            // Key topics embedding (if available)
+            if (keyTopicsText.trim().length > 0) {
+              keyTopicsEmbedding = await generateEmbedding(keyTopicsText, 'RETRIEVAL_DOCUMENT');
+              apiCalls++;
+            }
+
+            // Update document with embeddings
+            await storage.updateDocument(nextJob.documentId, {
+              titleEmbedding: titleEmbedding ? serializeEmbeddingToJSON(titleEmbedding) : null,
+              contentEmbedding: contentEmbedding ? serializeEmbeddingToJSON(contentEmbedding) : null,
+              summaryEmbedding: summaryEmbedding ? serializeEmbeddingToJSON(summaryEmbedding) : null,
+              keyTopicsEmbedding: keyTopicsEmbedding ? serializeEmbeddingToJSON(keyTopicsEmbedding) : null,
+              embeddingsGenerated: true,
+              embeddingsGeneratedAt: new Date()
+            });
+
+            console.log(`📊 Generated ${apiCalls} embeddings for document: ${document.name}`);
+            await storage.updateQueueJobStatus(nextJob.id, 'completed', `Generated ${apiCalls} embeddings successfully`);
+            await storage.incrementDailyUsage(today, apiCalls, true);
+            
+          } catch (embeddingError) {
+            console.error(`Failed to generate embeddings for ${document.name}:`, embeddingError);
+            throw embeddingError;
+          }
+
         } else {
-          throw new Error('AI analysis returned empty results');
+          // DOCUMENT ANALYSIS JOB (existing logic)
+          console.log(`🔍 Analyzing document: ${document.name}`);
+          
+          // Get document content for analysis
+          const content = await storage.getDocumentContent(nextJob.documentId);
+          if (!content) {
+            throw new Error(`No content available for document ${nextJob.documentId}`);
+          }
+
+          // Perform the magical AI analysis! ✨
+          const analysisResult = await analyzeDocumentContent(content);
+          
+          if (analysisResult) {
+            // Generate proper 2-3 line English summary for AI Analysis section
+            const { summarizeDocument } = await import('./gemini.js');
+            const properSummary = await summarizeDocument(content);
+            
+            // Update document with AI insights using updateDocument
+            await storage.updateDocument(nextJob.documentId, {
+              aiSummary: properSummary,
+              aiKeyTopics: analysisResult.keyTopics,
+              aiDocumentType: analysisResult.documentType,
+              aiCategory: analysisResult.category,
+              aiConciseName: analysisResult.conciseTitle,
+              aiCategoryConfidence: analysisResult.categoryConfidence,
+              aiDocumentTypeConfidence: analysisResult.documentTypeConfidence,
+              aiWordCount: analysisResult.wordCount,
+              aiAnalyzedAt: new Date()
+            });
+            
+            // 🗂️ SMART ORGANIZATION: Automatically organize document into appropriate folder
+            try {
+              if (analysisResult.category && analysisResult.documentType) {
+                const organized = await storage.organizeDocumentIntoFolder(
+                  nextJob.documentId, 
+                  analysisResult.category, 
+                  analysisResult.documentType
+                );
+                if (organized) {
+                  console.log(`✅ Smart Organization: "${document.name}" → ${analysisResult.category}/${analysisResult.documentType}`);
+                } else {
+                  console.warn(`⚠️ Smart Organization failed for "${document.name}"`);
+                }
+              }
+            } catch (orgError) {
+              // Don't fail the entire analysis if organization fails
+              console.error(`❌ Smart Organization error for "${document.name}":`, orgError);
+            }
+            
+            // Mark queue item as completed with celebration! 🎉
+            await storage.updateQueueJobStatus(nextJob.id, 'completed', 'AI analysis completed successfully');
+            
+            // Track usage for quota management - exactly 1 request per analysis
+            await storage.incrementDailyUsage(today, 1, true);
+            
+            // 📊 AUTO-ENQUEUE EMBEDDING GENERATION: After analysis is complete, queue for embedding generation
+            try {
+              if (!document.embeddingsGenerated) {
+                console.log(`📊 Auto-enqueueing embedding generation for: ${document.name}`);
+                await storage.enqueueDocumentForEmbedding(nextJob.documentId, nextJob.userId, 8); // Low priority background job
+              }
+            } catch (embeddingEnqueueError) {
+              console.warn(`Failed to auto-enqueue embedding generation for ${document.name}:`, embeddingEnqueueError);
+              // Don't fail the entire analysis if embedding enqueue fails
+            }
+            
+            // AI analysis completed for document ${nextJob.documentId}
+          } else {
+            throw new Error('AI analysis returned empty results');
+          }
         }
       } catch (error) {
         console.error(`AI analysis failed for document ${nextJob.documentId}:`, error);

@@ -673,6 +673,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk enqueue documents for embedding generation - for processing existing documents! 📊
+  app.post("/api/queue/bulk-embeddings", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({
+          error: "User authentication required",
+          funnyMessage: "Who goes there?! 🕵️‍♀️ Our embedding queue is VIP only!"
+        });
+      }
+
+      console.log(`Starting bulk embedding generation for user: ${userId}`);
+      
+      // Trigger bulk embedding generation
+      const result = await storage.bulkEnqueueDocumentsForEmbedding(userId, 9); // Very low priority
+      
+      res.json({
+        success: true,
+        result,
+        message: result.queued > 0 
+          ? `📊 Successfully queued ${result.queued} documents for embedding generation!`
+          : result.skipped > 0 
+            ? "🎯 All documents already have embeddings or are queued!"
+            : "📝 No documents found that need embeddings!",
+        funnyMessage: result.queued > 10 
+          ? "🚀 Whoa! That's a lot of embeddings to generate! Our AI is going to be busy!"
+          : result.queued > 0 
+            ? "📊 Our embedding generator is fired up and ready to go!"
+            : "✨ Looks like you're all caught up with embeddings!",
+        details: {
+          queued: result.queued,
+          skipped: result.skipped,
+          errors: result.errors,
+          tip: "Embeddings are generated in the background and improve search accuracy! 🎯"
+        }
+      });
+      
+    } catch (error) {
+      console.error("Error in bulk embedding generation:", error);
+      res.status(500).json({
+        error: "Failed to enqueue documents for embedding generation",
+        funnyMessage: "Our embedding queue seems to be having technical difficulties! 🤖💭 Please try again!"
+      });
+    }
+  });
+
   // Update document
   app.put("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
