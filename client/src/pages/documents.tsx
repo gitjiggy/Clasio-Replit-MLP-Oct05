@@ -767,24 +767,19 @@ export default function Documents() {
 
   const handleDownload = async (document: DocumentWithFolderAndTags) => {
     try {
-      const response = await fetch(`/api/documents/${document.id}/download`, {
-        headers: {
-          'Authorization': `Bearer ${await getGoogleAccessToken()}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Download failed');
-      }
-      
-      // For Drive documents, the API redirects, so we handle that case
-      if (response.redirected) {
-        window.open(response.url, '_blank');
+      // For Drive documents, redirect directly
+      if (document.driveWebViewLink) {
+        window.open(document.driveWebViewLink, '_blank');
         return;
       }
       
-      // For uploaded documents, trigger download
-      const blob = await response.blob();
+      // For uploaded documents, use the API endpoint to download
+      const response = await apiRequest('GET', `/api/documents/${document.id}/download`, null, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const blob = new Blob([response], { type: 'application/octet-stream' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.style.display = 'none';
