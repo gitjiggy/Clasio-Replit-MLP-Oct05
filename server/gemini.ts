@@ -858,9 +858,18 @@ Generate a helpful, conversational response that:
 5. If multiple documents found, mention the top matches
 
 Format like: 
-For single document: "I found 1 document related to [topic]. Here's the top match: • [Document Name] - matches because [reason]"
-For multiple documents: "I found [X] documents related to [topic]. Here are the matches: • Here's the first match: [Document Name] - matches because [reason] • Here's the second match: [Document Name] - matches because [reason] • Here's the third match: [Document Name] - matches because [reason]"
-Use bullet points (•) to separate multiple matches clearly.
+For single document: "I found 1 document related to [topic]. Here's the top match: 
+• [Document Name] - matches because [reason]"
+
+For multiple documents: "I found [X] documents related to [topic]. Here are the matches:
+
+• Here's the top match: [Document Name] - matches because [reason]
+
+• Here's the second best match: [Document Name] - matches because [reason] 
+
+• Here's the third best match: [Document Name] - matches because [reason]"
+
+IMPORTANT: Use line breaks before and after each bullet point for better readability. Each match should be on its own line starting with "Here's the top match", "Here's the second best match", "Here's the third best match", etc.
 
 Keep response helpful and informative but concise.`;
 
