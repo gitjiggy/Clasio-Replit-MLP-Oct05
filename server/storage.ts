@@ -556,37 +556,20 @@ export class DatabaseStorage implements IStorage {
     return score;
   }
   
-  private async calculateSemanticScore(doc: any, queryEmbedding: number[], query?: string): Promise<number> {
-    // Adjust field weights for person name queries where title matching is most important
-    const isPersonNameQuery = query && (/\b(mr|mrs|dr|ms)\b/i.test(query) || 
-                                      /^[A-Z][a-z]+ [A-Z][a-z]+(\s|$)/.test(query.trim()));
+  private async calculateSemanticScore(doc: any, queryEmbedding: number[]): Promise<number> {
+    // Use maximum field scoring instead of weighted averages to prevent dilution of strong signals
+    const fieldScores: number[] = [];
     
-    const fieldWeights = isPersonNameQuery ? {
-      title: 0.50,      // Boost title weight for name queries
-      keyTopics: 0.20,  // Reduce other fields
-      summary: 0.15,
-      content: 0.15
-    } : {
-      title: 0.15,      // Standard weights for general queries
-      keyTopics: 0.35, 
-      summary: 0.20,
-      content: 0.30
-    };
+    console.log(`    Semantic debug for "${doc.name}": using maximum field scoring`);
     
-    let totalScore = 0;
-    let totalWeight = 0;
-    
-    console.log(`    Semantic debug for "${doc.name}": ${isPersonNameQuery ? 'PERSON NAME detected' : 'general query'}`);
-    console.log(`    Field weights: title=${fieldWeights.title}, topics=${fieldWeights.keyTopics}, summary=${fieldWeights.summary}, content=${fieldWeights.content}`);
-    
-    // Title embedding
+    // Title embedding (with slight boost)
     if (doc.titleEmbedding) {
       const titleEmb = parseEmbeddingFromJSON(doc.titleEmbedding);
       if (titleEmb) {
         const similarity = calculateCosineSimilarity(queryEmbedding, titleEmb);
-        console.log(`      Title cosine similarity: ${similarity.toFixed(4)} (weight: ${fieldWeights.title})`);
-        totalScore += similarity * fieldWeights.title;
-        totalWeight += fieldWeights.title;
+        const titleScore = similarity * 0.9; // Slight boost for titles
+        console.log(`      Title cosine similarity: ${similarity.toFixed(4)} → boosted to ${titleScore.toFixed(4)}`);
+        fieldScores.push(titleScore);
       } else {
         console.log(`      Title embedding parsing failed`);
       }
@@ -599,9 +582,8 @@ export class DatabaseStorage implements IStorage {
       const keyTopicsEmb = parseEmbeddingFromJSON(doc.keyTopicsEmbedding);
       if (keyTopicsEmb) {
         const similarity = calculateCosineSimilarity(queryEmbedding, keyTopicsEmb);
-        console.log(`      Key topics cosine similarity: ${similarity.toFixed(4)} (weight: ${fieldWeights.keyTopics})`);
-        totalScore += similarity * fieldWeights.keyTopics;
-        totalWeight += fieldWeights.keyTopics;
+        console.log(`      Key topics cosine similarity: ${similarity.toFixed(4)}`);
+        fieldScores.push(similarity);
       } else {
         console.log(`      Key topics embedding parsing failed`);
       }
@@ -614,9 +596,8 @@ export class DatabaseStorage implements IStorage {
       const summaryEmb = parseEmbeddingFromJSON(doc.summaryEmbedding);
       if (summaryEmb) {
         const similarity = calculateCosineSimilarity(queryEmbedding, summaryEmb);
-        console.log(`      Summary cosine similarity: ${similarity.toFixed(4)} (weight: ${fieldWeights.summary}) ← KEY FOR MRI DOC`);
-        totalScore += similarity * fieldWeights.summary;
-        totalWeight += fieldWeights.summary;
+        console.log(`      Summary cosine similarity: ${similarity.toFixed(4)}`);
+        fieldScores.push(similarity);
       } else {
         console.log(`      Summary embedding parsing failed`);
       }
@@ -629,9 +610,8 @@ export class DatabaseStorage implements IStorage {
       const contentEmb = parseEmbeddingFromJSON(doc.contentEmbedding);
       if (contentEmb) {
         const similarity = calculateCosineSimilarity(queryEmbedding, contentEmb);
-        console.log(`      Content cosine similarity: ${similarity.toFixed(4)} (weight: ${fieldWeights.content})`);
-        totalScore += similarity * fieldWeights.content;
-        totalWeight += fieldWeights.content;
+        console.log(`      Content cosine similarity: ${similarity.toFixed(4)}`);
+        fieldScores.push(similarity);
       } else {
         console.log(`      Content embedding parsing failed`);
       }
@@ -639,9 +619,10 @@ export class DatabaseStorage implements IStorage {
       console.log(`      No content embedding`);
     }
     
-    const finalSemanticScore = totalWeight > 0 ? totalScore / totalWeight : 0;
-    console.log(`      → Final semantic score: ${finalSemanticScore.toFixed(4)}`);
-    return finalSemanticScore;
+    // Use the maximum score across all fields (let strongest field dominate)
+    const maxSemanticScore = fieldScores.length > 0 ? Math.max(...fieldScores) : 0;
+    console.log(`      → Maximum field score: ${maxSemanticScore.toFixed(4)} (strongest field wins)`);
+    return maxSemanticScore;
   }
   
   private calculateTieredScore(semanticScore: number, lexicalScore: number, qualityScore: number): number {
@@ -825,7 +806,7 @@ export class DatabaseStorage implements IStorage {
     for (const doc of filteredCandidates) {
       try {
         // Stage 1: Semantic Scoring (50% weight)
-        const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding, query);
+        const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding);
         console.log(`  → Semantic details for "${doc.name}": checking embeddings...`);
         
         // Stage 2: Lexical Scoring (35% weight) 
