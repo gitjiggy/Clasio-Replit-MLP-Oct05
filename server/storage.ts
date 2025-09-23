@@ -7,6 +7,7 @@ import {
   type DocumentAccessLog,
   type AiAnalysisQueue,
   type DailyApiUsage,
+  type QueryCache,
   type InsertDocument,
   type InsertFolder,
   type InsertTag,
@@ -15,6 +16,7 @@ import {
   type InsertDocumentAccessLog,
   type InsertAiAnalysisQueue,
   type InsertDailyApiUsage,
+  type InsertQueryCache,
   type DocumentWithFolderAndTags,
   type DocumentWithVersions,
   documents,
@@ -25,6 +27,7 @@ import {
   documentAccessLog,
   aiAnalysisQueue,
   dailyApiUsage,
+  queryCache,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -48,6 +51,66 @@ const MAIN_CATEGORIES = [
 ] as const;
 
 type MainCategory = typeof MAIN_CATEGORIES[number];
+
+// LRU Cache implementation for query caching
+class LRUCache<K, V> {
+  private cache = new Map<K, V>();
+  
+  constructor(private maxSize: number) {}
+  
+  get(key: K): V | undefined {
+    const value = this.cache.get(key);
+    if (value !== undefined) {
+      // Move to end (most recently used)
+      this.cache.delete(key);
+      this.cache.set(key, value);
+    }
+    return value;
+  }
+  
+  set(key: K, value: V): void {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      // Remove least recently used (first item)
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+    this.cache.set(key, value);
+  }
+  
+  has(key: K): boolean {
+    return this.cache.has(key);
+  }
+  
+  delete(key: K): boolean {
+    return this.cache.delete(key);
+  }
+  
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+// In-memory query cache (LRU with 5000 max entries, 24h TTL)
+const queryLRUCache = new LRUCache<string, CachedQueryData>(5000);
+
+interface CachedQueryData {
+  queryAnalysis: {
+    intent: string;
+    keywords: string[];
+    categoryFilter?: string;
+    documentTypeFilter?: string;
+    semanticQuery: string;
+  };
+  queryEmbedding?: number[];
+  timestamp: number;
+}
+
+// Query normalization for consistent caching
+function normalizeQuery(query: string): string {
+  return query.toLowerCase().trim().replace(/\s+/g, ' ');
+}
 
 // Extended types for API responses
 type FolderWithCounts = Folder & { documentCount: number };
@@ -175,6 +238,391 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Query Cache Management - Lightning Fast Search Optimization!
+  async getOrCreateQueryCache(query: string): Promise<CachedQueryData> {
+    const normalizedQuery = normalizeQuery(query);
+    
+    // Check in-memory LRU cache first (fastest path)
+    const cached = queryLRUCache.get(normalizedQuery);
+    if (cached) {
+      // Check if cache is still fresh (24h TTL)
+      const isExpired = Date.now() - cached.timestamp > 24 * 60 * 60 * 1000;
+      if (!isExpired) {
+        // Update last used time in database asynchronously (fire and forget)
+        this.updateQueryCacheUsage(normalizedQuery).catch(() => {});
+        return cached;
+      } else {
+        // Remove expired entry properly - FIX LRU BUG!
+        queryLRUCache.delete(normalizedQuery);
+      }
+    }
+    
+    // Check database cache second
+    try {
+      const [dbCached] = await db
+        .select()
+        .from(queryCache)
+        .where(eq(queryCache.normalizedQuery, normalizedQuery))
+        .limit(1);
+        
+      if (dbCached) {
+        // Parse and cache in memory
+        const cachedData: CachedQueryData = {
+          queryAnalysis: {
+            intent: dbCached.intent || "general_search",
+            keywords: dbCached.keywords || [query],
+            categoryFilter: dbCached.categoryFilter || undefined,
+            documentTypeFilter: dbCached.documentTypeFilter || undefined,
+            semanticQuery: dbCached.semanticQuery || query
+          },
+          queryEmbedding: dbCached.queryEmbedding ? parseEmbeddingFromJSON(dbCached.queryEmbedding) || undefined : undefined,
+          timestamp: Date.now()
+        };
+        
+        // Store in LRU cache for next time
+        queryLRUCache.set(normalizedQuery, cachedData);
+        
+        // Update usage count asynchronously
+        this.updateQueryCacheUsage(normalizedQuery).catch(() => {});
+        
+        return cachedData;
+      }
+    } catch (error) {
+      console.warn("Failed to check database query cache:", error);
+    }
+    
+    // Cache miss - DON'T BLOCK! Return fast lexical analysis and enqueue AI processing
+    const fastFallbackAnalysis = this.extractKeywordsFromConversationalQuery(query);
+    
+    const cachedData: CachedQueryData = {
+      queryAnalysis: fastFallbackAnalysis,
+      queryEmbedding: undefined, // Will be filled async
+      timestamp: Date.now()
+    };
+    
+    // Store fast fallback in LRU cache immediately
+    queryLRUCache.set(normalizedQuery, cachedData);
+    
+    // ⚡ BACKGROUND: Generate full AI analysis + embedding asynchronously - DON'T BLOCK!
+    this.generateFullQueryAnalysisAsync(normalizedQuery, query).catch(() => {});
+    
+    return cachedData;
+  }
+  
+  private async updateQueryCacheUsage(normalizedQuery: string): Promise<void> {
+    try {
+      await db
+        .update(queryCache)
+        .set({ 
+          lastUsedAt: sql`now()`,
+          usageCount: sql`${queryCache.usageCount} + 1`
+        })
+        .where(eq(queryCache.normalizedQuery, normalizedQuery));
+    } catch (error) {
+      // Ignore errors in async usage tracking
+    }
+  }
+  
+  private async storeQueryCacheAsync(normalizedQuery: string, queryAnalysis: any): Promise<void> {
+    try {
+      // Generate embedding in background
+      let queryEmbedding: number[] | undefined;
+      try {
+        queryEmbedding = await generateEmbedding(queryAnalysis.semanticQuery);
+      } catch (error) {
+        console.warn("Failed to generate query embedding:", error);
+      }
+      
+      // Store in database
+      await db
+        .insert(queryCache)
+        .values({
+          normalizedQuery,
+          queryEmbedding: queryEmbedding ? serializeEmbeddingToJSON(queryEmbedding) : null,
+          keywords: queryAnalysis.keywords,
+          categoryFilter: queryAnalysis.categoryFilter,
+          documentTypeFilter: queryAnalysis.documentTypeFilter,
+          semanticQuery: queryAnalysis.semanticQuery,
+          intent: queryAnalysis.intent
+        })
+        .onConflictDoUpdate({
+          target: queryCache.normalizedQuery,
+          set: {
+            queryEmbedding: queryEmbedding ? serializeEmbeddingToJSON(queryEmbedding) : sql`${queryCache.queryEmbedding}`,
+            keywords: queryAnalysis.keywords,
+            categoryFilter: queryAnalysis.categoryFilter,
+            documentTypeFilter: queryAnalysis.documentTypeFilter,
+            semanticQuery: queryAnalysis.semanticQuery,
+            intent: queryAnalysis.intent,
+            lastUsedAt: sql`now()`,
+            usageCount: sql`${queryCache.usageCount} + 1`
+          }
+        });
+        
+      // Update in-memory cache with embedding
+      if (queryEmbedding) {
+        const cached = queryLRUCache.get(normalizedQuery);
+        if (cached) {
+          cached.queryEmbedding = queryEmbedding;
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to store query cache:", error);
+    }
+  }
+  
+  private async generateFullQueryAnalysisAsync(normalizedQuery: string, originalQuery: string): Promise<void> {
+    try {
+      // Generate full AI analysis in background - this will be cached for next time
+      const fullQueryAnalysis = await processConversationalQuery(originalQuery);
+      
+      // Generate embedding
+      let queryEmbedding: number[] | undefined;
+      try {
+        queryEmbedding = await generateEmbedding(fullQueryAnalysis.semanticQuery);
+      } catch (error) {
+        console.warn("Failed to generate query embedding:", error);
+      }
+      
+      // Update cache with full analysis
+      const cachedData: CachedQueryData = {
+        queryAnalysis: fullQueryAnalysis,
+        queryEmbedding,
+        timestamp: Date.now()
+      };
+      
+      // Update in-memory cache
+      queryLRUCache.set(normalizedQuery, cachedData);
+      
+      // Store in database
+      await db
+        .insert(queryCache)
+        .values({
+          normalizedQuery,
+          queryEmbedding: queryEmbedding ? serializeEmbeddingToJSON(queryEmbedding) : null,
+          keywords: fullQueryAnalysis.keywords,
+          categoryFilter: fullQueryAnalysis.categoryFilter,
+          documentTypeFilter: fullQueryAnalysis.documentTypeFilter,
+          semanticQuery: fullQueryAnalysis.semanticQuery,
+          intent: fullQueryAnalysis.intent
+        })
+        .onConflictDoUpdate({
+          target: queryCache.normalizedQuery,
+          set: {
+            queryEmbedding: queryEmbedding ? serializeEmbeddingToJSON(queryEmbedding) : sql`${queryCache.queryEmbedding}`,
+            keywords: fullQueryAnalysis.keywords,
+            categoryFilter: fullQueryAnalysis.categoryFilter,
+            documentTypeFilter: fullQueryAnalysis.documentTypeFilter,
+            semanticQuery: fullQueryAnalysis.semanticQuery,
+            intent: fullQueryAnalysis.intent,
+            lastUsedAt: sql`now()`,
+            usageCount: sql`${queryCache.usageCount} + 1`
+          }
+        });
+        
+      console.log(`Background AI analysis completed for query: "${originalQuery}"`);
+    } catch (error) {
+      console.warn("Failed to generate full query analysis:", error);
+    }
+  }
+
+  // ⚡ LIGHTNING FAST: Full-Text Search using GIN indexes + Performance Metrics
+  private async performFastTextSearch(query: string, baseConditions: any[] = [], limit: number = 100): Promise<DocumentWithFolderAndTags[]> {
+    const startTime = performance.now(); // ⚡ TRACK PERFORMANCE FOR SUB-200MS TARGET
+    try {
+      // Prepare the search query for PostgreSQL FTS
+      const searchTerms = query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(term => term.length > 2)
+        .map(term => term.replace(/[^\w]/g, ''))
+        .filter(term => term.length > 1)
+        .join(' & ');
+      
+      if (!searchTerms) {
+        // Fallback to basic query if no valid search terms
+        return this.getDocuments({ search: '', page: 1, limit });
+      }
+      
+      console.log(`⚡ FTS Query: "${query}" → "${searchTerms}"`);
+      
+      // ⚡ LEAN PAYLOAD: Only select essential fields for ultra-fast response
+      const results = await db
+        .select({
+          id: documents.id,
+          name: documents.name,
+          originalName: documents.originalName,
+          filePath: documents.filePath,
+          fileSize: documents.fileSize,
+          fileType: documents.fileType,
+          mimeType: documents.mimeType,
+          folderId: documents.folderId,
+          uploadedAt: documents.uploadedAt,
+          isFavorite: documents.isFavorite,
+          isDeleted: documents.isDeleted,
+          // AI metadata - keep lightweight fields only
+          aiSummary: documents.aiSummary,
+          aiKeyTopics: documents.aiKeyTopics,
+          aiDocumentType: documents.aiDocumentType,
+          aiCategory: documents.aiCategory,
+          aiConciseName: documents.aiConciseName,
+          // User overrides
+          overrideCategory: documents.overrideCategory,
+          overrideDocumentType: documents.overrideDocumentType,
+          classificationOverridden: documents.classificationOverridden,
+          // EXCLUDE HEAVY FIELDS: documentContent, embeddings for fast response
+          // Calculate FTS ranking for sorting
+          rank: sql<number>`(
+            ts_rank_cd(to_tsvector('english', coalesce(${documents.name}, '')), plainto_tsquery('english', ${searchTerms})) * 4 +
+            ts_rank_cd(to_tsvector('english', coalesce(${documents.aiSummary}, '')), plainto_tsquery('english', ${searchTerms})) * 2 +
+            ts_rank_cd(to_tsvector('english', coalesce(${documents.documentContent}, '')), plainto_tsquery('english', ${searchTerms}))
+          )`,
+          folderName: folders.name,
+          folderColor: folders.color,
+        })
+        .from(documents)
+        .leftJoin(folders, eq(documents.folderId, folders.id))
+        .where(
+          and(
+            ...baseConditions,
+            or(
+              // Use GIN indexes for lightning-fast search!
+              sql`to_tsvector('english', coalesce(${documents.name}, '')) @@ plainto_tsquery('english', ${searchTerms})`,
+              sql`to_tsvector('english', coalesce(${documents.aiSummary}, '')) @@ plainto_tsquery('english', ${searchTerms})`,
+              sql`to_tsvector('english', coalesce(${documents.documentContent}, '')) @@ plainto_tsquery('english', ${searchTerms})`,
+              // ⚡ FIX TAG SEARCH REGRESSION: Add fast tag name search back!
+              sql`EXISTS (
+                SELECT 1 FROM document_tags dt 
+                JOIN tags t ON dt.tag_id = t.id 
+                WHERE dt.document_id = ${documents.id} 
+                AND to_tsvector('english', t.name) @@ plainto_tsquery('english', ${searchTerms})
+              )`
+            )
+          )
+        )
+        .orderBy(sql`rank DESC`, desc(documents.uploadedAt))
+        .limit(Math.min(limit, 20)); // ⚡ AGGRESSIVE PRE-FILTERING: Cap at 20 candidates for sub-200ms performance
+      
+      // ⚡ PERFORMANCE FIX: Batch-load ALL tags in a single query to eliminate N+1!
+      const documentIds = results.map(doc => doc.id);
+      
+      // Single query to get all tags for all documents
+      const allDocTags = documentIds.length > 0 ? await db
+        .select({
+          documentId: documentTags.documentId,
+          tagId: tags.id,
+          tagName: tags.name,
+          tagColor: tags.color,
+          tagCreatedAt: tags.createdAt,
+        })
+        .from(documentTags)
+        .innerJoin(tags, eq(documentTags.tagId, tags.id))
+        .where(inArray(documentTags.documentId, documentIds)) : [];
+      
+      // Group tags by document ID for fast lookup
+      const tagsByDocId = allDocTags.reduce((acc, docTag) => {
+        if (!acc[docTag.documentId]) {
+          acc[docTag.documentId] = [];
+        }
+        acc[docTag.documentId].push({
+          id: docTag.tagId,
+          name: docTag.tagName,
+          color: docTag.tagColor,
+          createdAt: docTag.tagCreatedAt
+        });
+        return acc;
+      }, {} as Record<string, any[]>);
+      
+      // Transform results with pre-loaded tags
+      const docsWithTags = results.map((doc) => ({
+        ...doc,
+        folder: doc.folderName ? { 
+          id: doc.folderId!, 
+          name: doc.folderName, 
+          color: doc.folderColor!,
+          parentId: null,
+          isAutoCreated: false,
+          category: null,
+          documentType: null,
+          gcsPath: null,
+          createdAt: new Date()
+        } : undefined,
+        tags: tagsByDocId[doc.id] || [], // Fast lookup - no additional queries!
+        confidenceScore: Math.min(95, Math.round((doc.rank || 0) * 100))
+      }));
+      
+      const executionTime = performance.now() - startTime;
+      console.log(`⚡ FTS found ${docsWithTags.length} results in ${executionTime.toFixed(2)}ms`);
+      
+      // ⚡ PERFORMANCE TARGET: Log when we exceed 200ms
+      if (executionTime > 200) {
+        console.warn(`🚨 FTS exceeded 200ms target: ${executionTime.toFixed(2)}ms for query "${query}"`);
+      }
+      
+      return docsWithTags;
+      
+    } catch (error) {
+      console.warn("FTS search failed, using safe minimal fallback:", error);
+      // ⚡ SAFE FALLBACK: Use simple name exact match to avoid infinite recursion
+      const fallbackResults = await db
+        .select({
+          id: documents.id,
+          name: documents.name,
+          originalName: documents.originalName,
+          filePath: documents.filePath,
+          fileSize: documents.fileSize,
+          fileType: documents.fileType,
+          mimeType: documents.mimeType,
+          folderId: documents.folderId,
+          uploadedAt: documents.uploadedAt,
+          isFavorite: documents.isFavorite,
+          isDeleted: documents.isDeleted,
+          aiSummary: documents.aiSummary,
+          aiKeyTopics: documents.aiKeyTopics,
+          aiDocumentType: documents.aiDocumentType,
+          aiCategory: documents.aiCategory,
+          aiConciseName: documents.aiConciseName,
+          overrideCategory: documents.overrideCategory,
+          overrideDocumentType: documents.overrideDocumentType,
+          classificationOverridden: documents.classificationOverridden,
+          folderName: folders.name,
+          folderColor: folders.color,
+        })
+        .from(documents)
+        .leftJoin(folders, eq(documents.folderId, folders.id))
+        .where(
+          and(
+            ...baseConditions,
+            or(
+              // Safe exact/partial matches without FTS
+              sql`LOWER(${documents.name}) LIKE LOWER(${'%' + query + '%'})`,
+              sql`LOWER(${documents.aiSummary}) LIKE LOWER(${'%' + query + '%'})`
+            )
+          )
+        )
+        .orderBy(desc(documents.uploadedAt))
+        .limit(Math.min(limit, 20));
+      
+      // Transform to expected format without tags (fallback mode)
+      return fallbackResults.map(doc => ({
+        ...doc,
+        folder: doc.folderName ? { 
+          id: doc.folderId!, 
+          name: doc.folderName, 
+          color: doc.folderColor!,
+          parentId: null,
+          isAutoCreated: false,
+          category: null,
+          documentType: null,
+          gcsPath: null,
+          createdAt: new Date()
+        } : undefined,
+        tags: [], // Skip tags in fallback for safety
+        confidenceScore: 50 // Lower confidence for fallback
+      }));
+    }
+  }
+
   // Documents
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
     await this.ensureInitialized();
@@ -212,36 +660,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]> {
+    const startTime = performance.now(); // ⚡ TRACK END-TO-END PERFORMANCE
     await this.ensureInitialized();
     
     // Apply filters
     const conditions = [eq(documents.isDeleted, false)];
 
     if (filters.search) {
-      // Search in document name, content, and tag names
-      const nameCondition = ilike(documents.name, `%${filters.search}%`);
-      const contentCondition = and(
-        isNotNull(documents.documentContent),
-        ilike(documents.documentContent, `%${filters.search}%`)
-      );
+      // ⚡ PERFORMANCE FIX: Use lightning-fast GIN FTS instead of slow ilike queries!
+      const baseConditions = [...conditions];
       
-      // Search in tag names by finding documents that have tags matching the search
-      const tagSearchSubquery = db
-        .select({ documentId: documentTags.documentId })
-        .from(documentTags)
-        .innerJoin(tags, eq(documentTags.tagId, tags.id))
-        .where(ilike(tags.name, `%${filters.search}%`));
-      
-      const tagCondition = inArray(documents.id, tagSearchSubquery);
-      
-      // Combine all search conditions
-      const searchConditions = [nameCondition];
-      if (contentCondition) {
-        searchConditions.push(contentCondition);
+      // Apply additional filters to base conditions
+      if (filters.fileType && filters.fileType !== 'all') {
+        baseConditions.push(eq(documents.fileType, filters.fileType));
       }
-      searchConditions.push(tagCondition);
+      if (filters.folderId && filters.folderId !== 'all') {
+        baseConditions.push(eq(documents.folderId, filters.folderId));
+      }
+      if (filters.tagId) {
+        const docsWithTag = await db
+          .select({ documentId: documentTags.documentId })
+          .from(documentTags)
+          .where(eq(documentTags.tagId, filters.tagId));
+        const docIds = docsWithTag.map(dt => dt.documentId);
+        if (docIds.length > 0) {
+          baseConditions.push(inArray(documents.id, docIds));
+        } else {
+          return []; // No documents with this tag
+        }
+      }
       
-      conditions.push(or(...searchConditions)!);
+      // Use our ultra-fast GIN FTS function instead of slow ilike!
+      return this.performFastTextSearch(filters.search, baseConditions, filters.limit || 50);
     }
 
     if (filters.fileType && filters.fileType !== 'all') {
@@ -980,14 +1430,58 @@ export class DatabaseStorage implements IStorage {
       const isReallySimpleQuery = meaningfulWords.length === 1 && meaningfulWords[0].length > 3 && !/['"?!]/.test(query);
       
       if (isReallySimpleQuery) {
-        // Direct search for truly simple single-word queries only
-        console.log(`Direct search for simple query: "${query}"`);
-        queryAnalysis = {
-          intent: "simple_search",
-          keywords: meaningfulWords,
-          semanticQuery: query.toLowerCase(),
-          categoryFilter: undefined,
-          documentTypeFilter: undefined
+        // ⚡ FAST PATH: Use lightning-fast GIN FTS for simple queries - Skip ALL AI processing!
+        console.log(`⚡ FAST PATH: Ultra-fast FTS search for simple query: "${query}"`);
+        
+        const baseConditions = [eq(documents.isDeleted, false)];
+        
+        // Apply filters using our optimized indexes
+        if (filters.fileType && filters.fileType !== 'all') {
+          baseConditions.push(eq(documents.fileType, filters.fileType));
+        }
+        if (filters.folderId && filters.folderId !== 'all') {
+          baseConditions.push(eq(documents.folderId, filters.folderId));
+        }
+        
+        // Tag filtering if needed
+        let tagFilteredDocs: string[] = [];
+        if (filters.tagId) {
+          const docsWithTag = await db
+            .select({ documentId: documentTags.documentId })
+            .from(documentTags)
+            .where(eq(documentTags.tagId, filters.tagId));
+          tagFilteredDocs = docsWithTag.map(dt => dt.documentId);
+          if (tagFilteredDocs.length > 0) {
+            baseConditions.push(inArray(documents.id, tagFilteredDocs));
+          } else {
+            // No documents with this tag - return empty results fast
+            return {
+              documents: [],
+              relevantDocuments: [],
+              relatedDocuments: [],
+              response: `No documents found with the specified tag.`,
+              intent: "fast_search",
+              keywords: meaningfulWords
+            };
+          }
+        }
+        
+        // ⚡ Use lightning-fast GIN FTS instead of slow semantic search!
+        const fastResults = await this.performFastTextSearch(query, baseConditions, 50);
+        
+        // Generate quick response
+        const responseMsg = fastResults.length > 0 
+          ? `Found ${fastResults.length} document${fastResults.length === 1 ? '' : 's'} matching "${query}".`
+          : `No documents found matching "${query}".`;
+        
+        // Return fast results immediately - no expensive AI processing!
+        return {
+          documents: fastResults,
+          relevantDocuments: fastResults.slice(0, 10), // Top 10 as relevant
+          relatedDocuments: fastResults.slice(10), // Rest as related
+          response: responseMsg,
+          intent: "fast_search",
+          keywords: meaningfulWords
         };
       } else {
         try {
@@ -995,9 +1489,10 @@ export class DatabaseStorage implements IStorage {
           const cleanedQuery = this.preprocessSearchQuery(query);
           console.log(`Preprocessing query for AI: "${query}" → "${cleanedQuery}"`);
           
-          // Process the conversational query using Flash-lite for complex queries
-          queryAnalysis = await processConversationalQuery(cleanedQuery);
-          console.log(`AI Query Analysis for "${cleanedQuery}":`, queryAnalysis);
+          // ⚡ LIGHTNING FAST: Use intelligent cache system instead of direct AI calls!
+          const cachedData = await this.getOrCreateQueryCache(cleanedQuery);
+          queryAnalysis = cachedData.queryAnalysis;
+          console.log(`Cached Query Analysis for "${cleanedQuery}":`, queryAnalysis);
         } catch (error) {
           console.warn("AI processing failed, using smart fallback:", error instanceof Error ? error.message : String(error));
           // Enhanced fallback: Extract keywords from conversational questions
@@ -1067,50 +1562,25 @@ export class DatabaseStorage implements IStorage {
       // Instead of strict filtering, we'll get potential matches and score them
       const potentialMatchConditions = [];
       
+      // ⚡ REPLACE SLOW ILIKE WITH LIGHTNING-FAST FTS FOR COMPLEX QUERIES
       if (queryAnalysis.keywords.length > 0) {
-        for (const keyword of queryAnalysis.keywords) {
-          const keywordConditions = [
-            // Search in document names 
-            ilike(documents.name, `%${keyword}%`),
-            ilike(documents.originalName, `%${keyword}%`),
-            
-            // Search in AI-generated metadata
-            and(isNotNull(documents.aiSummary), ilike(documents.aiSummary, `%${keyword}%`)),
-            and(isNotNull(documents.aiConciseName), ilike(documents.aiConciseName, `%${keyword}%`)),
-            
-            // Search in AI categories and document types
-            and(isNotNull(documents.aiCategory), ilike(documents.aiCategory, `%${keyword}%`)),
-            and(isNotNull(documents.overrideCategory), ilike(documents.overrideCategory, `%${keyword}%`)),
-            and(isNotNull(documents.aiDocumentType), ilike(documents.aiDocumentType, `%${keyword}%`)),
-            and(isNotNull(documents.overrideDocumentType), ilike(documents.overrideDocumentType, `%${keyword}%`)),
-            
-            // Search full document content 
-            and(isNotNull(documents.documentContent), ilike(documents.documentContent, `%${keyword}%`))
-          ];
-          
-          // Search in key topics array
-          try {
-            // Exact array overlap
-            const keyTopicsExactCondition = sql`${documents.aiKeyTopics} && ARRAY[${keyword}]::text[]`;
-            keywordConditions.push(keyTopicsExactCondition);
-            
-            // Substring search within array elements
-            const keyTopicsSubstringCondition = sql`EXISTS (
-              SELECT 1 FROM unnest(${documents.aiKeyTopics}) AS topic 
-              WHERE topic ILIKE ${`%${keyword}%`}
-            )`;
-            keywordConditions.push(keyTopicsSubstringCondition);
-          } catch (error) {
-            console.warn("Array search fallback for keyword:", keyword, error);
-          }
-          
-          potentialMatchConditions.push(or(...keywordConditions.filter(Boolean))!);
-        }
+        const searchQuery = queryAnalysis.keywords.join(' ');
+        console.log(`⚡ Using FTS for complex query: "${searchQuery}"`);
         
-        if (potentialMatchConditions.length > 0) {
-          // Use OR for multiple keywords (any can match) for maximum recall
-          conditions.push(or(...potentialMatchConditions)!);
-        }
+        // Use our ultra-fast GIN FTS function for complex conversational search
+        const ftsResults = await this.performFastTextSearch(searchQuery, conditions, 50);
+        
+        // Return FTS results directly for conversational search
+        const response = await generateConversationalResponse(query, ftsResults, queryAnalysis.intent);
+        
+        return {
+          documents: ftsResults,
+          relevantDocuments: ftsResults.filter(doc => (doc.confidenceScore || 0) > 70),
+          relatedDocuments: ftsResults.filter(doc => (doc.confidenceScore || 0) <= 70),
+          response,
+          intent: queryAnalysis.intent,
+          keywords: queryAnalysis.keywords
+        };
       }
       
       // If no keyword matches, expand search to include semantic query in all fields
