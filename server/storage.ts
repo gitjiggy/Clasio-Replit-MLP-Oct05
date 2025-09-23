@@ -1035,6 +1035,16 @@ export class DatabaseStorage implements IStorage {
         console.log(`- ${doc.name}: FTS score ${doc.ftsScore?.toFixed(4) || 0}`)
       );
       
+      // If FTS found no candidates but broader search found some, use broader search results
+      let candidatesForScoring = stage1Candidates;
+      if (stage1Candidates.length === 0 && foundDocuments.length > 0) {
+        console.log(`FTS found 0 candidates, using ${foundDocuments.length} candidates from broader search`);
+        candidatesForScoring = foundDocuments.map(doc => ({
+          ...doc,
+          ftsScore: 0 // No FTS score available
+        }));
+      }
+      
       // STAGE 2: Selective AI Deep Analysis (only for top candidates)
       const documentsWithConfidenceScores = [];
       
@@ -1045,14 +1055,14 @@ export class DatabaseStorage implements IStorage {
       if (isSimpleQuery) {
         console.log(`Stage 2: Skipping AI analysis for simple query, using FTS scores`);
         // For simple queries, use FTS scores directly
-        documentsWithConfidenceScores.push(...stage1Candidates.map(doc => ({
+        documentsWithConfidenceScores.push(...candidatesForScoring.map(doc => ({
           ...doc,
           confidenceScore: Math.round((doc.ftsScore || 0) * 100), // Convert FTS score to percentage
           relevanceReason: `Full-text search match (FTS score: ${doc.ftsScore?.toFixed(4) || 0})`,
           isRelevant: (doc.ftsScore || 0) > 0.01
         })));
       } else {
-        console.log(`Stage 2: Complex query detected, running analysis on ${stage1Candidates.length} candidates`);
+        console.log(`Stage 2: Complex query detected, running analysis on ${candidatesForScoring.length} candidates`);
         
         // Check if new 3-stage scoring is enabled via feature flag (enabled by default)
         const useNewScoring = process.env.USE_NEW_SCORING !== 'false';
@@ -1062,21 +1072,15 @@ export class DatabaseStorage implements IStorage {
           // NEW 3-STAGE SCORING SYSTEM
           console.log("Using new 3-stage scoring: Semantic (50%) + Lexical (35%) + Quality (15%)");
           
-          // Convert FTS candidates to format expected by new scoring
-          const candidatesForNewScoring = stage1Candidates.map(doc => ({
-            ...doc,
-            ftsScore: doc.ftsScore || 0  // Keep FTS score for reference
-          }));
-          
           // Apply the new 3-stage scoring
-          const scoredDocuments = await this.new3StageScoring(candidatesForNewScoring, query, undefined);
+          const scoredDocuments = await this.new3StageScoring(candidatesForScoring, query, undefined);
           
           // Convert scored documents to expected format (newScore is 0-1 scale)
           documentsWithConfidenceScores.push(...scoredDocuments.map(doc => ({
             ...doc,
             confidenceScore: Math.round(doc.newScore * 100), // Convert 0-1 to percentage
             relevanceReason: `3-stage scoring: ${doc.scoringMethod || 'new_3_stage'}`,
-            isRelevant: doc.newScore >= 0.5 // Use 0.5 threshold for 0-1 scale
+            isRelevant: doc.newScore >= 0.2 // Lower threshold for more permissive results
           })));
           
         } else {
@@ -1146,13 +1150,35 @@ export class DatabaseStorage implements IStorage {
         console.log(`- ${doc.name}: ${doc.confidenceScore}% confidence`)
       );
       
-      // Filter documents with confidence > 50% OR if no high-confidence matches, take top 3
-      let filteredDocuments = documentsWithConfidenceScores.filter(doc => doc.confidenceScore >= 50);
+      // CONFIDENCE-BASED FILTERING SYSTEM
+      // High confidence (>80): Return results normally
+      // Medium confidence (40-79): Return with caveat  
+      // Low confidence (<40): Return top candidates but suggest alternatives
       
-      if (filteredDocuments.length === 0 && documentsWithConfidenceScores.length > 0) {
-        // Take top 3 documents even if below 50% confidence
-        filteredDocuments = documentsWithConfidenceScores.slice(0, 3);
-        console.log("No high-confidence matches, showing top candidates with lower confidence");
+      const highConfidenceDocs = documentsWithConfidenceScores.filter(doc => doc.confidenceScore >= 80);
+      const mediumConfidenceDocs = documentsWithConfidenceScores.filter(doc => doc.confidenceScore >= 40 && doc.confidenceScore < 80);
+      const lowConfidenceDocs = documentsWithConfidenceScores.filter(doc => doc.confidenceScore < 40);
+      
+      let filteredDocuments = [];
+      let confidenceLevel = 'none';
+      
+      if (highConfidenceDocs.length > 0) {
+        filteredDocuments = highConfidenceDocs;
+        confidenceLevel = 'high';
+        console.log(`Found ${highConfidenceDocs.length} high-confidence matches (>80%)`);
+      } else if (mediumConfidenceDocs.length > 0) {
+        filteredDocuments = mediumConfidenceDocs.slice(0, 5); // Limit to top 5 for medium confidence
+        confidenceLevel = 'medium';
+        console.log(`Found ${mediumConfidenceDocs.length} medium-confidence matches (40-79%)`);
+      } else if (lowConfidenceDocs.length > 0) {
+        filteredDocuments = lowConfidenceDocs.slice(0, 3); // Limit to top 3 for low confidence
+        confidenceLevel = 'low';
+        console.log(`Found ${lowConfidenceDocs.length} low-confidence matches (<40%)`);
+      } else if (documentsWithConfidenceScores.length > 0) {
+        // Fallback: take top 2 documents regardless of score
+        filteredDocuments = documentsWithConfidenceScores.slice(0, 2);
+        confidenceLevel = 'fallback';
+        console.log("Using fallback: showing top candidates with any confidence level");
       }
       
       // Fetch folder and tag information for each document
@@ -1185,12 +1211,48 @@ export class DatabaseStorage implements IStorage {
       console.log(`Found ${documentsWithFoldersAndTags.length} filtered documents for query "${query}"`);
       documentsWithFoldersAndTags.forEach(doc => console.log(`- ${doc.name} (${doc.confidenceScore}% confidence)`));
       
-      // Generate AI-powered conversational response
-      const conversationalResponse = await generateConversationalResponse(
-        query, 
-        documentsWithFoldersAndTags,
-        queryAnalysis.intent
-      );
+      // Generate confidence-based conversational response
+      let conversationalResponse;
+      
+      if (documentsWithFoldersAndTags.length === 0) {
+        // No documents found
+        conversationalResponse = `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`;
+      } else {
+        // Generate response based on confidence level
+        switch (confidenceLevel) {
+          case 'high':
+            conversationalResponse = await generateConversationalResponse(
+              query, 
+              documentsWithFoldersAndTags,
+              queryAnalysis.intent
+            );
+            break;
+            
+          case 'medium':
+            const mediumResponse = await generateConversationalResponse(
+              query, 
+              documentsWithFoldersAndTags,
+              queryAnalysis.intent
+            );
+            conversationalResponse = `These documents may be related to your search:\n\n${mediumResponse}`;
+            break;
+            
+          case 'low':
+            conversationalResponse = `I found some documents that might be related, but with low confidence. You might want to try different search terms like "${queryAnalysis.keywords.slice(0, 2).join('", "')}" or check specific folders.`;
+            break;
+            
+          case 'fallback':
+            conversationalResponse = `I found some documents but they may not be exactly what you're looking for. Try refining your search with more specific terms.`;
+            break;
+            
+          default:
+            conversationalResponse = await generateConversationalResponse(
+              query, 
+              documentsWithFoldersAndTags,
+              queryAnalysis.intent
+            );
+        }
+      }
       
       return {
         documents: documentsWithFoldersAndTags,
