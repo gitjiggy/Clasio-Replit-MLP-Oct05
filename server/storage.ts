@@ -592,8 +592,8 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any[]> {
     console.log(`Starting new 3-stage scoring for ${candidates.length} candidates`);
     
-    // Check feature flag
-    const useNewScoring = process.env.USE_NEW_SCORING === 'true';
+    // Check feature flag (enabled by default)
+    const useNewScoring = process.env.USE_NEW_SCORING !== 'false';
     if (!useNewScoring) {
       console.log('New scoring disabled via feature flag, using fallback');
       return candidates; // Return unchanged
@@ -1057,8 +1057,8 @@ export class DatabaseStorage implements IStorage {
       } else {
         console.log(`Stage 2: Complex query detected, running analysis on ${stage1Candidates.length} candidates`);
         
-        // Check if new 3-stage scoring is enabled via feature flag
-        const useNewScoring = process.env.USE_NEW_SCORING === 'true';
+        // Check if new 3-stage scoring is enabled via feature flag (enabled by default)
+        const useNewScoring = process.env.USE_NEW_SCORING !== 'false';
         console.log(`Using ${useNewScoring ? 'new 3-stage' : 'legacy 2-stage'} scoring system`);
         
         if (useNewScoring) {
