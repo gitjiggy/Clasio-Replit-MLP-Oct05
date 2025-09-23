@@ -266,6 +266,8 @@ export class DatabaseStorage implements IStorage {
       documentContent: sql<string | null>`NULL`.as('documentContent'),
       contentExtracted: documents.contentExtracted,
       contentExtractedAt: documents.contentExtractedAt,
+      searchVector: documents.searchVector,
+      searchVectorGenerated: documents.searchVectorGenerated,
     };
 
     const results = await db
@@ -626,7 +628,9 @@ export class DatabaseStorage implements IStorage {
           classificationOverridden: documents.classificationOverridden,
           documentContent: documents.documentContent,
           contentExtracted: documents.contentExtracted,
-          contentExtractedAt: documents.contentExtractedAt
+          contentExtractedAt: documents.contentExtractedAt,
+          searchVector: documents.searchVector,
+          searchVectorGenerated: documents.searchVectorGenerated
         })
         .from(documents)
         .where(and(...conditions))
@@ -687,7 +691,9 @@ export class DatabaseStorage implements IStorage {
               classificationOverridden: documents.classificationOverridden,
               documentContent: documents.documentContent,
               contentExtracted: documents.contentExtracted,
-              contentExtractedAt: documents.contentExtractedAt
+              contentExtractedAt: documents.contentExtractedAt,
+              searchVector: documents.searchVector,
+              searchVectorGenerated: documents.searchVectorGenerated
             })
             .from(documents)
             .where(and(...broadConditions))
@@ -698,53 +704,165 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // Use AI to analyze document relevance by reading complete content
-      // Limit to top 10 documents to prevent excessive AI costs
-      const documentsToAnalyze = foundDocuments.slice(0, 10);
-      console.log(`Analyzing ${documentsToAnalyze.length} documents with AI for query: "${query}"`);
+      // STAGE 1: True PostgreSQL FTS Database-level Pre-filtering  
+      console.log(`Stage 1: Database-level FTS pre-filtering for query: "${query}"`);
+      
+      // Create search query for PostgreSQL FTS (space-separated for plainto_tsquery)
+      const searchTerms = queryAnalysis.keywords.join(' ');
+      console.log(`FTS search terms: "${searchTerms}"`);
+      
+      // Execute raw SQL for proper PostgreSQL FTS with parameterized queries
+      const ftsQuery = `
+        SELECT 
+          id, name, original_name, file_path, file_size, file_type, mime_type, 
+          folder_id, uploaded_at, is_favorite, is_deleted, drive_file_id, 
+          drive_web_view_link, is_from_drive, drive_last_modified, drive_sync_status, 
+          drive_synced_at, ai_summary, ai_key_topics, ai_document_type, ai_category, 
+          ai_sentiment, ai_word_count, ai_analyzed_at, ai_concise_name, 
+          ai_category_confidence, ai_document_type_confidence, override_category, 
+          override_document_type, classification_overridden, document_content, 
+          content_extracted, content_extracted_at, search_vector, search_vector_generated,
+          ts_rank(
+            to_tsvector('english', 
+              coalesce(name,'') || ' ' || 
+              coalesce(original_name,'') || ' ' || 
+              coalesce(ai_summary,'') || ' ' || 
+              array_to_string(coalesce(ai_key_topics,'{}'), ' ')
+            ), 
+            plainto_tsquery('english', $1)
+          ) as fts_score
+        FROM documents 
+        WHERE 
+          is_deleted = false 
+          AND to_tsvector('english', 
+            coalesce(name,'') || ' ' || 
+            coalesce(original_name,'') || ' ' || 
+            coalesce(ai_summary,'') || ' ' || 
+            array_to_string(coalesce(ai_key_topics,'{}'), ' ')
+          ) @@ plainto_tsquery('english', $1)
+        ORDER BY fts_score DESC 
+        LIMIT 8
+      `;
+      
+      // Execute raw PostgreSQL FTS query with parameterized search terms
+      const ftsResults = await db.execute(sql.raw(ftsQuery.replace('$1', `'${searchTerms.replace(/'/g, "''")}'`)));
+      
+      // Convert raw results to typed documents
+      const stage1Candidates = ftsResults.rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        originalName: row.original_name,
+        filePath: row.file_path,
+        fileSize: row.file_size,
+        fileType: row.file_type,
+        mimeType: row.mime_type,
+        folderId: row.folder_id,
+        uploadedAt: row.uploaded_at,
+        isFavorite: row.is_favorite,
+        isDeleted: row.is_deleted,
+        driveFileId: row.drive_file_id,
+        driveWebViewLink: row.drive_web_view_link,
+        isFromDrive: row.is_from_drive,
+        driveLastModified: row.drive_last_modified,
+        driveSyncStatus: row.drive_sync_status,
+        driveSyncedAt: row.drive_synced_at,
+        aiSummary: row.ai_summary,
+        aiKeyTopics: row.ai_key_topics,
+        aiDocumentType: row.ai_document_type,
+        aiCategory: row.ai_category,
+        aiSentiment: row.ai_sentiment,
+        aiWordCount: row.ai_word_count,
+        aiAnalyzedAt: row.ai_analyzed_at,
+        aiConciseName: row.ai_concise_name,
+        aiCategoryConfidence: row.ai_category_confidence,
+        aiDocumentTypeConfidence: row.ai_document_type_confidence,
+        overrideCategory: row.override_category,
+        overrideDocumentType: row.override_document_type,
+        classificationOverridden: row.classification_overridden,
+        documentContent: row.document_content,
+        contentExtracted: row.content_extracted,
+        contentExtractedAt: row.content_extracted_at,
+        searchVector: row.search_vector,
+        searchVectorGenerated: row.search_vector_generated,
+        ftsScore: parseFloat(row.fts_score) || 0
+      }));
+      
+      console.log(`Stage 1: PostgreSQL FTS found ${stage1Candidates.length} candidates`);
+      stage1Candidates.forEach(doc => 
+        console.log(`- ${doc.name}: FTS score ${doc.ftsScore?.toFixed(4) || 0}`)
+      );
+      
+      // STAGE 2: Selective AI Deep Analysis (only for top candidates)
       const documentsWithConfidenceScores = [];
       
-      for (const doc of documentsToAnalyze) {
-        // Check if document has content to analyze
-        let documentContent = doc.documentContent;
-        let hasContent = documentContent && documentContent.trim().length > 0;
+      // Smart query routing: detect simple queries and skip AI analysis
+      const isSimpleQuery = queryAnalysis.intent === "simple_search" || 
+                           (queryAnalysis.keywords.length === 1 && queryAnalysis.keywords[0].length > 3);
+      
+      if (isSimpleQuery) {
+        console.log(`Stage 2: Skipping AI analysis for simple query, using FTS scores`);
+        // For simple queries, use FTS scores directly
+        documentsWithConfidenceScores.push(...stage1Candidates.map(doc => ({
+          ...doc,
+          confidenceScore: Math.round((doc.ftsScore || 0) * 100), // Convert FTS score to percentage
+          relevanceReason: `Full-text search match (FTS score: ${doc.ftsScore?.toFixed(4) || 0})`,
+          isRelevant: (doc.ftsScore || 0) > 0.01
+        })));
+      } else {
+        console.log(`Stage 2: Complex query detected, running AI analysis on ${stage1Candidates.length} candidates`);
         
-        // If content is missing, try to load it from database
-        if (!hasContent) {
-          console.log(`Document "${doc.name}" - Content missing, attempting to load from database...`);
-          documentContent = await this.getDocumentContent(doc.id);
-          hasContent = documentContent && documentContent.trim().length > 0;
+        // Only run expensive AI analysis on top candidates from Stage 1
+        for (const doc of stage1Candidates) {
+          // Load content if needed for AI analysis
+          let documentContent = doc.documentContent;
+          let hasContent = documentContent && documentContent.trim().length > 0;
           
-          // If still no content, try to extract it from the document file
           if (!hasContent) {
-            console.log(`Document "${doc.name}" - No stored content, attempting extraction...`);
-            const extractionSuccess = await this.extractDocumentContent(doc.id);
-            if (extractionSuccess) {
-              documentContent = await this.getDocumentContent(doc.id);
-              hasContent = documentContent && documentContent.trim().length > 0;
-              console.log(`Document "${doc.name}" - Extraction ${hasContent ? 'successful' : 'failed'}`);
+            documentContent = await this.getDocumentContent(doc.id);
+            hasContent = documentContent && documentContent.trim().length > 0;
+            
+            if (!hasContent) {
+              const extractionSuccess = await this.extractDocumentContent(doc.id);
+              if (extractionSuccess) {
+                documentContent = await this.getDocumentContent(doc.id);
+                hasContent = documentContent && documentContent.trim().length > 0;
+              }
             }
           }
+          
+          // Run AI analysis only if content is available
+          if (hasContent) {
+            const aiAnalysis = await analyzeDocumentRelevance(
+              documentContent || '', 
+              doc.name, 
+              query
+            );
+            
+            // Combine Stage 1 FTS + AI analysis scores
+            const ftsScore = Math.round((doc.ftsScore || 0) * 100);
+            const finalScore = Math.round((ftsScore * 0.3) + (aiAnalysis.confidenceScore * 0.7));
+            
+            console.log(`Stage 2: "${doc.name}" - FTS: ${ftsScore}%, AI: ${aiAnalysis.confidenceScore}%, Final: ${finalScore}%`);
+            
+            documentsWithConfidenceScores.push({
+              ...doc,
+              documentContent: documentContent,
+              confidenceScore: finalScore,
+              relevanceReason: aiAnalysis.relevanceReason,
+              isRelevant: aiAnalysis.isRelevant
+            });
+          } else {
+            // No content available, use FTS score only
+            const ftsScore = Math.round((doc.ftsScore || 0) * 100);
+            console.log(`Stage 2: "${doc.name}" - No content available, using FTS score: ${ftsScore}%`);
+            documentsWithConfidenceScores.push({
+              ...doc,
+              confidenceScore: ftsScore,
+              relevanceReason: `No extractable content - FTS similarity only`,
+              isRelevant: (doc.ftsScore || 0) > 0.01
+            });
+          }
         }
-        
-        console.log(`Document "${doc.name}" - Content available: ${hasContent}, Content length: ${documentContent?.length || 0} chars`);
-        
-        // Have AI read and analyze the complete document content
-        const aiAnalysis = await analyzeDocumentRelevance(
-          documentContent || '', 
-          doc.name, 
-          query
-        );
-        
-        console.log(`AI Analysis for "${doc.name}": ${aiAnalysis.confidenceScore}% confidence - ${aiAnalysis.relevanceReason}`);
-        
-        documentsWithConfidenceScores.push({
-          ...doc,
-          documentContent: documentContent, // Update with loaded content
-          confidenceScore: aiAnalysis.confidenceScore,
-          relevanceReason: aiAnalysis.relevanceReason,
-          isRelevant: aiAnalysis.isRelevant
-        });
       }
       
       // Sort by confidence score (highest first)

@@ -70,6 +70,9 @@ export const documents = pgTable("documents", {
   documentContent: text("document_content"), // Full extracted text content
   contentExtracted: boolean("content_extracted").default(false).notNull(),
   contentExtractedAt: timestamp("content_extracted_at"),
+  // Full-text search optimization for two-stage search
+  searchVector: text("search_vector"), // Computed FTS vector for fast Stage 1 filtering
+  searchVectorGenerated: boolean("search_vector_generated").default(false).notNull(),
 });
 
 export const documentVersions = pgTable("document_versions", {
