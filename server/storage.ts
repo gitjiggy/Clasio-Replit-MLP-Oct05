@@ -4,6 +4,7 @@ import {
   type Tag,
   type DocumentTag,
   type DocumentVersion,
+  type DocumentAccessLog,
   type AiAnalysisQueue,
   type DailyApiUsage,
   type InsertDocument,
@@ -11,6 +12,7 @@ import {
   type InsertTag,
   type InsertDocumentTag,
   type InsertDocumentVersion,
+  type InsertDocumentAccessLog,
   type InsertAiAnalysisQueue,
   type InsertDailyApiUsage,
   type DocumentWithFolderAndTags,
@@ -20,13 +22,23 @@ import {
   tags,
   documentTags,
   documentVersions,
+  documentAccessLog,
   aiAnalysisQueue,
   dailyApiUsage,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
-import { processConversationalQuery, generateConversationalResponse, analyzeDocumentRelevance } from "./gemini.js";
+import { 
+  processConversationalQuery, 
+  generateConversationalResponse, 
+  analyzeDocumentRelevance,
+  calculateCosineSimilarity, 
+  isAmbiguousQuery, 
+  generateEmbedding, 
+  parseEmbeddingFromJSON, 
+  serializeEmbeddingToJSON 
+} from "./gemini.js";
 
 // Predefined main categories for automatic organization
 const MAIN_CATEGORIES = [
@@ -430,6 +442,220 @@ export class DatabaseStorage implements IStorage {
     
     // Cap at maximum score and convert to percentage
     return Math.min(score, maxScore);
+  }
+
+  // NEW 3-Stage Scoring System Helper Functions
+  
+  private preFilterCandidates(allDocuments: any[], query: string): any[] {
+    return allDocuments.filter(doc =>
+      doc.aiWordCount > 50 && // AND condition for minimum quality
+      (this.documentTypeMatches(doc.aiDocumentType, query) || 
+       this.titleSummaryContainsKeywords(doc, query)) // OR for content relevance
+    ).slice(0, 50); // Max 50 for cosine similarity calculations
+  }
+  
+  private documentTypeMatches(documentType: string | null, query: string): boolean {
+    if (!documentType) return false;
+    const queryLower = query.toLowerCase();
+    const docTypeLower = documentType.toLowerCase();
+    return queryLower.includes(docTypeLower) || docTypeLower.includes(queryLower);
+  }
+  
+  private titleSummaryContainsKeywords(doc: any, query: string): boolean {
+    const searchText = `${doc.name || ''} ${doc.originalName || ''} ${doc.aiSummary || ''}`.toLowerCase();
+    const queryWords = query.toLowerCase().split(/\s+/);
+    return queryWords.some(word => word.length > 2 && searchText.includes(word));
+  }
+  
+  private async calculateSemanticScore(doc: any, queryEmbedding: number[]): Promise<number> {
+    // Field weights: title×0.15 + key_topics×0.35 + summary×0.20 + content×0.30
+    let totalScore = 0;
+    let totalWeight = 0;
+    
+    const fieldWeights = {
+      title: 0.15,
+      keyTopics: 0.35, 
+      summary: 0.20,
+      content: 0.30
+    };
+    
+    // Title embedding
+    if (doc.titleEmbedding) {
+      const titleEmb = parseEmbeddingFromJSON(doc.titleEmbedding);
+      if (titleEmb) {
+        const similarity = calculateCosineSimilarity(queryEmbedding, titleEmb);
+        totalScore += similarity * fieldWeights.title;
+        totalWeight += fieldWeights.title;
+      }
+    }
+    
+    // Key topics embedding
+    if (doc.keyTopicsEmbedding) {
+      const keyTopicsEmb = parseEmbeddingFromJSON(doc.keyTopicsEmbedding);
+      if (keyTopicsEmb) {
+        const similarity = calculateCosineSimilarity(queryEmbedding, keyTopicsEmb);
+        totalScore += similarity * fieldWeights.keyTopics;
+        totalWeight += fieldWeights.keyTopics;
+      }
+    }
+    
+    // Summary embedding  
+    if (doc.summaryEmbedding) {
+      const summaryEmb = parseEmbeddingFromJSON(doc.summaryEmbedding);
+      if (summaryEmb) {
+        const similarity = calculateCosineSimilarity(queryEmbedding, summaryEmb);
+        totalScore += similarity * fieldWeights.summary;
+        totalWeight += fieldWeights.summary;
+      }
+    }
+    
+    // Content embedding
+    if (doc.contentEmbedding) {
+      const contentEmb = parseEmbeddingFromJSON(doc.contentEmbedding);
+      if (contentEmb) {
+        const similarity = calculateCosineSimilarity(queryEmbedding, contentEmb);
+        totalScore += similarity * fieldWeights.content;
+        totalWeight += fieldWeights.content;
+      }
+    }
+    
+    return totalWeight > 0 ? totalScore / totalWeight : 0;
+  }
+  
+  private async calculateLexicalScore(doc: any, searchTerms: string): Promise<number> {
+    // Use PostgreSQL ts_rank on title + key_topics + summary only (skip full content for speed)
+    try {
+      const result = await db.execute(sql`
+        SELECT ts_rank(
+          to_tsvector('english', 
+            coalesce(${doc.name || ''},'') || ' ' || 
+            coalesce(${doc.aiSummary || ''},'') || ' ' || 
+            array_to_string(coalesce(${doc.aiKeyTopics || []}::text[],'{}'), ' ')
+          ), 
+          plainto_tsquery('english', ${searchTerms})
+        ) as score
+      `);
+      
+      const score = (result.rows[0] as any)?.score || 0;
+      return Math.min(1, Math.max(0, parseFloat(score.toString()))); // Normalize to 0-1
+    } catch (error) {
+      console.warn('FTS scoring failed:', error);
+      return 0;
+    }
+  }
+  
+  private async calculateQualityBoost(doc: any, userId: string): Promise<number> {
+    let boost = 0;
+    
+    // Recent access: +0.3 if opened in last 30 days
+    if (userId) {
+      try {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const recentAccess = await db
+          .select({ count: count() })
+          .from(documentAccessLog)
+          .where(and(
+            eq(documentAccessLog.userId, userId),
+            eq(documentAccessLog.documentId, doc.id),
+            sql`${documentAccessLog.accessedAt} >= ${thirtyDaysAgo}`
+          ));
+          
+        if (recentAccess[0]?.count > 0) {
+          boost += 0.3;
+        }
+      } catch (error) {
+        console.warn('Recent access check failed:', error);
+      }
+    }
+    
+    // Document completeness: +0.2 if word_count > 100
+    if (doc.aiWordCount && doc.aiWordCount > 100) {
+      boost += 0.2;
+    }
+    
+    // User favorites: +0.5 if marked as favorite
+    if (doc.isFavorite) {
+      boost += 0.5;
+    }
+    
+    return Math.min(1.0, boost); // Cap total at 1.0
+  }
+  
+  private async new3StageScoring(
+    candidates: any[], 
+    query: string, 
+    userId: string
+  ): Promise<any[]> {
+    console.log(`Starting new 3-stage scoring for ${candidates.length} candidates`);
+    
+    // Check feature flag
+    const useNewScoring = process.env.USE_NEW_SCORING === 'true';
+    if (!useNewScoring) {
+      console.log('New scoring disabled via feature flag, using fallback');
+      return candidates; // Return unchanged
+    }
+    
+    // Pre-filter candidates (metadata filtering)
+    const filteredCandidates = this.preFilterCandidates(candidates, query);
+    console.log(`Pre-filtering: ${candidates.length} → ${filteredCandidates.length} candidates`);
+    
+    if (filteredCandidates.length === 0) {
+      return []; // No candidates after filtering
+    }
+    
+    // Generate query embedding
+    let queryEmbedding: number[];
+    try {
+      queryEmbedding = await generateEmbedding(query, 'RETRIEVAL_QUERY');
+    } catch (error) {
+      console.warn('Query embedding generation failed:', error);
+      return candidates; // Fallback to original candidates
+    }
+    
+    const scoredDocuments = [];
+    
+    for (const doc of filteredCandidates) {
+      try {
+        // Stage 1: Semantic Scoring (50% weight)
+        const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding);
+        
+        // Stage 2: Lexical Scoring (35% weight) 
+        const lexicalScore = await this.calculateLexicalScore(doc, query);
+        
+        // Stage 3: Quality Boost (15% weight)
+        const qualityBoost = await this.calculateQualityBoost(doc, userId);
+        
+        // Final Score = (semantic × 50) + (lexical × 35) + (quality × 15)
+        const finalScore = (semanticScore * 50) + (lexicalScore * 35) + (qualityBoost * 15);
+        
+        console.log(`Document "${doc.name}": semantic=${semanticScore.toFixed(3)}, lexical=${lexicalScore.toFixed(3)}, quality=${qualityBoost.toFixed(3)}, final=${finalScore.toFixed(1)}`);
+        
+        scoredDocuments.push({
+          ...doc,
+          newScore: finalScore,
+          semanticScore,
+          lexicalScore,
+          qualityBoost,
+          scoringMethod: 'new_3_stage'
+        });
+      } catch (error) {
+        console.warn(`Scoring failed for document ${doc.id}:`, error);
+        // Include document with 0 score rather than excluding it
+        scoredDocuments.push({
+          ...doc,
+          newScore: 0,
+          scoringMethod: 'fallback'
+        });
+      }
+    }
+    
+    // Sort by final score (highest first)
+    scoredDocuments.sort((a, b) => b.newScore - a.newScore);
+    
+    console.log(`3-stage scoring completed: ${scoredDocuments.length} documents scored`);
+    return scoredDocuments;
   }
 
   // Enhanced conversational search using AI metadata
