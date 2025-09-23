@@ -26,7 +26,7 @@ import {
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
-import { processConversationalQuery } from "./gemini.js";
+import { processConversationalQuery, generateConversationalResponse } from "./gemini.js";
 
 // Predefined main categories for automatic organization
 const MAIN_CATEGORIES = [
@@ -627,10 +627,12 @@ export class DatabaseStorage implements IStorage {
         });
       }
       
-      // Generate simple response without additional API call
-      const conversationalResponse = documentsWithFoldersAndTags.length > 0 
-        ? `Found ${documentsWithFoldersAndTags.length} documents matching "${query}".`
-        : `Found 0 documents matching "${query}".`;
+      // Generate AI-powered conversational response
+      const conversationalResponse = await generateConversationalResponse(
+        query, 
+        documentsWithFoldersAndTags,
+        queryAnalysis.intent
+      );
       
       return {
         documents: documentsWithFoldersAndTags,

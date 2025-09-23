@@ -109,6 +109,7 @@ export default function Documents() {
   // AI search execution control - only search when button is clicked
   const [executeAISearch, setExecuteAISearch] = useState(false);
   const [aiSearchQuery, setAISearchQuery] = useState("");
+  const [isAISearching, setIsAISearching] = useState(false);
   // Traditional search debouncing using custom hook
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
   
@@ -124,10 +125,12 @@ export default function Documents() {
 
   // Handle Go! button click for AI search
   const handleGoButtonClick = async () => {
-    if (!isConversationalMode || searchQuery.trim().length <= 2) {
-      return; // Guard against invalid states
+    if (!isConversationalMode || searchQuery.trim().length <= 2 || isAISearching) {
+      return; // Guard against invalid states and prevent double clicks
     }
 
+    setIsAISearching(true);
+    
     try {
       // Clear previous results
       setConversationalResponse(null);
@@ -142,27 +145,50 @@ export default function Documents() {
         ...(selectedTagId && { tagId: selectedTagId })
       };
 
-      console.info('AI search firing', params);
-
-      // Fetch conversational search directly
+      // Update AI search query to trigger the useQuery
+      setAISearchQuery(searchQuery.trim());
+      
+      // Fetch conversational search and update the cache
       const result = await queryClient.fetchQuery<ConversationalSearchResponse>({
-        queryKey: ['/api/documents/search', params],
+        queryKey: ['/api/documents/search', {
+          query: searchQuery.trim(),
+          fileType: selectedFileType === "all" ? "" : selectedFileType,
+          folderId: selectedFolderId === "all" ? "" : selectedFolderId,
+          tagId: selectedTagId
+        }],
         staleTime: 30000,
       });
 
-      // Update state with results
+      // Update the useQuery cache with the same key structure
+      queryClient.setQueryData(['/api/documents/search', {
+        query: searchQuery.trim(),
+        fileType: selectedFileType === "all" ? "" : selectedFileType,
+        folderId: selectedFolderId === "all" ? "" : selectedFolderId,
+        tagId: selectedTagId
+      }], result);
+
+      // Update state with results  
       setConversationalResponse(result.response);
       setSearchIntent(result.intent);
       setSearchKeywords(result.keywords);
-      setAISearchQuery(searchQuery.trim());
 
       // Track analytics
       trackEvent('search', { search_term: searchQuery.trim() });
     } catch (error) {
       console.error('Conversational search failed:', error);
-      setConversationalResponse("I encountered an error while searching. Please try again.");
-      setSearchIntent(null);
-      setSearchKeywords([]);
+      if (error.message?.includes('429')) {
+        toast({
+          title: "Rate limit reached",
+          description: "Please wait a moment before trying again.",
+          variant: "destructive",
+        });
+      } else {
+        setConversationalResponse("I encountered an error while searching. Please try again.");
+        setSearchIntent(null);
+        setSearchKeywords([]);
+      }
+    } finally {
+      setIsAISearching(false);
     }
   };
 
@@ -805,12 +831,12 @@ export default function Documents() {
                       variant="default"
                       size="sm"
                       onClick={handleGoButtonClick}
-                      disabled={searchQuery.trim().length <= 2 || conversationalLoading}
+                      disabled={searchQuery.trim().length <= 2 || isAISearching}
                       className="absolute right-10 top-1/2 transform -translate-y-1/2 h-8 px-3"
                       title="Execute AI search"
                       data-testid="button-ai-search-go"
                     >
-                      {conversationalLoading ? "..." : "Go!"}
+                      {isAISearching ? "..." : "Go!"}
                     </Button>
                   )}
 
