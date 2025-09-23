@@ -1083,46 +1083,548 @@ export default function Documents() {
         {/* Documents Grid */}
         <div className="flex-1 overflow-auto p-6">
 {(() => {
-            if (isLoading) return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardContent className="p-4">
-                    <div className="h-4 bg-muted rounded mb-2"></div>
-                    <div className="h-3 bg-muted rounded mb-4 w-2/3"></div>
-                    <div className="flex space-x-2 mb-3">
-                      <div className="h-6 bg-muted rounded w-16"></div>
-                      <div className="h-6 bg-muted rounded w-12"></div>
-                    </div>
-                    <div className="h-8 bg-muted rounded"></div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            );
+            if (isLoading) {
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <Card key={i} className="animate-pulse">
+                      <CardContent className="p-4">
+                        <div className="h-4 bg-muted rounded mb-2"></div>
+                        <div className="h-3 bg-muted rounded mb-4 w-2/3"></div>
+                        <div className="flex space-x-2 mb-3">
+                          <div className="h-6 bg-muted rounded w-16"></div>
+                          <div className="h-6 bg-muted rounded w-12"></div>
+                        </div>
+                        <div className="h-8 bg-muted rounded"></div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              );
+            }
 
-            if (currentDocuments.length === 0) return (
-            <div className="text-center py-12">
-              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No documents found</h3>
-              <p className="text-muted-foreground">
-                {searchQuery || selectedFileType || selectedFolderId || selectedTagId
-                  ? "Try adjusting your filters or search query."
-                  : "Upload your first document to get started."}
-              </p>
+            if (currentDocuments.length === 0) {
+              return (
+                <div className="text-center py-12">
+                  <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">No documents found</h3>
+                  <p className="text-muted-foreground">
+                    {searchQuery || selectedFileType || selectedFolderId || selectedTagId
+                      ? "Try adjusting your filters or search query."
+                      : "Upload your first document to get started."}
+                  </p>
+                </div>
+              );
+            }
+
+            if (isConversationalMode && conversationalData && (conversationalData.relevantDocuments.length > 0 || conversationalData.relatedDocuments.length > 0)) {
+              return (
+                <div className="space-y-8">
+                  {/* Relevant Documents Section */}
+                  {conversationalData.relevantDocuments.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
+                        <CheckCircle className="mr-2 h-5 w-5 text-green-600" />
+                        Relevant Documents
+                        <span className="ml-2 text-sm text-muted-foreground">
+                          ({conversationalData.relevantDocuments.length})
+                        </span>
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {conversationalData.relevantDocuments.map((document) => (
+                          <Card 
+                            key={document.id} 
+                            className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
+                            data-testid={`document-card-${document.id}`}
+                            onClick={() => handleViewDocument(document)}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                  {getFileIcon(document.fileType)}
+                                  <div className="min-w-0">
+                                    <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
+                                      {getDocumentDisplayName(document)}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatFileSize(document.fileSize || 0)}
+                                    </p>
+                                    {document.originalName && (
+                                      <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
+                                        {document.originalName}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-auto p-1" 
+                                      onClick={(e) => e.stopPropagation()}
+                                      data-testid={`menu-${document.id}`}
+                                    >
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
+                                      <Download className="mr-2 h-4 w-4" />
+                                      Download
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleViewDocument(document)}
+                                      data-testid={`menu-view-${document.id}`}
+                                    >
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => analyzeDocumentMutation.mutate(document.id)}
+                                      disabled={analyzeDocumentMutation.isPending}
+                                      data-testid={`menu-analyze-${document.id}`}
+                                    >
+                                      <Brain className="mr-2 h-4 w-4" />
+                                      {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
+                                      <Star className="mr-2 h-4 w-4" />
+                                      {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                              
+                              {/* Summary Section */}
+                              {document.aiSummary && (
+                                <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-md">
+                                  <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">AI Summary:</p>
+                                  <p className="text-xs text-blue-700 dark:text-blue-300 line-clamp-2" data-testid={`ai-summary-${document.id}`}>
+                                    {document.aiSummary}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Tags Section */}
+                              {document.tags && document.tags.length > 0 && (
+                                <div className="mb-3">
+                                  <div className="flex flex-wrap gap-1">
+                                    {document.tags.slice(0, 3).map((tag) => (
+                                      <Badge 
+                                        key={tag.id} 
+                                        variant="secondary" 
+                                        className="text-xs px-1.5 py-0.5"
+                                        data-testid={`tag-${tag.id}`}
+                                      >
+                                        {tag.name}
+                                      </Badge>
+                                    ))}
+                                    {document.tags.length > 3 && (
+                                      <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                                        +{document.tags.length - 3}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Action Buttons */}
+                              <div className="flex space-x-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewDocument(document);
+                                  }}
+                                  data-testid={`view-${document.id}`}
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={document.aiSummary ? "secondary" : "outline"}
+                                  className="flex-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    analyzeDocumentMutation.mutate(document.id);
+                                  }}
+                                  disabled={analyzeDocumentMutation.isPending}
+                                  data-testid={`analyze-ai-${document.id}`}
+                                >
+                                  <Brain className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteDocumentMutation.mutate(document.id);
+                                  }}
+                                  disabled={deleteDocumentMutation.isPending}
+                                  data-testid={`delete-${document.id}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Related Documents Section */}
+                  {conversationalData.relatedDocuments.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
+                        <Search className="mr-2 h-5 w-5 text-blue-600" />
+                        Related Documents
+                        <span className="ml-2 text-sm text-muted-foreground">
+                          ({conversationalData.relatedDocuments.length})
+                        </span>
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {conversationalData.relatedDocuments.map((document) => (
+                          <Card 
+                            key={document.id} 
+                            className="hover:shadow-lg transition-shadow duration-200 cursor-pointer border-dashed" 
+                            data-testid={`document-card-${document.id}`}
+                            onClick={() => handleViewDocument(document)}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                  {getFileIcon(document.fileType)}
+                                  <div className="min-w-0">
+                                    <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
+                                      {getDocumentDisplayName(document)}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatFileSize(document.fileSize || 0)}
+                                    </p>
+                                    {document.originalName && (
+                                      <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
+                                        {document.originalName}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-auto p-1" 
+                                      onClick={(e) => e.stopPropagation()}
+                                      data-testid={`menu-${document.id}`}
+                                    >
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
+                                      <Download className="mr-2 h-4 w-4" />
+                                      Download
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleViewDocument(document)}
+                                      data-testid={`menu-view-${document.id}`}
+                                    >
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => analyzeDocumentMutation.mutate(document.id)}
+                                      disabled={analyzeDocumentMutation.isPending}
+                                      data-testid={`menu-analyze-${document.id}`}
+                                    >
+                                      <Brain className="mr-2 h-4 w-4" />
+                                      {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
+                                      <Star className="mr-2 h-4 w-4" />
+                                      {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                              
+                              {/* Summary Section */}
+                              {document.aiSummary && (
+                                <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-md">
+                                  <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">AI Summary:</p>
+                                  <p className="text-xs text-blue-700 dark:text-blue-300 line-clamp-2" data-testid={`ai-summary-${document.id}`}>
+                                    {document.aiSummary}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Tags Section */}
+                              {document.tags && document.tags.length > 0 && (
+                                <div className="mb-3">
+                                  <div className="flex flex-wrap gap-1">
+                                    {document.tags.slice(0, 3).map((tag) => (
+                                      <Badge 
+                                        key={tag.id} 
+                                        variant="secondary" 
+                                        className="text-xs px-1.5 py-0.5"
+                                        data-testid={`tag-${tag.id}`}
+                                      >
+                                        {tag.name}
+                                      </Badge>
+                                    ))}
+                                    {document.tags.length > 3 && (
+                                      <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                                        +{document.tags.length - 3}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Action Buttons */}
+                              <div className="flex space-x-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewDocument(document);
+                                  }}
+                                  data-testid={`view-${document.id}`}
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={document.aiSummary ? "secondary" : "outline"}
+                                  className="flex-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    analyzeDocumentMutation.mutate(document.id);
+                                  }}
+                                  disabled={analyzeDocumentMutation.isPending}
+                                  data-testid={`analyze-ai-${document.id}`}
+                                >
+                                  <Brain className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteDocumentMutation.mutate(document.id);
+                                  }}
+                                  disabled={deleteDocumentMutation.isPending}
+                                  data-testid={`delete-${document.id}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {currentDocuments.map((document) => (
+                  <Card 
+                    key={document.id} 
+                    className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
+                    data-testid={`document-card-${document.id}`}
+                    onClick={() => handleViewDocument(document)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center space-x-2 flex-1 min-w-0">
+                          {getFileIcon(document.fileType)}
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
+                              {getDocumentDisplayName(document)}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(document.fileSize || 0)}
+                            </p>
+                            {document.originalName && (
+                              <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
+                                {document.originalName}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-auto p-1" 
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`menu-${document.id}`}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleViewDocument(document)}
+                              data-testid={`menu-view-${document.id}`}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => analyzeDocumentMutation.mutate(document.id)}
+                              disabled={analyzeDocumentMutation.isPending}
+                              data-testid={`menu-analyze-${document.id}`}
+                            >
+                              <Brain className="mr-2 h-4 w-4" />
+                              {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
+                              <Star className="mr-2 h-4 w-4" />
+                              {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      
+                      {/* Summary Section */}
+                      {document.aiSummary && (
+                        <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-md">
+                          <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">AI Summary:</p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300 line-clamp-2" data-testid={`ai-summary-${document.id}`}>
+                            {document.aiSummary}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Tags Section */}
+                      {document.tags && document.tags.length > 0 && (
+                        <div className="mb-3">
+                          <div className="flex flex-wrap gap-1">
+                            {document.tags.slice(0, 3).map((tag) => (
+                              <Badge 
+                                key={tag.id} 
+                                variant="secondary" 
+                                className="text-xs px-1.5 py-0.5"
+                                data-testid={`tag-${tag.id}`}
+                              >
+                                {tag.name}
+                              </Badge>
+                            ))}
+                            {document.tags.length > 3 && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                                +{document.tags.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex space-x-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDocument(document);
+                          }}
+                          data-testid={`view-${document.id}`}
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={document.aiSummary ? "secondary" : "outline"}
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            analyzeDocumentMutation.mutate(document.id);
+                          }}
+                          disabled={analyzeDocumentMutation.isPending}
+                          data-testid={`analyze-ai-${document.id}`}
+                        >
+                          <Brain className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteDocumentMutation.mutate(document.id);
+                          }}
+                          disabled={deleteDocumentMutation.isPending}
+                          data-testid={`delete-${document.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* Pagination */}
+          {documentsData && documentsData.pagination.pages > 1 && (
+            <div className="flex items-center justify-between mt-8">
+              <div className="text-sm text-muted-foreground">
+                Showing {((documentsData.pagination.page - 1) * documentsData.pagination.limit) + 1}-
+                {Math.min(documentsData.pagination.page * documentsData.pagination.limit, documentsData.pagination.total)} of {documentsData.pagination.total} documents
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  data-testid="pagination-previous"
+                >
+                  Previous
+                </Button>
+                {Array.from({ length: Math.min(5, documentsData.pagination.pages) }, (_, i) => {
+                  const page = i + 1;
+                  return (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      data-testid={`pagination-page-${page}`}
+                    >
+                      {page}
+                    </Button>
+                  );
+                })}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === documentsData.pagination.pages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  data-testid="pagination-next"
+                >
+                  Next
+                </Button>
+              </div>
             </div>
-          ) : isConversationalMode && conversationalData && (conversationalData.relevantDocuments.length > 0 || conversationalData.relatedDocuments.length > 0) ? (
-            <div className="space-y-8">
-              {/* Relevant Documents Section */}
-              {conversationalData.relevantDocuments.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-                    <CheckCircle className="mr-2 h-5 w-5 text-green-600" />
-                    Relevant Documents
-                    <span className="ml-2 text-sm text-muted-foreground">
-                      ({conversationalData.relevantDocuments.length})
-                    </span>
-                  </h3>
+          )}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {conversationalData.relevantDocuments.map((document) => (
                 <Card 
@@ -1841,7 +2343,6 @@ export default function Documents() {
             </div>
           )}
         </div>
-        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {currentDocuments.map((document) => (
             <Card 
@@ -2072,7 +2573,6 @@ export default function Documents() {
             </Card>
           ))}
         </div>
-          )}
 
           {/* Pagination */}
           {documentsData && documentsData.pagination.pages > 1 && (
