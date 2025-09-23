@@ -165,6 +165,33 @@ function calculateQualityScore(doc: any, userId: string): number {
     return Math.min(1.0, score) * 100;
 }
 
+// Helper functions for pre-filtering
+function documentTypeMatches(doc: any, query: string): boolean {
+    const queryLower = query.toLowerCase();
+    const docType = (doc.ai_document_type || doc.override_document_type || '').toLowerCase();
+    const category = (doc.ai_category || doc.override_category || '').toLowerCase();
+    
+    return docType.includes(queryLower) || category.includes(queryLower);
+}
+
+function titleSummaryContains(doc: any, query: string): boolean {
+    const queryLower = query.toLowerCase();
+    const title = (doc.name || doc.ai_concise_name || '').toLowerCase();
+    const summary = (doc.ai_summary || '').toLowerCase();
+    
+    return title.includes(queryLower) || summary.includes(queryLower);
+}
+
+// Pre-filtering Logic
+function preFilterCandidates(documents: any[], query: string): any[] {
+    return documents.filter(doc => 
+        !doc.is_deleted &&
+        doc.ai_word_count > 50 &&
+        (documentTypeMatches(doc, query) || 
+         titleSummaryContains(doc, query))
+    ).slice(0, 50);
+}
+
 // Automatic Embedding Generation
 async function onDocumentProcessed(documentId: string): Promise<void> {
     await enqueueEmbeddingGeneration(documentId);
