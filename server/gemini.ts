@@ -612,92 +612,51 @@ export function serializeEmbeddingToJSON(embedding: number[]): string {
     return JSON.stringify(embedding);
 }
 
-export async function processConversationalQuery(query: string): Promise<{
+export function processConversationalQuery(query: string): {
     intent: string;
     keywords: string[];
     categoryFilter?: string;
     documentTypeFilter?: string;
     semanticQuery: string;
-}> {
-    if (!process.env.GEMINI_API_KEY) {
-        throw new Error("Gemini API key not configured");
-    }
-
-    const prompt = `You are a smart document search assistant. Extract keywords from natural language search queries.
-
-IMPORTANT: Focus on extracting the actual search terms users want to find, especially from questions like:
-- "do I have any documents with the term X?" → extract "X"
-- "find documents containing Y" → extract "Y"  
-- "show me files about Z" → extract "Z"
-
-AVAILABLE CATEGORIES: "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
-
-AVAILABLE DOCUMENT TYPES: "Resume", "Cover Letter", "Contract", "Invoice", "Receipt", "Tax Document", "Medical Record", "Insurance Document", "Legal Document", "Immigration Document", "Financial Statement", "Employment Document", "Event Notice", "Academic Document", "Real Estate Document", "Travel Document", "Personal Statement", "Technical Documentation", "Business Report"
-
-Query: "${query}"
-
-EXAMPLES:
-- "do I have any documents with the term mcasd?" → keywords: ["mcasd"]
-- "find my tax documents" → keywords: ["tax"], categoryFilter: "Taxes"
-- "show me insurance papers" → keywords: ["insurance"], categoryFilter: "Insurance"
-- "documents containing EIN number" → keywords: ["EIN", "number"]
-
-Extract:
-1. Intent: What is the user trying to find?
-2. Keywords: The actual terms to search for in document content (be very liberal - include any specific terms mentioned)
-3. Category filter: If query clearly implies a specific category, return it exactly as listed above
-4. Document type filter: If query clearly implies a specific document type, return it exactly as listed above  
-5. Semantic query: Rephrase as a search-optimized query
-
-Format as JSON:
-{
-  "intent": "intent_description",
-  "keywords": ["keyword1", "keyword2", "keyword3"],
-  "categoryFilter": "Category or null",
-  "documentTypeFilter": "Document Type or null", 
-  "semanticQuery": "optimized search query"
-}`;
-
-    try {
-        const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash-lite",
-            generationConfig: {
-                temperature: 0,
-                maxOutputTokens: 500,
-                responseMimeType: "application/json"
-            }
-        });
-        
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const rawJson = response.text();
-        
-        if (rawJson) {
-            const data = JSON.parse(rawJson);
-            return {
-                intent: data.intent || "general_search",
-                keywords: Array.isArray(data.keywords) ? data.keywords : [],
-                categoryFilter: data.categoryFilter || undefined,
-                documentTypeFilter: data.documentTypeFilter || undefined,
-                semanticQuery: data.semanticQuery || query
-            };
-        }
-        
-        // Fallback if AI fails
-        return {
-            intent: "general_search", 
-            keywords: [query],
-            semanticQuery: query
-        };
-    } catch (error) {
-        console.error("Error processing conversational query:", error);
-        // Return fallback response
-        return {
-            intent: "general_search",
-            keywords: [query],
-            semanticQuery: query
-        };
-    }
+} {
+    // LIGHTNING FAST local keyword extraction - NO AI CALLS!
+    const lowerQuery = query.toLowerCase().trim();
+    
+    // Remove common stop words and extract meaningful keywords
+    const stopWords = new Set(['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'among', 'any', 'some', 'all', 'each', 'few', 'more', 'most', 'other', 'such', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'can', 'will', 'just', 'should', 'now', 'document', 'documents', 'file', 'files', 'have', 'find', 'search', 'show', 'get', 'containing', 'with', 'about', 'my', 'me', 'i', 'do']);
+    
+    // Extract keywords (split by spaces, remove stop words, filter short words)
+    const keywords = lowerQuery
+        .split(/\s+/)
+        .filter(word => word.length > 1 && !stopWords.has(word))
+        .map(word => word.replace(/[^\w]/g, '')) // Remove punctuation
+        .filter(word => word.length > 1);
+    
+    // Fast category detection (pattern matching)
+    let categoryFilter: string | undefined = undefined;
+    let documentTypeFilter: string | undefined = undefined;
+    
+    // Quick category matching
+    if (/tax|taxes|irs|1099|w2/i.test(query)) categoryFilter = "Taxes";
+    else if (/medical|health|insurance|doctor|hospital/i.test(query)) categoryFilter = "Medical";
+    else if (/legal|contract|agreement|law/i.test(query)) categoryFilter = "Legal";
+    else if (/financial|bank|statement|invoice|receipt/i.test(query)) categoryFilter = "Financial";
+    else if (/business|company|work|employment/i.test(query)) categoryFilter = "Business";
+    
+    // Quick document type matching
+    if (/invoice/i.test(query)) documentTypeFilter = "Invoice";
+    else if (/receipt/i.test(query)) documentTypeFilter = "Receipt";
+    else if (/contract/i.test(query)) documentTypeFilter = "Contract";
+    else if (/resume/i.test(query)) documentTypeFilter = "Resume";
+    else if (/tax.*document|1099|w2/i.test(query)) documentTypeFilter = "Tax Document";
+    
+    return {
+        intent: "fast_search",
+        keywords: keywords.length > 0 ? keywords : [query],
+        categoryFilter,
+        documentTypeFilter,
+        semanticQuery: query
+    };
 }
 
 export async function analyzeDocumentRelevance(documentContent: string, documentName: string, query: string): Promise<{
