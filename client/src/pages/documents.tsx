@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,10 +40,7 @@ import {
   CheckCircle,
   Plus,
   Brain,
-  Sparkles,
-  MessageCircle,
-  Zap,
-  X
+  Sparkles
 } from "lucide-react";
 
 interface DocumentsResponse {
@@ -54,17 +51,6 @@ interface DocumentsResponse {
     total: number;
     pages: number;
   };
-}
-
-interface ConversationalSearchResponse {
-  documents: DocumentWithVersionInfo[];
-  relevantDocuments: DocumentWithVersionInfo[];
-  relatedDocuments: DocumentWithVersionInfo[];
-  response: string;
-  intent: string;
-  keywords: string[];
-  query: string;
-  totalResults: number;
 }
 
 // Helper function to format confidence percentage
@@ -84,167 +70,46 @@ export default function Documents() {
   const [selectedTagId, setSelectedTagId] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [queueDashboardOpen, setQueueDashboardOpen] = useState(false);
-  
-  // Conversational search state
-  const [isConversationalMode, setIsConversationalMode] = useState(false);
-  const [conversationalResponse, setConversationalResponse] = useState<string | null>(null);
-  const [searchIntent, setSearchIntent] = useState<string | null>(null);
-  const [searchKeywords, setSearchKeywords] = useState<string[]>([]);
-  // Custom useDebounce hook implementation
-  const useDebounce = (value: string, delay: number) => {
-    const [debouncedValue, setDebouncedValue] = useState(value);
-
-    useEffect(() => {
-      const handler = setTimeout(() => {
-        setDebouncedValue(value);
-      }, delay);
-
-      return () => {
-        clearTimeout(handler);
-      };
-    }, [value, delay]);
-
-    return debouncedValue;
-  };
-
-  // AI search execution control - only search when button is clicked
-  const [executeAISearch, setExecuteAISearch] = useState(false);
-  const [aiSearchQuery, setAISearchQuery] = useState("");
-  const [isAISearching, setIsAISearching] = useState(false);
-  // Traditional search debouncing using custom hook
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-
-  // Simplified search change handler
-  const handleSearchChange = useCallback((query: string) => {
+  // Handle search with debouncing
+  const handleSearchChange = (query: string) => {
     setSearchQuery(query);
-    // Debouncing is handled automatically by the useDebounce hook
-  }, []);
-
-  // Handle Go! button click for AI search
-  const handleGoButtonClick = async () => {
-    if (!isConversationalMode || searchQuery.trim().length <= 2 || isAISearching) {
-      return; // Guard against invalid states and prevent double clicks
-    }
-
-    setIsAISearching(true);
     
-    try {
-      // Clear previous results
-      setConversationalResponse(null);
-      setSearchIntent(null);
-      setSearchKeywords([]);
-
-      // Build query parameters from current UI state
-      const params = {
-        query: searchQuery.trim(),
-        ...(selectedFileType !== "all" && { fileType: selectedFileType }),
-        ...(selectedFolderId !== "all" && { folderId: selectedFolderId }),
-        ...(selectedTagId && { tagId: selectedTagId })
-      };
-
-      // Update AI search query to trigger the useQuery
-      setAISearchQuery(searchQuery.trim());
-      
-      // Fetch conversational search and update the cache
-      const result = await queryClient.fetchQuery<ConversationalSearchResponse>({
-        queryKey: ['/api/documents/search', {
-          query: searchQuery.trim(),
-          fileType: selectedFileType === "all" ? "" : selectedFileType,
-          folderId: selectedFolderId === "all" ? "" : selectedFolderId,
-          tagId: selectedTagId
-        }],
-        staleTime: 30000,
-      });
-
-      // Update the useQuery cache with the same key structure
-      queryClient.setQueryData(['/api/documents/search', {
-        query: searchQuery.trim(),
-        fileType: selectedFileType === "all" ? "" : selectedFileType,
-        folderId: selectedFolderId === "all" ? "" : selectedFolderId,
-        tagId: selectedTagId
-      }], result);
-
-      // Update state with results  
-      setConversationalResponse(result.response);
-      setSearchIntent(result.intent);
-      setSearchKeywords(result.keywords);
-
-      // Track analytics
-      trackEvent('search', { search_term: searchQuery.trim() });
-    } catch (error) {
-      console.error('Conversational search failed:', error);
-      if (error instanceof Error && error.message?.includes('429')) {
-        toast({
-          title: "Rate limit reached",
-          description: "Please wait a moment before trying again.",
-          variant: "destructive",
-        });
-      } else {
-        setConversationalResponse("I encountered an error while searching. Please try again.");
-        setSearchIntent(null);
-        setSearchKeywords([]);
-      }
-    } finally {
-      setIsAISearching(false);
+    // Clear existing timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Set new timeout for analytics tracking
+    if (query.trim()) {
+      const timeout = setTimeout(() => {
+        trackEvent('search', { search_term: query.trim() });
+      }, 500); // 500ms debounce
+      setSearchTimeout(timeout);
     }
   };
 
-  // Fetch documents (traditional search) - only when NOT in conversational mode
+  // Fetch documents
   const { data: documentsData, isLoading: documentsLoading } = useQuery<DocumentsResponse>({
     queryKey: ['/api/documents', { 
-      search: debouncedSearchQuery, 
+      search: searchQuery, 
       fileType: selectedFileType === "all" ? "" : selectedFileType, 
       folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
       tagId: selectedTagId, 
       page: currentPage 
     }],
-    enabled: !isConversationalMode && (debouncedSearchQuery.length === 0 || debouncedSearchQuery.length > 2),
-    staleTime: 30000,
-    refetchOnWindowFocus: false, // Prevent unnecessary refetches
   });
-
-  // Fetch conversational search results - only when "Go!" button is clicked
-  const { data: conversationalData, isLoading: conversationalLoading, error: conversationalError, refetch: refetchConversational } = useQuery<ConversationalSearchResponse>({
-    queryKey: ['/api/documents/search', { 
-      query: aiSearchQuery,
-      fileType: selectedFileType === "all" ? "" : selectedFileType, 
-      folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
-      tagId: selectedTagId
-    }],
-    enabled: false, // Disabled by default - only trigger via refetch()
-    staleTime: 30000,
-    refetchOnWindowFocus: false,
-    retry: (failureCount, error: any) => {
-      // Don't retry on rate limit errors
-      if (error?.status === 429) return false;
-      return failureCount < 2; // Reduce retries for AI calls
-    },
-  });
-
-  // Trigger conversational search when AI search is executed
-  useEffect(() => {
-    if (executeAISearch && aiSearchQuery.length > 2) {
-      refetchConversational();
-    }
-  }, [executeAISearch, aiSearchQuery, refetchConversational]);
-
-  // Reset AI search execution flag when query settles (success or error)
-  useEffect(() => {
-    if (executeAISearch && (conversationalData || conversationalError)) {
-      setExecuteAISearch(false);
-    }
-  }, [executeAISearch, conversationalData, conversationalError]);
 
   // Fetch folders with document counts
   const { data: folders = [] } = useQuery<(Folder & { documentCount: number })[]>({
     queryKey: ['/api/folders'],
   });
-  
+
   // Get automatic folders only (Smart Organization)
   const automaticFolders = folders.filter(folder => folder.isAutoCreated);
   
@@ -272,27 +137,6 @@ export default function Documents() {
   const { data: tags = [] } = useQuery<Tag[]>({
     queryKey: ['/api/tags'],
   });
-
-  // Compute final documents and loading state
-  const currentDocuments = isConversationalMode && conversationalData 
-    ? conversationalData.documents 
-    : documentsData?.documents || [];
-  
-  const isLoading = isConversationalMode ? conversationalLoading : documentsLoading;
-
-  // Update conversational response when data changes
-  useEffect(() => {
-    if (conversationalData) {
-      setConversationalResponse(conversationalData.response);
-      setSearchIntent(conversationalData.intent);
-      setSearchKeywords(conversationalData.keywords);
-    } else if (!isConversationalMode) {
-      // Clear conversational state when switching back to traditional search
-      setConversationalResponse(null);
-      setSearchIntent(null);
-      setSearchKeywords([]);
-    }
-  }, [conversationalData, isConversationalMode]);
 
   // Upload mutation
   const uploadMutation = useMutation({
@@ -603,31 +447,9 @@ export default function Documents() {
     setDocumentModalOpen(true);
   };
 
-  const handleDownload = async (document: DocumentWithFolderAndTags) => {
-    try {
-      // For all documents (both uploaded and Google Drive), use our download API
-      const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
-      if (!response.ok) {
-        throw new Error('Download failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      
-      // Create a temporary link element to trigger download
-      const link = window.document.createElement('a');
-      link.href = url;
-      link.download = document.name || 'document';
-      window.document.body.appendChild(link);
-      link.click();
-      
-      // Clean up
-      window.document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Download failed:', error);
-      // Fallback to viewer page
-      window.open(`/viewer/${document.id}`, '_blank');
+  const handleDownload = (document: DocumentWithFolderAndTags) => {
+    if (document.filePath) {
+      window.open(document.filePath, '_blank');
     }
   };
 
@@ -794,86 +616,22 @@ export default function Documents() {
             <div className="flex items-center space-x-4">
               <h2 className="text-lg font-semibold text-foreground">All Documents</h2>
               <span className="text-sm text-muted-foreground" data-testid="document-count">
-                {isConversationalMode && conversationalData 
-                  ? `${conversationalData.totalResults} documents found`
-                  : `${documentsData?.pagination.total || 0} documents`
-                }
+                {documentsData?.pagination.total || 0} documents
               </span>
             </div>
             
             <div className="flex items-center space-x-3">
-              {/* Enhanced Search with Conversational Mode */}
-              <div className="relative flex items-center">
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder={isConversationalMode 
-                      ? "Ask about your documents... (e.g., 'what's my EIN?')" 
-                      : "Search documents..."}
-                    value={searchQuery}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && isConversationalMode) {
-                        e.preventDefault();
-                        handleGoButtonClick();
-                      }
-                    }}
-                    className={`w-80 pl-10 ${isConversationalMode ? 'pr-20 border-blue-500 focus:border-blue-600' : 'pr-12'}`}
-                    data-testid="search-input"
-                  />
-                  {isConversationalMode ? (
-                    <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-500" />
-                  ) : (
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  )}
-                  
-                  {/* AI Search Go Button - only show in conversational mode */}
-                  {isConversationalMode && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={handleGoButtonClick}
-                      disabled={searchQuery.trim().length <= 2 || isAISearching}
-                      className="absolute right-10 top-1/2 transform -translate-y-1/2 h-8 px-3"
-                      title="Execute AI search"
-                      data-testid="button-ai-search-go"
-                    >
-                      {isAISearching ? "..." : "Go!"}
-                    </Button>
-                  )}
-
-                  {/* Conversational Mode Toggle */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setIsConversationalMode(!isConversationalMode);
-                      // Don't clear search query - preserve user input when switching modes
-                      setConversationalResponse(null);
-                      setSearchIntent(null);
-                      setSearchKeywords([]);
-                      setExecuteAISearch(false); // Clear AI search execution flag
-                      setAISearchQuery(""); // Clear AI search query
-                    }}
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
-                    title={isConversationalMode ? "Switch to traditional search" : "Switch to AI conversational search"}
-                    data-testid="button-search-mode-toggle"
-                  >
-                    {isConversationalMode ? (
-                      <Search className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Zap className="h-4 w-4 text-blue-500" />
-                    )}
-                  </Button>
-                </div>
-                
-                {/* Search Mode Indicator */}
-                {isConversationalMode && (
-                  <Badge variant="outline" className="ml-2 text-blue-600 border-blue-300">
-                    <Brain className="h-3 w-3 mr-1" />
-                    AI Search
-                  </Badge>
-                )}
+              {/* Search */}
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Search documents..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="w-64 pl-10"
+                  data-testid="search-input"
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               </div>
               
               {/* View Toggle */}
@@ -922,7 +680,7 @@ export default function Documents() {
               </Button>
               
               {/* Delete All Button (for testing) */}
-              {currentDocuments && currentDocuments.length > 0 && (
+              {documentsData?.documents && documentsData.documents.length > 0 && (
                 <Button
                   variant="destructive"
                   onClick={() => deleteAllDocumentsMutation.mutate()}
@@ -952,84 +710,6 @@ export default function Documents() {
             </div>
           </div>
         </header>
-
-        {/* Conversational Search Response */}
-        {isConversationalMode && conversationalResponse && (
-          <div className="bg-blue-50 dark:bg-blue-950/20 border-b border-blue-200 dark:border-blue-800 px-6 py-4">
-            <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                  <Brain className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2 mb-2">
-                  <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    AI Assistant Response
-                  </h3>
-                  {searchIntent && (
-                    <Badge variant="outline" className="text-blue-700 border-blue-300 bg-blue-50 dark:bg-blue-900/50">
-                      {searchIntent}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                  {conversationalResponse}
-                </p>
-                {searchKeywords.length > 0 && (
-                  <div className="flex items-center space-x-2 mt-3">
-                    <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Keywords:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {searchKeywords.map((keyword, index) => (
-                        <Badge 
-                          key={index} 
-                          variant="secondary" 
-                          className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
-                        >
-                          {keyword}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Confidence Scores Display */}
-                {currentDocuments.length > 0 && isConversationalMode && (
-                  <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Search Confidence:</span>
-                      <Badge variant="outline" className="text-blue-700 border-blue-300 bg-blue-50 dark:bg-blue-900/50">
-                        {currentDocuments.length} document{currentDocuments.length === 1 ? '' : 's'} found
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      {currentDocuments.slice(0, 3).map((doc: any) => (
-                        <div key={doc.id} className="flex items-center justify-between text-xs">
-                          <span className="text-blue-700 dark:text-blue-300 truncate flex-1 mr-2">
-                            {doc.name}
-                          </span>
-                          <Badge 
-                            variant={
-                              (doc.confidenceScore || 0) >= 80 ? "default" :
-                              (doc.confidenceScore || 0) >= 40 ? "secondary" : "outline"
-                            }
-                            className={`text-xs ${
-                              (doc.confidenceScore || 0) >= 80 ? "bg-green-100 text-green-700 border-green-300 dark:bg-green-900 dark:text-green-300" :
-                              (doc.confidenceScore || 0) >= 40 ? "bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-300" :
-                              "bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-300"
-                            }`}
-                            data-testid={`confidence-score-${doc.id}`}
-                          >
-                            {doc.confidenceScore || 0}% confidence
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Filters */}
         <div className="bg-card border-b border-border px-6 py-3">
@@ -1082,507 +762,36 @@ export default function Documents() {
 
         {/* Documents Grid */}
         <div className="flex-1 overflow-auto p-6">
-{(() => {
-            if (isLoading) {
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <Card key={i} className="animate-pulse">
-                      <CardContent className="p-4">
-                        <div className="h-4 bg-muted rounded mb-2"></div>
-                        <div className="h-3 bg-muted rounded mb-4 w-2/3"></div>
-                        <div className="flex space-x-2 mb-3">
-                          <div className="h-6 bg-muted rounded w-16"></div>
-                          <div className="h-6 bg-muted rounded w-12"></div>
-                        </div>
-                        <div className="h-8 bg-muted rounded"></div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              );
-            }
-
-            if (currentDocuments.length === 0) {
-              return (
-                <div className="text-center py-12">
-                  <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">No documents found</h3>
-                  <p className="text-muted-foreground">
-                    {searchQuery || selectedFileType || selectedFolderId || selectedTagId
-                      ? "Try adjusting your filters or search query."
-                      : "Upload your first document to get started."}
-                  </p>
-                </div>
-              );
-            }
-
-            if (isConversationalMode && conversationalData && (conversationalData.relevantDocuments.length > 0 || conversationalData.relatedDocuments.length > 0)) {
-              return (
-                <div className="space-y-8">
-                  {/* Relevant Documents Section */}
-                  {conversationalData.relevantDocuments.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-                        <CheckCircle className="mr-2 h-5 w-5 text-green-600" />
-                        Relevant Documents
-                        <span className="ml-2 text-sm text-muted-foreground">
-                          ({conversationalData.relevantDocuments.length})
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {conversationalData.relevantDocuments.map((document) => (
-                          <Card 
-                            key={document.id} 
-                            className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
-                            data-testid={`document-card-${document.id}`}
-                            onClick={() => handleViewDocument(document)}
-                          >
-                            <CardContent className="p-4">
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="flex items-center space-x-2 flex-1 min-w-0">
-                                  {getFileIcon(document.fileType)}
-                                  <div className="min-w-0">
-                                    <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
-                                      {getDocumentDisplayName(document)}
-                                    </h3>
-                                    <p className="text-xs text-muted-foreground">
-                                      {formatFileSize(document.fileSize || 0)}
-                                    </p>
-                                    {document.originalName && (
-                                      <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
-                                        {document.originalName}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm" 
-                                      className="h-auto p-1" 
-                                      onClick={(e) => e.stopPropagation()}
-                                      data-testid={`menu-${document.id}`}
-                                    >
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
-                                      <Download className="mr-2 h-4 w-4" />
-                                      Download
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                      onClick={() => handleViewDocument(document)}
-                                      data-testid={`menu-view-${document.id}`}
-                                    >
-                                      <Eye className="mr-2 h-4 w-4" />
-                                      View Details
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                      onClick={() => analyzeDocumentMutation.mutate(document.id)}
-                                      disabled={analyzeDocumentMutation.isPending}
-                                      data-testid={`menu-analyze-${document.id}`}
-                                    >
-                                      <Brain className="mr-2 h-4 w-4" />
-                                      {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
-                                      <Star className="mr-2 h-4 w-4" />
-                                      {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                              
-                              {/* Summary Section */}
-                              {document.aiSummary && (
-                                <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-md">
-                                  <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">AI Summary:</p>
-                                  <p className="text-xs text-blue-700 dark:text-blue-300 line-clamp-2" data-testid={`ai-summary-${document.id}`}>
-                                    {document.aiSummary}
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* Tags Section */}
-                              {document.tags && document.tags.length > 0 && (
-                                <div className="mb-3">
-                                  <div className="flex flex-wrap gap-1">
-                                    {document.tags.slice(0, 3).map((tag) => (
-                                      <Badge 
-                                        key={tag.id} 
-                                        variant="secondary" 
-                                        className="text-xs px-1.5 py-0.5"
-                                        data-testid={`tag-${tag.id}`}
-                                      >
-                                        {tag.name}
-                                      </Badge>
-                                    ))}
-                                    {document.tags.length > 3 && (
-                                      <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                                        +{document.tags.length - 3}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Action Buttons */}
-                              <div className="flex space-x-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleViewDocument(document);
-                                  }}
-                                  data-testid={`view-${document.id}`}
-                                >
-                                  <Eye className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={document.aiSummary ? "secondary" : "outline"}
-                                  className="flex-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    analyzeDocumentMutation.mutate(document.id);
-                                  }}
-                                  disabled={analyzeDocumentMutation.isPending}
-                                  data-testid={`analyze-ai-${document.id}`}
-                                >
-                                  <Brain className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteDocumentMutation.mutate(document.id);
-                                  }}
-                                  disabled={deleteDocumentMutation.isPending}
-                                  data-testid={`delete-${document.id}`}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
+          {documentsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardContent className="p-4">
+                    <div className="h-4 bg-muted rounded mb-2"></div>
+                    <div className="h-3 bg-muted rounded mb-4 w-2/3"></div>
+                    <div className="flex space-x-2 mb-3">
+                      <div className="h-6 bg-muted rounded w-16"></div>
+                      <div className="h-6 bg-muted rounded w-12"></div>
                     </div>
-                  )}
-                  
-                  {/* Related Documents Section */}
-                  {conversationalData.relatedDocuments.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-                        <Search className="mr-2 h-5 w-5 text-blue-600" />
-                        Related Documents
-                        <span className="ml-2 text-sm text-muted-foreground">
-                          ({conversationalData.relatedDocuments.length})
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {conversationalData.relatedDocuments.map((document) => (
-                          <Card 
-                            key={document.id} 
-                            className="hover:shadow-lg transition-shadow duration-200 cursor-pointer border-dashed" 
-                            data-testid={`document-card-${document.id}`}
-                            onClick={() => handleViewDocument(document)}
-                          >
-                            <CardContent className="p-4">
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="flex items-center space-x-2 flex-1 min-w-0">
-                                  {getFileIcon(document.fileType)}
-                                  <div className="min-w-0">
-                                    <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
-                                      {getDocumentDisplayName(document)}
-                                    </h3>
-                                    <p className="text-xs text-muted-foreground">
-                                      {formatFileSize(document.fileSize || 0)}
-                                    </p>
-                                    {document.originalName && (
-                                      <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
-                                        {document.originalName}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm" 
-                                      className="h-auto p-1" 
-                                      onClick={(e) => e.stopPropagation()}
-                                      data-testid={`menu-${document.id}`}
-                                    >
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
-                                      <Download className="mr-2 h-4 w-4" />
-                                      Download
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                      onClick={() => handleViewDocument(document)}
-                                      data-testid={`menu-view-${document.id}`}
-                                    >
-                                      <Eye className="mr-2 h-4 w-4" />
-                                      View Details
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                      onClick={() => analyzeDocumentMutation.mutate(document.id)}
-                                      disabled={analyzeDocumentMutation.isPending}
-                                      data-testid={`menu-analyze-${document.id}`}
-                                    >
-                                      <Brain className="mr-2 h-4 w-4" />
-                                      {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
-                                      <Star className="mr-2 h-4 w-4" />
-                                      {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                              
-                              {/* Summary Section */}
-                              {document.aiSummary && (
-                                <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-md">
-                                  <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">AI Summary:</p>
-                                  <p className="text-xs text-blue-700 dark:text-blue-300 line-clamp-2" data-testid={`ai-summary-${document.id}`}>
-                                    {document.aiSummary}
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* Tags Section */}
-                              {document.tags && document.tags.length > 0 && (
-                                <div className="mb-3">
-                                  <div className="flex flex-wrap gap-1">
-                                    {document.tags.slice(0, 3).map((tag) => (
-                                      <Badge 
-                                        key={tag.id} 
-                                        variant="secondary" 
-                                        className="text-xs px-1.5 py-0.5"
-                                        data-testid={`tag-${tag.id}`}
-                                      >
-                                        {tag.name}
-                                      </Badge>
-                                    ))}
-                                    {document.tags.length > 3 && (
-                                      <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                                        +{document.tags.length - 3}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Action Buttons */}
-                              <div className="flex space-x-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleViewDocument(document);
-                                  }}
-                                  data-testid={`view-${document.id}`}
-                                >
-                                  <Eye className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={document.aiSummary ? "secondary" : "outline"}
-                                  className="flex-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    analyzeDocumentMutation.mutate(document.id);
-                                  }}
-                                  disabled={analyzeDocumentMutation.isPending}
-                                  data-testid={`analyze-ai-${document.id}`}
-                                >
-                                  <Brain className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteDocumentMutation.mutate(document.id);
-                                  }}
-                                  disabled={deleteDocumentMutation.isPending}
-                                  data-testid={`delete-${document.id}`}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {currentDocuments.map((document) => (
-                  <Card 
-                    key={document.id} 
-                    className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
-                    data-testid={`document-card-${document.id}`}
-                    onClick={() => handleViewDocument(document)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center space-x-2 flex-1 min-w-0">
-                          {getFileIcon(document.fileType)}
-                          <div className="min-w-0">
-                            <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
-                              {getDocumentDisplayName(document)}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                              {formatFileSize(document.fileSize || 0)}
-                            </p>
-                            {document.originalName && (
-                              <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
-                                {document.originalName}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-auto p-1" 
-                              onClick={(e) => e.stopPropagation()}
-                              data-testid={`menu-${document.id}`}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleViewDocument(document)}
-                              data-testid={`menu-view-${document.id}`}
-                            >
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => analyzeDocumentMutation.mutate(document.id)}
-                              disabled={analyzeDocumentMutation.isPending}
-                              data-testid={`menu-analyze-${document.id}`}
-                            >
-                              <Brain className="mr-2 h-4 w-4" />
-                              {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
-                              <Star className="mr-2 h-4 w-4" />
-                              {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      
-                      {/* Summary Section */}
-                      {document.aiSummary && (
-                        <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-md">
-                          <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">AI Summary:</p>
-                          <p className="text-xs text-blue-700 dark:text-blue-300 line-clamp-2" data-testid={`ai-summary-${document.id}`}>
-                            {document.aiSummary}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Tags Section */}
-                      {document.tags && document.tags.length > 0 && (
-                        <div className="mb-3">
-                          <div className="flex flex-wrap gap-1">
-                            {document.tags.slice(0, 3).map((tag) => (
-                              <Badge 
-                                key={tag.id} 
-                                variant="secondary" 
-                                className="text-xs px-1.5 py-0.5"
-                                data-testid={`tag-${tag.id}`}
-                              >
-                                {tag.name}
-                              </Badge>
-                            ))}
-                            {document.tags.length > 3 && (
-                              <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                                +{document.tags.length - 3}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="flex space-x-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewDocument(document);
-                          }}
-                          data-testid={`view-${document.id}`}
-                        >
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={document.aiSummary ? "secondary" : "outline"}
-                          className="flex-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            analyzeDocumentMutation.mutate(document.id);
-                          }}
-                          disabled={analyzeDocumentMutation.isPending}
-                          data-testid={`analyze-ai-${document.id}`}
-                        >
-                          <Brain className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteDocumentMutation.mutate(document.id);
-                          }}
-                          disabled={deleteDocumentMutation.isPending}
-                          data-testid={`delete-${document.id}`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
-      </main>
+                    <div className="h-8 bg-muted rounded"></div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : documentsData?.documents.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">No documents found</h3>
+              <p className="text-muted-foreground">
+                {searchQuery || selectedFileType || selectedFolderId || selectedTagId
+                  ? "Try adjusting your filters or search query."
+                  : "Upload your first document to get started."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {documentsData?.documents.map((document) => (
+                <Card 
                   key={document.id} 
                   className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
                   data-testid={`document-card-${document.id}`}
@@ -1738,42 +947,26 @@ export default function Documents() {
                     <div className="flex items-center space-x-2">
                       <Button
                         size="sm"
-                        className="flex-none w-20"
+                        className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDownload(document);
                         }}
                         data-testid={`download-${document.id}`}
                       >
-                        <Download className="h-3 w-3" />
+                        <Download className="mr-1 h-3 w-3" />
+                        Download
                       </Button>
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="flex-1"
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
-                          // Direct document viewing - bypass intermediate page
-                          try {
-                            // For Google Drive documents, open Drive viewer directly
-                            if (document.driveWebViewLink) {
-                              window.open(document.driveWebViewLink, '_blank');
-                              return;
-                            }
-
-                            // For uploaded documents, fetch and display in new tab
-                            const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
-                            if (!response.ok) {
-                              throw new Error('View failed');
-                            }
-
-                            const blob = await response.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            window.open(url, '_blank');
-                          } catch (error) {
-                            console.error('View failed:', error);
-                            // Fallback to viewer page if direct view fails
-                            window.open(`/viewer/${document.id}`, '_blank');
+                          // Open document details/preview
+                          if (document.driveWebViewLink) {
+                            window.open(document.driveWebViewLink, '_blank');
+                          } else if (document.filePath) {
+                            window.open(document.filePath, '_blank');
                           }
                         }}
                         data-testid={`preview-${document.id}`}
@@ -1783,7 +976,6 @@ export default function Documents() {
                       <Button
                         size="sm"
                         variant={document.aiSummary ? "secondary" : "outline"}
-                        className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           analyzeDocumentMutation.mutate(document.id);
@@ -1811,723 +1003,6 @@ export default function Documents() {
               ))}
             </div>
           )}
-          
-          {/* Related Documents Section */}
-          {conversationalData.relatedDocuments.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-                <Search className="mr-2 h-5 w-5 text-blue-600" />
-                Related Documents
-                <span className="ml-2 text-sm text-muted-foreground">
-                  ({conversationalData.relatedDocuments.length})
-                </span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {conversationalData.relatedDocuments.map((document) => (
-                  <Card 
-                    key={document.id} 
-                    className="hover:shadow-lg transition-shadow duration-200 cursor-pointer border-dashed" 
-                    data-testid={`document-card-${document.id}`}
-                    onClick={() => handleViewDocument(document)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center space-x-2 flex-1 min-w-0">
-                          {getFileIcon(document.fileType)}
-                          <div className="min-w-0">
-                            <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
-                              {getDocumentDisplayName(document)}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                              {formatFileSize(document.fileSize || 0)}
-                            </p>
-                            {document.originalName && (
-                              <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
-                                {document.originalName}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-auto p-1" 
-                              onClick={(e) => e.stopPropagation()}
-                              data-testid={`menu-${document.id}`}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleViewDocument(document)}
-                              data-testid={`menu-view-${document.id}`}
-                            >
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => analyzeDocumentMutation.mutate(document.id)}
-                              disabled={analyzeDocumentMutation.isPending}
-                              data-testid={`menu-analyze-${document.id}`}
-                            >
-                              <Brain className="mr-2 h-4 w-4" />
-                              {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
-                              <Star className="mr-2 h-4 w-4" />
-                              {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-red-600" 
-                              onClick={() => deleteDocumentMutation.mutate(document.id)}
-                              disabled={deleteDocumentMutation.isPending}
-                              data-testid={`menu-delete-${document.id}`}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              {deleteDocumentMutation.isPending ? 'Deleting...' : 'Delete'}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <div className="flex flex-wrap gap-1">
-                          {document.tags.map((tag) => (
-                            <Badge
-                              key={tag.id}
-                              variant="secondary"
-                              className="text-xs"
-                              style={{ backgroundColor: `${tag.color || '#3b82f6'}20`, color: tag.color || '#3b82f6' }}
-                            >
-                              {tag.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-                        <span>{formatDate(document.uploadedAt)}</span>
-                        <span>{document.folder?.name || "No folder"}</span>
-                      </div>
-                      
-                      {/* AI Analysis Results */}
-                      {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
-                        <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Sparkles className="h-3 w-3 text-blue-600" />
-                            <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                              {document.aiSummary ? 'AI Analysis' : 'Classification'}
-                            </span>
-                          </div>
-                          {document.aiSummary && (
-                            <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
-                          )}
-                          {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {document.aiKeyTopics.map((topic, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-                                  {topic}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
-                            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
-                                <div className="flex items-center gap-1">
-                                  {document.overrideCategory && (
-                                    <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
-                                      Custom
-                                    </span>
-                                  )}
-                                  {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
-                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
-                                      Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              {(document.overrideDocumentType || document.aiDocumentType) && (
-                                <div className="flex items-center justify-between">
-                                  <span>Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
-                                  <div className="flex items-center gap-1">
-                                    {document.overrideDocumentType && (
-                                      <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
-                                        Custom
-                                      </span>
-                                    )}
-                                    {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
-                                      <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
-                                        Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-  
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          className="flex-none w-20"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(document);
-                          }}
-                          data-testid={`download-${document.id}`}
-                        >
-                          <Download className="h-3 w-3" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="flex-1"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            // Direct document viewing - bypass intermediate page
-                            try {
-                              // For Google Drive documents, open Drive viewer directly
-                              if (document.driveWebViewLink) {
-                                window.open(document.driveWebViewLink, '_blank');
-                                return;
-                              }
-  
-                              // For uploaded documents, fetch and display in new tab
-                              const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
-                              if (!response.ok) {
-                                throw new Error('View failed');
-                              }
-  
-                              const blob = await response.blob();
-                              const url = window.URL.createObjectURL(blob);
-                              window.open(url, '_blank');
-                            } catch (error) {
-                              console.error('View failed:', error);
-                              // Fallback to viewer page if direct view fails
-                              window.open(`/viewer/${document.id}`, '_blank');
-                            }
-                          }}
-                          data-testid={`preview-${document.id}`}
-                        >
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={document.aiSummary ? "secondary" : "outline"}
-                          className="flex-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            analyzeDocumentMutation.mutate(document.id);
-                          }}
-                          disabled={analyzeDocumentMutation.isPending}
-                          data-testid={`analyze-ai-${document.id}`}
-                        >
-                          <Brain className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteDocumentMutation.mutate(document.id);
-                          }}
-                          disabled={deleteDocumentMutation.isPending}
-                          data-testid={`delete-${document.id}`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Related Documents Section */}
-          {conversationalData.relatedDocuments.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-                <Search className="mr-2 h-5 w-5 text-blue-600" />
-                Related Documents
-                <span className="ml-2 text-sm text-muted-foreground">
-                  ({conversationalData.relatedDocuments.length})
-                </span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {conversationalData.relatedDocuments.map((document) => (
-                  <Card 
-                    key={document.id} 
-                    className="hover:shadow-lg transition-shadow duration-200 cursor-pointer border-dashed" 
-                    data-testid={`document-card-${document.id}`}
-                    onClick={() => handleViewDocument(document)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center space-x-2 flex-1 min-w-0">
-                          {getFileIcon(document.fileType)}
-                          <div className="min-w-0">
-                            <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
-                              {getDocumentDisplayName(document)}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                              {formatFileSize(document.fileSize || 0)}
-                            </p>
-                            {document.originalName && (
-                              <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
-                                {document.originalName}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-auto p-1" 
-                              onClick={(e) => e.stopPropagation()}
-                              data-testid={`menu-${document.id}`}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleViewDocument(document)}
-                              data-testid={`menu-view-${document.id}`}
-                            >
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => analyzeDocumentMutation.mutate(document.id)}
-                              disabled={analyzeDocumentMutation.isPending}
-                              data-testid={`menu-analyze-${document.id}`}
-                            >
-                              <Brain className="mr-2 h-4 w-4" />
-                              {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
-                              <Star className="mr-2 h-4 w-4" />
-                              {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-red-600" 
-                              onClick={() => deleteDocumentMutation.mutate(document.id)}
-                              disabled={deleteDocumentMutation.isPending}
-                              data-testid={`menu-delete-${document.id}`}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              {deleteDocumentMutation.isPending ? 'Deleting...' : 'Delete'}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <div className="flex flex-wrap gap-1">
-                          {document.tags.map((tag) => (
-                            <Badge
-                              key={tag.id}
-                              variant="secondary"
-                              className="text-xs"
-                              style={{ backgroundColor: `${tag.color || '#3b82f6'}20`, color: tag.color || '#3b82f6' }}
-                            >
-                              {tag.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-                        <span>{formatDate(document.uploadedAt)}</span>
-                        <span>{document.folder?.name || "No folder"}</span>
-                      </div>
-                      
-                      {/* AI Analysis Results */}
-                      {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
-                        <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Sparkles className="h-3 w-3 text-blue-600" />
-                            <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                              {document.aiSummary ? 'AI Analysis' : 'Classification'}
-                            </span>
-                          </div>
-                          {document.aiSummary && (
-                            <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
-                          )}
-                          {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {document.aiKeyTopics.map((topic, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-                                  {topic}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
-                            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
-                                <div className="flex items-center gap-1">
-                                  {document.overrideCategory && (
-                                    <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
-                                      Custom
-                                    </span>
-                                  )}
-                                  {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
-                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
-                                      Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              {(document.overrideDocumentType || document.aiDocumentType) && (
-                                <div className="flex items-center justify-between">
-                                  <span>Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
-                                  <div className="flex items-center gap-1">
-                                    {document.overrideDocumentType && (
-                                      <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
-                                        Custom
-                                      </span>
-                                    )}
-                                    {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
-                                      <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
-                                        Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-  
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          className="flex-none w-20"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(document);
-                          }}
-                          data-testid={`download-${document.id}`}
-                        >
-                          <Download className="h-3 w-3" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="flex-1"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            // Direct document viewing - bypass intermediate page
-                            try {
-                              // For Google Drive documents, open Drive viewer directly
-                              if (document.driveWebViewLink) {
-                                window.open(document.driveWebViewLink, '_blank');
-                                return;
-                              }
-  
-                              // For uploaded documents, fetch and display in new tab
-                              const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
-                              if (!response.ok) {
-                                throw new Error('View failed');
-                              }
-  
-                              const blob = await response.blob();
-                              const url = window.URL.createObjectURL(blob);
-                              window.open(url, '_blank');
-                            } catch (error) {
-                              console.error('View failed:', error);
-                              // Fallback to viewer page if direct view fails
-                              window.open(`/viewer/${document.id}`, '_blank');
-                            }
-                          }}
-                          data-testid={`preview-${document.id}`}
-                        >
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={document.aiSummary ? "secondary" : "outline"}
-                          className="flex-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            analyzeDocumentMutation.mutate(document.id);
-                          }}
-                          disabled={analyzeDocumentMutation.isPending}
-                          data-testid={`analyze-ai-${document.id}`}
-                        >
-                          <Brain className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteDocumentMutation.mutate(document.id);
-                          }}
-                          disabled={deleteDocumentMutation.isPending}
-                          data-testid={`delete-${document.id}`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {currentDocuments.map((document) => (
-            <Card 
-              key={document.id} 
-              className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
-              data-testid={`document-card-${document.id}`}
-              onClick={() => handleViewDocument(document)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-2 flex-1 min-w-0">
-                    {getFileIcon(document.fileType)}
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
-                        {getDocumentDisplayName(document)}
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {formatFileSize(document.fileSize || 0)}
-                      </p>
-                      {document.originalName && (
-                        <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
-                          {document.originalName}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-auto p-1" 
-                        onClick={(e) => e.stopPropagation()}
-                        data-testid={`menu-${document.id}`}
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Download
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => handleViewDocument(document)}
-                        data-testid={`menu-view-${document.id}`}
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => analyzeDocumentMutation.mutate(document.id)}
-                        disabled={analyzeDocumentMutation.isPending}
-                        data-testid={`menu-analyze-${document.id}`}
-                      >
-                        <Brain className="mr-2 h-4 w-4" />
-                        {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
-                        <Star className="mr-2 h-4 w-4" />
-                        {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        className="text-red-600" 
-                        onClick={() => deleteDocumentMutation.mutate(document.id)}
-                        disabled={deleteDocumentMutation.isPending}
-                        data-testid={`menu-delete-${document.id}`}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {deleteDocumentMutation.isPending ? 'Deleting...' : 'Delete'}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                
-                <div className="mb-3">
-                  <div className="flex flex-wrap gap-1">
-                    {document.tags.map((tag) => (
-                      <Badge
-                        key={tag.id}
-                        variant="secondary"
-                        className="text-xs"
-                        style={{ backgroundColor: `${tag.color || '#3b82f6'}20`, color: tag.color || '#3b82f6' }}
-                      >
-                        {tag.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-                  <span>{formatDate(document.uploadedAt)}</span>
-                  <span>{document.folder?.name || "No folder"}</span>
-                </div>
-                
-                {/* AI Analysis Results */}
-                {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
-                  <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Sparkles className="h-3 w-3 text-blue-600" />
-                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                        {document.aiSummary ? 'AI Analysis' : 'Classification'}
-                      </span>
-                    </div>
-                    {document.aiSummary && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
-                    )}
-                    {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {document.aiKeyTopics.map((topic, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-                            {topic}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
-                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
-                          <div className="flex items-center gap-1">
-                            {document.overrideCategory && (
-                              <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
-                                Custom
-                              </span>
-                            )}
-                            {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
-                              <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
-                                Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {(document.overrideDocumentType || document.aiDocumentType) && (
-                          <div className="flex items-center justify-between">
-                            <span>Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
-                            <div className="flex items-center gap-1">
-                              {document.overrideDocumentType && (
-                                <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
-                                  Custom
-                                </span>
-                              )}
-                              {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
-                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
-                                  Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center space-x-2">
-                  <Button
-                    size="sm"
-                    className="flex-none w-20"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownload(document);
-                    }}
-                    data-testid={`download-${document.id}`}
-                  >
-                    <Download className="h-3 w-3" />
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      // Direct document viewing - bypass intermediate page
-                      try {
-                        // For Google Drive documents, open Drive viewer directly
-                        if (document.driveWebViewLink) {
-                          window.open(document.driveWebViewLink, '_blank');
-                          return;
-                        }
-
-                        // For uploaded documents, fetch and display in new tab
-                        const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
-                        if (!response.ok) {
-                          throw new Error('View failed');
-                        }
-
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        window.open(url, '_blank');
-                      } catch (error) {
-                        console.error('View failed:', error);
-                        // Fallback to viewer page if direct view fails
-                        window.open(`/viewer/${document.id}`, '_blank');
-                      }
-                    }}
-                    data-testid={`preview-${document.id}`}
-                  >
-                    <Eye className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={document.aiSummary ? "secondary" : "outline"}
-                    className="flex-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      analyzeDocumentMutation.mutate(document.id);
-                    }}
-                    disabled={analyzeDocumentMutation.isPending}
-                    data-testid={`analyze-ai-${document.id}`}
-                  >
-                    <Brain className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteDocumentMutation.mutate(document.id);
-                    }}
-                    disabled={deleteDocumentMutation.isPending}
-                    data-testid={`delete-${document.id}`}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
 
           {/* Pagination */}
           {documentsData && documentsData.pagination.pages > 1 && (
