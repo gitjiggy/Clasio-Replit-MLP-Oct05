@@ -89,6 +89,49 @@ function preprocessQuery(query: string): string {
     return filtered.join(' ');
 }
 
+// Cosine similarity calculation
+function cosineSimilarity(vectorA: number[], vectorB: number[]): number {
+    if (!vectorA || !vectorB || vectorA.length !== vectorB.length) {
+        return 0;
+    }
+    
+    if (vectorA.length === 0) {
+        return 0;
+    }
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < vectorA.length; i++) {
+        dotProduct += vectorA[i] * vectorB[i];
+        normA += vectorA[i] * vectorA[i];
+        normB += vectorB[i] * vectorB[i];
+    }
+    
+    if (normA === 0 || normB === 0) {
+        return 0;
+    }
+    
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+// Semantic scoring with maximum field logic
+function calculateSemanticScore(doc: any, queryEmbedding: number[]): number {
+    const titleScore = cosineSimilarity(queryEmbedding, doc.title_embedding);
+    const summaryScore = cosineSimilarity(queryEmbedding, doc.summary_embedding);
+    const topicsScore = cosineSimilarity(queryEmbedding, doc.key_topics_embedding);
+    const contentScore = cosineSimilarity(queryEmbedding, doc.content_embedding);
+    
+    // Use maximum field score with slight title boost
+    return Math.max(
+        titleScore * 0.95,
+        summaryScore,
+        topicsScore,
+        contentScore
+    ) * 100;
+}
+
 // 3-tier confidence scoring system
 function calculateFinalScore(semanticScore: number, lexicalScore: number, qualityScore: number): number {
     const semantic = semanticScore / 100;
