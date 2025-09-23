@@ -774,12 +774,14 @@ export default function Documents() {
       }
       
       // For uploaded documents, use the API endpoint to download
-      const response = await apiRequest('GET', `/api/documents/${document.id}/download`, null, {
-        responseType: 'blob'
-      });
+      const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
       
       // Create download link
-      const blob = new Blob([response], { type: 'application/octet-stream' });
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.style.display = 'none';
