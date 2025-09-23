@@ -70,9 +70,13 @@ export const documents = pgTable("documents", {
   documentContent: text("document_content"), // Full extracted text content
   contentExtracted: boolean("content_extracted").default(false).notNull(),
   contentExtractedAt: timestamp("content_extracted_at"),
-  // Full-text search optimization for two-stage search
-  searchVector: text("search_vector"), // Computed FTS vector for fast Stage 1 filtering
-  searchVectorGenerated: boolean("search_vector_generated").default(false).notNull(),
+  // Embedding vectors for semantic search (nullable during transition)
+  titleEmbedding: text("title_embedding"), // JSON array of embedding for title
+  contentEmbedding: text("content_embedding"), // JSON array of embedding for content
+  summaryEmbedding: text("summary_embedding"), // JSON array of embedding for AI summary
+  keyTopicsEmbedding: text("key_topics_embedding"), // JSON array of embedding for key topics
+  embeddingsGenerated: boolean("embeddings_generated").default(false).notNull(),
+  embeddingsGeneratedAt: timestamp("embeddings_generated_at"),
 });
 
 export const documentVersions = pgTable("document_versions", {
@@ -103,6 +107,20 @@ export const documentTags = pgTable("document_tags", {
   documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
   tagId: varchar("tag_id").references(() => tags.id, { onDelete: "cascade" }).notNull(),
 });
+
+// Document access log for quality boost scoring
+export const documentAccessLog = pgTable("document_access_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull(), // Firebase UID
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  accessedAt: timestamp("accessed_at").default(sql`now()`).notNull(),
+  timeSpentSeconds: integer("time_spent_seconds"), // Optional tracking of engagement
+}, (table) => ({
+  // Index for efficient recent access queries
+  userDocumentAccessIndex: index("document_access_user_doc_idx").on(table.userId, table.documentId, table.accessedAt),
+  // Index for document-based access queries
+  documentAccessIndex: index("document_access_doc_idx").on(table.documentId, table.accessedAt),
+}));
 
 // AI Analysis Queue for cost-controlled batch processing
 export const aiAnalysisQueue = pgTable("ai_analysis_queue", {
@@ -168,6 +186,11 @@ export const insertDocumentTagSchema = createInsertSchema(documentTags).omit({
   id: true,
 });
 
+export const insertDocumentAccessLogSchema = createInsertSchema(documentAccessLog).omit({
+  id: true,
+  accessedAt: true,
+});
+
 export const insertAiAnalysisQueueSchema = createInsertSchema(aiAnalysisQueue).omit({
   id: true,
   requestedAt: true,
@@ -183,6 +206,7 @@ export type InsertTag = z.infer<typeof insertTagSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
 export type InsertDocumentTag = z.infer<typeof insertDocumentTagSchema>;
+export type InsertDocumentAccessLog = z.infer<typeof insertDocumentAccessLogSchema>;
 export type InsertAiAnalysisQueue = z.infer<typeof insertAiAnalysisQueueSchema>;
 export type InsertDailyApiUsage = z.infer<typeof insertDailyApiUsageSchema>;
 
@@ -191,6 +215,7 @@ export type Tag = typeof tags.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type DocumentVersion = typeof documentVersions.$inferSelect;
 export type DocumentTag = typeof documentTags.$inferSelect;
+export type DocumentAccessLog = typeof documentAccessLog.$inferSelect;
 export type AiAnalysisQueue = typeof aiAnalysisQueue.$inferSelect;
 export type DailyApiUsage = typeof dailyApiUsage.$inferSelect;
 
