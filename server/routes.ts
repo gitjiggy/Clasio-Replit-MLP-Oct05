@@ -507,6 +507,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { search, fileType, folderId, tagId, page = 1, limit = 12 } = validationResult.data;
       
+      // Debug logging for search requests
+      if (search) {
+        console.log(`🔍 Simple search request: "${search}" (fileType: ${fileType}, folderId: ${folderId}, tagId: ${tagId})`);
+      }
+      
       const filters = {
         search,
         fileType,
