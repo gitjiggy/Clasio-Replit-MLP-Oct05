@@ -640,6 +640,103 @@ Format as JSON:
     }
 }
 
+export async function analyzeDocumentRelevance(documentContent: string, documentName: string, query: string): Promise<{
+    isRelevant: boolean;
+    confidenceScore: number;
+    relevanceReason: string;
+}> {
+    if (!process.env.GEMINI_API_KEY) {
+        return {
+            isRelevant: false,
+            confidenceScore: 0,
+            relevanceReason: "AI analysis unavailable - API key not configured"
+        };
+    }
+
+    if (!documentContent || documentContent.trim().length === 0) {
+        return {
+            isRelevant: false,
+            confidenceScore: 0,
+            relevanceReason: "Document has no content to analyze"
+        };
+    }
+
+    // Truncate content to prevent token limit issues (keep first 8000 characters)
+    const truncatedContent = documentContent.length > 8000 
+        ? documentContent.substring(0, 8000) + "\n[...content truncated for analysis...]"
+        : documentContent;
+
+    const prompt = `You are analyzing a document to determine if it is relevant to a user's search query.
+
+Document Name: "${documentName}"
+User Query: "${query}"
+
+Document Content (read this completely and carefully):
+${truncatedContent}
+
+Based on your complete reading of the document content above, answer:
+
+1. Is this document relevant to the user's query? (true/false)
+2. Confidence score (0-100) - how confident are you that this document matches what the user is looking for?
+3. Brief reason explaining why it is or isn't relevant
+
+Instructions:
+- Read the ENTIRE document content carefully
+- Consider the user's intent behind the query
+- Look for direct mentions, related concepts, or contextual relevance
+- Be accurate - don't give high confidence scores unless the document clearly relates to the query
+- For people names, look for exact name matches or clear references
+- For topics, consider both direct mentions and related concepts
+
+Respond with ONLY a JSON object in this format:
+{
+  "isRelevant": boolean,
+  "confidenceScore": number,
+  "relevanceReason": "brief explanation"
+}`;
+
+    try {
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.5-flash-lite",
+            generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 300,
+                responseMimeType: "application/json"
+            }
+        });
+        
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const responseText = response.text();
+        
+        // Parse the JSON response
+        try {
+            const parsed = JSON.parse(responseText);
+            return {
+                isRelevant: Boolean(parsed.isRelevant),
+                confidenceScore: Math.min(Math.max(Number(parsed.confidenceScore) || 0, 0), 100),
+                relevanceReason: String(parsed.relevanceReason || "No reason provided")
+            };
+        } catch (parseError) {
+            console.error("Error parsing AI relevance response:", parseError, "Response:", responseText);
+        }
+        
+        // Fallback if JSON parsing fails
+        return {
+            isRelevant: false,
+            confidenceScore: 0,
+            relevanceReason: "Unable to parse AI analysis response"
+        };
+    } catch (error) {
+        console.error("Error analyzing document relevance:", error);
+        return {
+            isRelevant: false,
+            confidenceScore: 0,
+            relevanceReason: "Error during AI analysis"
+        };
+    }
+}
+
 export async function generateConversationalResponse(query: string, matchingDocuments: any[], intent: string): Promise<string> {
     if (!process.env.GEMINI_API_KEY) {
         return `Found ${matchingDocuments.length} documents matching "${query}".`;

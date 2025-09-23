@@ -195,6 +195,8 @@ export type DocumentWithFolderAndTags = Document & {
   folder?: Folder;
   tags: Tag[];
   confidenceScore?: number; // For search confidence scoring
+  relevanceReason?: string; // AI explanation of why document matches
+  isRelevant?: boolean; // AI assessment of relevance
 };
 
 export type DocumentWithVersions = DocumentWithFolderAndTags & {

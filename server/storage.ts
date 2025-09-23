@@ -26,7 +26,7 @@ import {
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
-import { processConversationalQuery, generateConversationalResponse } from "./gemini.js";
+import { processConversationalQuery, generateConversationalResponse, analyzeDocumentRelevance } from "./gemini.js";
 
 // Predefined main categories for automatic organization
 const MAIN_CATEGORIES = [
@@ -698,11 +698,54 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // Calculate confidence scores and filter documents  
-      const documentsWithConfidenceScores = foundDocuments.map(doc => ({
-        ...doc,
-        confidenceScore: this.calculateConfidenceScore(doc, queryAnalysis.keywords)
-      }));
+      // Use AI to analyze document relevance by reading complete content
+      // Limit to top 10 documents to prevent excessive AI costs
+      const documentsToAnalyze = foundDocuments.slice(0, 10);
+      console.log(`Analyzing ${documentsToAnalyze.length} documents with AI for query: "${query}"`);
+      const documentsWithConfidenceScores = [];
+      
+      for (const doc of documentsToAnalyze) {
+        // Check if document has content to analyze
+        let documentContent = doc.documentContent;
+        let hasContent = documentContent && documentContent.trim().length > 0;
+        
+        // If content is missing, try to load it from database
+        if (!hasContent) {
+          console.log(`Document "${doc.name}" - Content missing, attempting to load from database...`);
+          documentContent = await this.getDocumentContent(doc.id);
+          hasContent = documentContent && documentContent.trim().length > 0;
+          
+          // If still no content, try to extract it from the document file
+          if (!hasContent) {
+            console.log(`Document "${doc.name}" - No stored content, attempting extraction...`);
+            const extractionSuccess = await this.extractDocumentContent(doc.id);
+            if (extractionSuccess) {
+              documentContent = await this.getDocumentContent(doc.id);
+              hasContent = documentContent && documentContent.trim().length > 0;
+              console.log(`Document "${doc.name}" - Extraction ${hasContent ? 'successful' : 'failed'}`);
+            }
+          }
+        }
+        
+        console.log(`Document "${doc.name}" - Content available: ${hasContent}, Content length: ${documentContent?.length || 0} chars`);
+        
+        // Have AI read and analyze the complete document content
+        const aiAnalysis = await analyzeDocumentRelevance(
+          documentContent || '', 
+          doc.name, 
+          query
+        );
+        
+        console.log(`AI Analysis for "${doc.name}": ${aiAnalysis.confidenceScore}% confidence - ${aiAnalysis.relevanceReason}`);
+        
+        documentsWithConfidenceScores.push({
+          ...doc,
+          documentContent: documentContent, // Update with loaded content
+          confidenceScore: aiAnalysis.confidenceScore,
+          relevanceReason: aiAnalysis.relevanceReason,
+          isRelevant: aiAnalysis.isRelevant
+        });
+      }
       
       // Sort by confidence score (highest first)
       documentsWithConfidenceScores.sort((a, b) => b.confidenceScore - a.confidenceScore);
