@@ -1544,24 +1544,52 @@ export class DatabaseStorage implements IStorage {
       console.log(`Found ${documentsWithFoldersAndTags.length} filtered documents for query "${query}"`);
       documentsWithFoldersAndTags.forEach(doc => console.log(`- ${doc.name} (${doc.confidenceScore}% confidence)`));
       
-      // Group documents into "Relevant" and "Related" sections based on match quality
+      // Group documents into "Relevant" and "Related" sections based on keyword matching
       const relevantDocuments: DocumentWithFolderAndTags[] = [];
       const relatedDocuments: DocumentWithFolderAndTags[] = [];
       
+      // Extract key search terms from the query (e.g., "niraj desai" from "where are niraj desai docs")
+      const searchKeywords = queryAnalysis.keywords || [];
+      
       for (const doc of documentsWithFoldersAndTags) {
-        // Classify as "Relevant" if:
-        // 1. High confidence (70%+) OR
-        // 2. Contains exact search terms OR  
-        // 3. Strong lexical match
         const docText = `${doc.name || ''} ${doc.aiSummary || ''} ${doc.documentContent || ''}`.toLowerCase();
-        const queryLower = query.toLowerCase();
-        const containsExactTerms = docText.includes(queryLower);
         const highConfidence = (doc.confidenceScore || 0) >= 70;
-        const strongMatch = (doc as any).matchType === 'exact' || (doc as any).matchType === 'lexical';
         
-        if (containsExactTerms || highConfidence || strongMatch) {
+        // Check for exact keyword matches in the document
+        let exactKeywordMatches = 0;
+        let partialKeywordMatches = 0;
+        
+        for (const keyword of searchKeywords) {
+          const keywordLower = keyword.toLowerCase();
+          if (docText.includes(keywordLower)) {
+            exactKeywordMatches++;
+          }
+        }
+        
+        // For multi-keyword searches (like "niraj desai"), check for partial matches
+        if (searchKeywords.length > 1) {
+          for (const keyword of searchKeywords) {
+            const keywordLower = keyword.toLowerCase();
+            // Check if individual words appear anywhere in the document
+            if (docText.split(/\s+/).some(word => word.includes(keywordLower))) {
+              partialKeywordMatches++;
+            }
+          }
+        }
+        
+        // Classification logic:
+        // RELEVANT: Contains all or most search keywords (exact match for search intent)
+        // RELATED: Contains some keywords but not all (related but not exact match)
+        const keywordMatchRatio = exactKeywordMatches / Math.max(1, searchKeywords.length);
+        
+        if (keywordMatchRatio >= 0.7 || highConfidence >= 70 || exactKeywordMatches >= 2) {
+          // High keyword match or high confidence = Relevant
           relevantDocuments.push(doc);
+        } else if (exactKeywordMatches > 0 || partialKeywordMatches > 0) {
+          // Some keyword matches = Related
+          relatedDocuments.push(doc);
         } else {
+          // No keyword matches but returned by search = Related (lower priority)
           relatedDocuments.push(doc);
         }
       }

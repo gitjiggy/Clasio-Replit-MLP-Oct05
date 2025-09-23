@@ -40,7 +40,9 @@ import {
   CheckCircle,
   Plus,
   Brain,
-  Sparkles
+  Sparkles,
+  Target,
+  Link2
 } from "lucide-react";
 
 interface DocumentsResponse {

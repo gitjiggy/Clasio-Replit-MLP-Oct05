@@ -617,35 +617,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         limit: typeof limit === 'number' ? Math.min(limit, 50) : 12,
       };
       
-      // Check feature flag for new scoring system
-      const useNewScoring = process.env.USE_NEW_SCORING === 'true';
+      // Check feature flag for new scoring system (enable by default for better experience)
+      const useNewScoring = process.env.USE_NEW_SCORING !== 'false';
       
       if (useNewScoring) {
         // Use enhanced AI search with new scoring system
         const searchResult = await storage.searchConversational(query.trim(), filters, userId);
         
-        // Apply enhanced scoring to results
-        const enhancedResults = searchResult.documents.map(doc => {
-          let aiScore = 50; // Default score
-          
-          // Simple quality scoring based on document attributes (handle both camelCase and snake_case)
-          if (doc.isFavorite || doc.is_favorite) aiScore += 20;
-          if ((doc.aiWordCount || doc.ai_word_count) > 100) aiScore += 10;
-          if (doc.embeddings_generated || doc.embeddingsGenerated) aiScore += 15;
-          
-          // Boost recent documents
-          const uploadDate = doc.uploadedAt || doc.uploaded_at;
-          if (uploadDate) {
-            const daysSinceUpload = Math.floor((Date.now() - new Date(uploadDate).getTime()) / (1000 * 60 * 60 * 24));
-            if (daysSinceUpload < 30) aiScore += 5;
-          }
-          
-          return {
-            ...doc,
-            aiScore: Math.min(100, aiScore),
-            scoringMethod: 'enhanced'
-          };
-        }).sort((a, b) => b.aiScore - a.aiScore);
+        // Use the already-calculated scores from searchConversational function
+        // The searchConversational function already computes proper AI scores using 3-stage scoring
+        const enhancedResults = searchResult.documents.map(doc => ({
+          ...doc,
+          scoringMethod: 'new_3_stage'
+        }));
         
         res.json({
           documents: enhancedResults,
