@@ -676,11 +676,12 @@ export class DatabaseStorage implements IStorage {
       
       let baseScore = parseFloat(((result.rows[0] as any)?.score || 0).toString());
       
-      // Apply match bonuses across all searchable fields (not just title)
+      // Apply match bonuses across all searchable fields (including content for broader search results)
       const titleText = (doc.name || '').toLowerCase();
       const summaryText = (doc.aiSummary || '').toLowerCase();
       const topicsText = keyTopicsText.toLowerCase();
-      const allSearchableText = `${titleText} ${summaryText} ${topicsText}`;
+      const contentText = (doc.documentContent || '').toLowerCase();
+      const allSearchableText = `${titleText} ${summaryText} ${topicsText} ${contentText}`;
       
       const searchLower = searchTerms.toLowerCase();
       const searchTermsList = searchLower.split(' ').map(t => t.trim()).filter(t => t.length > 0);
@@ -691,6 +692,7 @@ export class DatabaseStorage implements IStorage {
       const titleMatches = searchTermsList.filter(term => titleText.includes(term));
       const summaryMatches = searchTermsList.filter(term => summaryText.includes(term));
       const topicsMatches = searchTermsList.filter(term => topicsText.includes(term));
+      const contentMatches = searchTermsList.filter(term => contentText.includes(term));
       
       // Exact name match: highest boost
       if (titleText === searchLower) {
@@ -712,11 +714,21 @@ export class DatabaseStorage implements IStorage {
         baseScore = Math.max(baseScore, 0.7);
         console.log(`  → All terms in key topics bonus: ${baseScore.toFixed(3)}`);
       }
-      // Some terms found anywhere: moderate boost
+      // All terms found in document content: solid boost (content is highly relevant)
+      else if (searchTermsList.every(term => contentText.includes(term))) {
+        baseScore = Math.max(baseScore, 0.65);
+        console.log(`  → All terms in document content bonus: ${baseScore.toFixed(3)}`);
+      }
+      // Some terms found in content: moderate boost  
+      else if (contentMatches.length > 0) {
+        baseScore = Math.max(baseScore, 0.55);
+        console.log(`  → Some terms found in content (${contentMatches.join(',')}) bonus: ${baseScore.toFixed(3)}`);
+      }
+      // Some terms found anywhere: base boost
       else if (searchTermsList.some(term => allSearchableText.includes(term))) {
-        const allMatches = Array.from(new Set([...titleMatches, ...summaryMatches, ...topicsMatches]));
-        baseScore = Math.max(baseScore, 0.6);
-        console.log(`  → Some terms found bonus (${allMatches.join(',')}) in name/summary/topics: ${baseScore.toFixed(3)}`);
+        const allMatches = Array.from(new Set([...titleMatches, ...summaryMatches, ...topicsMatches, ...contentMatches]));
+        baseScore = Math.max(baseScore, 0.4);
+        console.log(`  → Some terms found bonus (${allMatches.join(',')}) in searchable fields: ${baseScore.toFixed(3)}`);
       }
       // Pure ts_rank with better normalization
       else {
