@@ -766,36 +766,36 @@ export default function Documents() {
   };
 
   const handleDownload = async (document: DocumentWithFolderAndTags) => {
+    // For Drive documents, redirect directly
+    if (document.driveWebViewLink) {
+      window.open(document.driveWebViewLink, '_blank');
+      return;
+    }
+    
     try {
-      // For Drive documents, redirect directly
-      if (document.driveWebViewLink) {
-        window.open(document.driveWebViewLink, '_blank');
-        return;
-      }
-      
       // For uploaded documents, use the API endpoint to download
       const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
-      
+
       if (!response.ok) {
         throw new Error('Download failed');
       }
-      
-      // Create download link
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = document.originalName || document.name || 'download';
-      document.body.appendChild(a);
-      a.click();
+      const anchor = window.document.createElement('a');
+      anchor.style.display = 'none';
+      anchor.href = url;
+      anchor.download = document.originalName || document.name || 'download';
+      window.document.body.appendChild(anchor);
+      anchor.click();
       window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      window.document.body.removeChild(anchor);
     } catch (error) {
-      console.error('Download error:', error);
+      console.error('Download error details:', error);
+      console.error('Error message:', error instanceof Error ? error.message : String(error));
       toast({
-        title: "Download failed",
-        description: "There was an error downloading the document.",
+        title: "Download failed", 
+        description: error instanceof Error ? error.message : "There was an error downloading the document.",
         variant: "destructive",
       });
     }
