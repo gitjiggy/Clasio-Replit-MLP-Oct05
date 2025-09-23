@@ -765,9 +765,42 @@ export default function Documents() {
     setDocumentModalOpen(true);
   };
 
-  const handleDownload = (document: DocumentWithFolderAndTags) => {
-    if (document.filePath) {
-      window.open(document.filePath, '_blank');
+  const handleDownload = async (document: DocumentWithFolderAndTags) => {
+    try {
+      const response = await fetch(`/api/documents/${document.id}/download`, {
+        headers: {
+          'Authorization': `Bearer ${await getGoogleAccessToken()}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+      
+      // For Drive documents, the API redirects, so we handle that case
+      if (response.redirected) {
+        window.open(response.url, '_blank');
+        return;
+      }
+      
+      // For uploaded documents, trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = document.originalName || document.name || 'download';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download failed",
+        description: "There was an error downloading the document.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1381,12 +1414,8 @@ export default function Documents() {
                         className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Open document details/preview
-                          if (document.driveWebViewLink) {
-                            window.open(document.driveWebViewLink, '_blank');
-                          } else if (document.filePath) {
-                            window.open(document.filePath, '_blank');
-                          }
+                          // Open document for viewing using the proper API endpoint
+                          window.open(`/api/documents/${document.id}/download`, '_blank');
                         }}
                         data-testid={`preview-${document.id}`}
                       >
