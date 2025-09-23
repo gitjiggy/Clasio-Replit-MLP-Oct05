@@ -58,6 +58,8 @@ interface DocumentsResponse {
 
 interface ConversationalSearchResponse {
   documents: DocumentWithVersionInfo[];
+  relevantDocuments: DocumentWithVersionInfo[];
+  relatedDocuments: DocumentWithVersionInfo[];
   response: string;
   intent: string;
   keywords: string[];
@@ -1106,9 +1108,20 @@ export default function Documents() {
                   : "Upload your first document to get started."}
               </p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {currentDocuments.map((document) => (
+          ) : isConversationalMode && conversationalData && (conversationalData.relevantDocuments.length > 0 || conversationalData.relatedDocuments.length > 0) ? (
+            <div className="space-y-8">
+              {/* Relevant Documents Section */}
+              {conversationalData.relevantDocuments.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
+                    <CheckCircle className="mr-2 h-5 w-5 text-green-600" />
+                    Relevant Documents
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      ({conversationalData.relevantDocuments.length})
+                    </span>
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {conversationalData.relevantDocuments.map((document) => (
                 <Card 
                   key={document.id} 
                   className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
@@ -1337,6 +1350,725 @@ export default function Documents() {
                 </Card>
               ))}
             </div>
+          )}
+          
+          {/* Related Documents Section */}
+          {conversationalData.relatedDocuments.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
+                <Search className="mr-2 h-5 w-5 text-blue-600" />
+                Related Documents
+                <span className="ml-2 text-sm text-muted-foreground">
+                  ({conversationalData.relatedDocuments.length})
+                </span>
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {conversationalData.relatedDocuments.map((document) => (
+                  <Card 
+                    key={document.id} 
+                    className="hover:shadow-lg transition-shadow duration-200 cursor-pointer border-dashed" 
+                    data-testid={`document-card-${document.id}`}
+                    onClick={() => handleViewDocument(document)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center space-x-2 flex-1 min-w-0">
+                          {getFileIcon(document.fileType)}
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
+                              {getDocumentDisplayName(document)}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(document.fileSize || 0)}
+                            </p>
+                            {document.originalName && (
+                              <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
+                                {document.originalName}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-auto p-1" 
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`menu-${document.id}`}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleViewDocument(document)}
+                              data-testid={`menu-view-${document.id}`}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => analyzeDocumentMutation.mutate(document.id)}
+                              disabled={analyzeDocumentMutation.isPending}
+                              data-testid={`menu-analyze-${document.id}`}
+                            >
+                              <Brain className="mr-2 h-4 w-4" />
+                              {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
+                              <Star className="mr-2 h-4 w-4" />
+                              {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-red-600" 
+                              onClick={() => deleteDocumentMutation.mutate(document.id)}
+                              disabled={deleteDocumentMutation.isPending}
+                              data-testid={`menu-delete-${document.id}`}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {deleteDocumentMutation.isPending ? 'Deleting...' : 'Delete'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      
+                      <div className="mb-3">
+                        <div className="flex flex-wrap gap-1">
+                          {document.tags.map((tag) => (
+                            <Badge
+                              key={tag.id}
+                              variant="secondary"
+                              className="text-xs"
+                              style={{ backgroundColor: `${tag.color || '#3b82f6'}20`, color: tag.color || '#3b82f6' }}
+                            >
+                              {tag.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+                        <span>{formatDate(document.uploadedAt)}</span>
+                        <span>{document.folder?.name || "No folder"}</span>
+                      </div>
+                      
+                      {/* AI Analysis Results */}
+                      {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
+                        <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Sparkles className="h-3 w-3 text-blue-600" />
+                            <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                              {document.aiSummary ? 'AI Analysis' : 'Classification'}
+                            </span>
+                          </div>
+                          {document.aiSummary && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
+                          )}
+                          {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {document.aiKeyTopics.map((topic, index) => (
+                                <Badge key={index} variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                                  {topic}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
+                            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                                <div className="flex items-center gap-1">
+                                  {document.overrideCategory && (
+                                    <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
+                                      Custom
+                                    </span>
+                                  )}
+                                  {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
+                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
+                                      Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {(document.overrideDocumentType || document.aiDocumentType) && (
+                                <div className="flex items-center justify-between">
+                                  <span>Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
+                                  <div className="flex items-center gap-1">
+                                    {document.overrideDocumentType && (
+                                      <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
+                                        Custom
+                                      </span>
+                                    )}
+                                    {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
+                                      <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
+                                        Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+  
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          size="sm"
+                          className="flex-none w-20"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownload(document);
+                          }}
+                          data-testid={`download-${document.id}`}
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="flex-1"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            // Direct document viewing - bypass intermediate page
+                            try {
+                              // For Google Drive documents, open Drive viewer directly
+                              if (document.driveWebViewLink) {
+                                window.open(document.driveWebViewLink, '_blank');
+                                return;
+                              }
+  
+                              // For uploaded documents, fetch and display in new tab
+                              const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
+                              if (!response.ok) {
+                                throw new Error('View failed');
+                              }
+  
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              window.open(url, '_blank');
+                            } catch (error) {
+                              console.error('View failed:', error);
+                              // Fallback to viewer page if direct view fails
+                              window.open(`/viewer/${document.id}`, '_blank');
+                            }
+                          }}
+                          data-testid={`preview-${document.id}`}
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={document.aiSummary ? "secondary" : "outline"}
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            analyzeDocumentMutation.mutate(document.id);
+                          }}
+                          disabled={analyzeDocumentMutation.isPending}
+                          data-testid={`analyze-ai-${document.id}`}
+                        >
+                          <Brain className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteDocumentMutation.mutate(document.id);
+                          }}
+                          disabled={deleteDocumentMutation.isPending}
+                          data-testid={`delete-${document.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Related Documents Section */}
+          {conversationalData.relatedDocuments.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
+                <Search className="mr-2 h-5 w-5 text-blue-600" />
+                Related Documents
+                <span className="ml-2 text-sm text-muted-foreground">
+                  ({conversationalData.relatedDocuments.length})
+                </span>
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {conversationalData.relatedDocuments.map((document) => (
+                  <Card 
+                    key={document.id} 
+                    className="hover:shadow-lg transition-shadow duration-200 cursor-pointer border-dashed" 
+                    data-testid={`document-card-${document.id}`}
+                    onClick={() => handleViewDocument(document)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center space-x-2 flex-1 min-w-0">
+                          {getFileIcon(document.fileType)}
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
+                              {getDocumentDisplayName(document)}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(document.fileSize || 0)}
+                            </p>
+                            {document.originalName && (
+                              <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
+                                {document.originalName}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-auto p-1" 
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`menu-${document.id}`}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleViewDocument(document)}
+                              data-testid={`menu-view-${document.id}`}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => analyzeDocumentMutation.mutate(document.id)}
+                              disabled={analyzeDocumentMutation.isPending}
+                              data-testid={`menu-analyze-${document.id}`}
+                            >
+                              <Brain className="mr-2 h-4 w-4" />
+                              {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
+                              <Star className="mr-2 h-4 w-4" />
+                              {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-red-600" 
+                              onClick={() => deleteDocumentMutation.mutate(document.id)}
+                              disabled={deleteDocumentMutation.isPending}
+                              data-testid={`menu-delete-${document.id}`}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {deleteDocumentMutation.isPending ? 'Deleting...' : 'Delete'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      
+                      <div className="mb-3">
+                        <div className="flex flex-wrap gap-1">
+                          {document.tags.map((tag) => (
+                            <Badge
+                              key={tag.id}
+                              variant="secondary"
+                              className="text-xs"
+                              style={{ backgroundColor: `${tag.color || '#3b82f6'}20`, color: tag.color || '#3b82f6' }}
+                            >
+                              {tag.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+                        <span>{formatDate(document.uploadedAt)}</span>
+                        <span>{document.folder?.name || "No folder"}</span>
+                      </div>
+                      
+                      {/* AI Analysis Results */}
+                      {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
+                        <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Sparkles className="h-3 w-3 text-blue-600" />
+                            <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                              {document.aiSummary ? 'AI Analysis' : 'Classification'}
+                            </span>
+                          </div>
+                          {document.aiSummary && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
+                          )}
+                          {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {document.aiKeyTopics.map((topic, index) => (
+                                <Badge key={index} variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                                  {topic}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
+                            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                                <div className="flex items-center gap-1">
+                                  {document.overrideCategory && (
+                                    <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
+                                      Custom
+                                    </span>
+                                  )}
+                                  {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
+                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
+                                      Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {(document.overrideDocumentType || document.aiDocumentType) && (
+                                <div className="flex items-center justify-between">
+                                  <span>Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
+                                  <div className="flex items-center gap-1">
+                                    {document.overrideDocumentType && (
+                                      <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
+                                        Custom
+                                      </span>
+                                    )}
+                                    {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
+                                      <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
+                                        Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+  
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          size="sm"
+                          className="flex-none w-20"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownload(document);
+                          }}
+                          data-testid={`download-${document.id}`}
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="flex-1"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            // Direct document viewing - bypass intermediate page
+                            try {
+                              // For Google Drive documents, open Drive viewer directly
+                              if (document.driveWebViewLink) {
+                                window.open(document.driveWebViewLink, '_blank');
+                                return;
+                              }
+  
+                              // For uploaded documents, fetch and display in new tab
+                              const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
+                              if (!response.ok) {
+                                throw new Error('View failed');
+                              }
+  
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              window.open(url, '_blank');
+                            } catch (error) {
+                              console.error('View failed:', error);
+                              // Fallback to viewer page if direct view fails
+                              window.open(`/viewer/${document.id}`, '_blank');
+                            }
+                          }}
+                          data-testid={`preview-${document.id}`}
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={document.aiSummary ? "secondary" : "outline"}
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            analyzeDocumentMutation.mutate(document.id);
+                          }}
+                          disabled={analyzeDocumentMutation.isPending}
+                          data-testid={`analyze-ai-${document.id}`}
+                        >
+                          <Brain className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteDocumentMutation.mutate(document.id);
+                          }}
+                          disabled={deleteDocumentMutation.isPending}
+                          data-testid={`delete-${document.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+          ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {currentDocuments.map((document) => (
+            <Card 
+              key={document.id} 
+              className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
+              data-testid={`document-card-${document.id}`}
+              onClick={() => handleViewDocument(document)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2 flex-1 min-w-0">
+                    {getFileIcon(document.fileType)}
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-medium text-foreground truncate" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
+                        {getDocumentDisplayName(document)}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {formatFileSize(document.fileSize || 0)}
+                      </p>
+                      {document.originalName && (
+                        <p className="text-xs text-muted-foreground truncate mt-0.5" title={document.originalName} data-testid={`original-name-${document.id}`}>
+                          {document.originalName}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-auto p-1" 
+                        onClick={(e) => e.stopPropagation()}
+                        data-testid={`menu-${document.id}`}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleDownload(document)} data-testid={`menu-download-${document.id}`}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleViewDocument(document)}
+                        data-testid={`menu-view-${document.id}`}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => analyzeDocumentMutation.mutate(document.id)}
+                        disabled={analyzeDocumentMutation.isPending}
+                        data-testid={`menu-analyze-${document.id}`}
+                      >
+                        <Brain className="mr-2 h-4 w-4" />
+                        {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
+                        <Star className="mr-2 h-4 w-4" />
+                        {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="text-red-600" 
+                        onClick={() => deleteDocumentMutation.mutate(document.id)}
+                        disabled={deleteDocumentMutation.isPending}
+                        data-testid={`menu-delete-${document.id}`}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {deleteDocumentMutation.isPending ? 'Deleting...' : 'Delete'}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                
+                <div className="mb-3">
+                  <div className="flex flex-wrap gap-1">
+                    {document.tags.map((tag) => (
+                      <Badge
+                        key={tag.id}
+                        variant="secondary"
+                        className="text-xs"
+                        style={{ backgroundColor: `${tag.color || '#3b82f6'}20`, color: tag.color || '#3b82f6' }}
+                      >
+                        {tag.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+                  <span>{formatDate(document.uploadedAt)}</span>
+                  <span>{document.folder?.name || "No folder"}</span>
+                </div>
+                
+                {/* AI Analysis Results */}
+                {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
+                  <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Sparkles className="h-3 w-3 text-blue-600" />
+                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                        {document.aiSummary ? 'AI Analysis' : 'Classification'}
+                      </span>
+                    </div>
+                    {document.aiSummary && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
+                    )}
+                    {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {document.aiKeyTopics.map((topic, index) => (
+                          <Badge key={index} variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                            {topic}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                          <div className="flex items-center gap-1">
+                            {document.overrideCategory && (
+                              <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
+                                Custom
+                              </span>
+                            )}
+                            {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
+                              <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
+                                Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {(document.overrideDocumentType || document.aiDocumentType) && (
+                          <div className="flex items-center justify-between">
+                            <span>Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
+                            <div className="flex items-center gap-1">
+                              {document.overrideDocumentType && (
+                                <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
+                                  Custom
+                                </span>
+                              )}
+                              {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
+                                  Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center space-x-2">
+                  <Button
+                    size="sm"
+                    className="flex-none w-20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownload(document);
+                    }}
+                    data-testid={`download-${document.id}`}
+                  >
+                    <Download className="h-3 w-3" />
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      // Direct document viewing - bypass intermediate page
+                      try {
+                        // For Google Drive documents, open Drive viewer directly
+                        if (document.driveWebViewLink) {
+                          window.open(document.driveWebViewLink, '_blank');
+                          return;
+                        }
+
+                        // For uploaded documents, fetch and display in new tab
+                        const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
+                        if (!response.ok) {
+                          throw new Error('View failed');
+                        }
+
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        window.open(url, '_blank');
+                      } catch (error) {
+                        console.error('View failed:', error);
+                        // Fallback to viewer page if direct view fails
+                        window.open(`/viewer/${document.id}`, '_blank');
+                      }
+                    }}
+                    data-testid={`preview-${document.id}`}
+                  >
+                    <Eye className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={document.aiSummary ? "secondary" : "outline"}
+                    className="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      analyzeDocumentMutation.mutate(document.id);
+                    }}
+                    disabled={analyzeDocumentMutation.isPending}
+                    data-testid={`analyze-ai-${document.id}`}
+                  >
+                    <Brain className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteDocumentMutation.mutate(document.id);
+                    }}
+                    disabled={deleteDocumentMutation.isPending}
+                    data-testid={`delete-${document.id}`}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
           )}
 
           {/* Pagination */}

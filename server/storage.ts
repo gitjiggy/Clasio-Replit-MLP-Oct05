@@ -941,6 +941,8 @@ export class DatabaseStorage implements IStorage {
   // Enhanced conversational search using AI metadata
   async searchConversational(query: string, filters: Partial<Omit<DocumentFilters, 'search'>> = {}): Promise<{
     documents: DocumentWithFolderAndTags[];
+    relevantDocuments: DocumentWithFolderAndTags[];
+    relatedDocuments: DocumentWithFolderAndTags[];
     response: string;
     intent: string;
     keywords: string[];
@@ -1026,6 +1028,8 @@ export class DatabaseStorage implements IStorage {
           // No documents with this tag
           return {
             documents: [],
+            relevantDocuments: [],
+            relatedDocuments: [],
             response: `No documents found with the specified tag.`,
             intent: queryAnalysis.intent,
             keywords: queryAnalysis.keywords
@@ -1526,6 +1530,30 @@ export class DatabaseStorage implements IStorage {
       console.log(`Found ${documentsWithFoldersAndTags.length} filtered documents for query "${query}"`);
       documentsWithFoldersAndTags.forEach(doc => console.log(`- ${doc.name} (${doc.confidenceScore}% confidence)`));
       
+      // Group documents into "Relevant" and "Related" sections based on match quality
+      const relevantDocuments: DocumentWithFolderAndTags[] = [];
+      const relatedDocuments: DocumentWithFolderAndTags[] = [];
+      
+      for (const doc of documentsWithFoldersAndTags) {
+        // Classify as "Relevant" if:
+        // 1. High confidence (70%+) OR
+        // 2. Contains exact search terms OR  
+        // 3. Strong lexical match
+        const docText = `${doc.name || ''} ${doc.aiSummary || ''} ${doc.documentContent || ''}`.toLowerCase();
+        const queryLower = query.toLowerCase();
+        const containsExactTerms = docText.includes(queryLower);
+        const highConfidence = (doc.confidenceScore || 0) >= 70;
+        const strongMatch = (doc as any).matchType === 'exact' || (doc as any).matchType === 'lexical';
+        
+        if (containsExactTerms || highConfidence || strongMatch) {
+          relevantDocuments.push(doc);
+        } else {
+          relatedDocuments.push(doc);
+        }
+      }
+      
+      console.log(`Document grouping: ${relevantDocuments.length} relevant, ${relatedDocuments.length} related`);
+      
       // Generate confidence-based conversational response
       let conversationalResponse;
       
@@ -1570,7 +1598,9 @@ export class DatabaseStorage implements IStorage {
       }
       
       return {
-        documents: documentsWithFoldersAndTags,
+        documents: documentsWithFoldersAndTags, // Keep for backward compatibility 
+        relevantDocuments,
+        relatedDocuments,
         response: conversationalResponse,
         intent: queryAnalysis.intent,
         keywords: queryAnalysis.keywords
@@ -1600,7 +1630,9 @@ export class DatabaseStorage implements IStorage {
       }
 
       return {
-        documents: fallbackResults,
+        documents: fallbackResults, // Keep for backward compatibility
+        relevantDocuments: fallbackResults, // For fallback, treat all as relevant
+        relatedDocuments: [],
         response: responseMessage,
         intent: "general_search",
         keywords: smartFallback.keywords  // Use extracted keywords instead of entire query
