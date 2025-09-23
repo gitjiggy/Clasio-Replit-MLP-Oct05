@@ -643,9 +643,9 @@ export class DatabaseStorage implements IStorage {
     
     console.log(`    Tiered scoring: semantic=${semantic.toFixed(3)}, lexical=${lexical.toFixed(3)}, quality=${quality.toFixed(3)}`);
     
-    // Tier 1: High confidence semantic matches
-    if (semantic >= 0.8) {
-      const tier1Score = Math.round(semantic * 100); // Return 80-100% directly
+    // Tier 1: High confidence semantic matches (adjusted for realistic Gemini embedding scores)
+    if (semantic >= 0.7) {
+      const tier1Score = Math.round(semantic * 100); // Return 70-100% directly
       console.log(`    → Tier 1 (high semantic): ${tier1Score}%`);
       return tier1Score / 100;
     }
