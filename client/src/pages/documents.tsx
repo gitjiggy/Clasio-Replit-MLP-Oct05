@@ -1454,7 +1454,7 @@ export default function Documents() {
                       </Button>
                       <Button
                         size="sm"
-                        className="flex-1 bg-green-400 hover:bg-green-500 text-white border-0"
+                        className="flex-1 bg-yellow-400 hover:bg-yellow-500 text-white border-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           analyzeDocumentMutation.mutate(document.id);
