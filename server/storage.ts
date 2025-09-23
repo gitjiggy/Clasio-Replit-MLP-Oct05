@@ -635,22 +635,30 @@ export class DatabaseStorage implements IStorage {
       // Apply title match bonuses since ts_rank scores are naturally low
       const titleText = (doc.name || '').toLowerCase();
       const searchLower = searchTerms.toLowerCase();
+      const searchTermsList = searchLower.split(' ').map(t => t.trim()).filter(t => t.length > 0);
+      
+      console.log(`FTS Debug for "${doc.name}": title="${titleText}", search="${searchLower}", terms=[${searchTermsList.join(',')}], baseScore=${baseScore.toFixed(3)}`);
       
       // Exact title match: massive boost
       if (titleText === searchLower) {
         baseScore = Math.max(baseScore, 0.95);
+        console.log(`  → Exact match bonus: ${baseScore.toFixed(3)}`);
       }
       // Title contains all search terms: significant boost  
-      else if (searchLower.split(' ').every(term => titleText.includes(term.trim()))) {
+      else if (searchTermsList.every(term => titleText.includes(term))) {
         baseScore = Math.max(baseScore, 0.8);
+        console.log(`  → All terms found bonus: ${baseScore.toFixed(3)}`);
       }
       // Title contains some search terms: moderate boost
-      else if (searchLower.split(' ').some(term => titleText.includes(term.trim()))) {
+      else if (searchTermsList.some(term => titleText.includes(term))) {
+        const foundTerms = searchTermsList.filter(term => titleText.includes(term));
         baseScore = Math.max(baseScore, 0.6);
+        console.log(`  → Some terms found bonus (${foundTerms.join(',')}): ${baseScore.toFixed(3)}`);
       }
       // Pure ts_rank with better normalization (ts_rank is usually 0.0-0.6 range)
       else {
         baseScore = Math.min(0.8, baseScore * 2); // Scale up ts_rank scores
+        console.log(`  → No title match, scaled ts_rank: ${baseScore.toFixed(3)}`);
       }
       
       return Math.min(1, Math.max(0, baseScore));
@@ -1281,14 +1289,23 @@ export class DatabaseStorage implements IStorage {
       let filteredDocuments = [];
       let confidenceLevel = 'none';
       
+      // Improved filtering: Include multiple confidence tiers for better recall
       if (highConfidenceDocs.length > 0) {
-        filteredDocuments = highConfidenceDocs;
+        // High confidence exists: include high + some medium
+        filteredDocuments = [...highConfidenceDocs, ...mediumConfidenceDocs.slice(0, 2)];
         confidenceLevel = 'high';
         console.log(`Found ${highConfidenceDocs.length} high-confidence matches (>80%)`);
+        if (mediumConfidenceDocs.length > 0) {
+          console.log(`Also including ${Math.min(2, mediumConfidenceDocs.length)} medium-confidence matches`);
+        }
       } else if (mediumConfidenceDocs.length > 0) {
-        filteredDocuments = mediumConfidenceDocs.slice(0, 5); // Limit to top 5 for medium confidence
+        // Medium confidence exists: include medium + some low  
+        filteredDocuments = [...mediumConfidenceDocs.slice(0, 3), ...lowConfidenceDocs.slice(0, 2)];
         confidenceLevel = 'medium';
         console.log(`Found ${mediumConfidenceDocs.length} medium-confidence matches (40-79%)`);
+        if (lowConfidenceDocs.length > 0) {
+          console.log(`Also including ${Math.min(2, lowConfidenceDocs.length)} low-confidence matches`);
+        }
       } else if (lowConfidenceDocs.length > 0) {
         filteredDocuments = lowConfidenceDocs.slice(0, 3); // Limit to top 3 for low confidence
         confidenceLevel = 'low';
