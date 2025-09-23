@@ -952,8 +952,8 @@ export class DatabaseStorage implements IStorage {
       const searchTerms = queryAnalysis.keywords.join(' ');
       console.log(`FTS search terms: "${searchTerms}"`);
       
-      // Execute raw SQL for proper PostgreSQL FTS with parameterized queries
-      const ftsQuery = `
+      // Execute raw SQL for proper PostgreSQL FTS with parameterized queries  
+      const ftsResults = await db.execute(sql`
         SELECT 
           id, name, original_name, file_path, file_size, file_type, mime_type, 
           folder_id, uploaded_at, is_favorite, is_deleted, drive_file_id, 
@@ -971,7 +971,7 @@ export class DatabaseStorage implements IStorage {
               coalesce(ai_summary,'') || ' ' || 
               array_to_string(coalesce(ai_key_topics,'{}'), ' ')
             ), 
-            plainto_tsquery('english', $1)
+            plainto_tsquery('english', ${searchTerms})
           ) as fts_score
         FROM documents 
         WHERE 
@@ -981,13 +981,10 @@ export class DatabaseStorage implements IStorage {
             coalesce(original_name,'') || ' ' || 
             coalesce(ai_summary,'') || ' ' || 
             array_to_string(coalesce(ai_key_topics,'{}'), ' ')
-          ) @@ plainto_tsquery('english', $1)
+          ) @@ plainto_tsquery('english', ${searchTerms})
         ORDER BY fts_score DESC 
         LIMIT 8
-      `;
-      
-      // Execute raw PostgreSQL FTS query with parameterized search terms
-      const ftsResults = await db.execute(sql.raw(ftsQuery.replace('$1', `'${searchTerms.replace(/'/g, "''")}'`)));
+      `);
       
       // Convert raw results to typed documents
       const stage1Candidates = ftsResults.rows.map((row: any) => ({
@@ -1217,9 +1214,17 @@ export class DatabaseStorage implements IStorage {
         ...filters
       });
       
+      // Generate helpful response based on results
+      let responseMessage;
+      if (fallbackResults.length === 0) {
+        responseMessage = `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`;
+      } else {
+        responseMessage = `I found ${fallbackResults.length} document${fallbackResults.length === 1 ? '' : 's'} that might be relevant to your search.`;
+      }
+
       return {
         documents: fallbackResults,
-        response: `Found ${fallbackResults.length} documents matching "${query}".`,
+        response: responseMessage,
         intent: "general_search",
         keywords: smartFallback.keywords  // Use extracted keywords instead of entire query
       };

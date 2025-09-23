@@ -799,7 +799,11 @@ Respond with ONLY a JSON object in this format:
 
 export async function generateConversationalResponse(query: string, matchingDocuments: any[], intent: string): Promise<string> {
     if (!process.env.GEMINI_API_KEY) {
-        return `Found ${matchingDocuments.length} documents matching "${query}".`;
+        if (matchingDocuments.length === 0) {
+            return `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`;
+        } else {
+            return `I found ${matchingDocuments.length} document${matchingDocuments.length === 1 ? '' : 's'} that might be relevant to your search.`;
+        }
     }
 
     // Enhanced document context with confidence scores and match explanations
@@ -871,9 +875,18 @@ Keep response helpful and informative but concise.`;
         
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        return response.text() || `Found ${matchingDocuments.length} documents matching "${query}".`;
+        const responseText = response.text();
+        if (responseText) {
+            return responseText;
+        } else {
+            return matchingDocuments.length === 0 
+                ? `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`
+                : `I found ${matchingDocuments.length} document${matchingDocuments.length === 1 ? '' : 's'} that might be relevant to your search.`;
+        }
     } catch (error) {
         console.error("Error generating conversational response:", error);
-        return `Found ${matchingDocuments.length} documents matching "${query}".`;
+        return matchingDocuments.length === 0 
+            ? `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`
+            : `I found ${matchingDocuments.length} document${matchingDocuments.length === 1 ? '' : 's'} that might be relevant to your search.`;
     }
 }
