@@ -1280,55 +1280,79 @@ export class DatabaseStorage implements IStorage {
       // Apply stop word preprocessing before FTS search
       const preprocessedQuery = this.preprocessSearchQuery(query);
       
-      // Create search query for PostgreSQL FTS (space-separated for plainto_tsquery)
-      const searchTerms = preprocessedQuery || queryAnalysis.keywords.join(' ');
-      console.log(`FTS search terms: "${searchTerms}"`);
+      // Create search query for PostgreSQL FTS with safe OR logic
+      const rawSearchInput = preprocessedQuery || queryAnalysis.keywords.join(' ');
+      let searchTerms = '';
+      let useFTS = false;
       
-      // Execute raw SQL for proper PostgreSQL FTS with parameterized queries (including tag names)
-      const ftsResults = await db.execute(sql`
-        SELECT 
-          d.id, d.name, d.original_name, d.file_path, d.file_size, d.file_type, d.mime_type, 
-          d.folder_id, d.uploaded_at, d.is_favorite, d.is_deleted, d.drive_file_id, 
-          d.drive_web_view_link, d.is_from_drive, d.drive_last_modified, d.drive_sync_status, 
-          d.drive_synced_at, d.ai_summary, d.ai_key_topics, d.ai_document_type, d.ai_category, 
-          d.ai_sentiment, d.ai_word_count, d.ai_analyzed_at, d.ai_concise_name, 
-          d.ai_category_confidence, d.ai_document_type_confidence, d.override_category, 
-          d.override_document_type, d.classification_overridden, d.document_content, 
-          d.content_extracted, d.content_extracted_at, d.title_embedding, d.content_embedding, 
-          d.summary_embedding, d.key_topics_embedding, d.embeddings_generated, d.embeddings_generated_at,
-          ts_rank(
-            to_tsvector('english', 
-              coalesce(d.name,'') || ' ' || 
-              coalesce(d.original_name,'') || ' ' || 
-              coalesce(d.ai_summary,'') || ' ' || 
-              array_to_string(coalesce(d.ai_key_topics,'{}'), ' ') || ' ' ||
-              coalesce((
-                SELECT string_agg(t.name, ' ')
-                FROM document_tags dt
-                JOIN tags t ON dt.tag_id = t.id
-                WHERE dt.document_id = d.id
-              ), '')
-            ), 
-            plainto_tsquery('english', ${searchTerms})
-          ) as fts_score
-        FROM documents d
-        WHERE 
-          d.is_deleted = false 
-          AND to_tsvector('english', 
-            coalesce(d.name,'') || ' ' || 
-            coalesce(d.original_name,'') || ' ' || 
-            coalesce(d.ai_summary,'') || ' ' || 
-            array_to_string(coalesce(d.ai_key_topics,'{}'), ' ') || ' ' ||
-            coalesce((
-              SELECT string_agg(t.name, ' ')
-              FROM document_tags dt
-              JOIN tags t ON dt.tag_id = t.id
-              WHERE dt.document_id = d.id
-            ), '')
-          ) @@ plainto_tsquery('english', ${searchTerms})
-        ORDER BY fts_score DESC 
-        LIMIT 8
-      `);
+      if (rawSearchInput.trim()) {
+        // Split terms and use websearch_to_tsquery for each term individually, then combine with OR
+        const searchWords = rawSearchInput.split(/\s+/).filter(word => word.trim().length > 0);
+        
+        if (searchWords.length > 0) {
+          // Create OR query by joining terms with OR operator for websearch_to_tsquery
+          searchTerms = searchWords.join(' OR ');
+          useFTS = true;
+          console.log(`FTS search terms: "${searchTerms}" (${searchWords.length > 1 ? 'OR logic' : 'single term'} with websearch_to_tsquery)`);
+        }
+      } else {
+        console.log(`FTS skipped: empty search input`);
+      }
+      
+      // Execute raw SQL for proper PostgreSQL FTS with safe query handling
+      let ftsResults = { rows: [] };
+      
+      if (useFTS && searchTerms) {
+        try {
+          ftsResults = await db.execute(sql`
+            SELECT 
+              d.id, d.name, d.original_name, d.file_path, d.file_size, d.file_type, d.mime_type, 
+              d.folder_id, d.uploaded_at, d.is_favorite, d.is_deleted, d.drive_file_id, 
+              d.drive_web_view_link, d.is_from_drive, d.drive_last_modified, d.drive_sync_status, 
+              d.drive_synced_at, d.ai_summary, d.ai_key_topics, d.ai_document_type, d.ai_category, 
+              d.ai_sentiment, d.ai_word_count, d.ai_analyzed_at, d.ai_concise_name, 
+              d.ai_category_confidence, d.ai_document_type_confidence, d.override_category, 
+              d.override_document_type, d.classification_overridden, d.document_content, 
+              d.content_extracted, d.content_extracted_at, d.title_embedding, d.content_embedding, 
+              d.summary_embedding, d.key_topics_embedding, d.embeddings_generated, d.embeddings_generated_at,
+              ts_rank(
+                to_tsvector('english', 
+                  coalesce(d.name,'') || ' ' || 
+                  coalesce(d.original_name,'') || ' ' || 
+                  coalesce(d.ai_summary,'') || ' ' || 
+                  array_to_string(coalesce(d.ai_key_topics,'{}'), ' ') || ' ' ||
+                  coalesce((
+                    SELECT string_agg(t.name, ' ')
+                    FROM document_tags dt
+                    JOIN tags t ON dt.tag_id = t.id
+                    WHERE dt.document_id = d.id
+                  ), '')
+                ), 
+                websearch_to_tsquery('english', ${searchTerms})
+              ) as fts_score
+            FROM documents d
+            WHERE 
+              d.is_deleted = false 
+              AND to_tsvector('english', 
+                coalesce(d.name,'') || ' ' || 
+                coalesce(d.original_name,'') || ' ' || 
+                coalesce(d.ai_summary,'') || ' ' || 
+                array_to_string(coalesce(d.ai_key_topics,'{}'), ' ') || ' ' ||
+                coalesce((
+                  SELECT string_agg(t.name, ' ')
+                  FROM document_tags dt
+                  JOIN tags t ON dt.tag_id = t.id
+                  WHERE dt.document_id = d.id
+                ), '')
+              ) @@ websearch_to_tsquery('english', ${searchTerms})
+            ORDER BY fts_score DESC 
+            LIMIT 8
+          `);
+        } catch (error) {
+          console.warn(`FTS query failed with terms "${searchTerms}":`, error instanceof Error ? error.message : String(error));
+          console.log('Falling back to semantic search due to FTS error');
+        }
+      }
       
       // Convert raw results to typed documents
       const stage1Candidates = ftsResults.rows.map((row: any) => ({
