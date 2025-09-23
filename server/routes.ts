@@ -628,6 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // The searchConversational function already computes proper AI scores using 3-stage scoring
         const enhancedResults = searchResult.documents.map(doc => ({
           ...doc,
+          aiScore: doc.confidenceScore, // Map confidenceScore to aiScore for frontend compatibility
           scoringMethod: 'new_3_stage'
         }));
         
