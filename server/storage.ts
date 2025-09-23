@@ -189,6 +189,17 @@ export interface IStorage {
     intent: string;
     keywords: string[];
   }>;
+
+  // Hybrid FTS + Limited Semantic Search for optimal performance
+  searchFTSPlusSemanticOptimized(query: string, filters?: Partial<Omit<DocumentFilters, 'search'>>, userId?: string): Promise<{
+    documents: DocumentWithFolderAndTags[];
+    relevantDocuments: DocumentWithFolderAndTags[];
+    relatedDocuments: DocumentWithFolderAndTags[];
+    response: string;
+    intent: string;
+    keywords: string[];
+    timing?: { total: number; fts: number; semantic: number };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -646,6 +657,37 @@ export class DatabaseStorage implements IStorage {
     return score;
   }
   
+  private calculateOptimizedSemanticScore(doc: any, queryEmbedding: number[]): number {
+    // Early exit strategy - don't calculate all fields unnecessarily
+    const titleEmb = parseEmbeddingFromJSON(doc.titleEmbedding);
+    const titleScore = titleEmb ? calculateCosineSimilarity(queryEmbedding, titleEmb) * 1.2 : 0; // Boost titles
+    
+    if (titleScore > 0.7) {
+      console.log(`High title match (${titleScore.toFixed(3)}), skipping other calculations`);
+      return titleScore;
+    }
+
+    const summaryEmb = parseEmbeddingFromJSON(doc.summaryEmbedding);
+    const summaryScore = summaryEmb ? calculateCosineSimilarity(queryEmbedding, summaryEmb) : 0;
+    
+    if (summaryScore > 0.6) {
+      console.log(`Good summary match (${summaryScore.toFixed(3)}), skipping content`);
+      return Math.max(titleScore, summaryScore);
+    }
+
+    // Only calculate content for borderline cases
+    const contentEmb = parseEmbeddingFromJSON(doc.contentEmbedding);
+    const contentScore = contentEmb ? calculateCosineSimilarity(queryEmbedding, contentEmb) : 0;
+    
+    const keyTopicsEmb = parseEmbeddingFromJSON(doc.keyTopicsEmbedding);
+    const keyTopicsScore = keyTopicsEmb ? calculateCosineSimilarity(queryEmbedding, keyTopicsEmb) : 0;
+    
+    const maxScore = Math.max(titleScore, summaryScore, contentScore, keyTopicsScore);
+    console.log(`Full calculation: title=${titleScore.toFixed(3)}, summary=${summaryScore.toFixed(3)}, content=${contentScore.toFixed(3)}, topics=${keyTopicsScore.toFixed(3)}, max=${maxScore.toFixed(3)}`);
+    
+    return maxScore;
+  }
+
   private async calculateSemanticScore(doc: any, queryEmbedding: number[]): Promise<number> {
     // Use maximum field scoring instead of weighted averages to prevent dilution of strong signals
     const fieldScores: number[] = [];
@@ -1053,6 +1095,241 @@ export class DatabaseStorage implements IStorage {
     const cleanedQuery = meaningfulWords.join(' ');
     console.log(`Stop word filtering: "${query}" → "${cleanedQuery}"`);
     return cleanedQuery || query; // Fallback to original if everything was filtered
+  }
+
+  // Hybrid FTS + Limited Semantic Search for optimal performance
+  async searchFTSPlusSemanticOptimized(query: string, filters: Partial<Omit<DocumentFilters, 'search'>> = {}, userId?: string): Promise<{
+    documents: DocumentWithFolderAndTags[];
+    relevantDocuments: DocumentWithFolderAndTags[];
+    relatedDocuments: DocumentWithFolderAndTags[];
+    response: string;
+    intent: string;
+    keywords: string[];
+    timing?: { total: number; fts: number; semantic: number };
+  }> {
+    await this.ensureInitialized();
+    
+    const startTime = performance.now();
+    console.log(`🚀 Hybrid search request: "${query}"`);
+    
+    // Phase 1: Fast FTS pre-filtering (get more candidates quickly)
+    const ftsStartTime = performance.now();
+    
+    // Apply stop word preprocessing before FTS search
+    const preprocessedQuery = this.preprocessSearchQuery(query);
+    const rawSearchInput = preprocessedQuery;
+    let useFTS = false;
+    let searchTerms = '';
+    
+    if (rawSearchInput.trim()) {
+      const searchWords = rawSearchInput.split(/\s+/).filter(word => word.trim().length > 0);
+      if (searchWords.length > 0) {
+        searchTerms = searchWords.join(' OR ');
+        useFTS = true;
+        console.log(`FTS search terms: "${searchTerms}" (${searchWords.length > 1 ? 'OR logic' : 'single term'} with websearch_to_tsquery)`);
+      }
+    }
+
+    // Execute fast FTS query to get top 15 candidates
+    let ftsResults = [];
+    let ftsTime = 0;
+    
+    if (useFTS) {
+      try {
+        console.log(`Phase 1: Fast FTS pre-filtering for query: "${query}"`);
+        const rawFtsResults = await db.execute(sql`
+          SELECT 
+            d.id,
+            d.name,
+            d.original_name,
+            d.file_path,
+            d.file_size,
+            d.file_type,
+            d.mime_type,
+            d.folder_id,
+            d.uploaded_at,
+            d.is_favorite,
+            d.is_deleted,
+            d.drive_file_id,
+            d.drive_web_view_link,
+            d.is_from_drive,
+            d.drive_last_modified,
+            d.drive_sync_status,
+            d.drive_synced_at,
+            d.ai_summary,
+            d.ai_key_topics,
+            d.ai_document_type,
+            d.ai_category,
+            d.ai_sentiment,
+            d.ai_word_count,
+            d.ai_analyzed_at,
+            d.ai_concise_name,
+            d.ai_category_confidence,
+            d.ai_document_type_confidence,
+            d.override_category,
+            d.override_document_type,
+            d.classification_overridden,
+            d.document_content,
+            d.content_extracted,
+            d.content_extracted_at,
+            d.title_embedding,
+            d.content_embedding,
+            d.summary_embedding,
+            d.key_topics_embedding,
+            d.embeddings_generated,
+            d.embeddings_generated_at,
+            ts_rank(to_tsvector('english', coalesce(d.name,'') || ' ' || coalesce(d.original_name,'') || ' ' || coalesce(d.ai_summary,'')), websearch_to_tsquery('english', ${searchTerms})) as fts_score
+          FROM documents d
+          WHERE d.is_deleted = false 
+            AND to_tsvector('english', coalesce(d.name,'') || ' ' || coalesce(d.original_name,'') || ' ' || coalesce(d.ai_summary,'')) @@ websearch_to_tsquery('english', ${searchTerms})
+          ORDER BY fts_score DESC
+          LIMIT 15
+        `);
+        
+        ftsResults = rawFtsResults.rows.map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          originalName: row.original_name,
+          filePath: row.file_path,
+          fileSize: row.file_size,
+          fileType: row.file_type,
+          mimeType: row.mime_type,
+          folderId: row.folder_id,
+          uploadedAt: row.uploaded_at,
+          isFavorite: row.is_favorite,
+          isDeleted: row.is_deleted,
+          driveFileId: row.drive_file_id,
+          driveWebViewLink: row.drive_web_view_link,
+          isFromDrive: row.is_from_drive,
+          driveLastModified: row.drive_last_modified,
+          driveSyncStatus: row.drive_sync_status,
+          driveSyncedAt: row.drive_synced_at,
+          aiSummary: row.ai_summary,
+          aiKeyTopics: row.ai_key_topics,
+          aiDocumentType: row.ai_document_type,
+          aiCategory: row.ai_category,
+          aiSentiment: row.ai_sentiment,
+          aiWordCount: row.ai_word_count,
+          aiAnalyzedAt: row.ai_analyzed_at,
+          aiConciseName: row.ai_concise_name,
+          aiCategoryConfidence: row.ai_category_confidence,
+          aiDocumentTypeConfidence: row.ai_document_type_confidence,
+          overrideCategory: row.override_category,
+          overrideDocumentType: row.override_document_type,
+          classificationOverridden: row.classification_overridden,
+          documentContent: row.document_content,
+          contentExtracted: row.content_extracted,
+          contentExtractedAt: row.content_extracted_at,
+          titleEmbedding: row.title_embedding,
+          contentEmbedding: row.content_embedding,
+          summaryEmbedding: row.summary_embedding,
+          keyTopicsEmbedding: row.key_topics_embedding,
+          embeddingsGenerated: row.embeddings_generated,
+          embeddingsGeneratedAt: row.embeddings_generated_at,
+          ftsScore: parseFloat(row.fts_score) || 0
+        }));
+        
+        ftsTime = performance.now() - ftsStartTime;
+        console.log(`FTS phase: ${ftsTime.toFixed(2)}ms, found ${ftsResults.length} candidates`);
+        
+      } catch (error) {
+        console.warn('FTS query failed, falling back to empty results:', error);
+        ftsResults = [];
+        ftsTime = performance.now() - ftsStartTime;
+      }
+    }
+    
+    if (ftsResults.length === 0) {
+      const totalTime = performance.now() - startTime;
+      return { 
+        documents: [], 
+        relevantDocuments: [],
+        relatedDocuments: [],
+        response: "No matches found", 
+        intent: 'hybrid_search',
+        keywords: query.split(' '),
+        timing: { total: totalTime, fts: ftsTime, semantic: 0 }
+      };
+    }
+
+    // Phase 2: Semantic scoring on top candidates only
+    const semanticStartTime = performance.now();
+    
+    // Generate or retrieve cached query embedding
+    let queryEmbedding: number[];
+    const cachedEmbedding = this.queryEmbeddingCache.getCachedEmbedding(query);
+    
+    if (cachedEmbedding) {
+      console.log(`Using cached query embedding for: "${query}"`);
+      queryEmbedding = cachedEmbedding;
+    } else {
+      try {
+        console.log(`Generating new query embedding for: "${query}"`);
+        queryEmbedding = await generateEmbedding(query, 'RETRIEVAL_QUERY');
+        this.queryEmbeddingCache.setCachedEmbedding(query, queryEmbedding);
+        console.log(`Cached new query embedding for future searches`);
+      } catch (error) {
+        console.warn('Query embedding generation failed:', error);
+        // Fallback to FTS-only results
+        const totalTime = performance.now() - startTime;
+        const semanticTime = performance.now() - semanticStartTime;
+        
+        const documents = ftsResults.map(doc => ({ ...doc, tags: [] }));
+        
+        return {
+          documents,
+          relevantDocuments: documents,
+          relatedDocuments: [],
+          response: `Found ${documents.length} documents using text search`,
+          intent: 'fts_only',
+          keywords: query.split(' '),
+          timing: { total: totalTime, fts: ftsTime, semantic: semanticTime }
+        };
+      }
+    }
+
+    // Only score top 6 FTS results with semantic analysis
+    const topCandidates = ftsResults.slice(0, 6);
+    console.log(`Phase 2: Semantic scoring on top ${topCandidates.length} FTS candidates`);
+    
+    const semanticScored = await Promise.all(topCandidates.map(async doc => {
+      const semanticScore = this.calculateOptimizedSemanticScore(doc, queryEmbedding);
+      
+      // Apply quality boost for personalization (same as existing system)
+      const qualityBoost = userId ? await this.calculateQualityBoost(doc, userId) : 0;
+      
+      return {
+        ...doc,
+        semanticScore,
+        qualityBoost,
+        combinedScore: (doc.ftsScore * 0.3) + (semanticScore * 0.6) + (qualityBoost * 0.1), // Rebalanced weights
+        confidenceScore: Math.round(semanticScore * 100),
+        tags: [] // Ensure tags array exists
+      };
+    }));
+
+    const semanticTime = performance.now() - semanticStartTime;
+    console.log(`Semantic phase: ${semanticTime.toFixed(2)}ms, scored ${topCandidates.length} documents`);
+
+    // Phase 3: Combine scores and rank
+    const finalResults = semanticScored.sort((a, b) => b.combinedScore - a.combinedScore);
+
+    const totalTime = performance.now() - startTime;
+    console.log(`🚀 Hybrid search completed: ${totalTime.toFixed(2)}ms (FTS: ${ftsTime.toFixed(2)}ms, Semantic: ${semanticTime.toFixed(2)}ms)`);
+
+    // Group results by confidence level
+    const relevantDocuments = finalResults.filter(doc => doc.confidenceScore >= 50);
+    const relatedDocuments = finalResults.filter(doc => doc.confidenceScore < 50);
+
+    return {
+      documents: finalResults,
+      relevantDocuments,
+      relatedDocuments,
+      response: `Found ${finalResults.length} documents with hybrid search`,
+      intent: 'hybrid_search',
+      keywords: query.split(' '),
+      timing: { total: totalTime, fts: ftsTime, semantic: semanticTime }
+    };
   }
 
   // Enhanced conversational search using AI metadata

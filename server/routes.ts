@@ -568,8 +568,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         limit: typeof limit === 'string' ? Math.min(parseInt(limit) || 12, 50) : 12,
       };
       
-      // Use conversational search from storage
-      const searchResult = await storage.searchConversational(query.trim(), filters);
+      // Use hybrid FTS + semantic search for optimal performance (no userId for GET endpoint)
+      const searchResult = await storage.searchFTSPlusSemanticOptimized(query.trim(), filters);
       
       res.json({
         documents: searchResult.documents,
@@ -626,8 +626,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const useNewScoring = process.env.USE_NEW_SCORING !== 'false';
       
       if (useNewScoring) {
-        // Use enhanced AI search with new scoring system
-        const searchResult = await storage.searchConversational(query.trim(), filters, userId);
+        // Use enhanced AI search with hybrid FTS + semantic optimization
+        const searchResult = await storage.searchFTSPlusSemanticOptimized(query.trim(), filters, userId);
         
         // Use the already-calculated scores from searchConversational function
         // The searchConversational function already computes proper AI scores using 3-stage scoring
@@ -648,8 +648,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           useNewScoring: true
         });
       } else {
-        // Use legacy conversational search
-        const searchResult = await storage.searchConversational(query.trim(), filters, userId);
+        // Use hybrid FTS + semantic search (replaces legacy approach)
+        const searchResult = await storage.searchFTSPlusSemanticOptimized(query.trim(), filters, userId);
         
         res.json({
           documents: searchResult.documents.map(doc => ({

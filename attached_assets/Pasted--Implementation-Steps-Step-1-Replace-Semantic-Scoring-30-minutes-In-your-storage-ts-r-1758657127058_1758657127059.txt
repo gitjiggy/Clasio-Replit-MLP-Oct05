@@ -1,0 +1,84 @@
+  Implementation Steps:
+
+  Step 1: Replace Semantic Scoring (30 minutes)
+
+  // In your storage.ts, replace the current semantic scoring with:
+  function calculateOptimizedSemanticScore(doc: any, queryEmbedding: number[]): number {
+    // Early exit strategy - don't calculate all fields
+    const titleScore = cosineSimilarity(queryEmbedding, parseEmbedding(doc.title_embedding));
+
+    if (titleScore > 0.7) {
+      console.log(`High title match (${titleScore.toFixed(3)}), skipping other calculations`);
+      return titleScore * 1.2;
+    }
+
+    const summaryScore = cosineSimilarity(queryEmbedding, parseEmbedding(doc.summary_embedding));
+
+    if (summaryScore > 0.6) {
+      console.log(`Good summary match (${summaryScore.toFixed(3)}), skipping content`);
+      return Math.max(titleScore * 1.2, summaryScore);
+    }
+
+    // Only calculate content for borderline cases
+    const contentScore = cosineSimilarity(queryEmbedding, parseEmbedding(doc.content_embedding));
+    console.log(`Full calculation: title=${titleScore.toFixed(3)}, summary=${summaryScore.toFixed(3)}, content=${contentScore.toFixed(3)}`);
+
+    return Math.max(titleScore * 1.2, summaryScore, contentScore);
+  }
+
+  Step 2: Implement FTS → Semantic Pipeline (60 minutes)
+
+  // Add this optimized search function to your storage.ts:
+  async function searchFTSPlusSemanticOptimized(query: string, filters = {}) {
+    const startTime = performance.now();
+
+    // Phase 1: Fast FTS pre-filtering
+    const ftsStartTime = performance.now();
+    const ftsResults = await this.getFTSResults(query, filters, 15); // Get 15 candidates
+    const ftsTime = performance.now() - ftsStartTime;
+
+    console.log(`FTS phase: ${ftsTime.toFixed(2)}ms, found ${ftsResults.length} candidates`);
+
+    if (ftsResults.length === 0) {
+      return { documents: [], response: "No matches found", timing: { total: performance.now() - startTime, fts: ftsTime, semantic: 0 }};
+    }
+
+    // Phase 2: Semantic scoring on top candidates only
+    const semanticStartTime = performance.now();
+    const queryEmbedding = await generateEmbedding(query);
+
+    const topCandidates = ftsResults.slice(0, 6); // Only score top 6 FTS results
+    const semanticScored = topCandidates.map(doc => ({
+      ...doc,
+      semanticScore: calculateOptimizedSemanticScore(doc, queryEmbedding),
+      ftsScore: doc.fts_score || 0
+    }));
+
+    const semanticTime = performance.now() - semanticStartTime;
+    console.log(`Semantic phase: ${semanticTime.toFixed(2)}ms, scored ${topCandidates.length} documents`);
+
+    // Phase 3: Combine scores and rank
+    const finalResults = semanticScored
+      .map(doc => ({
+        ...doc,
+        combinedScore: (doc.ftsScore * 0.3) + (doc.semanticScore * 0.7),
+        confidence: Math.round(doc.semanticScore * 100)
+      }))
+      .sort((a, b) => b.combinedScore - a.combinedScore);
+
+    const totalTime = performance.now() - startTime;
+    console.log(`Total search time: ${totalTime.toFixed(2)}ms (FTS: ${ftsTime.toFixed(2)}ms, Semantic: ${semanticTime.toFixed(2)}ms)`);
+
+    return {
+      documents: finalResults,
+      response: `Found ${finalResults.length} documents`,
+      intent: 'hybrid_search',
+      keywords: query.split(' '),
+      timing: { total: totalTime, fts: ftsTime, semantic: semanticTime }
+    };
+  }
+
+  Step 3: Update Your Search Endpoint (15 minutes)
+
+  // In your routes.ts, replace the search call with:
+  const searchResult = await storage.searchFTSPlusSemanticOptimized(query.trim(), filters);
