@@ -556,19 +556,28 @@ export class DatabaseStorage implements IStorage {
     return score;
   }
   
-  private async calculateSemanticScore(doc: any, queryEmbedding: number[]): Promise<number> {
-    // Field weights: title×0.15 + key_topics×0.35 + summary×0.20 + content×0.30
-    let totalScore = 0;
-    let totalWeight = 0;
+  private async calculateSemanticScore(doc: any, queryEmbedding: number[], query?: string): Promise<number> {
+    // Adjust field weights for person name queries where title matching is most important
+    const isPersonNameQuery = query && (/\b(mr|mrs|dr|ms)\b/i.test(query) || 
+                                      /^[A-Z][a-z]+ [A-Z][a-z]+(\s|$)/.test(query.trim()));
     
-    const fieldWeights = {
-      title: 0.15,
+    const fieldWeights = isPersonNameQuery ? {
+      title: 0.50,      // Boost title weight for name queries
+      keyTopics: 0.20,  // Reduce other fields
+      summary: 0.15,
+      content: 0.15
+    } : {
+      title: 0.15,      // Standard weights for general queries
       keyTopics: 0.35, 
       summary: 0.20,
       content: 0.30
     };
     
-    console.log(`    Semantic debug for "${doc.name}":`);
+    let totalScore = 0;
+    let totalWeight = 0;
+    
+    console.log(`    Semantic debug for "${doc.name}": ${isPersonNameQuery ? 'PERSON NAME detected' : 'general query'}`);
+    console.log(`    Field weights: title=${fieldWeights.title}, topics=${fieldWeights.keyTopics}, summary=${fieldWeights.summary}, content=${fieldWeights.content}`);
     
     // Title embedding
     if (doc.titleEmbedding) {
@@ -816,7 +825,7 @@ export class DatabaseStorage implements IStorage {
     for (const doc of filteredCandidates) {
       try {
         // Stage 1: Semantic Scoring (50% weight)
-        const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding);
+        const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding, query);
         console.log(`  → Semantic details for "${doc.name}": checking embeddings...`);
         
         // Stage 2: Lexical Scoring (35% weight) 
