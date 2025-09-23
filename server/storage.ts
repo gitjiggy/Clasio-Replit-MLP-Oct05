@@ -376,6 +376,55 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  // Calculate confidence score for document match
+  private calculateConfidenceScore(doc: any, keywords: string[]): number {
+    let score = 0;
+    const maxScore = 100;
+    
+    for (const keyword of keywords) {
+      const lowerKeyword = keyword.toLowerCase();
+      
+      // Title matches (highest weight: 25 points per keyword)
+      if (doc.name?.toLowerCase().includes(lowerKeyword) || doc.originalName?.toLowerCase().includes(lowerKeyword)) {
+        score += 25;
+      }
+      
+      // AI Key Topics matches (high weight: 20 points per keyword)
+      if (doc.aiKeyTopics && Array.isArray(doc.aiKeyTopics)) {
+        const topicsMatch = doc.aiKeyTopics.some((topic: string) => 
+          topic.toLowerCase().includes(lowerKeyword)
+        );
+        if (topicsMatch) score += 20;
+      }
+      
+      // AI Summary matches (medium weight: 15 points per keyword)
+      if (doc.aiSummary?.toLowerCase().includes(lowerKeyword)) {
+        score += 15;
+      }
+      
+      // Document content matches (medium weight: 10 points per keyword)
+      if (doc.documentContent?.toLowerCase().includes(lowerKeyword)) {
+        score += 10;
+      }
+      
+      // AI Category/Type matches (lower weight: 8 points per keyword)
+      if (doc.aiCategory?.toLowerCase().includes(lowerKeyword) || 
+          doc.aiDocumentType?.toLowerCase().includes(lowerKeyword) ||
+          doc.overrideCategory?.toLowerCase().includes(lowerKeyword) ||
+          doc.overrideDocumentType?.toLowerCase().includes(lowerKeyword)) {
+        score += 8;
+      }
+      
+      // AI Concise Name matches (lower weight: 5 points per keyword)
+      if (doc.aiConciseName?.toLowerCase().includes(lowerKeyword)) {
+        score += 5;
+      }
+    }
+    
+    // Cap at maximum score and convert to percentage
+    return Math.min(score, maxScore);
+  }
+
   // Enhanced conversational search using AI metadata
   async searchConversational(query: string, filters: Partial<Omit<DocumentFilters, 'search'>> = {}): Promise<{
     documents: DocumentWithFolderAndTags[];
@@ -471,17 +520,18 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // Enhanced hybrid search: AI metadata + full document content
+      // ENHANCED PERMISSIVE SEARCH: Find all potentially relevant documents for confidence scoring
+      // Instead of strict filtering, we'll get potential matches and score them
+      const potentialMatchConditions = [];
+      
       if (queryAnalysis.keywords.length > 0) {
-        const allSearchConditions = [];
-        
         for (const keyword of queryAnalysis.keywords) {
           const keywordConditions = [
-            // Search in document names (highest priority)
+            // Search in document names 
             ilike(documents.name, `%${keyword}%`),
             ilike(documents.originalName, `%${keyword}%`),
             
-            // Search in AI-generated metadata (high priority)
+            // Search in AI-generated metadata
             and(isNotNull(documents.aiSummary), ilike(documents.aiSummary, `%${keyword}%`)),
             and(isNotNull(documents.aiConciseName), ilike(documents.aiConciseName, `%${keyword}%`)),
             
@@ -491,17 +541,17 @@ export class DatabaseStorage implements IStorage {
             and(isNotNull(documents.aiDocumentType), ilike(documents.aiDocumentType, `%${keyword}%`)),
             and(isNotNull(documents.overrideDocumentType), ilike(documents.overrideDocumentType, `%${keyword}%`)),
             
-            // ENHANCED: Search full document content (medium priority)
+            // Search full document content 
             and(isNotNull(documents.documentContent), ilike(documents.documentContent, `%${keyword}%`))
           ];
           
-          // IMPROVED: Better search in key topics array with substring matching
+          // Search in key topics array
           try {
-            // Exact array overlap (fast)
+            // Exact array overlap
             const keyTopicsExactCondition = sql`${documents.aiKeyTopics} && ARRAY[${keyword}]::text[]`;
             keywordConditions.push(keyTopicsExactCondition);
             
-            // Substring search within array elements (comprehensive)
+            // Substring search within array elements
             const keyTopicsSubstringCondition = sql`EXISTS (
               SELECT 1 FROM unnest(${documents.aiKeyTopics}) AS topic 
               WHERE topic ILIKE ${`%${keyword}%`}
@@ -511,27 +561,26 @@ export class DatabaseStorage implements IStorage {
             console.warn("Array search fallback for keyword:", keyword, error);
           }
           
-          allSearchConditions.push(or(...keywordConditions.filter(Boolean))!);
+          potentialMatchConditions.push(or(...keywordConditions.filter(Boolean))!);
         }
         
-        if (allSearchConditions.length > 0) {
-          // Use OR for multiple keywords (any can match) for better recall
-          conditions.push(or(...allSearchConditions)!);
+        if (potentialMatchConditions.length > 0) {
+          // Use OR for multiple keywords (any can match) for maximum recall
+          conditions.push(or(...potentialMatchConditions)!);
         }
-      } else if (queryAnalysis.semanticQuery) {
-        // Enhanced fallback: search semantic query in all available fields
-        const naturalSearchConditions = [
-          // Names and AI metadata
+      }
+      
+      // If no keyword matches, expand search to include semantic query in all fields
+      if (potentialMatchConditions.length === 0 && queryAnalysis.semanticQuery) {
+        const semanticConditions = [
           ilike(documents.name, `%${queryAnalysis.semanticQuery}%`),
           ilike(documents.originalName, `%${queryAnalysis.semanticQuery}%`),
           and(isNotNull(documents.aiSummary), ilike(documents.aiSummary, `%${queryAnalysis.semanticQuery}%`)),
           and(isNotNull(documents.aiConciseName), ilike(documents.aiConciseName, `%${queryAnalysis.semanticQuery}%`)),
-          
-          // Full document content
           and(isNotNull(documents.documentContent), ilike(documents.documentContent, `%${queryAnalysis.semanticQuery}%`))
         ];
         
-        conditions.push(or(...naturalSearchConditions.filter(Boolean))!);
+        conditions.push(or(...semanticConditions.filter(Boolean))!);
       }
       
       // IMPROVED: Don't apply AI category/type filters for keyword-based searches
@@ -542,8 +591,8 @@ export class DatabaseStorage implements IStorage {
       console.log(`Search conditions applied for "${query}":`, conditions.length, "conditions");
       console.log(`Keywords being searched:`, queryAnalysis.keywords);
       
-      // Execute search with metadata fields
-      const foundDocuments = await db
+      // Execute permissive search to get potential matches for confidence scoring
+      let foundDocuments = await db
         .select({
           id: documents.id,
           name: documents.name,
@@ -582,12 +631,100 @@ export class DatabaseStorage implements IStorage {
         .from(documents)
         .where(and(...conditions))
         .orderBy(desc(documents.uploadedAt))
-        .limit(filters.limit || 12);
+        .limit(filters.limit || 20); // Increased limit for confidence scoring
+      
+      // If no matches found with current conditions, try a broader search
+      if (foundDocuments.length === 0 && queryAnalysis.keywords.length > 0) {
+        console.log("No matches found, trying broader search...");
+        
+        // Try searching for individual keywords more broadly
+        const broadConditions = [eq(documents.isDeleted, false)];
+        const anyKeywordConditions = [];
+        
+        for (const keyword of queryAnalysis.keywords) {
+          anyKeywordConditions.push(
+            ilike(documents.name, `%${keyword}%`),
+            ilike(documents.originalName, `%${keyword}%`),
+            and(isNotNull(documents.documentContent), ilike(documents.documentContent, `%${keyword}%`)),
+            and(isNotNull(documents.aiSummary), ilike(documents.aiSummary, `%${keyword}%`))
+          );
+        }
+        
+        if (anyKeywordConditions.length > 0) {
+          broadConditions.push(or(...anyKeywordConditions)!);
+          
+          foundDocuments = await db
+            .select({
+              id: documents.id,
+              name: documents.name,
+              originalName: documents.originalName,
+              filePath: documents.filePath,
+              fileSize: documents.fileSize,
+              fileType: documents.fileType,
+              mimeType: documents.mimeType,
+              folderId: documents.folderId,
+              uploadedAt: documents.uploadedAt,
+              isFavorite: documents.isFavorite,
+              isDeleted: documents.isDeleted,
+              driveFileId: documents.driveFileId,
+              driveWebViewLink: documents.driveWebViewLink,
+              isFromDrive: documents.isFromDrive,
+              driveLastModified: documents.driveLastModified,
+              driveSyncStatus: documents.driveSyncStatus,
+              driveSyncedAt: documents.driveSyncedAt,
+              aiSummary: documents.aiSummary,
+              aiKeyTopics: documents.aiKeyTopics,
+              aiDocumentType: documents.aiDocumentType,
+              aiCategory: documents.aiCategory,
+              aiSentiment: documents.aiSentiment,
+              aiWordCount: documents.aiWordCount,
+              aiAnalyzedAt: documents.aiAnalyzedAt,
+              aiConciseName: documents.aiConciseName,
+              aiCategoryConfidence: documents.aiCategoryConfidence,
+              aiDocumentTypeConfidence: documents.aiDocumentTypeConfidence,
+              overrideCategory: documents.overrideCategory,
+              overrideDocumentType: documents.overrideDocumentType,
+              classificationOverridden: documents.classificationOverridden,
+              documentContent: documents.documentContent,
+              contentExtracted: documents.contentExtracted,
+              contentExtractedAt: documents.contentExtractedAt
+            })
+            .from(documents)
+            .where(and(...broadConditions))
+            .orderBy(desc(documents.uploadedAt))
+            .limit(20);
+          
+          console.log(`Broader search found ${foundDocuments.length} potential matches`);
+        }
+      }
+      
+      // Calculate confidence scores and filter documents  
+      const documentsWithConfidenceScores = foundDocuments.map(doc => ({
+        ...doc,
+        confidenceScore: this.calculateConfidenceScore(doc, queryAnalysis.keywords)
+      }));
+      
+      // Sort by confidence score (highest first)
+      documentsWithConfidenceScores.sort((a, b) => b.confidenceScore - a.confidenceScore);
+      
+      console.log("Document confidence scores:");
+      documentsWithConfidenceScores.forEach(doc => 
+        console.log(`- ${doc.name}: ${doc.confidenceScore}% confidence`)
+      );
+      
+      // Filter documents with confidence > 50% OR if no high-confidence matches, take top 3
+      let filteredDocuments = documentsWithConfidenceScores.filter(doc => doc.confidenceScore >= 50);
+      
+      if (filteredDocuments.length === 0 && documentsWithConfidenceScores.length > 0) {
+        // Take top 3 documents even if below 50% confidence
+        filteredDocuments = documentsWithConfidenceScores.slice(0, 3);
+        console.log("No high-confidence matches, showing top candidates with lower confidence");
+      }
       
       // Fetch folder and tag information for each document
       const documentsWithFoldersAndTags: DocumentWithFolderAndTags[] = [];
       
-      for (const doc of foundDocuments) {
+      for (const doc of filteredDocuments) {
         const folder = doc.folderId 
           ? (await db.select().from(folders).where(eq(folders.id, doc.folderId)))[0] || null
           : null;
@@ -607,11 +744,12 @@ export class DatabaseStorage implements IStorage {
           ...doc,
           folder: folder || undefined,
           tags: docTags,
+          confidenceScore: doc.confidenceScore  // Add confidence score to final result
         });
       }
       
-      console.log(`Found ${foundDocuments.length} documents for query "${query}"`);
-      foundDocuments.forEach(doc => console.log(`- ${doc.name} (ID: ${doc.id})`));
+      console.log(`Found ${documentsWithFoldersAndTags.length} filtered documents for query "${query}"`);
+      documentsWithFoldersAndTags.forEach(doc => console.log(`- ${doc.name} (${doc.confidenceScore}% confidence)`));
       
       // Generate AI-powered conversational response
       const conversationalResponse = await generateConversationalResponse(

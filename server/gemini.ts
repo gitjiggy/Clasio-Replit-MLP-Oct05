@@ -645,33 +645,70 @@ export async function generateConversationalResponse(query: string, matchingDocu
         return `Found ${matchingDocuments.length} documents matching "${query}".`;
     }
 
-    const documentsContext = matchingDocuments.slice(0, 5).map(doc => ({
-        name: doc.name,
-        type: doc.aiDocumentType || doc.fileType,
-        category: doc.aiCategory,
-        summary: doc.aiSummary,
-        keyTopics: doc.aiKeyTopics || []
-    }));
+    // Enhanced document context with confidence scores and match explanations
+    const documentsContext = matchingDocuments.slice(0, 5).map(doc => {
+        const matchReasons = [];
+        
+        // Analyze what caused the match for better explanation
+        if (doc.name && query.toLowerCase().split(' ').some(word => 
+            doc.name.toLowerCase().includes(word.toLowerCase()))) {
+            matchReasons.push("title contains search terms");
+        }
+        
+        if (doc.aiKeyTopics && Array.isArray(doc.aiKeyTopics) && 
+            query.toLowerCase().split(' ').some(word => 
+                doc.aiKeyTopics.some((topic: string) => topic.toLowerCase().includes(word.toLowerCase())))) {
+            matchReasons.push("key topics match");
+        }
+        
+        if (doc.documentContent && query.toLowerCase().split(' ').some(word => 
+            doc.documentContent.toLowerCase().includes(word.toLowerCase()))) {
+            matchReasons.push("document content contains search terms");
+        }
+        
+        if (doc.aiSummary && query.toLowerCase().split(' ').some(word => 
+            doc.aiSummary.toLowerCase().includes(word.toLowerCase()))) {
+            matchReasons.push("summary contains search terms");
+        }
+        
+        return {
+            name: doc.name,
+            type: doc.aiDocumentType || doc.fileType,
+            category: doc.aiCategory,
+            summary: doc.aiSummary?.substring(0, 150) + (doc.aiSummary?.length > 150 ? "..." : ""),
+            keyTopics: doc.aiKeyTopics || [],
+            confidenceScore: doc.confidenceScore || 0,
+            matchReasons: matchReasons,
+            documentContent: doc.documentContent ? doc.documentContent.substring(0, 200) + "..." : null
+        };
+    });
 
     const prompt = `User asked: "${query}"
 Search intent: ${intent}
-Found documents: ${JSON.stringify(documentsContext, null, 2)}
+Found ${matchingDocuments.length} documents with confidence scores:
+
+${JSON.stringify(documentsContext, null, 2)}
 
 Generate a helpful, conversational response that:
-1. Directly answers the user's question if specific information is found
-2. Lists relevant documents with brief descriptions  
-3. Uses natural language, not technical jargon
-4. Mentions document names and key details
-5. If no specific answer found, suggests what was found instead
+1. Acknowledges what the user is looking for
+2. Lists the most relevant documents with their confidence scores
+3. Explains WHY each document matches (based on matchReasons)
+4. Shows confidence levels like "85% confidence match" or "moderate confidence"
+5. Uses natural, conversational language
+6. If multiple documents found, mention the top matches with confidence levels
 
-Keep response concise (2-3 sentences max) and helpful.`;
+Format like: "I found [X] documents related to [topic]. Here are the top matches:
+- [Document Name] (85% confidence) - matches because [reason]
+- [Document Name] (72% confidence) - matches because [reason]"
+
+Keep response helpful and informative but concise.`;
 
     try {
         const model = genAI.getGenerativeModel({ 
             model: "gemini-2.5-flash-lite",
             generationConfig: {
                 temperature: 0.3,
-                maxOutputTokens: 200
+                maxOutputTokens: 300
             }
         });
         

@@ -194,6 +194,7 @@ export type DailyApiUsage = typeof dailyApiUsage.$inferSelect;
 export type DocumentWithFolderAndTags = Document & {
   folder?: Folder;
   tags: Tag[];
+  confidenceScore?: number; // For search confidence scoring
 };
 
 export type DocumentWithVersions = DocumentWithFolderAndTags & {
