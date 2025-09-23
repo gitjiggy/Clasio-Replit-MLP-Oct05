@@ -857,9 +857,10 @@ Generate a helpful, conversational response that:
 4. Uses natural, conversational language
 5. If multiple documents found, mention the top matches
 
-Format like: "I found [X] documents related to [topic]. Here are the top matches:
-- [Document Name] - matches because [reason]
-- [Document Name] - matches because [reason]"
+Format like: 
+For single document: "I found 1 document related to [topic]. Here's the top match: • [Document Name] - matches because [reason]"
+For multiple documents: "I found [X] documents related to [topic]. Here are the matches: • Here's the first match: [Document Name] - matches because [reason] • Here's the second match: [Document Name] - matches because [reason] • Here's the third match: [Document Name] - matches because [reason]"
+Use bullet points (•) to separate multiple matches clearly.
 
 Keep response helpful and informative but concise.`;
 

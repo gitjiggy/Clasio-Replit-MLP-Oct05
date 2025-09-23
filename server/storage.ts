@@ -1661,7 +1661,7 @@ export class DatabaseStorage implements IStorage {
               documentsWithFoldersAndTags,
               queryAnalysis.intent
             );
-            conversationalResponse = `These documents may be related to your search:\n\n${mediumResponse}`;
+            conversationalResponse = mediumResponse;
             break;
             
           case 'low':
