@@ -583,7 +583,6 @@ export class DatabaseStorage implements IStorage {
     // Use maximum field scoring instead of weighted averages to prevent dilution of strong signals
     const fieldScores: number[] = [];
     
-    console.log(`    Semantic debug for "${doc.name}": using maximum field scoring`);
     
     // Title embedding (with slight boost)
     if (doc.titleEmbedding) {
@@ -591,7 +590,6 @@ export class DatabaseStorage implements IStorage {
       if (titleEmb) {
         const similarity = calculateCosineSimilarity(queryEmbedding, titleEmb);
         const titleScore = similarity * 0.9; // Slight boost for titles
-        console.log(`      Title cosine similarity: ${similarity.toFixed(4)} → boosted to ${titleScore.toFixed(4)}`);
         fieldScores.push(titleScore);
       } else {
         console.log(`      Title embedding parsing failed`);
@@ -644,7 +642,6 @@ export class DatabaseStorage implements IStorage {
     
     // Use the maximum score across all fields (let strongest field dominate)
     const maxSemanticScore = fieldScores.length > 0 ? Math.max(...fieldScores) : 0;
-    console.log(`      → Maximum field score: ${maxSemanticScore.toFixed(4)} (strongest field wins)`);
     return maxSemanticScore;
   }
   
@@ -714,7 +711,6 @@ export class DatabaseStorage implements IStorage {
       const searchLower = searchTerms.toLowerCase();
       const searchTermsList = searchLower.split(' ').map(t => t.trim()).filter(t => t.length > 0);
       
-      console.log(`FTS Debug for "${doc.name}": search="${searchLower}", terms=[${searchTermsList.join(',')}], baseScore=${baseScore.toFixed(3)}`);
       
       // Check where the terms are found
       const titleMatches = searchTermsList.filter(term => titleText.includes(term));
@@ -726,43 +722,35 @@ export class DatabaseStorage implements IStorage {
       // Exact name match: highest boost
       if (titleText === searchLower) {
         baseScore = Math.max(baseScore, 0.95);
-        console.log(`  → Exact name match bonus: ${baseScore.toFixed(3)}`);
       }
       // All terms found in name: significant boost  
       else if (searchTermsList.every(term => titleText.includes(term))) {
         baseScore = Math.max(baseScore, 0.8);
-        console.log(`  → All terms in name bonus: ${baseScore.toFixed(3)}`);
       }
       // All terms found in summary: high boost (AI analysis is very relevant)
       else if (searchTermsList.every(term => summaryText.includes(term))) {
         baseScore = Math.max(baseScore, 0.75);
-        console.log(`  → All terms in AI summary bonus: ${baseScore.toFixed(3)}`);
       }
       // All terms found in key topics: good boost
       else if (searchTermsList.every(term => topicsText.includes(term))) {
         baseScore = Math.max(baseScore, 0.7);
-        console.log(`  → All terms in key topics bonus: ${baseScore.toFixed(3)}`);
       }
       // All terms found in tags: good boost (tags are important for categorization)
       else if (searchTermsList.every(term => tagText.includes(term))) {
         baseScore = Math.max(baseScore, 0.68);
-        console.log(`  → All terms in tags bonus: ${baseScore.toFixed(3)}`);
       }
       // All terms found in document content: solid boost (content is highly relevant)
       else if (searchTermsList.every(term => contentText.includes(term))) {
         baseScore = Math.max(baseScore, 0.65);
-        console.log(`  → All terms in document content bonus: ${baseScore.toFixed(3)}`);
       }
       // Some terms found in content: moderate boost  
       else if (contentMatches.length > 0) {
         baseScore = Math.max(baseScore, 0.55);
-        console.log(`  → Some terms found in content (${contentMatches.join(',')}) bonus: ${baseScore.toFixed(3)}`);
       }
       // Some terms found anywhere: base boost
       else if (searchTermsList.some(term => allSearchableText.includes(term))) {
         const allMatches = Array.from(new Set([...titleMatches, ...summaryMatches, ...topicsMatches, ...contentMatches, ...tagMatches]));
         baseScore = Math.max(baseScore, 0.4);
-        console.log(`  → Some terms found bonus (${allMatches.join(',')}) in searchable fields: ${baseScore.toFixed(3)}`);
       }
       // Pure ts_rank with better normalization
       else {
