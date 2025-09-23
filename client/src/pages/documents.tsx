@@ -1179,29 +1179,16 @@ export default function Documents() {
               </p>
             </div>
           ) : (
-            <div className="space-y-8">
-              {/* AI Search Results with Relevant/Related Sections */}
-              {searchMode === "ai" && aiSearchResults ? (
-                <>
-                  {/* Relevant Documents Section */}
-                  {aiSearchResults.relevantDocuments && aiSearchResults.relevantDocuments.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <Target className="h-5 w-5 text-green-600" />
-                        <h3 className="text-lg font-semibold text-foreground">
-                          Relevant Documents ({aiSearchResults.relevantDocuments.length})
-                        </h3>
-                        <div className="h-px bg-green-200 flex-1 ml-2" />
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {aiSearchResults.relevantDocuments.map((document: any) => (
-                          <Card 
-                            key={document.id} 
-                            className="hover:shadow-lg transition-shadow duration-200 cursor-pointer border-green-200 bg-green-50/30 dark:bg-green-950/30" 
-                            data-testid={`document-card-${document.id}`}
-                            onClick={() => handleViewDocument(document)}
-                          >
-                            <CardContent className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {/* Display either AI search results or regular documents */}
+              {(searchMode === "ai" && aiSearchResults ? aiSearchResults.documents : documentsData?.documents)?.map((document: any) => (
+                <Card 
+                  key={document.id} 
+                  className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
+                  data-testid={`document-card-${document.id}`}
+                  onClick={() => handleViewDocument(document)}
+                >
+                  <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-2 flex-1 min-w-0">
                         {getFileIcon(document.fileType)}
@@ -1432,10 +1419,6 @@ export default function Documents() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
-          )}
-
-          {/* Pagination */}
             </div>
           )}
 
