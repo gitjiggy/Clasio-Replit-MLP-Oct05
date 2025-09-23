@@ -1581,53 +1581,8 @@ export default function Documents() {
               </div>
             );
           })()}
-
-          {/* Pagination */}
-          {documentsData && documentsData.pagination.pages > 1 && (
-            <div className="flex items-center justify-between mt-8">
-              <div className="text-sm text-muted-foreground">
-                Showing {((documentsData.pagination.page - 1) * documentsData.pagination.limit) + 1}-
-                {Math.min(documentsData.pagination.page * documentsData.pagination.limit, documentsData.pagination.total)} of {documentsData.pagination.total} documents
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  data-testid="pagination-previous"
-                >
-                  Previous
-                </Button>
-                {Array.from({ length: Math.min(5, documentsData.pagination.pages) }, (_, i) => {
-                  const page = i + 1;
-                  return (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCurrentPage(page)}
-                      data-testid={`pagination-page-${page}`}
-                    >
-                      {page}
-                    </Button>
-                  );
-                })}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === documentsData.pagination.pages}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  data-testid="pagination-next"
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {conversationalData.relevantDocuments.map((document) => (
-                <Card 
+        </div>
+      </main>
                   key={document.id} 
                   className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
                   data-testid={`document-card-${document.id}`}
