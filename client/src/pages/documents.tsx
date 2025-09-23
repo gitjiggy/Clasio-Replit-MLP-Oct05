@@ -132,6 +132,39 @@ function calculateSemanticScore(doc: any, queryEmbedding: number[]): number {
     ) * 100;
 }
 
+// Smart Query Routing
+function isAmbiguousQuery(preprocessedQuery: string): boolean {
+    const hasNumbers = /\d+/.test(preprocessedQuery);
+    const hasDocumentTerms = /(contract|invoice|receipt|policy|report|statement|tax|resume)/i.test(preprocessedQuery);
+    const hasSpecificTerms = preprocessedQuery.length > 8;
+    
+    return !(hasNumbers || hasDocumentTerms || hasSpecificTerms);
+}
+
+// Helper function to check recent access
+function checkRecentAccess(docId: string, userId: string, days: number): boolean {
+    // TODO: This would typically query the document_access_log table
+    // For now, return false as a placeholder
+    return false;
+}
+
+// Quality Scoring
+function calculateQualityScore(doc: any, userId: string): number {
+    let score = 0;
+    
+    // Recent access bonus
+    const recentAccess = checkRecentAccess(doc.id, userId, 30); // 30 days
+    if (recentAccess) score += 0.3;
+    
+    // Document completeness
+    if (doc.ai_word_count > 100) score += 0.2;
+    
+    // User favorites
+    if (doc.is_favorite) score += 0.5;
+    
+    return Math.min(1.0, score) * 100;
+}
+
 // 3-tier confidence scoring system
 function calculateFinalScore(semanticScore: number, lexicalScore: number, qualityScore: number): number {
     const semantic = semanticScore / 100;
