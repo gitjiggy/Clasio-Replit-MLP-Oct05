@@ -556,14 +556,11 @@ export class DatabaseStorage implements IStorage {
     return score;
   }
   
-  private async calculateSemanticScore(doc: any, queryEmbedding: number[], query?: string): Promise<number> {
+  private async calculateSemanticScore(doc: any, queryEmbedding: number[]): Promise<number> {
     // Use maximum field scoring instead of weighted averages to prevent dilution of strong signals
     const fieldScores: number[] = [];
     
-    // Detect person name queries that should require exact matches
-    const isPersonNameQuery = query && /^[A-Z][a-z]+ [A-Z][a-z]+(\s|$)/.test(query.trim());
-    
-    console.log(`    Semantic debug for "${doc.name}": using maximum field scoring${isPersonNameQuery ? ' (person name - exact match preferred)' : ''}`);
+    console.log(`    Semantic debug for "${doc.name}": using maximum field scoring`);
     
     // Title embedding (with slight boost)
     if (doc.titleEmbedding) {
@@ -623,27 +620,8 @@ export class DatabaseStorage implements IStorage {
     }
     
     // Use the maximum score across all fields (let strongest field dominate)
-    let maxSemanticScore = fieldScores.length > 0 ? Math.max(...fieldScores) : 0;
-    
-    // For person name queries, apply penalty if document doesn't contain the actual name terms
-    if (isPersonNameQuery && query) {
-      const nameTerms = query.toLowerCase().split(' ').filter(term => term.length > 2);
-      const allDocText = `${doc.name || ''} ${doc.aiSummary || ''} ${doc.documentContent || ''}`.toLowerCase();
-      
-      // Check if all name terms appear in the document
-      const missingTerms = nameTerms.filter(term => !allDocText.includes(term));
-      
-      if (missingTerms.length > 0) {
-        // Apply increasing penalty based on missing terms
-        const penaltyFactor = 0.5 ** missingTerms.length; // 50% penalty per missing term
-        maxSemanticScore *= penaltyFactor;
-        console.log(`      → Person name penalty applied: missing terms [${missingTerms.join(', ')}], reduced to ${maxSemanticScore.toFixed(4)}`);
-      } else {
-        console.log(`      → Person name verified: all terms found in document`);
-      }
-    }
-    
-    console.log(`      → Final semantic score: ${maxSemanticScore.toFixed(4)} (strongest field wins)`);
+    const maxSemanticScore = fieldScores.length > 0 ? Math.max(...fieldScores) : 0;
+    console.log(`      → Maximum field score: ${maxSemanticScore.toFixed(4)} (strongest field wins)`);
     return maxSemanticScore;
   }
   
@@ -840,7 +818,7 @@ export class DatabaseStorage implements IStorage {
     for (const doc of filteredCandidates) {
       try {
         // Stage 1: Semantic Scoring (50% weight)
-        const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding, query);
+        const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding);
         console.log(`  → Semantic details for "${doc.name}": checking embeddings...`);
         
         // Stage 2: Lexical Scoring (35% weight) 
@@ -854,13 +832,37 @@ export class DatabaseStorage implements IStorage {
         
         console.log(`Document "${doc.name}": semantic=${semanticScore.toFixed(3)}, lexical=${lexicalScore.toFixed(3)}, quality=${qualityBoost.toFixed(3)}, final=${finalScore.toFixed(3)}`);
         
+        // Determine match type for transparency
+        let matchType = 'semantic';
+        let matchReason = '';
+        
+        // Check for exact lexical matches
+        const docText = `${doc.name || ''} ${doc.aiSummary || ''} ${doc.documentContent || ''}`.toLowerCase();
+        const queryLower = query.toLowerCase();
+        
+        if (docText.includes(queryLower)) {
+          matchType = 'exact';
+          matchReason = `Contains "${query}"`;
+        } else if (lexicalScore > 0.6) {
+          matchType = 'lexical';
+          matchReason = `Strong keyword match`;
+        } else if (semanticScore > 0.6) {
+          matchType = 'semantic';
+          matchReason = `Conceptually related`;
+        } else {
+          matchType = 'partial';
+          matchReason = `Partial relevance`;
+        }
+
         scoredDocuments.push({
           ...doc,
           newScore: finalScore,
           semanticScore,
           lexicalScore,
           qualityBoost,
-          scoringMethod: 'new_3_stage'
+          scoringMethod: 'new_3_stage',
+          matchType,
+          matchReason
         });
       } catch (error) {
         console.warn(`Scoring failed for document ${doc.id}:`, error);
