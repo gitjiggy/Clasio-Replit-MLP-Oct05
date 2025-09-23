@@ -1303,7 +1303,10 @@ export class DatabaseStorage implements IStorage {
                            !isPersonNameQuery &&
                            (queryAnalysis.keywords.length === 1 && queryAnalysis.keywords[0].length > 3);
       
-      if (isSimpleQuery) {
+      // Force 3-stage scoring for documents found via broader search (they contain keywords in non-FTS fields)
+      const foundViaBroaderSearch = stage1Candidates.length === 0 && foundDocuments.length > 0;
+      
+      if (isSimpleQuery && !foundViaBroaderSearch) {
         console.log(`Stage 2: Skipping AI analysis for simple query, using improved FTS scores`);
         // For simple queries, use improved FTS scores with title match bonuses
         // Use preprocessed query (stop words removed) for better scoring
