@@ -846,21 +846,20 @@ export async function generateConversationalResponse(query: string, matchingDocu
 
     const prompt = `User asked: "${query}"
 Search intent: ${intent}
-Found ${matchingDocuments.length} documents with confidence scores:
+Found ${matchingDocuments.length} documents:
 
 ${JSON.stringify(documentsContext, null, 2)}
 
 Generate a helpful, conversational response that:
 1. Acknowledges what the user is looking for
-2. Lists the most relevant documents with their confidence scores
+2. Lists the most relevant documents
 3. Explains WHY each document matches (based on matchReasons)
-4. Shows confidence levels like "85% confidence match" or "moderate confidence"
-5. Uses natural, conversational language
-6. If multiple documents found, mention the top matches with confidence levels
+4. Uses natural, conversational language
+5. If multiple documents found, mention the top matches
 
 Format like: "I found [X] documents related to [topic]. Here are the top matches:
-- [Document Name] (85% confidence) - matches because [reason]
-- [Document Name] (72% confidence) - matches because [reason]"
+- [Document Name] - matches because [reason]
+- [Document Name] - matches because [reason]"
 
 Keep response helpful and informative but concise.`;
 
