@@ -657,7 +657,16 @@ export class DatabaseStorage implements IStorage {
     return score;
   }
   
-  private calculateOptimizedSemanticScore(doc: any, queryEmbedding: number[]): number {
+  private calculateOptimizedSemanticScore(doc: any, queryEmbedding: number[], originalQuery: string): number {
+    // Check if document has any embeddings generated
+    const hasEmbeddings = doc.titleEmbedding || doc.summaryEmbedding || doc.contentEmbedding || doc.keyTopicsEmbedding;
+    
+    if (!hasEmbeddings) {
+      console.log(`No embeddings available for "${doc.name}", using lexical fallback scoring`);
+      // Fallback to lexical similarity when embeddings are missing
+      return this.calculateQueryAwareLexicalScore(doc, originalQuery);
+    }
+    
     // Early exit strategy - don't calculate all fields unnecessarily
     const titleEmb = parseEmbeddingFromJSON(doc.titleEmbedding);
     const titleScore = titleEmb ? calculateCosineSimilarity(queryEmbedding, titleEmb) * 1.2 : 0; // Boost titles
@@ -686,6 +695,63 @@ export class DatabaseStorage implements IStorage {
     console.log(`Full calculation: title=${titleScore.toFixed(3)}, summary=${summaryScore.toFixed(3)}, content=${contentScore.toFixed(3)}, topics=${keyTopicsScore.toFixed(3)}, max=${maxScore.toFixed(3)}`);
     
     return maxScore;
+  }
+
+  private calculateQueryAwareLexicalScore(doc: any, query: string): number {
+    // Query-aware lexical similarity for documents without embeddings
+    const queryTokens = this.normalizeQueryTokens(query);
+    if (queryTokens.length === 0) {
+      console.log(`Empty query tokens, returning base score: 0.25`);
+      return 0.25;
+    }
+    
+    // Get document text fields
+    const title = (doc.name || '').toLowerCase();
+    const summary = (doc.aiSummary || '').toLowerCase();  
+    const topics = Array.isArray(doc.aiKeyTopics) ? doc.aiKeyTopics.join(' ').toLowerCase() : '';
+    const content = (doc.documentContent || '').toLowerCase();
+    
+    // Calculate term overlap scores
+    let score = 0;
+    let maxPossibleScore = queryTokens.length * 4; // Max score if all terms found in all fields
+    
+    for (const token of queryTokens) {
+      const tokenLower = token.toLowerCase();
+      
+      // Title match (highest weight: 4 points)
+      if (title.includes(tokenLower)) {
+        score += 4;
+      }
+      // Summary match (high weight: 3 points) 
+      if (summary.includes(tokenLower)) {
+        score += 3;
+      }
+      // Topics match (medium weight: 2 points)
+      if (topics.includes(tokenLower)) {
+        score += 2;
+      }
+      // Content match (lower weight: 1 point)
+      if (content.includes(tokenLower)) {
+        score += 1;
+      }
+    }
+    
+    // Normalize to 0-1 range
+    const normalizedScore = maxPossibleScore > 0 ? score / maxPossibleScore : 0;
+    
+    // Apply metadata quality bonus (but don't let it dominate)
+    let qualityBonus = 0;
+    if (summary && topics) {
+      qualityBonus = 0.15; // Good metadata bonus
+    } else if (summary || topics) {
+      qualityBonus = 0.08; // Basic metadata bonus
+    }
+    
+    const finalScore = Math.min(normalizedScore + qualityBonus, 1.0);
+    
+    console.log(`Lexical fallback for "${doc.name}": query="${query}", tokens=[${queryTokens.join(',')}], score=${score}/${maxPossibleScore}, normalized=${normalizedScore.toFixed(3)}, quality_bonus=${qualityBonus.toFixed(3)}, final=${finalScore.toFixed(3)}`);
+    
+    return finalScore;
   }
 
   private async calculateSemanticScore(doc: any, queryEmbedding: number[]): Promise<number> {
@@ -1262,7 +1328,7 @@ export class DatabaseStorage implements IStorage {
     console.log(`Phase 2: Semantic scoring on top ${topCandidates.length} FTS candidates`);
     
     const semanticScored = await Promise.all(topCandidates.map(async doc => {
-      const semanticScore = this.calculateOptimizedSemanticScore(doc, queryEmbedding);
+      const semanticScore = this.calculateOptimizedSemanticScore(doc, queryEmbedding, query);
       
       // Apply quality boost for personalization (same as existing system)
       const qualityBoost = userId ? await this.calculateQualityBoost(doc, userId) : 0;
