@@ -266,8 +266,13 @@ export class DatabaseStorage implements IStorage {
       documentContent: sql<string | null>`NULL`.as('documentContent'),
       contentExtracted: documents.contentExtracted,
       contentExtractedAt: documents.contentExtractedAt,
-      searchVector: documents.searchVector,
-      searchVectorGenerated: documents.searchVectorGenerated,
+      // Embedding fields (exclude from default queries for performance)
+      titleEmbedding: sql<string | null>`NULL`.as('titleEmbedding'),
+      contentEmbedding: sql<string | null>`NULL`.as('contentEmbedding'),
+      summaryEmbedding: sql<string | null>`NULL`.as('summaryEmbedding'),
+      keyTopicsEmbedding: sql<string | null>`NULL`.as('keyTopicsEmbedding'),
+      embeddingsGenerated: documents.embeddingsGenerated,
+      embeddingsGeneratedAt: documents.embeddingsGeneratedAt,
     };
 
     const results = await db
@@ -629,8 +634,12 @@ export class DatabaseStorage implements IStorage {
           documentContent: documents.documentContent,
           contentExtracted: documents.contentExtracted,
           contentExtractedAt: documents.contentExtractedAt,
-          searchVector: documents.searchVector,
-          searchVectorGenerated: documents.searchVectorGenerated
+          titleEmbedding: documents.titleEmbedding,
+          contentEmbedding: documents.contentEmbedding,
+          summaryEmbedding: documents.summaryEmbedding,
+          keyTopicsEmbedding: documents.keyTopicsEmbedding,
+          embeddingsGenerated: documents.embeddingsGenerated,
+          embeddingsGeneratedAt: documents.embeddingsGeneratedAt
         })
         .from(documents)
         .where(and(...conditions))
@@ -692,8 +701,12 @@ export class DatabaseStorage implements IStorage {
               documentContent: documents.documentContent,
               contentExtracted: documents.contentExtracted,
               contentExtractedAt: documents.contentExtractedAt,
-              searchVector: documents.searchVector,
-              searchVectorGenerated: documents.searchVectorGenerated
+              titleEmbedding: documents.titleEmbedding,
+              contentEmbedding: documents.contentEmbedding,
+              summaryEmbedding: documents.summaryEmbedding,
+              keyTopicsEmbedding: documents.keyTopicsEmbedding,
+              embeddingsGenerated: documents.embeddingsGenerated,
+              embeddingsGeneratedAt: documents.embeddingsGeneratedAt
             })
             .from(documents)
             .where(and(...broadConditions))
@@ -721,7 +734,8 @@ export class DatabaseStorage implements IStorage {
           ai_sentiment, ai_word_count, ai_analyzed_at, ai_concise_name, 
           ai_category_confidence, ai_document_type_confidence, override_category, 
           override_document_type, classification_overridden, document_content, 
-          content_extracted, content_extracted_at, search_vector, search_vector_generated,
+          content_extracted, content_extracted_at, title_embedding, content_embedding, 
+          summary_embedding, key_topics_embedding, embeddings_generated, embeddings_generated_at,
           ts_rank(
             to_tsvector('english', 
               coalesce(name,'') || ' ' || 
@@ -782,8 +796,12 @@ export class DatabaseStorage implements IStorage {
         documentContent: row.document_content,
         contentExtracted: row.content_extracted,
         contentExtractedAt: row.content_extracted_at,
-        searchVector: row.search_vector,
-        searchVectorGenerated: row.search_vector_generated,
+        titleEmbedding: row.title_embedding,
+        contentEmbedding: row.content_embedding,
+        summaryEmbedding: row.summary_embedding,
+        keyTopicsEmbedding: row.key_topics_embedding,
+        embeddingsGenerated: row.embeddings_generated,
+        embeddingsGeneratedAt: row.embeddings_generated_at,
         ftsScore: parseFloat(row.fts_score) || 0
       }));
       

@@ -552,6 +552,66 @@ export async function generateEmbedding(text: string, taskType: 'RETRIEVAL_QUERY
     }
 }
 
+// Utility functions for new 3-stage scoring system
+
+export function calculateCosineSimilarity(vectorA: number[], vectorB: number[]): number {
+    if (vectorA.length !== vectorB.length) {
+        throw new Error("Vectors must have the same length");
+    }
+    
+    if (vectorA.length === 0) {
+        return 0;
+    }
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < vectorA.length; i++) {
+        dotProduct += vectorA[i] * vectorB[i];
+        normA += vectorA[i] * vectorA[i];
+        normB += vectorB[i] * vectorB[i];
+    }
+    
+    if (normA === 0 || normB === 0) {
+        return 0;
+    }
+    
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+export function isAmbiguousQuery(query: string): boolean {
+    const lowerQuery = query.toLowerCase().trim();
+    
+    // Query length validation - extremely long queries might indicate abuse
+    const wordCount = lowerQuery.split(/\s+/).length;
+    if (wordCount > 100) {
+        console.warn(`Potentially abusive query detected: ${wordCount} words`);
+        return true; // Treat overly long queries as ambiguous
+    }
+    
+    const hasNumbers = /\d+/.test(query); // "2023", "100"
+    const hasDocumentTerms = /(contract|invoice|receipt|policy|report|statement|tax|resume|document|file|paper)/i.test(query);
+    const hasSpecificTerms = query.length > 10 && !/^(find|show|get|where|what|give|list)/.test(lowerQuery);
+    
+    // Return true if query is ambiguous (no specific indicators)
+    return !(hasNumbers || hasDocumentTerms || hasSpecificTerms);
+}
+
+export function parseEmbeddingFromJSON(embeddingStr: string | null): number[] | null {
+    if (!embeddingStr) return null;
+    try {
+        const parsed = JSON.parse(embeddingStr);
+        return Array.isArray(parsed) ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+export function serializeEmbeddingToJSON(embedding: number[]): string {
+    return JSON.stringify(embedding);
+}
+
 export async function processConversationalQuery(query: string): Promise<{
     intent: string;
     keywords: string[];
