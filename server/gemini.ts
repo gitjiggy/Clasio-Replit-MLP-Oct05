@@ -543,10 +543,7 @@ export async function generateEmbedding(text: string, taskType: 'RETRIEVAL_QUERY
 
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
-        const result = await model.embedContent({
-            content: text,
-            taskType: taskType
-        });
+        const result = await model.embedContent(text);
         
         return result.embedding.values;
     } catch (error) {

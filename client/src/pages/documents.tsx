@@ -176,7 +176,7 @@ export default function Documents() {
       trackEvent('search', { search_term: searchQuery.trim() });
     } catch (error) {
       console.error('Conversational search failed:', error);
-      if (error.message?.includes('429')) {
+      if (error instanceof Error && error.message?.includes('429')) {
         toast({
           title: "Rate limit reached",
           description: "Please wait a moment before trying again.",
