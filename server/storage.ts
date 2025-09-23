@@ -997,11 +997,6 @@ export class DatabaseStorage implements IStorage {
       // Apply base filters
       const conditions = [eq(documents.isDeleted, false)];
       
-      // SECURITY: Filter by user ownership if userId is provided
-      if (userId) {
-        conditions.push(eq(documents.userId, userId));
-      }
-      
       // Add category filter from AI analysis or explicit filters
       if (queryAnalysis.categoryFilter) {
         // Check both AI category and user-overridden category
