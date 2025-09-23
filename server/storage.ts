@@ -612,13 +612,13 @@ export class DatabaseStorage implements IStorage {
   }
   
   private async calculateLexicalScore(doc: any, searchTerms: string): Promise<number> {
-    // Use PostgreSQL ts_rank on title + key_topics + summary only (skip full content for speed)
     try {
       // Safely convert aiKeyTopics array to string
       const keyTopicsText = Array.isArray(doc.aiKeyTopics) 
         ? doc.aiKeyTopics.join(' ') 
         : (doc.aiKeyTopics || '');
-        
+      
+      // Get base PostgreSQL ts_rank score
       const result = await db.execute(sql`
         SELECT ts_rank(
           to_tsvector('english', 
@@ -630,8 +630,30 @@ export class DatabaseStorage implements IStorage {
         ) as score
       `);
       
-      const score = (result.rows[0] as any)?.score || 0;
-      return Math.min(1, Math.max(0, parseFloat(score.toString()))); // Normalize to 0-1
+      let baseScore = parseFloat(((result.rows[0] as any)?.score || 0).toString());
+      
+      // Apply title match bonuses since ts_rank scores are naturally low
+      const titleText = (doc.name || '').toLowerCase();
+      const searchLower = searchTerms.toLowerCase();
+      
+      // Exact title match: massive boost
+      if (titleText === searchLower) {
+        baseScore = Math.max(baseScore, 0.95);
+      }
+      // Title contains all search terms: significant boost  
+      else if (searchLower.split(' ').every(term => titleText.includes(term.trim()))) {
+        baseScore = Math.max(baseScore, 0.8);
+      }
+      // Title contains some search terms: moderate boost
+      else if (searchLower.split(' ').some(term => titleText.includes(term.trim()))) {
+        baseScore = Math.max(baseScore, 0.6);
+      }
+      // Pure ts_rank with better normalization (ts_rank is usually 0.0-0.6 range)
+      else {
+        baseScore = Math.min(0.8, baseScore * 2); // Scale up ts_rank scores
+      }
+      
+      return Math.min(1, Math.max(0, baseScore));
     } catch (error) {
       console.error('FTS scoring failed for doc:', doc.name, 'error:', error);
       return 0;
