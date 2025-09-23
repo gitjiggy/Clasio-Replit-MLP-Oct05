@@ -1167,14 +1167,19 @@ export class DatabaseStorage implements IStorage {
                            (queryAnalysis.keywords.length === 1 && queryAnalysis.keywords[0].length > 3);
       
       if (isSimpleQuery) {
-        console.log(`Stage 2: Skipping AI analysis for simple query, using FTS scores`);
-        // For simple queries, use FTS scores directly
-        documentsWithConfidenceScores.push(...candidatesForScoring.map(doc => ({
-          ...doc,
-          confidenceScore: Math.round((doc.ftsScore || 0) * 100), // Convert FTS score to percentage
-          relevanceReason: `Full-text search match (FTS score: ${doc.ftsScore?.toFixed(4) || 0})`,
-          isRelevant: (doc.ftsScore || 0) > 0.01
-        })));
+        console.log(`Stage 2: Skipping AI analysis for simple query, using improved FTS scores`);
+        // For simple queries, use improved FTS scores with title match bonuses
+        const scoredDocuments = await Promise.all(candidatesForScoring.map(async (doc) => {
+          // Apply the same lexical scoring improvements used in 3-stage scoring
+          const improvedScore = await this.calculateLexicalScore(doc, query);
+          return {
+            ...doc,
+            confidenceScore: Math.round(improvedScore * 100), // Convert to percentage
+            relevanceReason: `Enhanced FTS match (improved score: ${improvedScore.toFixed(3)})`,
+            isRelevant: improvedScore > 0.15
+          };
+        }));
+        documentsWithConfidenceScores.push(...scoredDocuments);
       } else {
         console.log(`Stage 2: Complex query detected, running analysis on ${candidatesForScoring.length} candidates`);
         
