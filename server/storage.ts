@@ -654,26 +654,20 @@ export class DatabaseStorage implements IStorage {
     const lexical = lexicalScore; 
     const quality = qualityScore;
     
-    console.log(`    Enhanced scoring: semantic=${semantic.toFixed(3)}, lexical=${lexical.toFixed(3)}, quality=${quality.toFixed(3)}`);
-    
     // Base confidence from strongest signal (allows either dimension to drive the score)
     let confidence = Math.max(semantic, lexical) * 100;
-    console.log(`    → Base confidence (max signal): ${confidence.toFixed(1)}%`);
     
     // Boost for signal agreement (both semantic AND lexical high)
     if (semantic > 0.7 && lexical > 0.7) {
       confidence += 15; // Concordance bonus for multiple strong signals
-      console.log(`    → Concordance bonus applied: +15% (both signals > 70%)`);
     }
     
     // Quality boost (always additive, max 20 point boost)
     const qualityBoost = quality * 20;
     confidence += qualityBoost;
-    console.log(`    → Quality boost applied: +${qualityBoost.toFixed(1)}% (max 20%)`);
     
     // Cap at 100%
     const finalScore = Math.min(100, confidence);
-    console.log(`    → Final score: ${finalScore.toFixed(1)}% (capped at 100%)`);
     
     return finalScore / 100;
   }
