@@ -217,6 +217,35 @@ async function enqueueEmbeddingGeneration(documentId: string): Promise<void> {
     }
 }
 
+// Scoring strategy functions
+async function fullScoring(candidates: any[], cleanQuery: string, userId: string): Promise<any[]> {
+    // TODO: Implement full 3-stage scoring with AI reranking
+    // This would include semantic scoring, lexical scoring, quality scoring, and AI reranking
+    console.log('Full scoring for ambiguous query:', cleanQuery);
+    return candidates.slice(0, 10); // Placeholder: return top 10 candidates
+}
+
+async function fastScoring(candidates: any[], cleanQuery: string, userId: string): Promise<any[]> {
+    // TODO: Implement 3-stage scoring only (no AI reranking)
+    // This would include semantic scoring, lexical scoring, and quality scoring
+    console.log('Fast scoring for specific query:', cleanQuery);
+    return candidates.slice(0, 10); // Placeholder: return top 10 candidates
+}
+
+// Main Search Function Integration
+async function performAISearch(query: string, userId: string, allDocuments: any[]): Promise<any[]> {
+    const cleanQuery = preprocessQuery(query);
+    const candidates = preFilterCandidates(allDocuments, cleanQuery);
+    
+    if (isAmbiguousQuery(cleanQuery)) {
+        // Use full 3-stage scoring + optional AI reranking
+        return await fullScoring(candidates, cleanQuery, userId);
+    } else {
+        // Use 3-stage scoring only
+        return await fastScoring(candidates, cleanQuery, userId);
+    }
+}
+
 // 3-tier confidence scoring system
 function calculateFinalScore(semanticScore: number, lexicalScore: number, qualityScore: number): number {
     const semantic = semanticScore / 100;
@@ -274,16 +303,34 @@ export default function Documents() {
   };
 
   // Handle AI Search Go button
-  const handleAISearch = () => {
+  const handleAISearch = async () => {
     if (searchQuery.trim()) {
       const processedQuery = preprocessQuery(searchQuery.trim());
-      // TODO: Implement AI search functionality
       console.log('AI Search triggered for:', searchQuery);
       console.log('Processed query:', processedQuery);
-      trackEvent('ai_search', { 
-        search_term: searchQuery.trim(),
-        processed_term: processedQuery
-      });
+      
+      try {
+        // Get current documents for AI search
+        const allDocs = documentsData?.documents || [];
+        // TODO: Get actual user ID (placeholder for now)
+        const userId = 'current-user';
+        
+        const searchResults = await performAISearch(searchQuery.trim(), userId, allDocs);
+        console.log('AI Search results:', searchResults);
+        
+        trackEvent('ai_search', { 
+          search_term: searchQuery.trim(),
+          processed_term: processedQuery,
+          results_count: searchResults.length
+        });
+      } catch (error) {
+        console.error('AI Search failed:', error);
+        toast({
+          title: "Search Error",
+          description: "AI search failed. Please try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
