@@ -280,19 +280,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Validate user for queueing operations
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required for document processing" });
+      }
+
       // Get document with folder and tags
       const documentWithDetails = await storage.getDocumentById(document.id);
       
-      // Trigger background content extraction (don't wait for it)
+      // Trigger background content extraction with proper automation pipeline
       storage.extractDocumentContent(document.id)
-        .then(success => {
+        .then(async (success) => {
           if (success) {
+            console.log(`✅ Content extracted for: ${document.name}`);
+            
+            // 🚀 AUTO-QUEUE AI ANALYSIS: Only after content extraction succeeds
+            try {
+              await storage.enqueueDocumentForAnalysis(document.id, userId, 5); // Normal priority
+              console.log(`🔍 Auto-queued AI analysis for: ${document.name} (triggered by content extraction)`);
+            } catch (analysisError) {
+              console.warn(`Failed to auto-queue AI analysis for ${document.name}:`, analysisError);
+            }
           } else {
-            console.error("Content extraction failed for document");
+            console.error(`Content extraction failed for document: ${document.name}`);
           }
         })
         .catch(error => {
-          console.error("Content extraction error for document:", error);
+          console.error(`Content extraction error for document ${document.name}:`, error);
         });
       
       res.status(201).json(documentWithDetails);
