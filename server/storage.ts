@@ -979,9 +979,13 @@ export class DatabaseStorage implements IStorage {
         };
       } else {
         try {
+          // Preprocess the query to remove stop words before sending to AI
+          const cleanedQuery = this.preprocessSearchQuery(query);
+          console.log(`Preprocessing query for AI: "${query}" → "${cleanedQuery}"`);
+          
           // Process the conversational query using Flash-lite for complex queries
-          queryAnalysis = await processConversationalQuery(query);
-          console.log(`AI Query Analysis for "${query}":`, queryAnalysis);
+          queryAnalysis = await processConversationalQuery(cleanedQuery);
+          console.log(`AI Query Analysis for "${cleanedQuery}":`, queryAnalysis);
         } catch (error) {
           console.warn("AI processing failed, using smart fallback:", error instanceof Error ? error.message : String(error));
           // Enhanced fallback: Extract keywords from conversational questions
