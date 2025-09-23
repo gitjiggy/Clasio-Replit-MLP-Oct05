@@ -748,7 +748,7 @@ export function DocumentModal({
                         /* Edit Mode */
                         <div className="space-y-3">
                           <div className="space-y-2">
-                            <label className="text-sm text-muted-foreground">Category</label>
+                            <label className="text-sm text-muted-foreground">Folder</label>
                             <AutocompleteCombobox
                               value={editCategory}
                               onValueChange={handleCategoryChange}
@@ -763,7 +763,7 @@ export function DocumentModal({
                           </div>
                           
                           <div className="space-y-2">
-                            <label className="text-sm text-muted-foreground">Document Type</label>
+                            <label className="text-sm text-muted-foreground">Sub-folder</label>
                             <AutocompleteCombobox
                               value={editDocumentType}
                               onValueChange={setEditDocumentType}
