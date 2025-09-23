@@ -165,6 +165,31 @@ function calculateQualityScore(doc: any, userId: string): number {
     return Math.min(1.0, score) * 100;
 }
 
+// Automatic Embedding Generation
+async function onDocumentProcessed(documentId: string): Promise<void> {
+    await enqueueEmbeddingGeneration(documentId);
+}
+
+async function enqueueEmbeddingGeneration(documentId: string): Promise<void> {
+    try {
+        await apiRequest('/api/ai-analysis-queue', {
+            method: 'POST',
+            body: JSON.stringify({
+                document_id: documentId,
+                job_type: 'embedding_generation',
+                status: 'pending',
+                priority: 1
+            }),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+    } catch (error) {
+        console.error('Failed to enqueue embedding generation:', error);
+        throw error;
+    }
+}
+
 // 3-tier confidence scoring system
 function calculateFinalScore(semanticScore: number, lexicalScore: number, qualityScore: number): number {
     const semantic = semanticScore / 100;
