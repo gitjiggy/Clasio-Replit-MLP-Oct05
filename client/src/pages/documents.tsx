@@ -777,7 +777,13 @@ export default function Documents() {
       const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
 
       if (!response.ok) {
-        throw new Error('Download failed');
+        if (response.status === 401) {
+          throw new Error('You do not have permission to download this document. Please check if you own this document or if your session has expired.');
+        } else if (response.status === 404) {
+          throw new Error('Document not found. It may have been deleted or moved.');
+        } else {
+          throw new Error(`Download failed (${response.status}): ${response.statusText}`);
+        }
       }
 
       const blob = await response.blob();
