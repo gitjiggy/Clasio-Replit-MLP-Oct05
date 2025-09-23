@@ -654,28 +654,28 @@ export class DatabaseStorage implements IStorage {
     const lexical = lexicalScore; 
     const quality = qualityScore;
     
-    console.log(`    Tiered scoring: semantic=${semantic.toFixed(3)}, lexical=${lexical.toFixed(3)}, quality=${quality.toFixed(3)}`);
+    console.log(`    Enhanced scoring: semantic=${semantic.toFixed(3)}, lexical=${lexical.toFixed(3)}, quality=${quality.toFixed(3)}`);
     
-    // Tier 1: High confidence semantic matches (adjusted for realistic Gemini embedding scores)
-    if (semantic >= 0.7) {
-      const tier1Score = Math.round(semantic * 100); // Return 70-100% directly
-      console.log(`    → Tier 1 (high semantic): ${tier1Score}%`);
-      return tier1Score / 100;
+    // Base confidence from strongest signal (allows either dimension to drive the score)
+    let confidence = Math.max(semantic, lexical) * 100;
+    console.log(`    → Base confidence (max signal): ${confidence.toFixed(1)}%`);
+    
+    // Boost for signal agreement (both semantic AND lexical high)
+    if (semantic > 0.7 && lexical > 0.7) {
+      confidence += 15; // Concordance bonus for multiple strong signals
+      console.log(`    → Concordance bonus applied: +15% (both signals > 70%)`);
     }
     
-    // Tier 2: Moderate semantic matches  
-    if (semantic >= 0.4) {
-      const combined = (semantic * 0.6) + (lexical * 0.3) + (quality * 0.1);
-      const tier2Score = Math.round(combined * 100);
-      console.log(`    → Tier 2 (moderate semantic): ${tier2Score}%`);
-      return tier2Score / 100;
-    }
+    // Quality boost (always additive, max 20 point boost)
+    const qualityBoost = quality * 20;
+    confidence += qualityBoost;
+    console.log(`    → Quality boost applied: +${qualityBoost.toFixed(1)}% (max 20%)`);
     
-    // Tier 3: Low semantic matches - lexical dominant
-    const fallback = (lexical * 0.7) + (quality * 0.3);
-    const tier3Score = Math.round(fallback * 100);
-    console.log(`    → Tier 3 (lexical dominant): ${tier3Score}%`);
-    return tier3Score / 100;
+    // Cap at 100%
+    const finalScore = Math.min(100, confidence);
+    console.log(`    → Final score: ${finalScore.toFixed(1)}% (capped at 100%)`);
+    
+    return finalScore / 100;
   }
   
   private async calculateLexicalScore(doc: any, searchTerms: string): Promise<number> {
