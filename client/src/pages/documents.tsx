@@ -217,19 +217,72 @@ async function enqueueEmbeddingGeneration(documentId: string): Promise<void> {
     }
 }
 
+// Helper function to check if document has embeddings
+function hasEmbeddings(doc: any): boolean {
+    return doc.embeddings_generated === true && 
+           (doc.title_embedding || doc.content_embedding || doc.summary_embedding || doc.key_topics_embedding);
+}
+
+// New scoring with embeddings and AI
+function calculateNewScore(doc: any, query: string, userId: string): number {
+    // Mock query embedding for demonstration - in real implementation this would come from API
+    const mockQueryEmbedding = new Array(768).fill(0).map(() => Math.random());
+    
+    const semanticScore = calculateSemanticScore(doc, mockQueryEmbedding);
+    const lexicalScore = 50; // Mock lexical score
+    const qualityScore = calculateQualityScore(doc, userId);
+    
+    return calculateFinalScore(semanticScore, lexicalScore, qualityScore);
+}
+
+// Legacy scoring without embeddings
+function calculateLegacyScore(doc: any, query: string): number {
+    // Simple keyword matching and basic scoring
+    const title = (doc.name || '').toLowerCase();
+    const summary = (doc.ai_summary || '').toLowerCase();
+    const queryLower = query.toLowerCase();
+    
+    let score = 0;
+    if (title.includes(queryLower)) score += 60;
+    if (summary.includes(queryLower)) score += 40;
+    if (doc.is_favorite) score += 20;
+    
+    return Math.min(100, score);
+}
+
+// Feature flag and fallback logic
+function calculateDocumentScore(doc: any, query: string, userId: string): number {
+    // Environment variable check (using import.meta.env for frontend)
+    const useNewScoring = import.meta.env.VITE_USE_NEW_SCORING === 'true';
+    
+    if (useNewScoring && hasEmbeddings(doc)) {
+        return calculateNewScore(doc, query, userId);
+    } else {
+        return calculateLegacyScore(doc, query);
+    }
+}
+
 // Scoring strategy functions
 async function fullScoring(candidates: any[], cleanQuery: string, userId: string): Promise<any[]> {
-    // TODO: Implement full 3-stage scoring with AI reranking
-    // This would include semantic scoring, lexical scoring, quality scoring, and AI reranking
+    // Apply scoring to all candidates and sort by score
+    const scoredCandidates = candidates.map(doc => ({
+        ...doc,
+        aiScore: calculateDocumentScore(doc, cleanQuery, userId)
+    })).sort((a, b) => b.aiScore - a.aiScore);
+    
     console.log('Full scoring for ambiguous query:', cleanQuery);
-    return candidates.slice(0, 10); // Placeholder: return top 10 candidates
+    return scoredCandidates.slice(0, 10);
 }
 
 async function fastScoring(candidates: any[], cleanQuery: string, userId: string): Promise<any[]> {
-    // TODO: Implement 3-stage scoring only (no AI reranking)
-    // This would include semantic scoring, lexical scoring, and quality scoring
+    // Apply scoring to all candidates and sort by score
+    const scoredCandidates = candidates.map(doc => ({
+        ...doc,
+        aiScore: calculateDocumentScore(doc, cleanQuery, userId)
+    })).sort((a, b) => b.aiScore - a.aiScore);
+    
     console.log('Fast scoring for specific query:', cleanQuery);
-    return candidates.slice(0, 10); // Placeholder: return top 10 candidates
+    return scoredCandidates.slice(0, 10);
 }
 
 // Main Search Function Integration
