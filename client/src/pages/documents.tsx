@@ -72,6 +72,7 @@ export default function Documents() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [queueDashboardOpen, setQueueDashboardOpen] = useState(false);
+  const [searchMode, setSearchMode] = useState<"simple" | "ai">("simple");
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -91,6 +92,15 @@ export default function Documents() {
         trackEvent('search', { search_term: query.trim() });
       }, 500); // 500ms debounce
       setSearchTimeout(timeout);
+    }
+  };
+
+  // Handle AI Search Go button
+  const handleAISearch = () => {
+    if (searchQuery.trim()) {
+      // TODO: Implement AI search functionality
+      console.log('AI Search triggered for:', searchQuery);
+      trackEvent('ai_search', { search_term: searchQuery.trim() });
     }
   };
 
@@ -622,16 +632,53 @@ export default function Documents() {
             
             <div className="flex items-center space-x-3">
               {/* Search */}
-              <div className="relative">
-                <Input
-                  type="text"
-                  placeholder="Search documents..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="w-64 pl-10"
-                  data-testid="search-input"
-                />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center space-x-2">
+                {/* Search Mode Toggle */}
+                <div className="flex items-center border border-border rounded-md">
+                  <Button
+                    variant={searchMode === "simple" ? "default" : "ghost"}
+                    size="sm"
+                    className="rounded-r-none"
+                    onClick={() => setSearchMode("simple")}
+                    data-testid="search-mode-simple"
+                  >
+                    Simple
+                  </Button>
+                  <Button
+                    variant={searchMode === "ai" ? "default" : "ghost"}
+                    size="sm"
+                    className="rounded-l-none"
+                    onClick={() => setSearchMode("ai")}
+                    data-testid="search-mode-ai"
+                  >
+                    AI Search
+                  </Button>
+                </div>
+                
+                {/* Search Input */}
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder={searchMode === "ai" ? "Ask AI to find documents..." : "Search documents..."}
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="w-64 pl-10"
+                    data-testid="search-input"
+                  />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                </div>
+                
+                {/* AI Search Go Button */}
+                {searchMode === "ai" && (
+                  <Button
+                    onClick={handleAISearch}
+                    disabled={!searchQuery.trim()}
+                    className="bg-blue-600 hover:bg-blue-700"
+                    data-testid="ai-search-go"
+                  >
+                    Go!
+                  </Button>
+                )}
               </div>
               
               {/* View Toggle */}
