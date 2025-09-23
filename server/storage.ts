@@ -534,32 +534,10 @@ export class DatabaseStorage implements IStorage {
         conditions.push(or(...naturalSearchConditions.filter(Boolean))!);
       }
       
-      // IMPROVED: Apply AI filters only for high-confidence, specific queries
-      // Relax filters for generic single-word searches to prevent over-filtering
-      const isGenericQuery = queryAnalysis.keywords.length === 1 && queryAnalysis.keywords[0].length < 8;
-      const hasHighConfidenceIntent = queryAnalysis.intent && !queryAnalysis.intent.includes('general_search');
-      
-      if (!isGenericQuery && hasHighConfidenceIntent) {
-        // Apply category filter only for specific, high-confidence queries
-        if (queryAnalysis.categoryFilter) {
-          conditions.push(
-            or(
-              eq(documents.aiCategory, queryAnalysis.categoryFilter),
-              eq(documents.overrideCategory, queryAnalysis.categoryFilter)
-            )!
-          );
-        }
-        
-        // Apply document type filter only for specific, high-confidence queries  
-        if (queryAnalysis.documentTypeFilter) {
-          conditions.push(
-            or(
-              eq(documents.aiDocumentType, queryAnalysis.documentTypeFilter),
-              eq(documents.overrideDocumentType, queryAnalysis.documentTypeFilter)
-            )!
-          );
-        }
-      }
+      // IMPROVED: Don't apply AI category/type filters for keyword-based searches
+      // This prevents over-filtering when users search for specific terms that might exist in different categories
+      // For example, "escrow" documents might be in Taxes, Real Estate, or Legal categories
+      console.log("Skipping category/type filters to prioritize keyword matching");
       
       console.log(`Search conditions applied for "${query}":`, conditions.length, "conditions");
       console.log(`Keywords being searched:`, queryAnalysis.keywords);
