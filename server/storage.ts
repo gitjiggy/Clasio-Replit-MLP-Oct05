@@ -633,7 +633,7 @@ export class DatabaseStorage implements IStorage {
       const score = (result.rows[0] as any)?.score || 0;
       return Math.min(1, Math.max(0, parseFloat(score.toString()))); // Normalize to 0-1
     } catch (error) {
-      console.warn('FTS scoring failed:', error);
+      console.error('FTS scoring failed for doc:', doc.name, 'error:', error);
       return 0;
     }
   }
