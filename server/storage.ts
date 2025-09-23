@@ -782,6 +782,62 @@ export class DatabaseStorage implements IStorage {
     return scoredDocuments;
   }
 
+  // Document Management Stop Words List for preprocessing search queries
+  private readonly DOCUMENT_STOP_WORDS = new Set([
+    // Generic Document Terms
+    'document', 'documents', 'doc', 'docs', 'file', 'files', 'filing', 'paper', 'papers', 'paperwork',
+    'form', 'forms', 'record', 'records', 'recording', 'report', 'reports', 'reporting', 'sheet', 'sheets',
+    'copy', 'copies', 'scan', 'scans', 'scanned', 'pdf', 'pdfs', 'attachment', 'attachments',
+    
+    // Action/Request Words
+    'find', 'finding', 'found', 'show', 'showing', 'shown', 'get', 'getting', 'got', 'search', 'searching', 'searched',
+    'look', 'looking', 'looked', 'give', 'giving', 'gave', 'need', 'needing', 'needed', 'want', 'wanting', 'wanted',
+    'help', 'helping', 'helped', 'locate', 'locating', 'located',
+    
+    // Possessive/Determiners
+    'my', 'mine', 'our', 'ours', 'the', 'this', 'that', 'these', 'those', 'any', 'some', 'all',
+    'where', 'what', 'which', 'who', 'when', 'how',
+    
+    // Location/Storage Terms
+    'folder', 'folders', 'drive', 'drives', 'storage', 'stored', 'saved', 'save', 'uploaded', 'upload',
+    'downloaded', 'download',
+    
+    // Vague Qualifiers
+    'stuff', 'things', 'items', 'something', 'anything', 'everything', 'related', 'regarding', 'about',
+    'concerning', 'type', 'types', 'kind', 'kinds',
+    
+    // Common prepositions and articles
+    'with', 'for', 'in', 'on', 'at', 'by', 'from', 'to', 'of', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
+    'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+    'can', 'a', 'an'
+  ]);
+
+  /**
+   * Remove stop words from search query while preserving meaningful phrases
+   */
+  private preprocessSearchQuery(query: string): string {
+    // Split into words while preserving quoted phrases
+    const words = query.toLowerCase()
+      .split(/\s+/)
+      .map(word => word.trim())
+      .filter(word => word.length > 0);
+    
+    // Filter out stop words but keep meaningful terms (length > 2)
+    const meaningfulWords = words.filter(word => {
+      // Keep words that are:
+      // 1. Not in stop words list
+      // 2. Have meaningful length (>2 characters)
+      // 3. Are not just punctuation
+      return !this.DOCUMENT_STOP_WORDS.has(word) && 
+             word.length > 2 && 
+             /[a-zA-Z0-9]/.test(word);
+    });
+    
+    const cleanedQuery = meaningfulWords.join(' ');
+    console.log(`Stop word filtering: "${query}" → "${cleanedQuery}"`);
+    return cleanedQuery || query; // Fallback to original if everything was filtered
+  }
+
   // Enhanced conversational search using AI metadata
   async searchConversational(query: string, filters: Partial<Omit<DocumentFilters, 'search'>> = {}): Promise<{
     documents: DocumentWithFolderAndTags[];
@@ -1070,8 +1126,11 @@ export class DatabaseStorage implements IStorage {
       // STAGE 1: True PostgreSQL FTS Database-level Pre-filtering  
       console.log(`Stage 1: Database-level FTS pre-filtering for query: "${query}"`);
       
+      // Apply stop word preprocessing before FTS search
+      const preprocessedQuery = this.preprocessSearchQuery(query);
+      
       // Create search query for PostgreSQL FTS (space-separated for plainto_tsquery)
-      const searchTerms = queryAnalysis.keywords.join(' ');
+      const searchTerms = preprocessedQuery || queryAnalysis.keywords.join(' ');
       console.log(`FTS search terms: "${searchTerms}"`);
       
       // Execute raw SQL for proper PostgreSQL FTS with parameterized queries  
@@ -1177,12 +1236,12 @@ export class DatabaseStorage implements IStorage {
       if (isSimpleQuery) {
         console.log(`Stage 2: Skipping AI analysis for simple query, using improved FTS scores`);
         // For simple queries, use improved FTS scores with title match bonuses
-        // Use extracted keywords instead of full query for better scoring
-        const keywordsForScoring = queryAnalysis.keywords.join(' ') || query;
-        console.log(`Using extracted keywords for scoring: "${keywordsForScoring}" (instead of full query: "${query}")`);
+        // Use preprocessed query (stop words removed) for better scoring
+        const keywordsForScoring = preprocessedQuery || queryAnalysis.keywords.join(' ') || query;
+        console.log(`Using preprocessed keywords for scoring: "${keywordsForScoring}" (vs original: "${query}")`);
         
         const scoredDocuments = await Promise.all(candidatesForScoring.map(async (doc) => {
-          // Apply lexical scoring using extracted keywords only
+          // Apply lexical scoring using preprocessed keywords only
           const improvedScore = await this.calculateLexicalScore(doc, keywordsForScoring);
           return {
             ...doc,
@@ -1203,9 +1262,9 @@ export class DatabaseStorage implements IStorage {
           // NEW 3-STAGE SCORING SYSTEM
           console.log("Using new 3-stage scoring: Semantic (50%) + Lexical (35%) + Quality (15%)");
           
-          // Use extracted keywords for consistent scoring
-          const keywordsForScoring = queryAnalysis.keywords.join(' ') || query;
-          console.log(`Using extracted keywords for 3-stage scoring: "${keywordsForScoring}" (instead of full query: "${query}")`);
+          // Use preprocessed query (stop words removed) for consistent scoring
+          const keywordsForScoring = preprocessedQuery || queryAnalysis.keywords.join(' ') || query;
+          console.log(`Using preprocessed keywords for 3-stage scoring: "${keywordsForScoring}" (vs original: "${query}")`);
           
           // Apply the new 3-stage scoring
           const scoredDocuments = await this.new3StageScoring(candidatesForScoring, keywordsForScoring, undefined);
