@@ -449,68 +449,111 @@ export class DatabaseStorage implements IStorage {
   // NEW 3-Stage Scoring System Helper Functions
   
   private preFilterCandidates(allDocuments: any[], query: string): any[] {
-    return allDocuments.filter(doc => {
-      // More lenient filtering - document must have either:
-      // 1. AI analysis with word count > 50, OR
-      // 2. Basic content (name/summary) regardless of AI analysis
-      const hasMinimumContent = (doc.aiWordCount && doc.aiWordCount > 50) || 
-                               (doc.name && doc.name.length > 5) ||
-                               (doc.aiSummary && doc.aiSummary.length > 20);
-      
-      // More permissive matching - include document if ANY of these match:
-      const hasRelevantContent = 
-        this.documentTypeMatches(doc.aiDocumentType, query) ||
-        this.titleSummaryContainsKeywords(doc, query) ||
-        this.categoryMatches(doc.aiCategory, query) ||
-        this.semanticTopicMatch(doc, query);
-      
-      return hasMinimumContent && hasRelevantContent;
-    }).slice(0, 50); // Max 50 for cosine similarity calculations
-  }
-  
-  private documentTypeMatches(documentType: string | null, query: string): boolean {
-    if (!documentType) return false;
-    const queryLower = query.toLowerCase();
-    const docTypeLower = documentType.toLowerCase();
-    return queryLower.includes(docTypeLower) || docTypeLower.includes(queryLower);
-  }
-  
-  private titleSummaryContainsKeywords(doc: any, query: string): boolean {
-    const searchText = `${doc.name || ''} ${doc.originalName || ''} ${doc.aiSummary || ''}`.toLowerCase();
-    const queryWords = query.toLowerCase().split(/\s+/);
-    return queryWords.some(word => word.length > 2 && searchText.includes(word));
-  }
-
-  private categoryMatches(category: string | null, query: string): boolean {
-    if (!category) return false;
-    const queryLower = query.toLowerCase();
-    const categoryLower = category.toLowerCase();
+    // GENERALIZED RECALL-FIRST PRE-FILTER
+    // Goal: Maximize candidates for scoring using cheap, domain-agnostic signals
     
-    // Direct matches
-    if (queryLower.includes(categoryLower) || categoryLower.includes(queryLower)) {
-      return true;
+    const KMIN = parseInt(process.env.PREFILTER_K_MIN || '10');
+    const KMAX = parseInt(process.env.PREFILTER_K_MAX || '100');
+    
+    // Clean query tokens (remove stopwords, normalize)
+    const queryTokens = this.normalizeQueryTokens(query);
+    console.log(`Pre-filter query tokens: [${queryTokens.join(', ')}]`);
+    
+    // Score each document using cheap, domain-agnostic signals
+    const scoredCandidates = allDocuments
+      .filter(doc => !doc.isDeleted && doc.name) // Only exclude deleted/empty docs
+      .map(doc => ({
+        ...doc,
+        preScore: this.calculateCheapPreScore(doc, queryTokens)
+      }))
+      .filter(doc => doc.preScore > 0) // Include any document with matching signals
+      .sort((a, b) => b.preScore - a.preScore);
+    
+    console.log(`Pre-filter: Found ${scoredCandidates.length} candidates with signal matches`);
+    
+    // Adaptive widening: ensure minimum candidate pool
+    let finalCandidates = scoredCandidates;
+    if (finalCandidates.length < KMIN) {
+      console.log(`Widening candidate pool: ${finalCandidates.length} < ${KMIN} minimum`);
+      
+      // Add favorites and recent docs until we hit KMIN
+      const additionalCandidates = allDocuments
+        .filter(doc => !doc.isDeleted && doc.name)
+        .filter(doc => !finalCandidates.some(candidate => candidate.id === doc.id))
+        .sort((a, b) => {
+          // Prioritize: favorites first, then recent uploads, then those with embeddings
+          if (a.isFavorite !== b.isFavorite) return b.isFavorite ? 1 : -1;
+          if (a.embeddingsGenerated !== b.embeddingsGenerated) return b.embeddingsGenerated ? 1 : -1;
+          return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
+        })
+        .slice(0, KMIN - finalCandidates.length)
+        .map(doc => ({ ...doc, preScore: 0.1 })); // Small baseline score
+      
+      finalCandidates = [...finalCandidates, ...additionalCandidates];
+      console.log(`Widened to ${finalCandidates.length} candidates (added ${additionalCandidates.length})`);
     }
     
-    // Semantic category matching for real estate queries
-    const realEstateTerms = ['escrow', 'heritage', 'property', 'mortgage', 'closing', 'deed', 'title'];
-    const isRealEstateQuery = realEstateTerms.some(term => queryLower.includes(term));
-    const isRealEstateCategory = ['real estate', 'taxes', 'financial'].includes(categoryLower);
+    // Cap at maximum to prevent performance issues
+    const cappedCandidates = finalCandidates.slice(0, KMAX);
+    console.log(`Pre-filter result: ${cappedCandidates.length} candidates (capped at ${KMAX})`);
     
-    return isRealEstateQuery && isRealEstateCategory;
+    return cappedCandidates;
+  }
+  
+  // Simplified domain-agnostic helpers (kept for backward compatibility)
+  private titleSummaryContainsKeywords(doc: any, query: string): boolean {
+    const queryTokens = this.normalizeQueryTokens(query);
+    return this.calculateCheapPreScore(doc, queryTokens) > 0;
   }
 
-  private semanticTopicMatch(doc: any, query: string): boolean {
-    // Check AI key topics for semantic matches
-    if (!doc.aiKeyTopics || !Array.isArray(doc.aiKeyTopics)) return false;
+  private documentTypeMatches(documentType: string | null, query: string): boolean {
+    if (!documentType) return false;
+    const queryTokens = this.normalizeQueryTokens(query);
+    const docTypeLower = documentType.toLowerCase();
+    return queryTokens.some(token => docTypeLower.includes(token));
+  }
+  
+  private normalizeQueryTokens(query: string): string[] {
+    // Remove stopwords and normalize tokens for domain-agnostic matching
+    const stopWords = new Set(['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'my', 'your', 'their', 'his', 'her', 'its', 'where', 'what', 'when', 'who', 'how', 'why', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'document']);
     
-    const queryLower = query.toLowerCase();
-    const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+    return query.toLowerCase()
+      .split(/\s+/)
+      .filter(token => token.length > 2 && !stopWords.has(token))
+      .map(token => token.replace(/[^a-z0-9]/g, '')) // Remove punctuation
+      .filter(token => token.length > 1);
+  }
+
+  private calculateCheapPreScore(doc: any, queryTokens: string[]): number {
+    if (queryTokens.length === 0) return 0;
     
-    // Check if any query words match key topics
-    return doc.aiKeyTopics.some((topic: string) => {
-      const topicLower = topic.toLowerCase();
-      return queryWords.some(word => topicLower.includes(word) || word.includes(topicLower));
-    });
+    let score = 0;
+    
+    // Signal 1: Title/name overlap (weight: 3)
+    const titleText = `${doc.name || ''} ${doc.originalName || ''} ${doc.aiConciseName || ''}`.toLowerCase();
+    const titleMatches = queryTokens.filter(token => titleText.includes(token)).length;
+    score += titleMatches * 3;
+    
+    // Signal 2: AI key topics overlap (weight: 2) 
+    if (doc.aiKeyTopics && Array.isArray(doc.aiKeyTopics)) {
+      const topicsText = doc.aiKeyTopics.join(' ').toLowerCase();
+      const topicMatches = queryTokens.filter(token => topicsText.includes(token)).length;
+      score += topicMatches * 2;
+    }
+    
+    // Signal 3: AI summary overlap (weight: 1)
+    if (doc.aiSummary) {
+      const summaryText = doc.aiSummary.toLowerCase();
+      const summaryMatches = queryTokens.filter(token => summaryText.includes(token)).length;
+      score += summaryMatches * 1;
+    }
+    
+    // Signal 4: Category/Document type direct containment (weight: 1)
+    const metaText = `${doc.aiCategory || ''} ${doc.aiDocumentType || ''}`.toLowerCase();
+    const metaMatches = queryTokens.filter(token => metaText.includes(token)).length;
+    score += metaMatches * 1;
+    
+    return score;
   }
   
   private async calculateSemanticScore(doc: any, queryEmbedding: number[]): Promise<number> {
