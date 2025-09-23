@@ -1430,7 +1430,7 @@ export default function Documents() {
                     <div className="flex items-center space-x-2">
                       <Button
                         size="sm"
-                        className="flex-1 max-w-[100px]"
+                        className="flex-1 bg-sky-400 hover:bg-sky-500 text-white border-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDownload(document);
@@ -1438,24 +1438,23 @@ export default function Documents() {
                         data-testid={`download-${document.id}`}
                       >
                         <Download className="mr-1 h-3 w-3" />
-                        Download
+                        <span className="text-xs">Download</span>
                       </Button>
                       <Button 
                         size="sm" 
-                        variant="outline" 
-                        className="flex-1"
+                        className="flex-1 bg-green-400 hover:bg-green-500 text-white border-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleViewDocument(document);
                         }}
                         data-testid={`preview-${document.id}`}
                       >
-                        <Eye className="h-3 w-3" />
+                        <Eye className="mr-1 h-3 w-3" />
+                        <span className="text-xs font-medium">View Doc</span>
                       </Button>
                       <Button
                         size="sm"
-                        className="flex-1"
-                        variant={document.aiSummary ? "secondary" : "outline"}
+                        className="flex-1 bg-green-400 hover:bg-green-500 text-white border-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           analyzeDocumentMutation.mutate(document.id);
@@ -1463,11 +1462,12 @@ export default function Documents() {
                         disabled={analyzeDocumentMutation.isPending}
                         data-testid={`analyze-ai-${document.id}`}
                       >
-                        <Brain className="h-3 w-3" />
+                        <Brain className="mr-1 h-3 w-3" />
+                        <span className="text-xs font-medium">AI Analyze</span>
                       </Button>
                       <Button
                         size="sm"
-                        variant="destructive"
+                        className="flex-1 bg-pink-300 hover:bg-pink-400 text-white border-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteDocumentMutation.mutate(document.id);
