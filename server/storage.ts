@@ -40,6 +40,67 @@ import {
   serializeEmbeddingToJSON 
 } from "./gemini.js";
 
+// Query embedding cache for performance optimization
+interface QueryEmbeddingCache {
+  [query: string]: {
+    embedding: number[];
+    timestamp: number;
+  };
+}
+
+// Simple LRU cache for query embeddings to eliminate API calls during search
+class QueryEmbeddingCacheManager {
+  private cache: QueryEmbeddingCache = {};
+  private readonly maxEntries = 100; // Cache up to 100 recent queries
+  private readonly ttlMs = 24 * 60 * 60 * 1000; // 24 hour TTL
+
+  getCachedEmbedding(query: string): number[] | null {
+    const normalized = query.trim().toLowerCase();
+    const entry = this.cache[normalized];
+    
+    if (!entry) return null;
+    
+    // Check if entry is expired
+    if (Date.now() - entry.timestamp > this.ttlMs) {
+      delete this.cache[normalized];
+      return null;
+    }
+    
+    // Update timestamp for true LRU behavior (move to front)
+    entry.timestamp = Date.now();
+    
+    return entry.embedding;
+  }
+
+  setCachedEmbedding(query: string, embedding: number[]): void {
+    const normalized = query.trim().toLowerCase();
+    
+    // If cache is full, remove oldest entries
+    const entries = Object.entries(this.cache);
+    if (entries.length >= this.maxEntries) {
+      entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const toRemove = Math.floor(this.maxEntries * 0.2); // Remove 20%
+      for (let i = 0; i < toRemove; i++) {
+        delete this.cache[entries[i][0]];
+      }
+    }
+    
+    this.cache[normalized] = {
+      embedding,
+      timestamp: Date.now()
+    };
+  }
+
+  clearExpiredEntries(): void {
+    const now = Date.now();
+    for (const [query, entry] of Object.entries(this.cache)) {
+      if (now - entry.timestamp > this.ttlMs) {
+        delete this.cache[query];
+      }
+    }
+  }
+}
+
 // Predefined main categories for automatic organization
 const MAIN_CATEGORIES = [
   "Taxes", "Medical", "Insurance", "Legal", "Immigration", 
@@ -132,11 +193,17 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   private isInitialized = false;
+  private queryEmbeddingCache = new QueryEmbeddingCacheManager();
 
   private async ensureInitialized() {
     if (!this.isInitialized) {
       await this.initializeDefaults();
       this.isInitialized = true;
+      
+      // Start periodic cache cleanup (every hour)
+      setInterval(() => {
+        this.queryEmbeddingCache.clearExpiredEntries();
+      }, 60 * 60 * 1000);
     }
   }
 
@@ -844,13 +911,23 @@ export class DatabaseStorage implements IStorage {
       return []; // No candidates after filtering
     }
     
-    // Generate query embedding
+    // Generate or retrieve cached query embedding
     let queryEmbedding: number[];
-    try {
-      queryEmbedding = await generateEmbedding(query, 'RETRIEVAL_QUERY');
-    } catch (error) {
-      console.warn('Query embedding generation failed:', error);
-      return candidates; // Fallback to original candidates
+    const cachedEmbedding = this.queryEmbeddingCache.getCachedEmbedding(query);
+    
+    if (cachedEmbedding) {
+      console.log(`Using cached query embedding for: "${query}"`);
+      queryEmbedding = cachedEmbedding;
+    } else {
+      try {
+        console.log(`Generating new query embedding for: "${query}"`);
+        queryEmbedding = await generateEmbedding(query, 'RETRIEVAL_QUERY');
+        this.queryEmbeddingCache.setCachedEmbedding(query, queryEmbedding);
+        console.log(`Cached new query embedding for future searches`);
+      } catch (error) {
+        console.warn('Query embedding generation failed:', error);
+        return candidates; // Fallback to original candidates
+      }
     }
     
     const scoredDocuments = [];
