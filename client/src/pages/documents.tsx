@@ -42,7 +42,9 @@ import {
   Brain,
   Sparkles,
   Target,
-  Link2
+  Link2,
+  Edit2,
+  ExternalLink
 } from "lucide-react";
 
 interface DocumentsResponse {
@@ -760,7 +762,12 @@ export default function Documents() {
     });
   };
 
-  const handleViewDocument = async (document: DocumentWithFolderAndTags) => {
+  const handleViewDocument = (document: DocumentWithFolderAndTags) => {
+    setSelectedDocument(document);
+    setDocumentModalOpen(true);
+  };
+
+  const handleOpenDocumentFile = async (document: DocumentWithFolderAndTags) => {
     // For Drive documents, open Drive viewer directly
     if (document.driveWebViewLink) {
       window.open(document.driveWebViewLink, '_blank');
@@ -1290,10 +1297,17 @@ export default function Documents() {
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => handleViewDocument(document)}
-                            data-testid={`menu-view-${document.id}`}
+                            data-testid={`menu-edit-${document.id}`}
                           >
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
+                            <Edit2 className="mr-2 h-4 w-4" />
+                            Edit Properties
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleOpenDocumentFile(document)}
+                            data-testid={`menu-open-${document.id}`}
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Open Document
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => analyzeDocumentMutation.mutate(document.id)}
@@ -1445,7 +1459,7 @@ export default function Documents() {
                         className="flex-1 bg-green-400 hover:bg-green-500 text-white border-0"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleViewDocument(document);
+                          handleOpenDocumentFile(document);
                         }}
                         data-testid={`preview-${document.id}`}
                       >
