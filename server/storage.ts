@@ -544,7 +544,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
   
-  private async calculateQualityBoost(doc: any, userId: string): Promise<number> {
+  private async calculateQualityBoost(doc: any, userId?: string): Promise<number> {
     let boost = 0;
     
     // Recent access: +0.3 if opened in last 30 days
@@ -586,7 +586,7 @@ export class DatabaseStorage implements IStorage {
   private async new3StageScoring(
     candidates: any[], 
     query: string, 
-    userId: string
+    userId?: string
   ): Promise<any[]> {
     console.log(`Starting new 3-stage scoring for ${candidates.length} candidates`);
     
@@ -627,10 +627,10 @@ export class DatabaseStorage implements IStorage {
         // Stage 3: Quality Boost (15% weight)
         const qualityBoost = await this.calculateQualityBoost(doc, userId);
         
-        // Final Score = (semantic × 50) + (lexical × 35) + (quality × 15)
-        const finalScore = (semanticScore * 50) + (lexicalScore * 35) + (qualityBoost * 15);
+        // Final Score = (semantic × 0.5) + (lexical × 0.35) + (quality × 0.15) - normalized to 0-1
+        const finalScore = (semanticScore * 0.5) + (lexicalScore * 0.35) + (qualityBoost * 0.15);
         
-        console.log(`Document "${doc.name}": semantic=${semanticScore.toFixed(3)}, lexical=${lexicalScore.toFixed(3)}, quality=${qualityBoost.toFixed(3)}, final=${finalScore.toFixed(1)}`);
+        console.log(`Document "${doc.name}": semantic=${semanticScore.toFixed(3)}, lexical=${lexicalScore.toFixed(3)}, quality=${qualityBoost.toFixed(3)}, final=${finalScore.toFixed(3)}`);
         
         scoredDocuments.push({
           ...doc,
@@ -1053,58 +1053,88 @@ export class DatabaseStorage implements IStorage {
           isRelevant: (doc.ftsScore || 0) > 0.01
         })));
       } else {
-        console.log(`Stage 2: Complex query detected, running AI analysis on ${stage1Candidates.length} candidates`);
+        console.log(`Stage 2: Complex query detected, running analysis on ${stage1Candidates.length} candidates`);
         
-        // Only run expensive AI analysis on top candidates from Stage 1
-        for (const doc of stage1Candidates) {
-          // Load content if needed for AI analysis
-          let documentContent = doc.documentContent;
-          let hasContent = documentContent && documentContent.trim().length > 0;
+        // Check if new 3-stage scoring is enabled via feature flag
+        const useNewScoring = process.env.USE_NEW_SCORING === 'true';
+        console.log(`Using ${useNewScoring ? 'new 3-stage' : 'legacy 2-stage'} scoring system`);
+        
+        if (useNewScoring) {
+          // NEW 3-STAGE SCORING SYSTEM
+          console.log("Using new 3-stage scoring: Semantic (50%) + Lexical (35%) + Quality (15%)");
           
-          if (!hasContent) {
-            documentContent = await this.getDocumentContent(doc.id);
-            hasContent = documentContent && documentContent.trim().length > 0;
+          // Convert FTS candidates to format expected by new scoring
+          const candidatesForNewScoring = stage1Candidates.map(doc => ({
+            ...doc,
+            ftsScore: doc.ftsScore || 0  // Keep FTS score for reference
+          }));
+          
+          // Apply the new 3-stage scoring
+          const scoredDocuments = await this.new3StageScoring(candidatesForNewScoring, query, undefined);
+          
+          // Convert scored documents to expected format (newScore is 0-1 scale)
+          documentsWithConfidenceScores.push(...scoredDocuments.map(doc => ({
+            ...doc,
+            confidenceScore: Math.round(doc.newScore * 100), // Convert 0-1 to percentage
+            relevanceReason: `3-stage scoring: ${doc.scoringMethod || 'new_3_stage'}`,
+            isRelevant: doc.newScore >= 0.5 // Use 0.5 threshold for 0-1 scale
+          })));
+          
+        } else {
+          // LEGACY 2-STAGE SYSTEM (for backward compatibility)
+          console.log("Using legacy 2-stage scoring: FTS (30%) + AI Analysis (70%)");
+          
+          // Only run expensive AI analysis on top candidates from Stage 1
+          for (const doc of stage1Candidates) {
+            // Load content if needed for AI analysis
+            let documentContent = doc.documentContent;
+            let hasContent = documentContent && documentContent.trim().length > 0;
             
             if (!hasContent) {
-              const extractionSuccess = await this.extractDocumentContent(doc.id);
-              if (extractionSuccess) {
-                documentContent = await this.getDocumentContent(doc.id);
-                hasContent = documentContent && documentContent.trim().length > 0;
+              documentContent = await this.getDocumentContent(doc.id);
+              hasContent = documentContent && documentContent.trim().length > 0;
+              
+              if (!hasContent) {
+                const extractionSuccess = await this.extractDocumentContent(doc.id);
+                if (extractionSuccess) {
+                  documentContent = await this.getDocumentContent(doc.id);
+                  hasContent = documentContent && documentContent.trim().length > 0;
+                }
               }
             }
-          }
-          
-          // Run AI analysis only if content is available
-          if (hasContent) {
-            const aiAnalysis = await analyzeDocumentRelevance(
-              documentContent || '', 
-              doc.name, 
-              query
-            );
             
-            // Combine Stage 1 FTS + AI analysis scores
-            const ftsScore = Math.round((doc.ftsScore || 0) * 100);
-            const finalScore = Math.round((ftsScore * 0.3) + (aiAnalysis.confidenceScore * 0.7));
-            
-            console.log(`Stage 2: "${doc.name}" - FTS: ${ftsScore}%, AI: ${aiAnalysis.confidenceScore}%, Final: ${finalScore}%`);
-            
-            documentsWithConfidenceScores.push({
-              ...doc,
-              documentContent: documentContent,
-              confidenceScore: finalScore,
-              relevanceReason: aiAnalysis.relevanceReason,
-              isRelevant: aiAnalysis.isRelevant
-            });
-          } else {
-            // No content available, use FTS score only
-            const ftsScore = Math.round((doc.ftsScore || 0) * 100);
-            console.log(`Stage 2: "${doc.name}" - No content available, using FTS score: ${ftsScore}%`);
-            documentsWithConfidenceScores.push({
-              ...doc,
-              confidenceScore: ftsScore,
-              relevanceReason: `No extractable content - FTS similarity only`,
-              isRelevant: (doc.ftsScore || 0) > 0.01
-            });
+            // Run AI analysis only if content is available
+            if (hasContent) {
+              const aiAnalysis = await analyzeDocumentRelevance(
+                documentContent || '', 
+                doc.name, 
+                query
+              );
+              
+              // Combine Stage 1 FTS + AI analysis scores
+              const ftsScore = Math.round((doc.ftsScore || 0) * 100);
+              const finalScore = Math.round((ftsScore * 0.3) + (aiAnalysis.confidenceScore * 0.7));
+              
+              console.log(`Stage 2: "${doc.name}" - FTS: ${ftsScore}%, AI: ${aiAnalysis.confidenceScore}%, Final: ${finalScore}%`);
+              
+              documentsWithConfidenceScores.push({
+                ...doc,
+                documentContent: documentContent,
+                confidenceScore: finalScore,
+                relevanceReason: aiAnalysis.relevanceReason,
+                isRelevant: aiAnalysis.isRelevant
+              });
+            } else {
+              // No content available, use FTS score only
+              const ftsScore = Math.round((doc.ftsScore || 0) * 100);
+              console.log(`Stage 2: "${doc.name}" - No content available, using FTS score: ${ftsScore}%`);
+              documentsWithConfidenceScores.push({
+                ...doc,
+                confidenceScore: ftsScore,
+                relevanceReason: `No extractable content - FTS similarity only`,
+                isRelevant: (doc.ftsScore || 0) > 0.01
+              });
+            }
           }
         }
       }
