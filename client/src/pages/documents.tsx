@@ -990,6 +990,40 @@ export default function Documents() {
                     </div>
                   </div>
                 )}
+                {/* Confidence Scores Display */}
+                {currentDocuments.length > 0 && isConversationalMode && (
+                  <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Search Confidence:</span>
+                      <Badge variant="outline" className="text-blue-700 border-blue-300 bg-blue-50 dark:bg-blue-900/50">
+                        {currentDocuments.length} document{currentDocuments.length === 1 ? '' : 's'} found
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      {currentDocuments.slice(0, 3).map((doc: any) => (
+                        <div key={doc.id} className="flex items-center justify-between text-xs">
+                          <span className="text-blue-700 dark:text-blue-300 truncate flex-1 mr-2">
+                            {doc.name}
+                          </span>
+                          <Badge 
+                            variant={
+                              (doc.confidenceScore || 0) >= 80 ? "default" :
+                              (doc.confidenceScore || 0) >= 40 ? "secondary" : "outline"
+                            }
+                            className={`text-xs ${
+                              (doc.confidenceScore || 0) >= 80 ? "bg-green-100 text-green-700 border-green-300 dark:bg-green-900 dark:text-green-300" :
+                              (doc.confidenceScore || 0) >= 40 ? "bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-300" :
+                              "bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-300"
+                            }`}
+                            data-testid={`confidence-score-${doc.id}`}
+                          >
+                            {doc.confidenceScore || 0}% confidence
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

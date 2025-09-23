@@ -614,12 +614,17 @@ export class DatabaseStorage implements IStorage {
   private async calculateLexicalScore(doc: any, searchTerms: string): Promise<number> {
     // Use PostgreSQL ts_rank on title + key_topics + summary only (skip full content for speed)
     try {
+      // Safely convert aiKeyTopics array to string
+      const keyTopicsText = Array.isArray(doc.aiKeyTopics) 
+        ? doc.aiKeyTopics.join(' ') 
+        : (doc.aiKeyTopics || '');
+        
       const result = await db.execute(sql`
         SELECT ts_rank(
           to_tsvector('english', 
             coalesce(${doc.name || ''},'') || ' ' || 
             coalesce(${doc.aiSummary || ''},'') || ' ' || 
-            array_to_string(coalesce(${doc.aiKeyTopics || []}::text[],'{}'), ' ')
+            coalesce(${keyTopicsText},'')
           ), 
           plainto_tsquery('english', ${searchTerms})
         ) as score
