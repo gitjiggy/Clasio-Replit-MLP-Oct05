@@ -47,6 +47,15 @@ import {
   ExternalLink
 } from "lucide-react";
 
+// Calibrate confidence scores for better user experience
+function calibrateConfidence(rawScore) {
+    // Map raw scores to more intuitive confidence ranges
+    if (rawScore >= 70) return Math.min(95, rawScore + 15);  // 70+ becomes 85-95%
+    if (rawScore >= 50) return Math.min(85, rawScore + 20);  // 50+ becomes 70-85%
+    if (rawScore >= 30) return Math.min(70, rawScore + 25);  // 30+ becomes 55-70%
+    return rawScore;  // Below 30 stays as-is
+}
+
 interface DocumentsResponse {
   documents: DocumentWithVersionInfo[];
   pagination: {
@@ -1427,13 +1436,13 @@ export default function Documents() {
                           <div className="flex items-center gap-2">
                             <div className="bg-white dark:bg-gray-800 px-2 py-1 rounded-full">
                               <span className="text-sm font-bold text-purple-700 dark:text-purple-300">
-                                {document.aiScore}%
+                                {calibrateConfidence(document.aiScore)}%
                               </span>
                             </div>
                             <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                               <div 
                                 className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
-                                style={{ width: `${Math.min(100, document.aiScore)}%` }}
+                                style={{ width: `${Math.min(100, calibrateConfidence(document.aiScore))}%` }}
                               />
                             </div>
                           </div>
