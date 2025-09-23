@@ -760,9 +760,38 @@ export default function Documents() {
     });
   };
 
-  const handleViewDocument = (document: DocumentWithFolderAndTags) => {
-    setSelectedDocument(document);
-    setDocumentModalOpen(true);
+  const handleViewDocument = async (document: DocumentWithFolderAndTags) => {
+    // For Drive documents, open Drive viewer directly
+    if (document.driveWebViewLink) {
+      window.open(document.driveWebViewLink, '_blank');
+      return;
+    }
+
+    try {
+      // For uploaded documents, fetch and display in new tab
+      const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('You do not have permission to view this document. Please check if you own this document or if your session has expired.');
+        } else if (response.status === 404) {
+          throw new Error('Document not found. It may have been deleted or moved.');
+        } else {
+          throw new Error(`View failed (${response.status}): ${response.statusText}`);
+        }
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error('View error details:', error);
+      toast({
+        title: "View failed",
+        description: error instanceof Error ? error.message : "There was an error viewing the document.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDownload = async (document: DocumentWithFolderAndTags) => {
@@ -1417,8 +1446,7 @@ export default function Documents() {
                         className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Open document for viewing using the proper API endpoint
-                          window.open(`/api/documents/${document.id}/download`, '_blank');
+                          handleViewDocument(document);
                         }}
                         data-testid={`preview-${document.id}`}
                       >
