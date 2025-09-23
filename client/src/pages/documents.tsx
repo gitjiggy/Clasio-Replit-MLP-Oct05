@@ -1082,7 +1082,8 @@ export default function Documents() {
 
         {/* Documents Grid */}
         <div className="flex-1 overflow-auto p-6">
-          {isLoading ? (
+{(() => {
+            if (isLoading) return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Card key={i} className="animate-pulse">
@@ -1098,7 +1099,9 @@ export default function Documents() {
                 </Card>
               ))}
             </div>
-          ) : currentDocuments.length === 0 ? (
+            );
+
+            if (currentDocuments.length === 0) return (
             <div className="text-center py-12">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No documents found</h3>
@@ -1838,7 +1841,7 @@ export default function Documents() {
             </div>
           )}
         </div>
-          ) : (
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {currentDocuments.map((document) => (
             <Card 
