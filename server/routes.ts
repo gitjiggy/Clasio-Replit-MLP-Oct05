@@ -344,6 +344,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk upload URL generation - for when you have more files than patience! 📁✨
+  // Server-side upload proxy to bypass CORS issues
+  app.post("/api/documents/upload-proxy", verifyFirebaseToken, upload.single('file'), async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      const originalFileName = req.file.originalname;
+      const docId = randomUUID();
+      const canonicalPath = generateDocumentPath(userId, docId, originalFileName);
+      
+      // Upload to GCS via server
+      await objectStorageService.uploadFileBuffer(
+        req.file.buffer, 
+        canonicalPath, 
+        req.file.mimetype
+      );
+      
+      res.json({
+        success: true,
+        objectPath: canonicalPath,
+        docId,
+        originalFileName,
+        fileSize: req.file.size,
+        fileType: getFileTypeFromName(originalFileName),
+        mimeType: req.file.mimetype
+      });
+    } catch (error) {
+      console.error("Server-side upload failed:", error);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
   app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       // Validate bulk upload request

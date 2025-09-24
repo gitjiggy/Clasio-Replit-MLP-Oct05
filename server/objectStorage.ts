@@ -308,6 +308,34 @@ export class ObjectStorageService {
     }, DEFAULT_RETRY_CONFIG, `getObjectBuffer for ${objectPath}`);
   }
 
+  // Upload file buffer to GCS
+  async uploadFileBuffer(buffer: Buffer, objectPath: string, contentType?: string): Promise<void> {
+    const bucket = this.getBucket();
+    const file = bucket.file(objectPath);
+
+    return withRetry(async () => {
+      const stream = file.createWriteStream({
+        metadata: {
+          contentType: contentType || 'application/octet-stream',
+        },
+      });
+
+      return new Promise<void>((resolve, reject) => {
+        stream.on('error', (error) => {
+          console.error("Error uploading file:", error);
+          reject(error);
+        });
+
+        stream.on('finish', () => {
+          console.log(`✅ File uploaded successfully to: ${objectPath}`);
+          resolve();
+        });
+
+        stream.end(buffer);
+      });
+    }, DEFAULT_RETRY_CONFIG, `uploadFileBuffer to ${objectPath}`);
+  }
+
   // Get a file object by its path  
   getFile(objectPath: string): File {
     const bucket = this.getBucket();

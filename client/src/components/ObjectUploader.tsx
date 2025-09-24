@@ -162,39 +162,69 @@ export function ObjectUploader({
             throw error;
           }
           
-          // Upload files to their respective URLs
+          // Upload files - try direct GCS first, fallback to server proxy on CORS errors
           const uploadPromises = files.map(async (file, index) => {
             try {
               const uploadURL = bulkResponse.uploadURLs[index];
               setUploadStatus(`📤 Uploading "${file.name}" - our digital postman is hard at work!`);
               setUploadProgress(40 + (index / files.length) * 40);
               
-              
-              
-              const response = await fetch(uploadURL.url, {
-                method: uploadURL.method || 'PUT',
-                body: file.data,
-                headers: {
-                  'Content-Type': file.type || 'application/octet-stream',
-                },
-              });
-              
-              
-              if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`Upload failed for ${file.name}:`, errorText);
-                throw new Error(`Upload failed for ${file.name}: ${response.status} ${response.statusText} - ${errorText}`);
+              try {
+                // Try direct GCS upload first
+                const response = await fetch(uploadURL.url, {
+                  method: uploadURL.method || 'PUT',
+                  body: file.data,
+                  headers: {
+                    'Content-Type': file.type || 'application/octet-stream',
+                  },
+                });
+                
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  throw new Error(`Direct upload failed: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+                
+                return {
+                  success: true,
+                  originalName: file.name || 'unknown',
+                  uploadURL: uploadURL.url,
+                  fileSize: file.size,
+                  fileType: getFileTypeFromName(file.name || 'unknown'),
+                  mimeType: file.type || 'application/octet-stream',
+                };
+              } catch (directUploadError) {
+                // If direct upload fails (likely CORS), fallback to server-side upload
+                console.warn(`Direct upload failed for ${file.name}, trying server proxy:`, directUploadError);
+                setUploadStatus(`🔄 Retrying "${file.name}" via server proxy...`);
+                
+                const formData = new FormData();
+                formData.append('file', file.data as File, file.name);
+                
+                const idToken = await getFirebaseIdToken();
+                const proxyResponse = await fetch('/api/documents/upload-proxy', {
+                  method: 'POST',
+                  body: formData,
+                  headers: {
+                    'Authorization': `Bearer ${idToken}`,
+                  },
+                });
+                
+                if (!proxyResponse.ok) {
+                  const errorText = await proxyResponse.text();
+                  throw new Error(`Server proxy upload failed: ${proxyResponse.status} ${proxyResponse.statusText} - ${errorText}`);
+                }
+                
+                const proxyResult = await proxyResponse.json();
+                return {
+                  success: true,
+                  originalName: file.name || 'unknown',
+                  objectPath: proxyResult.objectPath,
+                  docId: proxyResult.docId,
+                  fileSize: proxyResult.fileSize,
+                  fileType: proxyResult.fileType,
+                  mimeType: proxyResult.mimeType,
+                };
               }
-              
-              
-              return {
-                success: true,
-                originalName: file.name || 'unknown',
-                uploadURL: uploadURL.url,
-                fileSize: file.size,
-                fileType: getFileTypeFromName(file.name || 'unknown'),
-                mimeType: file.type || 'application/octet-stream',
-              };
             } catch (error) {
               return {
                 success: false,
