@@ -1,0 +1,140 @@
+Fix CORS on the bucket (most likely root cause)
+
+When using V4 signed URLs, the browser still requires CORS on the bucket so it can read the response to your PUT. If the origin isn’t allowed, fetch() throws TypeError: Failed to fetch even though the object is already written.
+
+A. If you’re testing from Replit/dev
+
+Replit dev URLs are ephemeral, so you have two choices:
+
+Dev bucket (recommended): allow "*" during development. It does not make your objects public; it only allows the browser to read CORS responses. You still need the signed URL.
+
+// cors.dev.json
+[
+  {
+    "origin": ["*"],
+    "method": ["GET", "PUT"],
+    "responseHeader": ["Content-Type", "x-goog-meta-*"],
+    "maxAgeSeconds": 3600
+  }
+]
+
+
+Apply:
+
+gcloud storage buckets update gs://<YOUR_DEV_BUCKET> --cors-file=cors.dev.json
+
+
+Prod bucket: keep strict. List exact origins only (e.g., https://clasio.ai).
+
+// cors.prod.json
+[
+  {
+    "origin": ["https://clasio.ai"],
+    "method": ["GET", "PUT"],
+    "responseHeader": ["Content-Type", "x-goog-meta-*"],
+    "maxAgeSeconds": 3600
+  }
+]
+
+
+Apply:
+
+gcloud storage buckets update gs://<YOUR_PROD_BUCKET> --cors-file=cors.prod.json
+
+
+GCS CORS does not support wildcard subdomains like "https://*.repl.co". Use "*" only on a dev bucket, or keep updating with your current dev URL as needed.
+
+Quick verify in DevTools
+
+In Network tab, you should see an OPTIONS (preflight) returning 204 with access-control-allow-origin echoing your origin.
+
+The PUT should return 200 and also include access-control-allow-origin.
+
+2) Align Content-Type between signer and client (common gotcha)
+
+If your server included Content-Type when generating the V4 signed URL (good for safety), your client must send the same header on the PUT. If you omit/mismatch it, GCS returns a 403 signature error and, without CORS, the browser reports “Failed to fetch”.
+
+Server (Python example):
+
+# when generating the signed URL
+content_type = file_mime or "application/octet-stream"
+url = blob.generate_signed_url(
+    version="v4",
+    method="PUT",
+    expiration=datetime.timedelta(minutes=10),
+    content_type=content_type,  # <-- include this if you enforce it
+)
+
+
+Client (TS/JS):
+
+const headers: Record<string, string> = {};
+if (file.type) headers["Content-Type"] = file.type;
+else headers["Content-Type"] = "application/octet-stream";
+
+const res = await fetch(uploadURL.url, {
+  method: uploadURL.method || "PUT",
+  headers,
+  body: file instanceof Blob ? file : file.data, // ensure a Blob/File
+});
+
+
+If you didn’t sign with Content-Type, either also omit it in the client or switch to the stricter pattern above on both sides.
+
+3) Don’t let the Vite overlay fire (wrap & handle the promise)
+
+Your screenshot shows the error originating inside the component async handler. Make sure the direct PUT is wrapped in try/catch and you never throw from that path if you intend to fall back.
+
+try {
+  const res = await fetch(uploadURL.url, { method: "PUT", headers, body: file });
+  if (!res.ok) {
+    // Try to read error for logs (may fail if CORS not allowed)
+    const msg = await res.text().catch(() => "");
+    console.warn("GCS PUT non-OK:", res.status, msg);
+    // Optional: fall back to server-side upload here
+  } else {
+    console.log("GCS PUT OK");
+  }
+} catch (err) {
+  console.warn("GCS PUT network/CORS error:", err);
+  // Optional: fall back to server-side upload here
+}
+// never let an unhandled rejection bubble to the UI
+
+
+If you still want to keep the screen clean during dev:
+
+// vite.config.ts
+server: { hmr: { overlay: false } } // DEV ONLY
+
+
+…but fixing CORS + headers is the real solution.
+
+4) Sanity checks (fast)
+
+Network tab: If PUT shows (blocked: CORS) or there’s no access-control-allow-origin on the response → CORS fix needed (Step 1).
+
+cURL test (outside browser):
+
+curl -X PUT -H "Content-Type: application/pdf" --data-binary @file.pdf "<SIGNED_URL>"
+
+
+If this works, but the browser fails → it’s CORS, not signing.
+
+Blob vs data: Make sure you’re passing a Blob/File, not a custom object (file.data may be fine in your codebase, but confirm it’s actually a Blob).
+
+5) Why your file appears and you see an error
+
+Browser sends PUT → GCS writes object → GCS responds without the right CORS headers → browser rejects the response → fetch() throws TypeError, overlay pops.
+
+Net effect: object is there, UI thinks “upload failed”.
+
+6) Good defaults to keep
+
+PUT signed URLs expiring in 5–15 minutes.
+
+No credentials on the browser (signed URL only).
+
+CORS: strict on prod (https://clasio.ai), permissive on dev (*), as above.
+
+Consistent Content-Type in signer + client.

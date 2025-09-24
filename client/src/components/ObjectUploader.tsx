@@ -182,37 +182,51 @@ export function ObjectUploader({
               setUploadStatus(`📤 Uploading "${fileName}" - our digital postman is hard at work!`);
               setUploadProgress(40 + (index / files.length) * 40);
               
-              // Try direct GCS upload first - NO THROWING, only return results
-              const directUploadResult = await fetch(uploadURL.url, {
-                method: uploadURL.method || 'PUT',
-                body: file.data,
-                headers: {
-                  'Content-Type': file.type || 'application/octet-stream',
-                },
-              }).then(response => {
+              // Try direct GCS upload with proper CORS error handling (per documentation)
+              let directUploadResult: any;
+              try {
+                // Ensure Content-Type matches exactly what the signed URL was generated with
+                const contentType = file.type || 'application/octet-stream';
+                const headers: Record<string, string> = {
+                  'Content-Type': contentType
+                };
+                
+                console.log(`🔄 Attempting direct GCS upload for ${fileName} with Content-Type: ${contentType}`);
+                
+                const response = await fetch(uploadURL.url, {
+                  method: uploadURL.method || 'PUT',
+                  headers,
+                  body: file.data instanceof Blob ? file.data : new Blob([file.data], { type: contentType }),
+                });
+                
                 if (response.ok) {
-                  return {
+                  console.log(`✅ GCS direct upload successful for ${fileName}`);
+                  directUploadResult = {
                     success: true,
                     originalName: fileName,
                     uploadURL: uploadURL.url,
                     fileSize: file.size,
                     fileType: getFileTypeFromName(fileName),
-                    mimeType: file.type || 'application/octet-stream',
+                    mimeType: contentType,
                   };
                 } else {
-                  return {
+                  // Try to read error message (may fail if CORS not allowed)
+                  const errorText = await response.text().catch(() => 'Unknown error');
+                  console.warn(`❌ GCS direct upload failed for ${fileName}:`, response.status, errorText);
+                  directUploadResult = {
                     success: false,
-                    error: `Direct upload failed: ${response.status} ${response.statusText}`
+                    error: `Direct upload failed: ${response.status} ${response.statusText} - ${errorText}`
                   };
                 }
-              }).catch(fetchError => {
-                // NO THROWING! Just return failure result
-                console.warn('Direct upload failed for', fileName, '- CORS likely blocked it');
-                return {
-                  success: false,
-                  error: `Network error: ${fetchError?.message || 'Unknown fetch error'}`
+              } catch (networkError) {
+                // This is the CORS/network error - the file might still be uploaded!
+                console.warn(`🌐 Network/CORS error for ${fileName} (file may still be uploaded):`, networkError);
+                directUploadResult = {
+                  success: false, 
+                  error: `Network/CORS error: ${networkError instanceof Error ? networkError.message : String(networkError)}`,
+                  possiblyUploaded: true // Flag that file might actually be there
                 };
-              });
+              }
               
               if (directUploadResult.success) {
                 return directUploadResult;
