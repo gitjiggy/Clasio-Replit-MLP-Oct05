@@ -324,9 +324,9 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
         }
         
         // Extract the object path from the file path
-        // File paths are stored as object storage paths like "/objects/uploads/..."
-        // Ensure the path always starts with /objects/ for proper object storage access
-        const objectPath = filePath.startsWith('/objects/') ? filePath : `/objects/${filePath}`;
+        // File paths are stored as canonical GCS paths like "users/{userId}/docs/{docId}/{fileName}"
+        // Remove any leading slash if present, as GCS uses relative paths
+        const objectPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
         
         // Get the file buffer from object storage
         const fileBuffer = await objectStorageService.getObjectBuffer(objectPath);
