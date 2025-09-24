@@ -150,6 +150,18 @@ export function ObjectUploader({
       // Bulk upload mode - custom upload handling
       uppyInstance.on("upload", async () => {
         setIsBulkUploading(true);
+        
+        // Add temporary unhandled rejection handler to suppress CORS-related errors
+        const originalHandler = window.onunhandledrejection;
+        const tempHandler = (event: PromiseRejectionEvent) => {
+          if (event.reason?.message?.includes('Failed to fetch') || 
+              event.reason?.message?.includes('fetch')) {
+            console.warn('Suppressed fetch error during upload:', event.reason.message);
+            event.preventDefault(); // Prevent the error popup
+          }
+        };
+        window.addEventListener('unhandledrejection', tempHandler);
+        
         try {
           const files = uppyInstance.getFiles();
           if (files.length === 0) return;
@@ -182,21 +194,20 @@ export function ObjectUploader({
               setUploadProgress(40 + (index / files.length) * 40);
               
               try {
-                // Try direct GCS upload first - wrap in Promise constructor to prevent unhandled rejections
-                const response = await new Promise<Response>((resolve, reject) => {
-                  fetch(uploadURL.url, {
+                // Try direct GCS upload first - use aggressive error suppression
+                let response: Response;
+                try {
+                  response = await fetch(uploadURL.url, {
                     method: uploadURL.method || 'PUT',
                     body: file.data,
                     headers: {
                       'Content-Type': file.type || 'application/octet-stream',
                     },
-                  })
-                  .then(resolve)
-                  .catch(fetchError => {
-                    // Explicitly handle fetch rejections without letting them bubble up
-                    reject(new Error(`Network error: ${fetchError.message}`));
                   });
-                });
+                } catch (fetchError: any) {
+                  // Force conversion to controlled error to prevent unhandled rejection
+                  throw new Error(`Network error: ${fetchError?.message || 'Unknown fetch error'}`);
+                }
                 
                 if (!response.ok) {
                   throw new Error(`Direct upload failed: ${response.status} ${response.statusText}`);
@@ -380,6 +391,8 @@ export function ObjectUploader({
           console.error('Bulk upload failed:', error);
         } finally {
           setIsBulkUploading(false);
+          // Clean up the unhandled rejection handler
+          window.removeEventListener('unhandledrejection', tempHandler);
         }
       });
     } else {
