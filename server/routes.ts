@@ -112,7 +112,7 @@ const driveDocumentsQuerySchema = z.object({
 
 // Bulk upload schemas
 const bulkUploadRequestSchema = z.object({
-  fileCount: z.number().min(1).max(50), // Allow up to 50 files at once
+  fileNames: z.array(z.string().min(1).max(255)).min(1).max(50), // Required array of filenames for canonical paths
   folderId: z.string().uuid().nullish(),
   tagIds: z.array(z.string().uuid()).optional(),
   analyzeImmediately: z.boolean().default(false), // Whether to analyze immediately or queue
@@ -121,6 +121,8 @@ const bulkUploadRequestSchema = z.object({
 const bulkDocumentCreationSchema = z.object({
   documents: z.array(z.object({
     uploadURL: z.string().min(1),
+    objectPath: z.string().min(1), // REQUIRED for canonical path validation
+    docId: z.string().optional(), // Allow docId for coordination
     name: z.string().min(1).max(255).regex(/^[^<>:"/\\|?*]+$/),
     originalName: z.string().min(1).max(255),
     fileSize: z.number().positive().max(50 * 1024 * 1024),
@@ -222,12 +224,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.uid;
       const { originalFileName, contentType } = req.body;
       
-      // Generate upload URL with proper user path if information is available
-      const uploadURL = userId && originalFileName 
-        ? await objectStorageService.getObjectEntityUploadURL(userId, originalFileName, contentType)
-        : await objectStorageService.getObjectEntityUploadURL();
+      // Enforce canonical path structure - require originalFileName
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      
+      if (!originalFileName) {
+        return res.status(400).json({ error: "originalFileName is required for canonical object path generation" });
+      }
+      
+      // Generate upload URL with proper user path (no fallbacks)
+      const result = await objectStorageService.getObjectEntityUploadURL(userId, originalFileName, contentType);
         
-      res.json({ uploadURL });
+      res.json(result);
     } catch (error) {
       console.error("Error generating upload URL:", error);
       res.status(500).json({ error: "Failed to generate upload URL" });
@@ -237,11 +246,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Complete document upload
   app.post("/api/documents", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
-      const { uploadURL, ...uploadData } = req.body;
+      const { uploadURL, objectPath, docId, ...uploadData } = req.body;
       
-      // Validate uploadURL separately (required but not in schema)
+      // Enforce canonical object path - require objectPath for all new documents
       if (!uploadURL) {
         return res.status(400).json({ error: "Upload URL is required" });
+      }
+      
+      if (!objectPath) {
+        return res.status(400).json({ error: "objectPath is required for canonical file storage - please use the proper upload URL endpoint" });
       }
       
       // Validate and sanitize upload data
@@ -259,8 +272,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { name, originalName, fileSize, fileType, mimeType, folderId, tagIds } = validationResult.data;
 
-      // Normalize the object path
-      const filePath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      // Validate the object path structure and ownership  
+      const validation = objectStorageService.validateCanonicalObjectPath(objectPath, req.user?.uid!, originalName);
+      if (!validation.isValid) {
+        return res.status(400).json({ error: validation.error });
+      }
+
+      // Use the validated canonical object path
+      const filePath = objectPath;
 
       // Create document record
       const normalizedFolderId = folderId && folderId !== "all" ? folderId : null;
@@ -287,9 +306,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Validate user for queueing operations
-      const userId = req.user?.uid;
-      if (!userId) {
+      // Validate user for queueing operations  
+      const currentUserId = req.user?.uid;
+      if (!currentUserId) {
         return res.status(401).json({ error: "User authentication required for document processing" });
       }
 
@@ -304,7 +323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // 🚀 AUTO-QUEUE AI ANALYSIS: Only after content extraction succeeds
             try {
-              await storage.enqueueDocumentForAnalysis(document.id, userId, 5); // Normal priority
+              await storage.enqueueDocumentForAnalysis(document.id, currentUserId, 5); // Normal priority
               console.log(`🔍 Auto-queued AI analysis for: ${document.name} (triggered by content extraction)`);
             } catch (analysisError) {
               console.warn(`Failed to auto-queue AI analysis for ${document.name}:`, analysisError);
@@ -337,26 +356,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { fileCount, folderId, tagIds, analyzeImmediately } = validationResult.data;
-
-      // Generate multiple upload URLs with proper structure
+      const { fileNames, folderId, tagIds, analyzeImmediately } = validationResult.data;
       const userId = req.user?.uid;
-      const uploadPromises = Array.from({ length: fileCount }, async () => {
-        // For bulk uploads, we use temp paths since individual filenames aren't known yet
-        const url = await objectStorageService.getObjectEntityUploadURL();
+
+      // Enforce canonical path structure
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required for canonical object paths" });
+      }
+
+      // Generate multiple upload URLs with proper structure (no fallbacks)
+      const uploadPromises = fileNames.map(async (originalFileName: string) => {
+        const result = await objectStorageService.getObjectEntityUploadURL(userId, originalFileName, "application/octet-stream");
         return {
-          url,
+          url: result.uploadURL,
+          objectPath: result.objectPath,
+          docId: result.docId,
+          originalFileName,
           method: "PUT" as const
         };
       });
-
+      
       const uploadURLs = await Promise.all(uploadPromises);
 
 
       res.json({
         success: true,
         uploadURLs,
-        message: `🎉 Ready to upload ${fileCount} files! Your digital filing cabinet is hungry for more documents!`,
+        message: `🎉 Ready to upload ${fileNames.length} files! Your digital filing cabinet is hungry for more documents!`,
         bulkUploadConfig: {
           folderId,
           tagIds,
@@ -406,7 +432,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create documents in parallel for speed
       const documentPromises = documentsData.map(async (docData) => {
         try {
-          const filePath = objectStorageService.normalizeObjectEntityPath(docData.uploadURL);
+          // Validate canonical object path for all bulk documents
+          if (!userId) {
+            throw new Error("User authentication required for bulk document creation");
+          }
+          
+          const validation = objectStorageService.validateCanonicalObjectPath(docData.objectPath, userId, docData.originalName);
+          if (!validation.isValid) {
+            throw new Error(`Document "${docData.name}" invalid objectPath: ${validation.error}`);
+          }
+          
+          const filePath = docData.objectPath;
 
           const documentData = {
             name: docData.name,

@@ -293,23 +293,65 @@ export class ObjectStorageService {
     return bucket.file(objectPath);
   }
 
-  async getObjectEntityUploadURL(userId?: string, originalFileName?: string, contentType?: string): Promise<string> {
-    let objectPath: string;
-    
-    if (userId && originalFileName) {
-      // Generate proper document path using the user ID and file name
-      const docId = randomUUID();
-      objectPath = generateDocumentPath(userId, docId, originalFileName);
-    } else {
-      // Fallback to temp path for compatibility
-      objectPath = generateTempUploadPath();
+  async getObjectEntityUploadURL(userId?: string, originalFileName?: string, contentType?: string): Promise<{ uploadURL: string; objectPath: string; docId?: string }> {
+    // Enforce canonical path structure - no temp path fallbacks
+    if (!userId) {
+      throw new StorageAuthError("userId is required for canonical object path generation");
     }
     
-    return this.generateUploadURL(objectPath, contentType || "application/octet-stream");
+    if (!originalFileName) {
+      throw new Error("originalFileName is required for canonical object path generation");
+    }
+    
+    // Generate proper document path using the user ID and file name
+    const docId = randomUUID();
+    const objectPath = generateDocumentPath(userId, docId, originalFileName);
+    
+    const uploadURL = await this.generateUploadURL(objectPath, contentType || "application/octet-stream");
+    
+    return {
+      uploadURL,
+      objectPath,
+      docId
+    };
   }
 
   normalizeObjectEntityPath(objectPath: string): string {
     // Remove leading slashes and normalize the path
     return objectPath.replace(/^\/+/, '').replace(/\/+/g, '/');
+  }
+
+  // Validate that an object path follows the canonical structure and belongs to the user
+  validateCanonicalObjectPath(objectPath: string, userId: string, originalFileName?: string): { isValid: boolean; error?: string } {
+    // Expected pattern: users/{userId}/docs/{docId}/{originalFileName}
+    const canonicalPattern = /^users\/([a-zA-Z0-9_-]+)\/docs\/([a-f0-9-]{36})\/(.+)$/;
+    const match = objectPath.match(canonicalPattern);
+    
+    if (!match) {
+      return { 
+        isValid: false, 
+        error: "Object path must follow format: users/{userId}/docs/{docId}/{originalFileName}" 
+      };
+    }
+    
+    const [, pathUserId, docId, pathFileName] = match;
+    
+    // Verify the path belongs to the authenticated user
+    if (pathUserId !== userId) {
+      return { 
+        isValid: false, 
+        error: "Object path userId does not match authenticated user" 
+      };
+    }
+    
+    // Verify the filename matches if provided
+    if (originalFileName && pathFileName !== originalFileName) {
+      return { 
+        isValid: false, 
+        error: "Object path filename does not match provided originalFileName" 
+      };
+    }
+    
+    return { isValid: true };
   }
 }
