@@ -419,10 +419,27 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
         
         // Provide specific error information for debugging
         const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // For password-protected PDFs, try OCR immediately as fallback
+        if (errorMessage.includes('encrypted') || errorMessage.includes('No password given') || errorMessage.includes('password')) {
+            console.warn("PDF is password-protected, attempting OCR extraction...");
+            try {
+                const ocrText = await extractTextFromImageBuffer(buffer, 'application/pdf');
+                if (ocrText && ocrText.length > 10) {
+                    console.log("✅ OCR extraction successful for password-protected PDF");
+                    return ocrText + " (extracted via OCR from password-protected PDF)";
+                } else {
+                    console.error("OCR extraction failed for password-protected PDF");
+                    return "Error: This PDF is password-protected and OCR extraction failed. Please provide an unprotected version.";
+                }
+            } catch (ocrError) {
+                console.error("OCR fallback failed for password-protected PDF:", ocrError);
+                return "Error: This PDF is password-protected and OCR extraction failed. Please provide an unprotected version.";
+            }
+        }
+        
         if (errorMessage.includes('Invalid PDF structure')) {
             return "Error: PDF file structure is corrupted or unsupported.";
-        } else if (errorMessage.includes('encrypted')) {
-            return "Error: PDF is password-protected or encrypted.";
         } else {
             return `Error extracting text from PDF: ${errorMessage}`;
         }
