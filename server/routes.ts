@@ -219,7 +219,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get upload URL - protected with authentication and strict rate limiting
   app.post("/api/documents/upload-url", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const userId = req.user?.uid;
+      const { originalFileName, contentType } = req.body;
+      
+      // Generate upload URL with proper user path if information is available
+      const uploadURL = userId && originalFileName 
+        ? await objectStorageService.getObjectEntityUploadURL(userId, originalFileName, contentType)
+        : await objectStorageService.getObjectEntityUploadURL();
+        
       res.json({ uploadURL });
     } catch (error) {
       console.error("Error generating upload URL:", error);
@@ -333,7 +340,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { fileCount, folderId, tagIds, analyzeImmediately } = validationResult.data;
 
       // Generate multiple upload URLs with proper structure
+      const userId = req.user?.uid;
       const uploadPromises = Array.from({ length: fileCount }, async () => {
+        // For bulk uploads, we use temp paths since individual filenames aren't known yet
         const url = await objectStorageService.getObjectEntityUploadURL();
         return {
           url,

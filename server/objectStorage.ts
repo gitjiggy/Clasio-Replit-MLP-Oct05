@@ -202,9 +202,18 @@ export class ObjectStorageService {
   }
 
   // Stream download an object directly to response
-  async downloadObject(objectPath: string, res: Response, originalFileName?: string): Promise<void> {
-    const bucket = this.getBucket();
-    const file = bucket.file(objectPath);
+  async downloadObject(objectPathOrFile: string | File, res: Response, originalFileName?: string): Promise<void> {
+    let file: File;
+    let objectPath: string;
+
+    if (typeof objectPathOrFile === 'string') {
+      const bucket = this.getBucket();
+      file = bucket.file(objectPathOrFile);
+      objectPath = objectPathOrFile;
+    } else {
+      file = objectPathOrFile;
+      objectPath = file.name;
+    }
 
     return withRetry(async () => {
       // Check if file exists
@@ -276,5 +285,31 @@ export class ObjectStorageService {
   getFile(objectPath: string): File {
     const bucket = this.getBucket();
     return bucket.file(objectPath);
+  }
+
+  // Legacy compatibility methods for existing route handlers
+  async getObjectEntityFile(objectPath: string): Promise<File> {
+    const bucket = this.getBucket();
+    return bucket.file(objectPath);
+  }
+
+  async getObjectEntityUploadURL(userId?: string, originalFileName?: string, contentType?: string): Promise<string> {
+    let objectPath: string;
+    
+    if (userId && originalFileName) {
+      // Generate proper document path using the user ID and file name
+      const docId = randomUUID();
+      objectPath = generateDocumentPath(userId, docId, originalFileName);
+    } else {
+      // Fallback to temp path for compatibility
+      objectPath = generateTempUploadPath();
+    }
+    
+    return this.generateUploadURL(objectPath, contentType || "application/octet-stream");
+  }
+
+  normalizeObjectEntityPath(objectPath: string): string {
+    // Remove leading slashes and normalize the path
+    return objectPath.replace(/^\/+/, '').replace(/\/+/g, '/');
   }
 }
