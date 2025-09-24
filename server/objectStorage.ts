@@ -95,7 +95,7 @@ async function withRetry<T>(
   config: RetryConfig = DEFAULT_RETRY_CONFIG,
   operationName: string = "operation"
 ): Promise<T> {
-  let lastError: Error;
+  let lastError: Error = new Error("Unknown error");
   
   for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
     try {
@@ -129,8 +129,35 @@ async function withRetry<T>(
 export class ObjectStorageService {
   private bucketName: string;
 
+  // Configure CORS for the bucket to allow direct uploads from browsers
+  private async setupBucketCors(): Promise<void> {
+    try {
+      if (!objectStorageClient) {
+        console.warn("⚠️ GCS client not available, skipping CORS setup");
+        return;
+      }
+      
+      const bucket = objectStorageClient.bucket(this.bucketName);
+      
+      // CORS configuration to allow direct uploads from the web application
+      const corsConfiguration = [{
+        origin: ['*'], // Allow all origins for development; restrict in production
+        method: ['GET', 'PUT', 'POST', 'HEAD'],
+        responseHeader: ['Content-Type', 'Content-Length', 'ETag'],
+        maxAgeSeconds: 3600
+      }];
+
+      await bucket.setCorsConfiguration(corsConfiguration);
+      console.log(`✅ CORS configured for bucket: ${this.bucketName}`);
+    } catch (error) {
+      console.warn(`⚠️ Could not configure CORS for bucket: ${error}`);
+      // Don't throw - this is a best-effort setup
+    }
+  }
+
   constructor() {
     this.bucketName = process.env.GCS_BUCKET_NAME || "development-bucket";
+    this.setupBucketCors(); // Configure CORS for direct uploads
     if (!process.env.GCS_BUCKET_NAME) {
       console.warn("⚠️  GCS_BUCKET_NAME not found, using placeholder bucket name");
     }
