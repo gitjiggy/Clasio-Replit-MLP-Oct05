@@ -270,13 +270,16 @@ export function ObjectUploader({
           // Create documents via bulk API
           if (successful.length > 0) {
             const documentsData = successful.map(result => ({
-              uploadURL: (result as any).uploadURL,
+              uploadURL: (result as any).uploadURL || '/proxy-upload-success',
+              objectPath: (result as any).objectPath || undefined,
               name: result.originalName.replace(/\.[^/.]+$/, ""), // Remove extension
               originalName: result.originalName,
               fileSize: (result as any).fileSize,
-              fileType: (result as any).fileType,
+              fileType: (result as any).fileType || getFileTypeFromName(result.originalName),
               mimeType: (result as any).mimeType,
             }));
+            
+            console.log('🔍 Debug - Documents data for bulk creation:', documentsData);
             
             try {
               const requestBody = {
