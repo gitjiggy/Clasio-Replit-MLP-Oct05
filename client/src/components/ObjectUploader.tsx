@@ -271,7 +271,15 @@ export function ObjectUploader({
             }
           });
           
-          const uploadResults = await Promise.all(uploadPromises);
+          const uploadResults = await Promise.allSettled(uploadPromises).then(results => 
+            results.map(result => 
+              result.status === 'fulfilled' ? result.value : {
+                success: false,
+                originalName: 'unknown',
+                error: result.reason instanceof Error ? result.reason.message : String(result.reason)
+              }
+            )
+          );
           const successful = uploadResults.filter(r => r.success);
           const failed = uploadResults.filter(r => !r.success);
           
