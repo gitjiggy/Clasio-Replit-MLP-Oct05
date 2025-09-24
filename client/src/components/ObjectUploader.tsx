@@ -182,44 +182,47 @@ export function ObjectUploader({
               setUploadStatus(`📤 Uploading "${fileName}" - our digital postman is hard at work!`);
               setUploadProgress(40 + (index / files.length) * 40);
               
-              try {
-                // Try direct GCS upload first - use aggressive error suppression  
-                let response: Response;
-                try {
-                  response = await fetch(uploadURL.url, {
-                    method: uploadURL.method || 'PUT',
-                    body: file.data,
-                    headers: {
-                      'Content-Type': file.type || 'application/octet-stream',
-                    },
-                  });
-                } catch (fetchError: any) {
-                  // Suppress the specific "Failed to fetch" error that causes popups
-                  if (fetchError instanceof TypeError && fetchError.message === 'Failed to fetch') {
-                    console.warn('Suppressed fetch error during upload:', fetchError.message);
-                  }
-                  // Force conversion to controlled error to prevent unhandled rejection
-                  throw new Error(`Network error: ${fetchError?.message || 'Unknown fetch error'}`);
+              // Try direct GCS upload first - NO THROWING, only return results
+              const directUploadResult = await fetch(uploadURL.url, {
+                method: uploadURL.method || 'PUT',
+                body: file.data,
+                headers: {
+                  'Content-Type': file.type || 'application/octet-stream',
+                },
+              }).then(response => {
+                if (response.ok) {
+                  return {
+                    success: true,
+                    originalName: fileName,
+                    uploadURL: uploadURL.url,
+                    fileSize: file.size,
+                    fileType: getFileTypeFromName(fileName),
+                    mimeType: file.type || 'application/octet-stream',
+                  };
+                } else {
+                  return {
+                    success: false,
+                    error: `Direct upload failed: ${response.status} ${response.statusText}`
+                  };
                 }
-                
-                if (!response.ok) {
-                  throw new Error(`Direct upload failed: ${response.status} ${response.statusText}`);
-                }
-                
+              }).catch(fetchError => {
+                // NO THROWING! Just return failure result
+                console.warn('Direct upload failed for', fileName, '- CORS likely blocked it');
                 return {
-                  success: true,
-                  originalName: fileName,
-                  uploadURL: uploadURL.url,
-                  fileSize: file.size,
-                  fileType: getFileTypeFromName(fileName),
-                  mimeType: file.type || 'application/octet-stream',
+                  success: false,
+                  error: `Network error: ${fetchError?.message || 'Unknown fetch error'}`
                 };
-              } catch (directUploadError) {
-                // Direct upload failed (likely CORS), try server proxy fallback
-                console.warn(`Direct upload failed for ${fileName}, trying server proxy:`, directUploadError);
-                setUploadStatus(`🔄 Retrying "${fileName}" via server proxy...`);
-                
-                try {
+              });
+              
+              if (directUploadResult.success) {
+                return directUploadResult;
+              }
+              
+              // Direct upload failed, try server proxy fallback
+              console.warn(`Direct upload failed for ${fileName}, trying server proxy:`, directUploadResult.error);
+              setUploadStatus(`🔄 Retrying "${fileName}" via server proxy...`);
+              
+              try {
                   const formData = new FormData();
                   formData.append('file', file.data as File, fileName);
                   
@@ -252,14 +255,13 @@ export function ObjectUploader({
                     fileType: proxyResult.fileType,
                     mimeType: proxyResult.mimeType,
                   };
-                } catch (proxyError) {
-                  console.error(`Both direct and proxy upload failed for ${fileName}:`, proxyError);
-                  return {
-                    success: false,
-                    originalName: fileName,
-                    error: `Upload failed: ${proxyError instanceof Error ? proxyError.message : String(proxyError)}`,
-                  };
-                }
+              } catch (proxyError) {
+                console.error(`Both direct and proxy upload failed for ${fileName}:`, proxyError);
+                return {
+                  success: false,
+                  originalName: fileName,
+                  error: `Upload failed: ${proxyError instanceof Error ? proxyError.message : String(proxyError)}`,
+                };
               }
             } catch (error) {
               console.error(`Upload error for ${fileName}:`, error);
