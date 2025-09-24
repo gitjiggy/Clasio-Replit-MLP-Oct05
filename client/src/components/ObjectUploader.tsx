@@ -188,7 +188,11 @@ export function ObjectUploader({
           // Upload files - try direct GCS first, fallback to server proxy on CORS errors
           const uploadPromises = files.map(async (file, index) => {
             const fileName = file.name || 'unknown';
-            try {
+            
+            // Wrap entire upload in a comprehensive error boundary
+            return await new Promise<any>((resolve) => {
+              (async () => {
+                try {
               const uploadURL = bulkResponse.uploadURLs[index];
               setUploadStatus(`📤 Uploading "${fileName}" - our digital postman is hard at work!`);
               setUploadProgress(40 + (index / files.length) * 40);
@@ -268,14 +272,24 @@ export function ObjectUploader({
                   };
                 }
               }
-            } catch (error) {
-              console.error(`Upload error for ${fileName}:`, error);
-              return {
-                success: false,
-                originalName: fileName,
-                error: error instanceof Error ? error.message : String(error),
-              };
-            }
+                } catch (error) {
+                  console.error(`Upload error for ${fileName}:`, error);
+                  resolve({
+                    success: false,
+                    originalName: fileName,
+                    error: error instanceof Error ? error.message : String(error),
+                  });
+                }
+              })().catch(unexpectedError => {
+                // Final catch for any unexpected errors
+                console.error(`Unexpected upload error for ${fileName}:`, unexpectedError);
+                resolve({
+                  success: false,
+                  originalName: fileName,
+                  error: `Unexpected error: ${unexpectedError instanceof Error ? unexpectedError.message : String(unexpectedError)}`,
+                });
+              });
+            });
           });
           
           const uploadResults = await Promise.all(uploadPromises);
