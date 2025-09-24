@@ -182,13 +182,16 @@ export function ObjectUploader({
               setUploadProgress(40 + (index / files.length) * 40);
               
               try {
-                // Try direct GCS upload first
+                // Try direct GCS upload first - wrap in explicit promise handling to prevent unhandled rejections
                 const response = await fetch(uploadURL.url, {
                   method: uploadURL.method || 'PUT',
                   body: file.data,
                   headers: {
                     'Content-Type': file.type || 'application/octet-stream',
                   },
+                }).catch(fetchError => {
+                  // Explicitly catch fetch rejections (CORS, network errors)
+                  throw new Error(`Network error: ${fetchError.message}`);
                 });
                 
                 if (!response.ok) {
