@@ -54,7 +54,7 @@ interface ObjectUploaderProps {
   children: ReactNode;
   // Bulk upload support
   enableBulkUpload?: boolean;
-  onGetBulkUploadParameters?: (fileCount: number) => Promise<{
+  onGetBulkUploadParameters?: (fileNames: string[]) => Promise<{
     uploadURLs: Array<{ method: "PUT"; url: string }>;
     bulkUploadConfig: {
       folderId?: string | null;
@@ -146,7 +146,7 @@ export function ObjectUploader({
           // Get bulk upload URLs with rate limit error handling
           let bulkResponse;
           try {
-            bulkResponse = await onGetBulkUploadParameters(files.length);
+            bulkResponse = await onGetBulkUploadParameters(files.map(file => file.name).filter((name): name is string => name !== undefined));
           } catch (error) {
             console.error("Error getting bulk upload URLs:", error);
             if (error instanceof Error && (error.message.includes("429") || error.message.includes("speed racer") || error.message.includes("Too many bulk uploads"))) {

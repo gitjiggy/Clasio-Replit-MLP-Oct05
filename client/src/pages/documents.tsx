@@ -654,9 +654,9 @@ export default function Documents() {
   };
 
   // Bulk upload function for multiple files
-  const getBulkUploadParameters = async (fileCount: number) => {
+  const getBulkUploadParameters = async (fileNames: string[]) => {
     const response = await apiRequest("POST", "/api/documents/bulk-upload-urls", {
-      fileCount,
+      fileNames,
       analyzeImmediately: false // Let the queue processor handle priority
     });
     const data = await response.json();
