@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { ObjectStorageService, ObjectNotFoundError, generateDocumentPath } from "./objectStorage";
+import { randomUUID } from 'crypto';
 import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth";
 import { DriveService } from "./driveService";
 import { strictLimiter, moderateLimiter, standardLimiter, bulkUploadLimiter } from "./rateLimit";
@@ -373,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         docId,
         originalFileName,
         fileSize: req.file.size,
-        fileType: getFileTypeFromName(originalFileName),
+        fileType: getFileTypeFromMimeType(req.file.mimetype),
         mimeType: req.file.mimetype
       });
     } catch (error) {

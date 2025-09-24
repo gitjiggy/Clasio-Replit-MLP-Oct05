@@ -169,6 +169,7 @@ export function ObjectUploader({
               setUploadStatus(`📤 Uploading "${file.name}" - our digital postman is hard at work!`);
               setUploadProgress(40 + (index / files.length) * 40);
               
+              let directUploadFailed = false;
               try {
                 // Try direct GCS upload first
                 const response = await fetch(uploadURL.url, {
@@ -180,8 +181,8 @@ export function ObjectUploader({
                 });
                 
                 if (!response.ok) {
-                  const errorText = await response.text();
-                  throw new Error(`Direct upload failed: ${response.status} ${response.statusText} - ${errorText}`);
+                  directUploadFailed = true;
+                  throw new Error(`Direct upload failed: ${response.status} ${response.statusText}`);
                 }
                 
                 return {
@@ -193,6 +194,7 @@ export function ObjectUploader({
                   mimeType: file.type || 'application/octet-stream',
                 };
               } catch (directUploadError) {
+                directUploadFailed = true;
                 // If direct upload fails (likely CORS), fallback to server-side upload
                 console.warn(`Direct upload failed for ${file.name}, trying server proxy:`, directUploadError);
                 setUploadStatus(`🔄 Retrying "${file.name}" via server proxy...`);
