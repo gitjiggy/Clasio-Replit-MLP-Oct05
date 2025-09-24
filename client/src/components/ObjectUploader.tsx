@@ -203,6 +203,8 @@ export function ObjectUploader({
                 formData.append('file', file.data as File, file.name);
                 
                 const idToken = await getFirebaseIdToken();
+                console.log('🔑 Firebase token obtained for proxy upload:', idToken ? 'Token present' : 'No token');
+                
                 const proxyResponse = await fetch('/api/documents/upload-proxy', {
                   method: 'POST',
                   body: formData,
@@ -210,6 +212,8 @@ export function ObjectUploader({
                     'Authorization': `Bearer ${idToken}`,
                   },
                 });
+                
+                console.log('📡 Proxy response status:', proxyResponse.status);
                 
                 if (!proxyResponse.ok) {
                   const errorText = await proxyResponse.text();
