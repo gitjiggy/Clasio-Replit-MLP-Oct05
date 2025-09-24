@@ -1,0 +1,91 @@
+Request: Move Clasio storage from Replit Object Storage → Clasio’s own GCS
+
+Context
+	•	Clasio already has its own Google Cloud Storage (GCS) bucket set up.
+	•	We want all uploads/downloads/signed URLs to use Clasio’s GCS directly.
+	•	No migration needed: existing files in Replit’s storage were test-only and can be discarded.
+
+⸻
+
+Scope of Work (Replit to implement)
+	1.	Remove Replit sidecar & App Storage
+
+	•	Eliminate any usage of REPLIT_SIDECAR_ENDPOINT and Replit’s Object Storage/App Storage in the codebase.
+
+	2.	Use standard GCS client w/ Clasio service account
+
+	•	Initialize Google Cloud Storage using Clasio’s service account credentials (provided as env/secret).
+	•	Target Clasio’s GCS project & bucket (names provided below).
+
+	3.	Signed URLs via native GCS (V4)
+
+	•	Replace sidecar-based signing with GCS V4 signed URLs for read/write/delete.
+	•	Ensure support for upload (with contentType) and download (with responseDisposition for filename).
+
+	4.	Object path scheme (please adopt exactly)
+
+	•	Store objects using this convention (collision-proof, debuggable):
+	•	users/{userId}/docs/{docId}/{originalFileName}
+	•	users/{userId}/previews/{docId}.jpg (optional)
+	•	users/{userId}/metadata/{docId}.json (optional)
+	•	system/embeddings/{docId}.json (optional)
+	•	temp/uploads/{uuid} (optional, if you use pre-signed PUTs)
+	•	Save the full object path in our DB metadata so all APIs remain consistent.
+
+	5.	Environment variables (Replit Secrets)
+
+	•	Please wire the app to read these (we’ll provide values):
+	•	GCP_PROJECT_ID
+	•	GCS_BUCKET_NAME
+	•	One of:
+	•	GOOGLE_APPLICATION_CREDENTIALS (path to mounted JSON key), or
+	•	GCP_SERVICE_ACCOUNT_KEY (raw JSON as a single secret string; you parse in code)
+	•	Use Uniform bucket-level access and keep objects private; expose via time-limited signed URLs.
+
+	6.	CORS & uploads
+
+	•	If uploads go client → backend → GCS (recommended), bucket CORS changes are not required.
+	•	If you introduce direct browser → GCS uploads with signed PUT/POST, please provide bucket CORS rules for our app origins.
+
+	7.	Testing & validation
+
+	•	Upload a file via /api/documents → verify object appears in Clasio’s bucket under the path scheme above.
+	•	Generate read URL (V4) → verify download works and filename is correct.
+	•	(Optional) Generate write URL (V4) → verify browser can PUT with correct contentType.
+	•	Delete test objects and confirm permissions are enforced.
+
+⸻
+
+What I (Clasio) will provide
+	•	GCS project ID
+	•	GCS bucket name
+	•	Service account with appropriate roles (Storage Object Admin + Viewer)
+	•	Service account key (JSON), delivered as a Replit Secret or path
+
+⸻
+
+What I need from you (action required)
+	1.	Send me step-by-step instructions for exactly what you need from me to enable this:
+	•	Whether you prefer GOOGLE_APPLICATION_CREDENTIALS (file path) or GCP_SERVICE_ACCOUNT_KEY (inline JSON).
+	•	Exact secret names you want me to create in Replit.
+	•	Any formatting requirements (e.g., base64 vs raw JSON).
+	2.	Confirm code changes you will make:
+	•	Files/modules to be updated (e.g., storage client init, upload handlers, signed URL generator, any path parsing helpers).
+	•	Any new endpoints/config flags you’ll introduce (e.g., POST /prepare-upload).
+	3.	Provide a short test script/checklist I can run to confirm:
+	•	Upload works and lands in my bucket (with correct path).
+	•	Read signed URL works (with filename).
+	•	(Optional) Write signed URL works from browser for large files.
+
+⸻
+
+Acceptance Criteria
+	•	No references to Replit’s sidecar or App Storage remain.
+	•	All object operations (upload/read/delete) use Clasio’s GCS via standard client + service account.
+	•	Signed URLs are V4 and time-limited.
+	•	The object path convention above is enforced and stored in DB metadata.
+	•	A short test procedure is provided and passes.
+
+⸻
+
+If you need any additional details (e.g., preferred TTL for signed URLs, MIME handling defaults), ask and I’ll confirm.

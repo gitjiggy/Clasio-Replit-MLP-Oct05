@@ -1,0 +1,38 @@
+Answers to Clarification Questions
+	1.	Signed URL TTL
+
+	•	Downloads: 1 hour TTL ✅ (set responseDisposition for filename).
+	•	Uploads: 15 minutes TTL ✅ (require correct contentType in the signed request).
+
+	2.	Direct browser uploads
+
+	•	MVP: Keep all uploads through the backend (simpler, fewer CORS + key exposure risks).
+	•	Later (nice-to-have): Add pre-signed PUT for files > 20 MB only.
+
+	3.	Existing data
+
+	•	Confirmed: Replit storage files were test-only → discard.
+	•	No migration scripts needed.
+
+	4.	Error handling
+
+	•	GCS auth failures (bad/expired SA key):
+	•	Return HTTP 502 with code STORAGE_AUTH_FAILED.
+	•	Log error + stack; alert. Do not proceed with partial writes.
+	•	Bucket unavailable / transient GCS errors:
+	•	Retry with exponential backoff (e.g., 3 attempts: 200ms, 800ms, 2s).
+	•	If still failing, return HTTP 503 with code STORAGE_TEMP_UNAVAILABLE and a user-friendly message (“Please try again shortly”).
+	•	Do not silently drop uploads; do not store permanently on local disk.
+	•	Operational logging: Include request ID, user ID, object path, action (upload/read/delete), and error code for all failures.
+
+Additional Implementation Preferences (for completeness)
+	•	Bucket access: Uniform bucket-level access ON; objects private by default.
+	•	Signed URLs: V4 signing only; include contentType (uploads) and responseDisposition (downloads).
+	•	Object paths (must use exactly):
+	•	users/{userId}/docs/{docId}/{originalFileName}
+	•	users/{userId}/previews/{docId}.jpg (optional)
+	•	users/{userId}/metadata/{docId}.json (optional)
+	•	system/embeddings/{docId}.json (optional)
+	•	Env vars (Replit Secrets): GCP_PROJECT_ID, GCS_BUCKET_NAME, and either GOOGLE_APPLICATION_CREDENTIALS (file path) or GCP_SERVICE_ACCOUNT_KEY (raw JSON).
+	•	Security: Keys in Secrets only; no repo files.
+	•	Test checklist: Upload → verify in Clasio bucket (path scheme); generate read URL → download with correct filename; (optional) generate write URL for large files → confirm PUT works with contentType.
