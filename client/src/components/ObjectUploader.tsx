@@ -151,17 +151,6 @@ export function ObjectUploader({
       uppyInstance.on("upload", async () => {
         setIsBulkUploading(true);
         
-        // Add temporary unhandled rejection handler to suppress CORS-related errors
-        const originalHandler = window.onunhandledrejection;
-        const tempHandler = (event: PromiseRejectionEvent) => {
-          if (event.reason?.message?.includes('Failed to fetch') || 
-              event.reason?.message?.includes('fetch')) {
-            console.warn('Suppressed fetch error during upload:', event.reason.message);
-            event.preventDefault(); // Prevent the error popup
-          }
-        };
-        window.addEventListener('unhandledrejection', tempHandler);
-        
         try {
           const files = uppyInstance.getFiles();
           if (files.length === 0) return;
@@ -188,17 +177,13 @@ export function ObjectUploader({
           // Upload files - try direct GCS first, fallback to server proxy on CORS errors
           const uploadPromises = files.map(async (file, index) => {
             const fileName = file.name || 'unknown';
-            
-            // Wrap entire upload in a comprehensive error boundary
-            return await new Promise<any>((resolve) => {
-              (async () => {
-                try {
+            try {
               const uploadURL = bulkResponse.uploadURLs[index];
               setUploadStatus(`📤 Uploading "${fileName}" - our digital postman is hard at work!`);
               setUploadProgress(40 + (index / files.length) * 40);
               
               try {
-                // Try direct GCS upload first - use aggressive error suppression
+                // Try direct GCS upload first - use aggressive error suppression  
                 let response: Response;
                 try {
                   response = await fetch(uploadURL.url, {
@@ -209,6 +194,10 @@ export function ObjectUploader({
                     },
                   });
                 } catch (fetchError: any) {
+                  // Suppress the specific "Failed to fetch" error that causes popups
+                  if (fetchError instanceof TypeError && fetchError.message === 'Failed to fetch') {
+                    console.warn('Suppressed fetch error during upload:', fetchError.message);
+                  }
                   // Force conversion to controlled error to prevent unhandled rejection
                   throw new Error(`Network error: ${fetchError?.message || 'Unknown fetch error'}`);
                 }
@@ -272,24 +261,14 @@ export function ObjectUploader({
                   };
                 }
               }
-                } catch (error) {
-                  console.error(`Upload error for ${fileName}:`, error);
-                  resolve({
-                    success: false,
-                    originalName: fileName,
-                    error: error instanceof Error ? error.message : String(error),
-                  });
-                }
-              })().catch(unexpectedError => {
-                // Final catch for any unexpected errors
-                console.error(`Unexpected upload error for ${fileName}:`, unexpectedError);
-                resolve({
-                  success: false,
-                  originalName: fileName,
-                  error: `Unexpected error: ${unexpectedError instanceof Error ? unexpectedError.message : String(unexpectedError)}`,
-                });
-              });
-            });
+            } catch (error) {
+              console.error(`Upload error for ${fileName}:`, error);
+              return {
+                success: false,
+                originalName: fileName,
+                error: error instanceof Error ? error.message : String(error),
+              };
+            }
           });
           
           const uploadResults = await Promise.all(uploadPromises);
@@ -405,8 +384,6 @@ export function ObjectUploader({
           console.error('Bulk upload failed:', error);
         } finally {
           setIsBulkUploading(false);
-          // Clean up the unhandled rejection handler
-          window.removeEventListener('unhandledrejection', tempHandler);
         }
       });
     } else {
