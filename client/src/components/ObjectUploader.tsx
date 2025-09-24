@@ -30,12 +30,23 @@ const getFileTypeFromName = (filename: string): string => {
 // Helper function to get Firebase ID token
 const getFirebaseIdToken = async (): Promise<string> => {
   try {
-    // Import the actual firebase function
-    const { getGoogleAccessToken } = await import("@/lib/firebase");
-    const idToken = await getGoogleAccessToken();
+    // Import Firebase auth to get the current user's ID token
+    const { auth } = await import("@/lib/firebase");
+    const currentUser = auth.currentUser;
+    
+    console.log("🔍 Debug - Current user:", currentUser ? "authenticated" : "not authenticated");
+    
+    if (!currentUser) {
+      console.warn("⚠️ No authenticated user found");
+      return "";
+    }
+    
+    // Get the Firebase ID token from the current user
+    const idToken = await currentUser.getIdToken();
+    console.log("🔍 Debug - Firebase ID token obtained:", idToken ? "valid token" : "failed");
     return idToken || "";
   } catch (error) {
-    console.error("Failed to get Firebase ID token:", error);
+    console.error("❌ Failed to get Firebase ID token:", error);
     return "";
   }
 };
