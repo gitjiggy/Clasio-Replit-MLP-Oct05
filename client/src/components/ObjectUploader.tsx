@@ -175,12 +175,12 @@ export function ObjectUploader({
           
           // Upload files - try direct GCS first, fallback to server proxy on CORS errors
           const uploadPromises = files.map(async (file, index) => {
+            const fileName = file.name || 'unknown';
             try {
               const uploadURL = bulkResponse.uploadURLs[index];
-              setUploadStatus(`📤 Uploading "${file.name}" - our digital postman is hard at work!`);
+              setUploadStatus(`📤 Uploading "${fileName}" - our digital postman is hard at work!`);
               setUploadProgress(40 + (index / files.length) * 40);
               
-              let directUploadFailed = false;
               try {
                 // Try direct GCS upload first
                 const response = await fetch(uploadURL.url, {
@@ -192,60 +192,68 @@ export function ObjectUploader({
                 });
                 
                 if (!response.ok) {
-                  directUploadFailed = true;
                   throw new Error(`Direct upload failed: ${response.status} ${response.statusText}`);
                 }
                 
                 return {
                   success: true,
-                  originalName: file.name || 'unknown',
+                  originalName: fileName,
                   uploadURL: uploadURL.url,
                   fileSize: file.size,
-                  fileType: getFileTypeFromName(file.name || 'unknown'),
+                  fileType: getFileTypeFromName(fileName),
                   mimeType: file.type || 'application/octet-stream',
                 };
               } catch (directUploadError) {
-                directUploadFailed = true;
-                // If direct upload fails (likely CORS), fallback to server-side upload
-                console.warn(`Direct upload failed for ${file.name}, trying server proxy:`, directUploadError);
-                setUploadStatus(`🔄 Retrying "${file.name}" via server proxy...`);
+                // Direct upload failed (likely CORS), try server proxy fallback
+                console.warn(`Direct upload failed for ${fileName}, trying server proxy:`, directUploadError);
+                setUploadStatus(`🔄 Retrying "${fileName}" via server proxy...`);
                 
-                const formData = new FormData();
-                formData.append('file', file.data as File, file.name);
-                
-                const idToken = await getFirebaseIdToken();
-                console.log('🔑 Firebase token obtained for proxy upload:', idToken ? 'Token present' : 'No token');
-                
-                const proxyResponse = await fetch('/api/documents/upload-proxy', {
-                  method: 'POST',
-                  body: formData,
-                  headers: {
-                    'Authorization': `Bearer ${idToken}`,
-                  },
-                });
-                
-                console.log('📡 Proxy response status:', proxyResponse.status);
-                
-                if (!proxyResponse.ok) {
-                  const errorText = await proxyResponse.text();
-                  throw new Error(`Server proxy upload failed: ${proxyResponse.status} ${proxyResponse.statusText} - ${errorText}`);
+                try {
+                  const formData = new FormData();
+                  formData.append('file', file.data as File, fileName);
+                  
+                  const idToken = await getFirebaseIdToken();
+                  console.log('🔑 Firebase token obtained for proxy upload:', idToken ? 'Token present' : 'No token');
+                  
+                  const proxyResponse = await fetch('/api/documents/upload-proxy', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                      'Authorization': `Bearer ${idToken}`,
+                    },
+                  });
+                  
+                  console.log('📡 Proxy response status:', proxyResponse.status);
+                  
+                  if (!proxyResponse.ok) {
+                    const errorText = await proxyResponse.text();
+                    throw new Error(`Server proxy upload failed: ${proxyResponse.status} ${proxyResponse.statusText} - ${errorText}`);
+                  }
+                  
+                  const proxyResult = await proxyResponse.json();
+                  return {
+                    success: true,
+                    originalName: fileName,
+                    objectPath: proxyResult.objectPath,
+                    docId: proxyResult.docId,
+                    fileSize: proxyResult.fileSize,
+                    fileType: proxyResult.fileType,
+                    mimeType: proxyResult.mimeType,
+                  };
+                } catch (proxyError) {
+                  console.error(`Both direct and proxy upload failed for ${fileName}:`, proxyError);
+                  return {
+                    success: false,
+                    originalName: fileName,
+                    error: `Upload failed: ${proxyError instanceof Error ? proxyError.message : String(proxyError)}`,
+                  };
                 }
-                
-                const proxyResult = await proxyResponse.json();
-                return {
-                  success: true,
-                  originalName: file.name || 'unknown',
-                  objectPath: proxyResult.objectPath,
-                  docId: proxyResult.docId,
-                  fileSize: proxyResult.fileSize,
-                  fileType: proxyResult.fileType,
-                  mimeType: proxyResult.mimeType,
-                };
               }
             } catch (error) {
+              console.error(`Upload error for ${fileName}:`, error);
               return {
                 success: false,
-                originalName: file.name || 'unknown',
+                originalName: fileName,
                 error: error instanceof Error ? error.message : String(error),
               };
             }
