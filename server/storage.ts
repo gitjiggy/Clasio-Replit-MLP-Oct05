@@ -3521,7 +3521,7 @@ export class DatabaseStorage implements IStorage {
       // Automatically organize the document into folders based on AI classification
       if (updatedDoc && analysis.category && analysis.documentType) {
         try {
-          await this.organizeDocumentIntoFolder(documentId, analysis.category, analysis.documentType);
+          await this.organizeDocumentIntoFolder(documentId, analysis.category, analysis.documentType, userId);
         } catch (orgError) {
           console.error("Failed to auto-organize document, but continuing:", orgError);
           // Don't fail the AI analysis if organization fails
@@ -3614,6 +3614,11 @@ export class DatabaseStorage implements IStorage {
   // Automatic Folder Organization Methods
   async findOrCreateCategoryFolder(category: string, userId: string): Promise<Folder> {
     await this.ensureInitialized();
+    
+    // Runtime guard: Fail fast if userId is missing
+    if (!userId || userId.trim() === '') {
+      throw new Error(`findOrCreateCategoryFolder: userId is required but was: ${userId}`);
+    }
     
     // Validate that category is one of the predefined categories
     if (!MAIN_CATEGORIES.includes(category as MainCategory)) {
@@ -3733,6 +3738,11 @@ export class DatabaseStorage implements IStorage {
     try {
       await this.ensureInitialized();
       
+      // Runtime guard: Fail fast if userId is missing
+      if (!userId || userId.trim() === '') {
+        throw new Error(`organizeDocumentIntoFolder: userId is required but was: ${userId}`);
+      }
+      
       // Find or create the main category folder
       const categoryFolder = await this.findOrCreateCategoryFolder(category, userId);
       
@@ -3834,6 +3844,7 @@ export class DatabaseStorage implements IStorage {
           name: documents.name,
           aiCategory: documents.aiCategory,
           aiDocumentType: documents.aiDocumentType,
+          userId: documents.userId,
         })
         .from(documents)
         .where(
@@ -3853,7 +3864,7 @@ export class DatabaseStorage implements IStorage {
       for (const doc of unorganizedDocs) {
         if (doc.aiCategory && doc.aiDocumentType) {
           try {
-            const success = await this.organizeDocumentIntoFolder(doc.id, doc.aiCategory, doc.aiDocumentType);
+            const success = await this.organizeDocumentIntoFolder(doc.id, doc.aiCategory, doc.aiDocumentType, doc.userId);
             if (success) {
               organized++;
               console.log(`✓ Organized "${doc.name}" into ${doc.aiCategory}/${doc.aiDocumentType}`);
