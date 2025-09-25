@@ -135,6 +135,7 @@ export interface IStorage {
   getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
+  restoreDocument(id: string): Promise<boolean>;
   analyzeDocumentWithAI(id: string, driveContent?: string, driveAccessToken?: string): Promise<boolean>;
   extractDocumentContent(id: string, driveAccessToken?: string): Promise<boolean>;
   getDocumentsWithoutContent(): Promise<Document[]>;
@@ -2348,6 +2349,59 @@ export class DatabaseStorage implements IStorage {
       return true;
     } catch (error) {
       console.error(`Error deleting document ${id}:`, error);
+      return false;
+    }
+  }
+
+  async restoreDocument(id: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      // First, fetch the trashed document
+      const trashedDoc = await db
+        .select()
+        .from(documents)
+        .where(and(eq(documents.id, id), eq(documents.status, 'trashed')))
+        .limit(1);
+
+      if (trashedDoc.length === 0) {
+        console.warn(`Document ${id} not found in trash or not eligible for restore`);
+        return false;
+      }
+
+      const document = trashedDoc[0];
+
+      // Check if within 7-day restore window
+      if (document.deletedAt) {
+        const daysSinceDeleted = (Date.now() - document.deletedAt.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceDeleted > 7) {
+          console.warn(`Document ${id} is beyond the 7-day restore window (${daysSinceDeleted.toFixed(1)} days old)`);
+          return false;
+        }
+      }
+
+      // Restore the document by updating status and clearing deletedAt
+      const result = await db
+        .update(documents)
+        .set({
+          status: 'active',
+          deletedAt: null,
+        })
+        .where(eq(documents.id, id))
+        .returning();
+
+      if (result.length === 0) {
+        console.warn(`Failed to restore document ${id}`);
+        return false;
+      }
+
+      // Note: Files were already deleted from GCS during trash operation
+      // User will need to re-upload the file if they want the content back
+      console.log(`🔄 Document "${document.name}" restored from trash (file content will need to be re-uploaded)`);
+      
+      return true;
+    } catch (error) {
+      console.error(`Error restoring document ${id}:`, error);
       return false;
     }
   }

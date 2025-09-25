@@ -1016,6 +1016,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Restore document from trash
+  app.patch("/api/documents/:id/restore", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const restored = await storage.restoreDocument(req.params.id);
+      if (!restored) {
+        return res.status(404).json({ 
+          error: "Document not found in trash or not eligible for restore",
+          details: "Documents can only be restored within 7 days of deletion"
+        });
+      }
+      res.json({ 
+        success: true,
+        message: "Document restored successfully",
+        note: "File content was deleted during trash operation - you may need to re-upload the file"
+      });
+    } catch (error) {
+      console.error("Error restoring document:", error);
+      res.status(500).json({ error: "Failed to restore document" });
+    }
+  });
+
   // AI Analysis endpoint
   app.post("/api/documents/:id/analyze", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
     try {
