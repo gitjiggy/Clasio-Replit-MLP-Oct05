@@ -113,7 +113,10 @@ const driveDocumentsQuerySchema = z.object({
 
 // Bulk upload schemas
 const bulkUploadRequestSchema = z.object({
-  fileNames: z.array(z.string().min(1).max(255)).min(1).max(50), // Required array of filenames for canonical paths
+  files: z.array(z.object({
+    name: z.string().min(1).max(255),
+    mimeType: z.string().min(1) // Real MIME type from File.type
+  })).min(1).max(50), // Required array of file objects for canonical paths
   folderId: z.string().uuid().nullish(),
   tagIds: z.array(z.string().uuid()).optional(),
   analyzeImmediately: z.boolean().default(false), // Whether to analyze immediately or queue
@@ -398,7 +401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { fileNames, folderId, tagIds, analyzeImmediately } = validationResult.data;
+      const { files, folderId, tagIds, analyzeImmediately } = validationResult.data;
       const userId = req.user?.uid;
 
       // Enforce canonical path structure
@@ -407,14 +410,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate multiple upload URLs with proper structure (no fallbacks)
-      const uploadPromises = fileNames.map(async (originalFileName: string) => {
-        const result = await objectStorageService.getObjectEntityUploadURL(userId, originalFileName, "application/octet-stream");
+      const uploadPromises = files.map(async (fileInfo: { name: string; mimeType: string }) => {
+        const result = await objectStorageService.getObjectEntityUploadURL(userId, fileInfo.name, fileInfo.mimeType);
         return {
           url: result.uploadURL,
           objectPath: result.objectPath,
           docId: result.docId,
-          originalFileName,
-          method: "PUT" as const
+          originalFileName: fileInfo.name,
+          method: result.method,
+          headers: result.headers
         };
       });
       
@@ -424,7 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         success: true,
         uploadURLs,
-        message: `🎉 Ready to upload ${fileNames.length} files! Your digital filing cabinet is hungry for more documents!`,
+        message: `🎉 Ready to upload ${files.length} files! Your digital filing cabinet is hungry for more documents!`,
         bulkUploadConfig: {
           folderId,
           tagIds,

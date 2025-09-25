@@ -78,7 +78,7 @@ function useFlavor(state: UploadState) {
 
 // Concurrency helper for parallel uploads
 async function uploadAllWithConcurrency(
-  signed: { url: string; headers?: Record<string, string> }[],
+  signed: { url: string; method: string; headers: Record<string, string>; objectPath: string }[],
   files: File[],
   limit = 5
 ): Promise<void> {
@@ -99,18 +99,27 @@ async function uploadAllWithConcurrency(
         const i = queue.shift()!;
         active++;
         
-        const headers = {
-          "Content-Type": files[i].type || "application/octet-stream",
-          ...(signed[i].headers || {}),
-        };
+        // Use EXACT headers from server; do not invent/transform
+        const { url, method, headers } = signed[i]; // headers: { "Content-Type": "<MIME>" }
         
-        fetch(signed[i].url, { 
-          method: "PUT", 
-          headers, 
+        // Client-side logging: log before PUT
+        console.log(`📤 Client uploading:`, {
+          objectPath: signed[i].objectPath,
+          method: method || "PUT",
+          "Content-Type": headers["Content-Type"]
+        });
+        
+        fetch(url, { 
+          method: method || "PUT", 
+          headers, // Use exact headers from server
           body: files[i] 
         })
           .then(r => { 
-            if (!r.ok) throw new Error(`PUT ${r.status} ${r.statusText}`); 
+            if (!r.ok) {
+              console.error(`❌ Upload failed for ${signed[i].objectPath}: ${r.status} ${r.statusText}`);
+              throw new Error(`PUT ${r.status} ${r.statusText}`);
+            }
+            console.log(`✅ Upload succeeded for ${signed[i].objectPath}`);
           })
           .catch(e => { 
             if (!firstError) firstError = e; 
@@ -216,12 +225,15 @@ export function ObjectUploader({
     setErrors([]);
 
     try {
-      // Step 1: Get signed URLs (batch sign)
-      const fileNames = files.map(f => f.name);
+      // Step 1: Get signed URLs (batch sign) - use real MIME types
+      const fileData = files.map(f => ({
+        name: f.name,
+        mimeType: f.type || 'application/octet-stream' // Real MIME from File.type
+      }));
       const signed = await apiRequest('/api/documents/bulk-upload-urls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileNames })
+        body: JSON.stringify({ files: fileData })
       });
 
       setState("uploading");

@@ -190,21 +190,45 @@ export class ObjectStorageService {
     }, DEFAULT_RETRY_CONFIG, `generateDownloadURL for ${objectPath}`);
   }
 
-  // Generate a V4 signed URL for uploads (15 minutes TTL)
-  async generateUploadURL(objectPath: string, contentType: string): Promise<string> {
+  // Generate a V4 signed URL for uploads with exact headers (10 minutes TTL)
+  async generateUploadURL(objectPath: string, fileMime: string): Promise<{
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    objectPath: string;
+  }> {
     const bucket = this.getBucket();
     const file = bucket.file(objectPath);
 
+    // Use real MIME type from File.type, not our schema enum
+    const mime = fileMime; // e.g., "application/pdf", "image/jpeg", "text/csv"
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 min TTL
+
     const options = {
       version: 'v4' as const,
-      action: 'write' as const,
-      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-      contentType,
+      action: 'write' as const,          // must match client method
+      expires: expiresAt,
+      contentType: mime,        // include ONLY if we will send it
     };
 
     return withRetry(async () => {
-      const [signedUrl] = await file.getSignedUrl(options);
-      return signedUrl;
+      const [url] = await file.getSignedUrl(options);
+      
+      // Server-side logging: log signed URL details
+      console.log(`🔐 Signed URL generated:`, {
+        objectPath,
+        method: "PUT",
+        contentType: mime,
+        expiresAt: new Date(expiresAt).toISOString()
+      });
+      
+      // return the exact headers the client must send
+      return {
+        url,
+        method: "PUT",
+        headers: { "Content-Type": mime },
+        objectPath,
+      };
     }, DEFAULT_RETRY_CONFIG, `generateUploadURL for ${objectPath}`);
   }
 
@@ -483,7 +507,13 @@ export class ObjectStorageService {
     });
   }
 
-  async getObjectEntityUploadURL(userId?: string, originalFileName?: string, contentType?: string): Promise<{ uploadURL: string; objectPath: string; docId?: string }> {
+  async getObjectEntityUploadURL(userId?: string, originalFileName?: string, fileMime?: string): Promise<{ 
+    uploadURL: string; 
+    objectPath: string; 
+    docId?: string;
+    method: string;
+    headers: Record<string, string>;
+  }> {
     // Enforce canonical path structure - no temp path fallbacks
     if (!userId) {
       throw new StorageAuthError("userId is required for canonical object path generation");
@@ -497,12 +527,15 @@ export class ObjectStorageService {
     const docId = randomUUID();
     const objectPath = generateDocumentPath(userId, docId, originalFileName);
     
-    const uploadURL = await this.generateUploadURL(objectPath, contentType || "application/octet-stream");
+    // Use real MIME type from File.type, not our schema enum
+    const result = await this.generateUploadURL(objectPath, fileMime || "application/octet-stream");
     
     return {
-      uploadURL,
-      objectPath,
-      docId
+      uploadURL: result.url,
+      objectPath: result.objectPath,
+      docId,
+      method: result.method,
+      headers: result.headers
     };
   }
 
