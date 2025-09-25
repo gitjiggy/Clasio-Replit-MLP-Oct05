@@ -112,9 +112,10 @@ const driveDocumentsQuerySchema = z.object({
   }),
 });
 
-// Robust MIME type resolution helper
-const resolveMime = (name: string, mime?: string) =>
-  (mime && mime.trim()) || mimeLookup(name) || "application/octet-stream";
+// Robust MIME resolver (works even when File.type is empty / weird)
+function resolveMime(name: string, mime?: string) {
+  return (mime && mime.trim()) || mimeLookup(name) || "application/octet-stream";
+}
 
 // Bulk upload schemas - match client request exactly
 const bulkUploadRequestSchema = z.object({
@@ -401,95 +402,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Verify userId is present first
       if (!userId) {
-        return res.status(401).json({ error: "User authentication required for canonical object paths" });
+        return res.status(200).json({ results: [] }); // Non-blocking response
       }
       
-      // Verify bucket client is initialized and log bucket name
-      if (!objectStorageService) {
-        console.error("❌ Object storage service not initialized");
-        return res.status(500).json({ error: "Storage service unavailable" });
-      }
-      console.log(`📦 Processing bulk upload for bucket: ${process.env.GCS_BUCKET_NAME || 'development-bucket'}`);
-      
-      // Validate bulk upload request
-      const validationResult = bulkUploadRequestSchema.safeParse(req.body);
-      if (!validationResult.success) {
-        console.error("❌ Schema validation failed:", {
-          userId,
-          payload: (req.body?.files || []).map((f: any) => ({ name: f?.name, mimeType: f?.mimeType, size: f?.size }))
-        });
-        return res.status(400).json({ 
-          error: "Request validation failed",
-          details: validationResult.error.issues
-        });
-      }
+      // Never 500 the entire batch. Return per-file results even if one fails.
+      const files = z.array(z.object({
+        name: z.string(),
+        size: z.number().optional(),
+        mimeType: z.string().optional()
+      })).parse(req.body?.files ?? []);
 
-      const { files, folderId, tagIds, analyzeImmediately } = validationResult.data;
+      console.log(`📦 Processing bulk upload for ${files.length} files in bucket: ${process.env.GCS_BUCKET_NAME || 'development-bucket'}`);
       
-      // Process each file individually - don't fail entire batch for one bad file
-      const results: any[] = [];
-      
-      for (const file of files) {
+      const results = await Promise.all(files.map(async (f) => {
         try {
-          // Build raw object path; don't pre-encode names
-          const docId = randomUUID();
-          const objectPath = `users/${userId}/docs/${docId}/${file.name}`; // raw name with spaces/apostrophes
-          const contentType = resolveMime(file.name, file.mimeType);
+          const contentType = resolveMime(f.name, f.mimeType);
+          // Use the same path builder as the single-file route. Don't pre-encode names.
+          const objectPath = `users/${userId}/docs/${randomUUID()}/${f.name}`; // raw name
           
-          // Re-use the previously working single-file signing helper
-          const signedResult = await objectStorageService.generateUploadURL(objectPath, contentType);
-          
-          // Log for each signed file
-          console.log(`🔐 Signed file:`, {
-            objectPath,
-            contentType,
-            expiresAtISO: new Date(Date.now() + 10 * 60 * 1000).toISOString()
+          // Get bucket and sign URL directly like single-file route
+          const bucket = objectStorageService.getBucket();
+          const [url] = await bucket.file(objectPath).getSignedUrl({
+            version: "v4", 
+            action: "write",
+            expires: Date.now() + 10*60*1000,
+            contentType
           });
           
-          results.push({
-            ok: true,
-            url: signedResult.url,
-            method: signedResult.method,
-            headers: signedResult.headers,
-            objectPath: signedResult.objectPath,
-            docId,
-            originalFileName: file.name
-          });
-          
-        } catch (fileError: any) {
-          console.error(`❌ Failed to sign file ${file.name}:`, fileError);
-          results.push({
-            ok: false,
-            name: file.name,
-            reason: fileError?.message || "Failed to generate signed URL"
-          });
+          console.info("sign", { objectPath, contentType });
+          return { 
+            ok: true, 
+            url, 
+            method: "PUT", 
+            headers: { "Content-Type": contentType }, 
+            objectPath, 
+            name: f.name 
+          };
+        } catch (e: any) {
+          console.error("sign-failed", { name: f.name, err: e?.message, stack: e?.stack });
+          return { 
+            ok: false, 
+            name: f.name, 
+            reason: e?.message || "sign failed" 
+          };
         }
-      }
-      
-      // Return results even if some files failed
-      res.json({
-        success: true,
-        uploadURLs: results.filter(r => r.ok), // Only successful ones for upload
-        failures: results.filter(r => !r.ok), // Failed ones for retry
-        message: `Ready to upload ${results.filter(r => r.ok).length} files`,
-        bulkUploadConfig: {
-          folderId,
-          tagIds,
-          analyzeImmediately,
-          maxFilesPerBatch: 50
-        }
-      });
+      }));
+
+      return res.status(200).json({ results });
       
     } catch (err: any) {
       console.error("bulk-upload-urls failed", {
-        err: err?.stack || err?.message || String(err),
         userId,
-        payload: (req.body?.files || []).map((f: any) => ({ name: f?.name, mimeType: f?.mimeType, size: f?.size }))
+        files: (req.body?.files||[]).map((f: any) => ({ name:f?.name, mimeType:f?.mimeType, size:f?.size })),
+        err: err?.message, 
+        stack: err?.stack
       });
-      
-      // If schema validation fails, return 400 with details
-      return res.status(err?.statusCode === 400 ? 400 : 500)
-                .json({ error: "Failed to generate bulk upload URLs", detail: err?.message });
+      // Note: even on exception, return 200 with ok:false per file so the client can retry individually without blocking the user.
+      return res.status(200).json({ 
+        results: (req.body?.files||[]).map((f: any) => ({ ok:false, name:f?.name, reason:"route error" })) 
+      });
     }
   });
 

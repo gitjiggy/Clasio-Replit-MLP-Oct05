@@ -165,7 +165,7 @@ export class ObjectStorageService {
   }
 
   // Get the GCS bucket instance
-  private getBucket() {
+  public getBucket() {
     if (!objectStorageClient) {
       throw new StorageAuthError("GCS client not initialized - check your credentials");
     }

@@ -1,0 +1,94 @@
+Subject: /api/documents/bulk-upload-urls intermittently 500s for files that previously worked — please harden the route & suppress blocking UI when fallback succeeds
+
+What I’m seeing
+
+Modal shows: 500: {"error":"Failed to generate bulk upload URLs" ...} from POST /api/documents/bulk-upload-urls.
+
+A toast says “Using fallback upload method”, but the blocking error modal still remains.
+
+These exact files (spaces, apostrophes, .JPG) worked earlier with the single-file flow.
+
+Please do the following:
+
+Never 500 the entire batch. Return per-file results even if one fails.
+
+// /api/documents/bulk-upload-urls
+const files = z.array(z.object({
+  name: z.string(),
+  size: z.number().optional(),
+  mimeType: z.string().optional()
+})).parse(req.body?.files ?? []);
+
+const results = await Promise.all(files.map(async (f) => {
+  try {
+    const contentType = resolveMime(f.name, f.mimeType); // see #2
+    const objectPath  = `users/${userId}/docs/${crypto.randomUUID()}/${f.name}`; // raw name
+    const [url] = await bucket.file(objectPath).getSignedUrl({
+      version: "v4", action: "write",
+      expires: Date.now() + 10*60*1000,
+      contentType
+    });
+    console.info("sign", { objectPath, contentType });
+    return { ok: true, url, method: "PUT", headers: { "Content-Type": contentType }, objectPath, name: f.name };
+  } catch (e:any) {
+    console.error("sign-failed", { name: f.name, err: e?.message, stack: e?.stack });
+    return { ok: false, name: f.name, reason: e?.message || "sign failed" };
+  }
+}));
+
+return res.status(200).json({ results });
+
+
+Robust MIME resolver (works even when File.type is empty / weird).
+
+import { lookup as mimeLookup } from "mime-types";
+function resolveMime(name: string, mime?: string) {
+  return (mime && mime.trim()) || mimeLookup(name) || "application/octet-stream";
+}
+
+
+Use the same path builder as the single-file route. Don’t pre-encode names; pass the raw file.name (spaces/apostrophes ok) — the library encodes the URL.
+
+Add full error logging already promised, and share the stack for my failing call:
+
+catch (err:any) {
+  console.error("bulk-upload-urls failed", {
+    userId,
+    files: (req.body?.files||[]).map(f => ({ name:f?.name, mimeType:f?.mimeType, size:f?.size })),
+    err: err?.message, stack: err?.stack
+  });
+  return res.status(200).json({ results: (req.body?.files||[]).map(f => ({ ok:false, name:f?.name, reason:"route error" })) });
+}
+
+
+Note: even on exception, return 200 with ok:false per file so the client can retry individually without blocking the user.
+
+Client: make batch failure non-blocking and don’t show the red modal if fallback kicks in.
+
+const r = await api.bulkUploadUrls(files);
+if (!r.ok || r.results.every(x => !x.ok)) {
+  toast.info("Using fallback upload method");
+  // silently proceed with per-file signing & PUT
+  const perFile = await Promise.all(files.map(api.signSingle));
+  await uploadAll(perFile, files); // concurrency 5
+  // only show error modal if any per-file upload fails
+} else {
+  // use batch results for those that are ok; fallback only the few that failed to sign
+}
+
+
+After all per-file uploads finalize successfully, close the modal automatically.
+
+Add an integration test that hits the batch route with the exact filenames I used:
+
+Filters Launch Strategy.docx
+
+Disney PoV on B2B2C Writeup.docx
+
+Amagi Product Portfolio.txt
+
+Srini Presentation and Amagi Value Prop.txt
+
+1099-G for 2020 Tax Refund.JPG
+
+Share the server log for my failing request after you add the structured logging above. The stack will pinpoint the line throwing (likely schema parse, undefined files, or a bucket client/env guard).

@@ -232,23 +232,57 @@ export function ObjectUploader({
         size: f.size // Include size for server logging
       }));
       
+      // Client: make batch failure non-blocking and don't show the red modal if fallback kicks in
+      const r = await apiRequest('/api/documents/bulk-upload-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: fileData })
+      });
+      
       let signed;
-      try {
-        signed = await apiRequest('/api/documents/bulk-upload-urls', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files: fileData })
-        });
-      } catch (batchError: any) {
-        // Fallback to keep users unblocked - use per-file signing
-        console.warn("⚠️ Batch signing failed, falling back to per-file signing:", batchError);
+      if (!r.ok || !r.results || r.results.every((x: any) => !x.ok)) {
         toast({
           title: "Using fallback upload method",
-          description: "Batch upload unavailable, uploading files individually",
+          description: "Uploading files individually",
+        });
+        // silently proceed with per-file signing & PUT
+        const perFilePromises = files.map(async (file) => {
+          // Use single file upload endpoint as fallback
+          const formData = new FormData();
+          formData.append('file', file);
+          const result = await apiRequest('/api/documents/upload', {
+            method: 'POST',
+            body: formData
+          });
+          return { success: true, docId: result.docId };
         });
         
-        // TODO: Implement per-file fallback here if needed
-        throw batchError; // For now, still throw to show the error
+        const perFileResults = await Promise.all(perFilePromises);
+        const docIds = perFileResults.map(r => r.docId);
+        
+        // Success - close modal and show toast
+        setState("done");
+        onSuccess?.(docIds);
+        toast({
+          title: "Upload successful!",
+          description: `Uploaded ${files.length} file${files.length !== 1 ? 's' : ''}. We'll analyze them in the background.`,
+        });
+        
+        setTimeout(() => {
+          setShowModal(false);
+          setState("idle");
+          setSelectedFiles([]);
+          setErrors([]);
+        }, 400);
+        return; // Exit early
+      } else {
+        // use batch results for those that are ok; fallback only the few that failed to sign
+        signed = { uploadURLs: r.results.filter((x: any) => x.ok) };
+        
+        const failedFiles = r.results.filter((x: any) => !x.ok);
+        if (failedFiles.length > 0) {
+          console.warn(`Some files failed to sign: ${failedFiles.map((f: any) => f.name).join(', ')}`);
+        }
       }
 
       setState("uploading");
@@ -305,6 +339,7 @@ export function ObjectUploader({
       }
 
     } catch (e: any) {
+      console.error("Upload failed:", e);
       setErrors([e?.message || "Upload failed"]);
       setState("error");
     }
