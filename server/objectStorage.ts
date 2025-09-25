@@ -371,6 +371,30 @@ export class ObjectStorageService {
     return bucket.file(objectPath);
   }
 
+  async getObjectMetadata(objectPath: string): Promise<{ generation: bigint | null; exists: boolean }> {
+    const bucket = this.getBucket();
+    const file = bucket.file(objectPath);
+
+    return withRetry(async () => {
+      try {
+        const [exists] = await file.exists();
+        if (!exists) {
+          return { generation: null, exists: false };
+        }
+
+        const [metadata] = await file.getMetadata();
+        const generation = metadata.generation ? BigInt(metadata.generation) : null;
+        
+        return { generation, exists: true };
+      } catch (error: any) {
+        if (error.code === 404) {
+          return { generation: null, exists: false };
+        }
+        throw error;
+      }
+    });
+  }
+
   async getObjectEntityUploadURL(userId?: string, originalFileName?: string, contentType?: string): Promise<{ uploadURL: string; objectPath: string; docId?: string }> {
     // Enforce canonical path structure - no temp path fallbacks
     if (!userId) {

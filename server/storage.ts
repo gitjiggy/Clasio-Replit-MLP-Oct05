@@ -2786,12 +2786,36 @@ export class DatabaseStorage implements IStorage {
         return false;
       }
 
+      let deletedGeneration: bigint | null = null;
+
+      // Get object metadata (including generation) before deletion for restore capability
+      if (document.objectPath || document.filePath) {
+        try {
+          const objectPath = document.objectPath || document.filePath;
+          if (objectPath) {
+            const objectStorageService = new ObjectStorageService();
+            const metadata = await objectStorageService.getObjectMetadata(objectPath);
+            
+            if (metadata.exists && metadata.generation) {
+              deletedGeneration = metadata.generation;
+              console.log(`📊 Stored generation ${deletedGeneration} for restoration: ${objectPath}`);
+            } else {
+              console.log(`📁 Object not found in GCS, skipping generation capture: ${objectPath}`);
+            }
+          }
+        } catch (metadataError: any) {
+          console.warn(`⚠️ Failed to get object metadata for ${document.objectPath || document.filePath}:`, metadataError.message);
+          // Continue with deletion even if metadata fetch fails
+        }
+      }
+
       // Mark as trashed in database (soft delete with 7-day retention)
       const result = await db
         .update(documents)
         .set({ 
           status: 'trashed',
           deletedAt: new Date(),
+          deletedGeneration, // Store generation for GCS restore
           isDeleted: true // Keep for backward compatibility
         })
         .where(eq(documents.id, id))
@@ -2802,7 +2826,7 @@ export class DatabaseStorage implements IStorage {
         return false;
       }
 
-      // Delete from GCS immediately (idempotent; treat 404 as success)
+      // Delete from GCS immediately (will be soft-deleted for 7 days)
       if (document.objectPath || document.filePath) {
         try {
           const objectPath = document.objectPath || document.filePath;
