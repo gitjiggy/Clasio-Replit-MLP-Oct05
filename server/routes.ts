@@ -368,7 +368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.file.mimetype
       );
       
-      const determinedFileType = getFileTypeFromMimeType(req.file.mimetype);
+      const determinedFileType = getFileTypeFromMimeType(req.file.mimetype, originalFileName);
       console.log(`🔍 Proxy Upload Debug - File: ${originalFileName}, MIME: ${req.file.mimetype}, FileType: ${determinedFileType}`);
       
       res.json({
@@ -450,6 +450,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate bulk document creation request
       const validationResult = bulkDocumentCreationSchema.safeParse(req.body);
       if (!validationResult.success) {
+        // Log validation details for debugging
+        console.error("🚨 Bulk upload validation failed:", JSON.stringify(validationResult.error.issues, null, 2));
+        
+        // Surface rejected fileType values in logs for easier debugging
+        validationResult.error.issues.forEach(issue => {
+          if (issue.path.includes('fileType')) {
+            console.error(`❌ FileType rejection: received "${issue.received}", expected one of: ${issue.options?.join(', ')}`);
+          }
+        });
+        
         return res.status(400).json({ 
           error: "Oops! 🎪 Your bulk upload circus needs some organizing...",
           details: validationResult.error.issues,
@@ -1883,7 +1893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         originalName: driveFile.name,
         filePath: `drive:${driveFile.id}`, // Use Drive file ID as path identifier
         fileSize: driveFile.content ? driveFile.content.length : 0,
-        fileType: getFileTypeFromMimeType(driveFile.mimeType),
+        fileType: getFileTypeFromMimeType(driveFile.mimeType, driveFile.name),
         mimeType: driveFile.mimeType,
         folderId: folderId || null,
         isFromDrive: true,
@@ -1942,39 +1952,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Helper function to determine file type from MIME type
-  function getFileTypeFromMimeType(mimeType: string): string {
-    const mimeTypeMap: { [key: string]: string } = {
-      // PDF files
-      'application/pdf': 'pdf',
-      
-      // Word documents  
-      'application/vnd.google-apps.document': 'docx',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-      'application/msword': 'doc',
-      'application/rtf': 'docx',
-      
-      // PowerPoint files
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
-      'application/vnd.ms-powerpoint': 'pptx',
-      
-      // Excel files
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-      'application/vnd.ms-excel': 'xlsx',
-      'text/csv': 'csv',
-      
-      // Text files
-      'text/plain': 'txt',
-      'text/html': 'txt',
-      
-      // Image files
-      'image/jpeg': 'jpg',
-      'image/jpg': 'jpg', 
-      'image/png': 'png',
-      'image/gif': 'gif',
-      'image/webp': 'webp'
-    };
-    
-    return mimeTypeMap[mimeType] || 'txt'; // Default to 'txt' instead of 'other'
+  type FileType = "pdf"|"doc"|"docx"|"txt"|"jpg"|"png"|"gif"|"webp"|"csv"|"xlsx"|"pptx";
+
+  const MIME_TO_TYPE: Record<string, FileType> = {
+    "application/pdf": "pdf",
+
+    // Word
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+
+    // Text
+    "text/plain": "txt",
+
+    // Images
+    "image/jpeg": "jpg",   // <- NOT "jpeg"
+    "image/jpg":  "jpg",
+    "image/png":  "png",
+    "image/gif":  "gif",
+    "image/webp": "webp",
+
+    // Spreadsheets
+    "text/csv": "csv",     // <- NOT "xlsx"
+    "application/vnd.ms-excel": "xlsx", // (older .xls; we normalize to xlsx for schema)
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+
+    // Slides
+    "application/vnd.ms-powerpoint": "pptx", // normalize legacy .ppt to pptx for schema
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  };
+
+  const EXT_TO_TYPE: Record<string, FileType> = {
+    pdf: "pdf", doc: "doc", docx: "docx", txt: "txt",
+    jpg: "jpg", jpeg: "jpg", png: "png", gif: "gif", webp: "webp",
+    csv: "csv", xls: "xlsx", xlsx: "xlsx", ppt: "pptx", pptx: "pptx",
+  };
+
+  function getFileTypeFromMimeType(mime: string, filename?: string): FileType {
+    const m = (mime || "").toLowerCase().trim();
+    if (MIME_TO_TYPE[m]) return MIME_TO_TYPE[m];
+    if (filename) {
+      const ext = filename.split(".").pop()?.toLowerCase();
+      if (ext && EXT_TO_TYPE[ext]) return EXT_TO_TYPE[ext];
+    }
+    // conservative default that passes schema and won't block finalize:
+    return "txt";
   }
 
   const httpServer = createServer(app);

@@ -1,0 +1,59 @@
+We’re still failing post-upload because getFileTypeFromMimeType doesn’t align with the schema. Please replace it with the canonical mapping below (and add extension fallback). Then write a quick test for JPEG/CSV.
+
+// Allowed by schema:
+type FileType = "pdf"|"doc"|"docx"|"txt"|"jpg"|"png"|"gif"|"webp"|"csv"|"xlsx"|"pptx";
+
+const MIME_TO_TYPE: Record<string, FileType> = {
+  "application/pdf": "pdf",
+
+  // Word
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+
+  // Text
+  "text/plain": "txt",
+
+  // Images
+  "image/jpeg": "jpg",   // <- NOT "jpeg"
+  "image/jpg":  "jpg",
+  "image/png":  "png",
+  "image/gif":  "gif",
+  "image/webp": "webp",
+
+  // Spreadsheets
+  "text/csv": "csv",     // <- NOT "xlsx"
+  "application/vnd.ms-excel": "xlsx", // (older .xls; we normalize to xlsx for schema)
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+
+  // Slides
+  "application/vnd.ms-powerpoint": "pptx", // normalize legacy .ppt to pptx for schema
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+};
+
+const EXT_TO_TYPE: Record<string, FileType> = {
+  pdf: "pdf", doc: "doc", docx: "docx", txt: "txt",
+  jpg: "jpg", jpeg: "jpg", png: "png", gif: "gif", webp: "webp",
+  csv: "csv", xls: "xlsx", xlsx: "xlsx", ppt: "pptx", pptx: "pptx",
+};
+
+export function getFileTypeFromMimeType(mime: string, filename?: string): FileType {
+  const m = (mime || "").toLowerCase().trim();
+  if (MIME_TO_TYPE[m]) return MIME_TO_TYPE[m];
+  if (filename) {
+    const ext = filename.split(".").pop()?.toLowerCase();
+    if (ext && EXT_TO_TYPE[ext]) return EXT_TO_TYPE[ext];
+  }
+  // conservative default that passes schema and won’t block finalize:
+  return "txt";
+}
+
+
+Also: make sure the server uses this function in the finalize path and that the Zod schema expects exactly the same set.
+
+Hardening (so this never bites again)
+
+Unit tests for getFileTypeFromMimeType (jpeg/jpg, csv/xlsx, ppt/pptx, xls→xlsx).
+
+Log the rejected value on validation errors (surface fileType in the error).
+
+Two-phase UX: if finalize fails, show “Uploaded to cloud, but processing failed—retry” instead of “Upload failed.”
