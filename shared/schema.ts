@@ -5,6 +5,7 @@ import { z } from "zod";
 
 export const folders = pgTable("folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull(), // Firebase UID - owner of the folder
   name: text("name").notNull(),
   color: text("color").default("#f59e0b"),
   parentId: varchar("parent_id"),
@@ -14,22 +15,30 @@ export const folders = pgTable("folders", {
   gcsPath: text("gcs_path"), // Path in Google Cloud Storage
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
 }, (table) => ({
-  // Ensure unique main category folders (no parent, auto-created, by category)
+  // Multi-tenant indexes
+  userIdIndex: index("folders_user_id_idx").on(table.userId),
+  // Ensure unique main category folders per user (no parent, auto-created, by category)
   uniqueMainCategoryFolder: uniqueIndex("folders_unique_main_category_idx")
-    .on(table.category)
+    .on(table.userId, table.category)
     .where(sql`parent_id IS NULL AND is_auto_created = true`),
-  // Ensure unique sub-folders under each parent
+  // Ensure unique sub-folders under each parent per user
   uniqueSubFolderUnderParent: uniqueIndex("folders_unique_subfolder_idx")
-    .on(table.parentId, table.documentType)
+    .on(table.userId, table.parentId, table.documentType)
     .where(sql`parent_id IS NOT NULL AND is_auto_created = true`),
 }));
 
 export const tags = pgTable("tags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull().unique(),
+  userId: text("user_id").notNull(), // Firebase UID - owner of the tag
+  name: text("name").notNull(),
   color: text("color").default("#3b82f6"),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
-});
+}, (table) => ({
+  // Multi-tenant indexes
+  userIdIndex: index("tags_user_id_idx").on(table.userId),
+  // Ensure unique tag names per user (not globally unique)
+  uniqueTagPerUser: uniqueIndex("tags_unique_name_per_user_idx").on(table.userId, table.name),
+}));
 
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -116,9 +125,15 @@ export const documentVersions = pgTable("document_versions", {
 
 export const documentTags = pgTable("document_tags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull(), // Firebase UID for ownership validation
   documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
   tagId: varchar("tag_id").references(() => tags.id, { onDelete: "cascade" }).notNull(),
-});
+}, (table) => ({
+  // Multi-tenant indexes
+  userIdIndex: index("document_tags_user_id_idx").on(table.userId),
+  // Ensure unique document-tag pairs per user
+  uniqueDocumentTag: uniqueIndex("document_tags_unique_per_user_idx").on(table.userId, table.documentId, table.tagId),
+}));
 
 // Document access log for quality boost scoring
 export const documentAccessLog = pgTable("document_access_log", {
