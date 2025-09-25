@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { DocumentWithFolderAndTags } from "@shared/schema";
@@ -18,7 +19,8 @@ import {
   FileSpreadsheet,
   Presentation,
   Calendar,
-  Clock
+  Clock,
+  AlertTriangle
 } from "lucide-react";
 
 // Calculate days remaining until auto-deletion
@@ -53,6 +55,7 @@ interface TrashedDocumentsResponse {
 }
 
 export default function Trash() {
+  const [showEmptyTrashDialog, setShowEmptyTrashDialog] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -81,6 +84,30 @@ export default function Trash() {
       toast({
         title: "Restore failed",
         description: error.details || error.message || "Failed to restore document",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Empty trash mutation
+  const emptyTrashMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/documents/trash", {
+        method: "DELETE",
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents/trash"] });
+      setShowEmptyTrashDialog(false);
+      toast({
+        title: "Trash emptied",
+        description: data.message || `Successfully deleted ${data.deletedCount} documents permanently`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to empty trash",
+        description: error.details || error.message || "Failed to empty trash",
         variant: "destructive",
       });
     },
@@ -131,11 +158,56 @@ export default function Trash() {
               Documents are automatically deleted after 7 days
             </p>
           </div>
-          {trashedDocuments.length > 0 && (
-            <Badge variant="secondary" className="text-sm">
-              {trashedDocuments.length} {trashedDocuments.length === 1 ? 'item' : 'items'}
-            </Badge>
-          )}
+          <div className="flex items-center gap-3">
+            {trashedDocuments.length > 0 && (
+              <>
+                <Badge variant="secondary" className="text-sm">
+                  {trashedDocuments.length} {trashedDocuments.length === 1 ? 'item' : 'items'}
+                </Badge>
+                <Dialog open={showEmptyTrashDialog} onOpenChange={setShowEmptyTrashDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="destructive" size="sm" data-testid="button-empty-trash">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Empty Trash
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-destructive" />
+                        Empty Trash?
+                      </DialogTitle>
+                      <DialogDescription className="space-y-2">
+                        <p>This will permanently delete all {trashedDocuments.length} documents in the trash.</p>
+                        <p className="font-medium text-foreground">This action cannot be undone.</p>
+                        <div className="bg-muted p-3 rounded-lg text-sm">
+                          <p className="font-medium mb-1">Why empty trash manually?</p>
+                          <p>Documents normally auto-delete after 7 days. Use this only if you want to permanently remove them immediately for storage or privacy reasons.</p>
+                        </div>
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowEmptyTrashDialog(false)}
+                        data-testid="button-cancel-empty-trash"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => emptyTrashMutation.mutate()}
+                        disabled={emptyTrashMutation.isPending}
+                        data-testid="button-confirm-empty-trash"
+                      >
+                        {emptyTrashMutation.isPending ? "Deleting..." : "Empty Trash"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Documents Grid */}

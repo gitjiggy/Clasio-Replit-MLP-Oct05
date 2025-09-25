@@ -129,6 +129,7 @@ export interface IStorage {
   createDocument(document: InsertDocument): Promise<Document>;
   getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]>;
   getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]>;
+  emptyTrash(): Promise<{ deletedCount: number }>;
   getDocumentsCount(filters: DocumentFilters): Promise<number>;
   getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined>;
   getDocumentContent(id: string): Promise<string | null>; // Get just the content for a document
@@ -504,6 +505,91 @@ export class DatabaseStorage implements IStorage {
     );
 
     return docsWithTags;
+  }
+
+  async emptyTrash(): Promise<{ deletedCount: number }> {
+    await this.ensureInitialized();
+    
+    // Get all trashed documents with their file paths for deletion
+    const trashedDocs = await db
+      .select({ 
+        id: documents.id,
+        objectPath: documents.objectPath,
+        filePath: documents.filePath // Fallback for older documents
+      })
+      .from(documents)
+      .where(eq(documents.status, 'trashed'));
+    
+    const deletedCount = trashedDocs.length;
+    
+    if (deletedCount === 0) {
+      return { deletedCount: 0 };
+    }
+    
+    // Delete actual files from GCS first
+    const objectStorageService = new ObjectStorageService();
+    const fileDeletionErrors: string[] = [];
+    
+    for (const doc of trashedDocs) {
+      try {
+        // Use objectPath if available (canonical), otherwise fall back to filePath
+        const pathToDelete = doc.objectPath || doc.filePath;
+        if (pathToDelete) {
+          await objectStorageService.deleteObject(pathToDelete);
+          console.log(`✅ File deleted from GCS: ${pathToDelete}`);
+        }
+      } catch (gcsError: any) {
+        console.error(`❌ Failed to delete file from GCS for document ${doc.id}:`, gcsError);
+        fileDeletionErrors.push(`Document ${doc.id}: ${gcsError.message}`);
+        // Continue deleting other files - don't fail the entire operation
+      }
+    }
+    
+    // Get all document versions for these trashed documents to delete their files too
+    const trashedVersions = await db
+      .select({ filePath: documentVersions.filePath })
+      .from(documentVersions)
+      .where(inArray(documentVersions.documentId, trashedDocs.map(d => d.id)));
+    
+    // Delete version files from GCS
+    for (const version of trashedVersions) {
+      if (version.filePath) {
+        try {
+          await objectStorageService.deleteObject(version.filePath);
+          console.log(`✅ Version file deleted from GCS: ${version.filePath}`);
+        } catch (gcsError: any) {
+          console.error(`❌ Failed to delete version file from GCS:`, gcsError);
+          fileDeletionErrors.push(`Version file ${version.filePath}: ${gcsError.message}`);
+          // Continue - don't fail the entire operation
+        }
+      }
+    }
+    
+    // Permanently delete all trashed documents and their associated data from database
+    await db.transaction(async (tx) => {
+      // Delete document tags
+      await tx
+        .delete(documentTags)
+        .where(inArray(documentTags.documentId, trashedDocs.map(d => d.id)));
+      
+      // Delete document versions
+      await tx
+        .delete(documentVersions)
+        .where(inArray(documentVersions.documentId, trashedDocs.map(d => d.id)));
+      
+      // Delete the documents themselves
+      await tx
+        .delete(documents)
+        .where(eq(documents.status, 'trashed'));
+    });
+    
+    if (fileDeletionErrors.length > 0) {
+      console.warn(`🗑️ Empty Trash completed with some file deletion errors:`, fileDeletionErrors);
+    }
+    
+    console.log(`🗑️ Empty Trash: Permanently deleted ${deletedCount} documents, their files, and database records`);
+    
+    return { deletedCount };
   }
 
   // Smart fallback for extracting keywords from conversational queries

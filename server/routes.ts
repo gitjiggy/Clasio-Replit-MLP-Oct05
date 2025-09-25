@@ -634,6 +634,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Empty trash - permanently delete all trashed documents
+  app.delete("/api/documents/trash", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const result = await storage.emptyTrash();
+      res.json({ 
+        success: true,
+        message: `Successfully deleted ${result.deletedCount} documents permanently`,
+        deletedCount: result.deletedCount
+      });
+    } catch (error) {
+      console.error("Error emptying trash:", error);
+      res.status(500).json({ error: "Failed to empty trash" });
+    }
+  });
+
   // Enhanced conversational search endpoint using Flash-lite
   app.get("/api/documents/search", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
