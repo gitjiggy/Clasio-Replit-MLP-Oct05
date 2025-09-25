@@ -222,7 +222,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const uid = req.user?.uid!;
         
         // Check for duplicate files and warn user (but allow upload to proceed)
+        console.info(JSON.stringify({
+          evt: "duplicate-check.start",
+          reqId: (req as any).reqId,
+          uid,
+          fileName: originalname,
+          fileSize: size,
+          timestamp: new Date().toISOString()
+        }));
+        
         const duplicates = await storage.findDuplicateFiles(originalname, size, uid);
+        
+        console.info(JSON.stringify({
+          evt: "duplicate-check.result",
+          reqId: (req as any).reqId,
+          uid,
+          fileName: originalname,
+          fileSize: size,
+          duplicatesFound: duplicates.length,
+          duplicateIds: duplicates.map(d => d.id),
+          timestamp: new Date().toISOString()
+        }));
+        
         let duplicateWarning = null;
         if (duplicates.length > 0) {
           const funnyMessages = [
@@ -238,6 +259,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: "duplicate_warning",
             message: randomMessage
           };
+          
+          console.info(JSON.stringify({
+            evt: "duplicate-warning.created",
+            reqId: (req as any).reqId,
+            uid,
+            fileName: originalname,
+            duplicateCount: duplicates.length,
+            warningMessage: randomMessage,
+            timestamp: new Date().toISOString()
+          }));
         }
         
         const docId = randomUUID();
@@ -763,9 +794,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const results = await Promise.all(files.map(async (f) => {
         try {
           // Check for duplicate files and add warning (but allow upload to proceed)
+          console.info(JSON.stringify({
+            evt: "bulk-duplicate-check.start",
+            reqId: (req as any).reqId,
+            uid: userId,
+            fileName: f.name,
+            fileSize: f.size,
+            timestamp: new Date().toISOString()
+          }));
+          
           let duplicateWarning = null;
           if (f.size !== undefined) {
             const duplicates = await storage.findDuplicateFiles(f.name, f.size, userId);
+            
+            console.info(JSON.stringify({
+              evt: "bulk-duplicate-check.result",
+              reqId: (req as any).reqId,
+              uid: userId,
+              fileName: f.name,
+              fileSize: f.size,
+              duplicatesFound: duplicates.length,
+              duplicateIds: duplicates.map(d => d.id),
+              timestamp: new Date().toISOString()
+            }));
+            
             if (duplicates.length > 0) {
               const funnyMessages = [
                 "File déjà vu! This file already exists in your collection! 🔄",
@@ -779,6 +831,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 type: "duplicate_warning",
                 message: randomMessage
               };
+              
+              console.info(JSON.stringify({
+                evt: "bulk-duplicate-warning.created",
+                reqId: (req as any).reqId,
+                uid: userId,
+                fileName: f.name,
+                duplicateCount: duplicates.length,
+                warningMessage: randomMessage,
+                timestamp: new Date().toISOString()
+              }));
             }
           }
           
