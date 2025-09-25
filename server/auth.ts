@@ -20,32 +20,42 @@ export interface AuthenticatedRequest extends Request {
   userId?: string;
 }
 
-// Middleware to verify Firebase ID token
+// Enhanced middleware to verify Firebase ID token with multiple token sources
 export const verifyFirebaseToken = async (
   req: AuthenticatedRequest, 
   res: Response, 
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Missing or invalid authorization header' });
+    // Extract token from multiple sources
+    const authHeader = req.headers.authorization || "";
+    const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+    const idToken = 
+      bearerMatch?.[1] ||
+      req.cookies?.__session || 
+      req.cookies?.auth_token;
+
+    if (!idToken) {
+      console.log(`🔒 Auth required for ${req.method} ${req.path} - no token provided`);
+      res.status(401).json({ 
+        error: "unauthenticated",
+        message: "Please sign in to continue" 
+      });
       return;
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-    
-    // Verify the ID token
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    // Verify the Firebase ID token
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
     
     // Add user info to request
     req.user = decodedToken;
     req.userId = decodedToken.uid;
     
+    console.log(`✅ Auth verified for ${req.method} ${req.path} - uid: ${req.userId}`);
     next();
+    
   } catch (error) {
-    console.error('Error verifying Firebase token:', error);
+    console.log(`🚫 Auth failed for ${req.method} ${req.path} - ${error instanceof Error ? error.message : 'Unknown error'}`);
     
     // Provide more specific error messages for debugging
     if (error instanceof Error) {

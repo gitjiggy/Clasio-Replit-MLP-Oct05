@@ -250,7 +250,7 @@ export function ObjectUploader({
           // Use single file upload endpoint as fallback
           const formData = new FormData();
           formData.append('file', file);
-          const result = await apiRequest('/api/documents/upload', {
+          const result = await apiRequest('/api/documents/upload-proxy', {
             method: 'POST',
             body: formData
           });

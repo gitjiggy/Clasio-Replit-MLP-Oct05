@@ -1,0 +1,122 @@
+Bingo — the server log you pasted nails it:
+
+bulk-upload-urls failed
+userId: undefined
+err: "Firebase authentication failed"
+stack: "FirebaseAuthError: Decoding Firebase ID token failed..."
+
+
+So the batch-sign route is intermittently running without an auth context. That’s why userId is undefined and the route throws. This is not GCS or filenames — it’s an auth plumbing issue.
+
+Here’s a tight “fix it once and for all” brief you can paste to Replit.
+
+Root cause
+
+POST /api/documents/bulk-upload-urls ran without a verified Firebase ID token → userId undefined → route threw a server error (500).
+
+Same files worked earlier because other paths (single-file sign, etc.) did have auth or were less strict.
+
+The client also sometimes falls back to the proxy upload route, which was parsing multipart with JSON middleware (we saw the ------WebKit JSON error). That’s a separate plumbing issue already flagged.
+
+Required fixes (server + client)
+1) Standardize auth middleware (server)
+
+Use one middleware for all API routes (bulk-upload-urls, batch-finalize, upload proxy, delete/restore):
+
+// auth.ts
+import * as admin from "firebase-admin";
+
+export async function requireAuth(
+  req: any, res: any, next: any
+) {
+  try {
+    const hdr = req.headers.authorization || "";
+    const m = hdr.match(/^Bearer\s+(.+)$/i);
+    const idToken =
+      m?.[1] ||
+      req.cookies?.__session || // if you set a session cookie
+      req.cookies?.auth_token;
+
+    if (!idToken) return res.status(401).json({ error: "unauthenticated" });
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    req.user = { uid: decoded.uid, email: decoded.email };
+    return next();
+  } catch (e: any) {
+    return res.status(401).json({ error: "invalid_token", detail: e.message });
+  }
+}
+
+
+Apply it to every relevant route before heavy body parsing:
+
+router.post("/documents/bulk-upload-urls", requireAuth, jsonParser, handler);
+router.post("/documents/batch-finalize", requireAuth, jsonParser, handler);
+// proxy upload must not use jsonParser; use multer/busboy instead:
+router.post("/documents/upload", requireAuth, multipartUpload.single("file"), uploadHandler);
+
+
+Important: For the proxy upload route, multer/busboy must consume the body; do not let express.json() run first.
+
+2) Always return 401 for auth problems (never 500)
+
+If the token is missing/invalid/expired, respond 401 { error: "unauthenticated" }. Do not throw a 500 and block the UI. Your batch route should always respond 200 { results: [...] } only after auth is verified.
+
+3) Attach the token on every client request
+
+Centralize your API client so every call sends an ID token and cookies:
+
+// api.ts
+async function withAuthHeaders() {
+  const token = await firebase.auth().currentUser?.getIdToken(/* force */ false);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function bulkUploadUrls(files) {
+  const headers = { "Content-Type": "application/json", ...(await withAuthHeaders()) };
+  return fetch("/api/documents/bulk-upload-urls", {
+    method: "POST",
+    headers,
+    credentials: "include", // keep session cookies if you use them
+    body: JSON.stringify({ files }),
+  });
+}
+
+4) One automatic retry on 401 (client)
+
+If an API call returns 401, refresh the token and retry once:
+
+const res = await call();
+if (res.status === 401) {
+  await firebase.auth().currentUser?.getIdToken(true); // force refresh
+  return call(); // one retry
+}
+
+
+If it still fails, prompt “Session expired — please sign in again.”
+
+5) Keep the proxy upload route multipart-safe
+
+Use multer.memoryStorage() and no JSON parser on that route.
+
+After save to GCS, return { ok:true, objectPath, docId }.
+
+6) Logging & guardrails
+
+At the start of each route log { route, uid: req.user?.uid }.
+
+For bulk-upload-urls, also log per-file { name, contentType, objectPath, expiresAtISO }.
+
+If auth is missing, only log a 401 (don’t log a stack as “error 500”).
+
+Acceptance criteria
+
+/api/documents/bulk-upload-urls never throws 500 for auth; returns 401 on missing/expired token.
+
+Client automatically refreshes token and retries once.
+
+After this, the flow is: bulk-upload-urls 200 → PUT 200s → batch-finalize 200 → modal auto-closes.
+
+Proxy fallback (/api/documents/upload) works for multipart; no ------WebKit JSON parse errors.
+
+Server logs show a uid for every request that proceeds past auth.

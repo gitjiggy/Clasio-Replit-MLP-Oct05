@@ -396,6 +396,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Standard upload route - handles single file uploads with multipart data
+  app.post("/api/documents/upload", verifyFirebaseToken, upload.single('file'), async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      console.log(`📤 Upload request for uid: ${userId}`);
+      
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      const originalFileName = req.file.originalname;
+      const docId = randomUUID();
+      const canonicalPath = generateDocumentPath(userId, docId, originalFileName);
+      
+      // Upload to GCS via server
+      await objectStorageService.uploadFileBuffer(
+        req.file.buffer, 
+        canonicalPath, 
+        req.file.mimetype
+      );
+      
+      const determinedFileType = getFileTypeFromMimeType(req.file.mimetype, originalFileName);
+      console.log(`✅ Upload success - File: ${originalFileName}, MIME: ${req.file.mimetype}`);
+      
+      res.json({
+        success: true,
+        objectPath: canonicalPath,
+        docId,
+        originalFileName,
+        fileSize: req.file.size,
+        fileType: determinedFileType,
+        mimeType: req.file.mimetype
+      });
+    } catch (error) {
+      console.error(`❌ Upload failed:`, error);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
   app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
     const userId = req.user?.uid;
     
