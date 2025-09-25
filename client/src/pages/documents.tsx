@@ -1140,6 +1140,12 @@ export default function Documents() {
                 onGetBulkUploadParameters={getBulkUploadParameters}
                 onComplete={handleUploadComplete}
                 onBulkUploadComplete={handleBulkUploadComplete}
+                onSuccess={(docIds) => {
+                  // Handle fallback upload success - invalidate cache to refresh UI
+                  queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/queue/status"] });
+                }}
                 buttonClassName="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Upload className="mr-2 h-4 w-4" />
