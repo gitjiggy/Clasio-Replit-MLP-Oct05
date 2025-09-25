@@ -273,6 +273,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.warn(`Failed to auto-queue AI analysis for ${originalname}:`, analysisError);
         }
 
+        // Step 4: Trigger background content extraction (same as normal uploads)
+        storage.extractDocumentContent(document.id)
+          .then(async (success) => {
+            if (success) {
+              console.log(`✅ Content extracted for: ${originalname} (proxy upload)`);
+            } else {
+              console.error(`❌ Content extraction failed for: ${originalname} (proxy upload)`);
+            }
+          })
+          .catch(error => {
+            console.error(`❌ Content extraction error for ${originalname}:`, error);
+          });
+
         console.info(JSON.stringify({
           evt: "upload-proxy.finalized",
           uid,
