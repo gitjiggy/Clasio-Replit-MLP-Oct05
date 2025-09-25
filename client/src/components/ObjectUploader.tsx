@@ -317,10 +317,10 @@ export function ObjectUploader({
                           duration: 3000,
                         });
                       }
-                      resolve({ success: false, error: 'user_chose_view' });
+                      resolve({ success: false, error: 'user_chose_view', skipErrorHandling: true });
                     } else {
                       // User chose "Don't bother uploading"
-                      resolve({ success: false, error: 'user_cancelled', reason: 'duplicate_cancelled' });
+                      resolve({ success: false, error: 'user_cancelled', reason: 'duplicate_cancelled', skipErrorHandling: true });
                     }
                   }
                 });
@@ -337,24 +337,28 @@ export function ObjectUploader({
         
         const perFileResults = await Promise.all(perFilePromises);
         const successfulUploads = perFileResults.filter(r => r.success);
-        const failedUploads = perFileResults.filter(r => !r.success);
+        const failedUploads = perFileResults.filter(r => !r.success && !r.skipErrorHandling);
+        const userCancelledUploads = perFileResults.filter(r => !r.success && r.skipErrorHandling);
         const docIds = successfulUploads.map(r => r.docId).filter(Boolean);
         const warningCount = perFileResults.filter(r => r.hadWarning).length;
         
-        // If we have any successful uploads, show success
-        if (successfulUploads.length > 0) {
+        // If we have any successful uploads OR only user-cancelled uploads, show success
+        if (successfulUploads.length > 0 || (failedUploads.length === 0 && userCancelledUploads.length > 0)) {
           setState("done");
           onSuccess?.(docIds);
           
-          let description = `Uploaded ${successfulUploads.length} file${successfulUploads.length !== 1 ? 's' : ''}. We'll analyze them in the background.`;
-          if (warningCount > 0) {
-            description += ` (${warningCount} had duplicate warnings)`;
+          if (successfulUploads.length > 0) {
+            let description = `Uploaded ${successfulUploads.length} file${successfulUploads.length !== 1 ? 's' : ''}. We'll analyze them in the background.`;
+            if (warningCount > 0) {
+              description += ` (${warningCount} had duplicate warnings)`;
+            }
+            
+            toast({
+              title: "Upload successful!",
+              description,
+            });
           }
-          
-          toast({
-            title: "Upload successful!",
-            description,
-          });
+          // For user-cancelled uploads (View File/Don't Bother), we don't show success toast
         } else {
           // All uploads failed for actual errors
           setState("error");
