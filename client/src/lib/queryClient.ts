@@ -62,7 +62,8 @@ export async function apiRequest<T = any>(
     
     const headers = {
       ...authHeaders,
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      // Only set Content-Type for JSON, not FormData (let browser set multipart/form-data)
+      ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {}),
     };
 
