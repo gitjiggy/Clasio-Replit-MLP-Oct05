@@ -120,7 +120,7 @@ class AIQueueProcessor {
         console.log(`Processing job type: ${nextJob.jobType} for document ${nextJob.documentId}`);
         
         // Get document details
-        const document = await storage.getDocumentById(nextJob.documentId);
+        const document = await storage.getDocumentById(nextJob.documentId, nextJob.userId);
         if (!document) {
           throw new Error(`Document ${nextJob.documentId} not found`);
         }
@@ -138,7 +138,7 @@ class AIQueueProcessor {
           }
 
           // Get document content for embedding generation
-          const content = await storage.getDocumentContent(nextJob.documentId);
+          const content = await storage.getDocumentContent(nextJob.documentId, nextJob.userId);
           if (!content || content.trim().length === 0) {
             console.warn(`No content available for embedding generation: ${document.name}`);
             await storage.updateQueueJobStatus(nextJob.id, 'completed', 'No content available for embeddings');
