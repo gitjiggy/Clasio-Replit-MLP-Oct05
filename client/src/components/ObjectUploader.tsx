@@ -247,26 +247,58 @@ export function ObjectUploader({
         });
         // silently proceed with per-file signing & PUT
         const perFilePromises = files.map(async (file) => {
-          // Use single file upload endpoint as fallback
-          const formData = new FormData();
-          formData.append('file', file);
-          const result = await apiRequest('/api/documents/upload-proxy', {
-            method: 'POST',
-            body: formData
-          });
-          return { success: true, docId: result.docId };
+          try {
+            // Use single file upload endpoint as fallback
+            const formData = new FormData();
+            formData.append('file', file);
+            const result = await apiRequest('/api/documents/upload-proxy', {
+              method: 'POST',
+              body: formData
+            });
+            return { success: true, docId: result.docId };
+          } catch (error: any) {
+            // Handle duplicate file error specifically
+            if (error.message.includes('409') && error.message.includes('duplicate_file')) {
+              try {
+                const errorResponse = JSON.parse(error.message.split(': ')[1]);
+                toast({
+                  title: "Duplicate File Detected! 🚨",
+                  description: errorResponse.message,
+                  variant: "destructive",
+                });
+                return { success: false, error: 'duplicate' };
+              } catch {
+                // Fallback for duplicate error handling
+                toast({
+                  title: "Duplicate File Detected! 🚨", 
+                  description: "This file already exists in your collection!",
+                  variant: "destructive",
+                });
+                return { success: false, error: 'duplicate' };
+              }
+            }
+            throw error; // Re-throw other errors
+          }
         });
         
         const perFileResults = await Promise.all(perFilePromises);
-        const docIds = perFileResults.map(r => r.docId);
+        const successfulUploads = perFileResults.filter(r => r.success);
+        const docIds = successfulUploads.map(r => r.docId).filter(Boolean);
         
-        // Success - close modal and show toast
-        setState("done");
-        onSuccess?.(docIds);
-        toast({
-          title: "Upload successful!",
-          description: `Uploaded ${files.length} file${files.length !== 1 ? 's' : ''}. We'll analyze them in the background.`,
-        });
+        // If we have any successful uploads, show success
+        if (successfulUploads.length > 0) {
+          setState("done");
+          onSuccess?.(docIds);
+          toast({
+            title: "Upload successful!",
+            description: `Uploaded ${successfulUploads.length} file${successfulUploads.length !== 1 ? 's' : ''}. We'll analyze them in the background.`,
+          });
+        } else {
+          // All uploads failed (likely all duplicates)
+          setState("error");
+          setErrors(["All files were duplicates or failed to upload."]);
+          return;
+        }
         
         setTimeout(() => {
           setShowModal(false);
@@ -276,31 +308,66 @@ export function ObjectUploader({
         }, 400);
         return; // Exit early
       } else {
-        // use batch results for those that are ok; fallback only the few that failed to sign
+        // Check for duplicate files in the results
+        const duplicateFiles = r.results.filter((x: any) => !x.ok && x.reason === 'duplicate_file');
+        const otherFailedFiles = r.results.filter((x: any) => !x.ok && x.reason !== 'duplicate_file');
+        
+        // Show duplicate file toasts
+        if (duplicateFiles.length > 0) {
+          duplicateFiles.forEach((file: any) => {
+            toast({
+              title: "Duplicate File Detected! 🚨",
+              description: file.message || "This file already exists in your collection!",
+              variant: "destructive",
+            });
+          });
+        }
+        
+        // use batch results for those that are ok; fallback only the few that failed to sign for other reasons
         signed = { uploadURLs: r.results.filter((x: any) => x.ok) };
         
-        const failedFiles = r.results.filter((x: any) => !x.ok);
-        if (failedFiles.length > 0) {
-          console.warn(`Some files failed to sign: ${failedFiles.map((f: any) => f.name).join(', ')}`);
+        if (otherFailedFiles.length > 0) {
+          console.warn(`Some files failed to sign: ${otherFailedFiles.map((f: any) => f.name).join(', ')}`);
+        }
+        
+        // If all files were duplicates, show error state
+        if (signed.uploadURLs.length === 0) {
+          setState("error");
+          setErrors(["All selected files are duplicates."]);
+          return;
         }
       }
 
       setState("uploading");
       
-      // Step 2: Upload files with concurrency
-      await uploadAllWithConcurrency(signed.uploadURLs, files, 5);
+      // Step 2: Upload files with concurrency  
+      // Only upload files that passed duplicate check and got signed URLs
+      const filesToUpload = files.filter((file, index) => 
+        r.results[index].ok
+      );
+      await uploadAllWithConcurrency(signed.uploadURLs, filesToUpload, 5);
 
       setState("finalizing");
       
       // Step 3: Finalize - create document records
-      const documentsData = files.map((file, index) => ({
-        uploadURL: signed.uploadURLs[index].url,
-        name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-        originalName: file.name,
-        fileSize: file.size,
-        fileType: getFileTypeFromName(file.name),
-        mimeType: file.type || 'application/octet-stream',
-      }));
+      // Only include files that were successfully uploaded (filter out duplicates)
+      const successfulUploads = signed.uploadURLs;
+      const documentsData = successfulUploads.map((signedData: any, index: number) => {
+        // Find the original file for this upload
+        const originalFileIndex = files.findIndex((file, fileIndex) => 
+          r.results[fileIndex].ok && r.results[fileIndex].objectPath === signedData.objectPath
+        );
+        const file = files[originalFileIndex];
+        
+        return {
+          uploadURL: signedData.url,
+          name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+          originalName: file.name,
+          fileSize: file.size,
+          fileType: getFileTypeFromName(file.name),
+          mimeType: file.type || 'application/octet-stream',
+        };
+      });
 
       const finalize = await apiRequest('/api/documents/bulk', {
         method: 'POST',
@@ -331,9 +398,10 @@ export function ObjectUploader({
           setErrors([]);
           
           // Show success toast AFTER modal closes
+          const successCount = finalize.docIds?.length || 0;
           toast({
             title: "Upload successful!",
-            description: `Uploaded ${files.length} file${files.length !== 1 ? 's' : ''}. We'll analyze them in the background.`,
+            description: `Uploaded ${successCount} file${successCount !== 1 ? 's' : ''}. We'll analyze them in the background.`,
           });
         }, 400);
       }

@@ -186,6 +186,9 @@ export interface IStorage {
   addDocumentTag(documentTag: InsertDocumentTag): Promise<DocumentTag>;
   removeDocumentTag(documentId: string, tagId: string): Promise<void>;
   
+  // Duplicate Detection
+  findDuplicateFiles(userId: string, originalName: string, fileSize: number): Promise<DocumentWithFolderAndTags[]>;
+  
   // Automatic Folder Organization
   findOrCreateCategoryFolder(category: string): Promise<Folder>;
   findOrCreateSubFolder(parentId: string, documentType: string): Promise<Folder>;
@@ -3332,6 +3335,101 @@ export class DatabaseStorage implements IStorage {
       .where(
         sql`${documentTags.documentId} = ${documentId} AND ${documentTags.tagId} = ${tagId}`
       );
+  }
+
+  // Duplicate Detection - scoped to specific user for security
+  async findDuplicateFiles(userId: string, originalName: string, fileSize: number): Promise<DocumentWithFolderAndTags[]> {
+    await this.ensureInitialized();
+    
+    // Use the same document selection pattern as getDocuments for consistency
+    const documentSelect = {
+      id: documents.id,
+      name: documents.name,
+      originalName: documents.originalName,
+      filePath: documents.filePath,
+      objectPath: documents.objectPath,
+      fileSize: documents.fileSize,
+      fileType: documents.fileType,
+      mimeType: documents.mimeType,
+      folderId: documents.folderId,
+      uploadedAt: documents.uploadedAt,
+      isFavorite: documents.isFavorite,
+      isDeleted: documents.isDeleted,
+      status: documents.status,
+      deletedAt: documents.deletedAt,
+      driveFileId: documents.driveFileId,
+      driveWebViewLink: documents.driveWebViewLink,
+      isFromDrive: documents.isFromDrive,
+      driveLastModified: documents.driveLastModified,
+      driveSyncStatus: documents.driveSyncStatus,
+      driveSyncedAt: documents.driveSyncedAt,
+      aiSummary: documents.aiSummary,
+      aiKeyTopics: documents.aiKeyTopics,
+      aiDocumentType: documents.aiDocumentType,
+      aiCategory: documents.aiCategory,
+      aiSentiment: documents.aiSentiment,
+      aiWordCount: documents.aiWordCount,
+      aiAnalyzedAt: documents.aiAnalyzedAt,
+      aiConciseName: documents.aiConciseName,
+      aiCategoryConfidence: documents.aiCategoryConfidence,
+      aiDocumentTypeConfidence: documents.aiDocumentTypeConfidence,
+      overrideCategory: documents.overrideCategory,
+      overrideDocumentType: documents.overrideDocumentType,
+      classificationOverridden: documents.classificationOverridden,
+      documentContent: sql<string | null>`NULL`.as('documentContent'),
+      contentExtracted: documents.contentExtracted,
+      contentExtractedAt: documents.contentExtractedAt,
+      titleEmbedding: sql<string | null>`NULL`.as('titleEmbedding'),
+      contentEmbedding: sql<string | null>`NULL`.as('contentEmbedding'),
+      summaryEmbedding: sql<string | null>`NULL`.as('summaryEmbedding'),
+      keyTopicsEmbedding: sql<string | null>`NULL`.as('keyTopicsEmbedding'),
+      embeddingsGenerated: documents.embeddingsGenerated,
+      embeddingsGeneratedAt: documents.embeddingsGeneratedAt,
+    };
+
+    // Find documents with the same original name and file size that are active (not trashed/deleted)
+    // CRITICAL: Only check within the current user's documents for security
+    const results = await db
+      .select({
+        document: documentSelect,
+        folder: folders,
+      })
+      .from(documents)
+      .leftJoin(folders, eq(documents.folderId, folders.id))
+      .where(
+        and(
+          eq(documents.userId, userId), // SECURITY: Only check user's own files
+          eq(documents.originalName, originalName),
+          eq(documents.fileSize, fileSize),
+          eq(documents.status, 'active'),
+          eq(documents.isDeleted, false)
+        )
+      )
+      .orderBy(desc(documents.uploadedAt));
+
+    // Get tags for each document
+    const docsWithTags = await Promise.all(
+      results.map(async (result) => {
+        const documentTagsResult = await db
+          .select({
+            id: tags.id,
+            name: tags.name,
+            color: tags.color,
+            createdAt: tags.createdAt,
+          })
+          .from(documentTags)
+          .innerJoin(tags, eq(documentTags.tagId, tags.id))
+          .where(eq(documentTags.documentId, result.document.id));
+
+        return {
+          ...result.document,
+          folder: result.folder,
+          tags: documentTagsResult,
+        };
+      })
+    );
+
+    return docsWithTags;
   }
 
   // AI Analysis

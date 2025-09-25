@@ -218,6 +218,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const { originalname, mimetype, buffer, size } = req.file;
         const uid = req.user?.uid!;
+        
+        // Check for duplicate files before proceeding with upload - scope to current user
+        const duplicates = await storage.findDuplicateFiles(uid, originalname, size);
+        if (duplicates.length > 0) {
+          const funnyMessages = [
+            "Déjà vu! This file is already in your collection. Did you time travel? 🕰️",
+            "Hold up! This file already exists. No need to clone your documents! 🤖",
+            "Whoa there! This file is already uploaded. Are we playing file hide-and-seek? 🙈",
+            "File already exists! Your documents don't need a twin! 👯‍♀️",
+            "Stop right there! This file is already in the system. No duplicates allowed in this neighborhood! 🚫",
+            "File déjà vu detected! This document is already living its best life in your collection! ✨"
+          ];
+          const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+          return res.status(409).json({ 
+            error: "duplicate_file", 
+            message: randomMessage
+            // SECURITY: Don't expose other users' file metadata
+          });
+        }
+        
         const docId = randomUUID();
         const objectPath = `users/${uid}/docs/${docId}/${originalname}`; // raw name; SDK encodes
 
@@ -411,6 +431,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { name, originalName, fileSize, fileType, mimeType, folderId, tagIds } = validationResult.data;
 
+      // Check for duplicate files before creating document record - scope to current user
+      const currentUserId = req.user?.uid;
+      if (!currentUserId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const duplicates = await storage.findDuplicateFiles(currentUserId, originalName, fileSize);
+      if (duplicates.length > 0) {
+        const funnyMessages = [
+          "File twins detected! This document already exists in your digital library! 📚",
+          "Oops! This file is already uploaded. No need for photocopies here! 🖨️",
+          "Duplicate file alert! Your storage already has this masterpiece! 🎨",
+          "This file already lives here! Are you trying to create a backup of a backup? 💾",
+          "File déjà vu! This document is already chilling in your collection! 😎",
+          "Hold on! This file already exists. No cloning allowed in this dimension! 🌌"
+        ];
+        const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+        return res.status(409).json({ 
+          error: "duplicate_file", 
+          message: randomMessage
+          // SECURITY: Don't expose other users' file metadata
+        });
+      }
+
       // Validate the object path structure and ownership  
       const validation = objectStorageService.validateCanonicalObjectPath(objectPath, req.user?.uid!, originalName);
       if (!validation.isValid) {
@@ -446,7 +490,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate user for queueing operations  
-      const currentUserId = req.user?.uid;
       if (!currentUserId) {
         return res.status(401).json({ error: "User authentication required for document processing" });
       }
@@ -556,6 +599,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const results = await Promise.all(files.map(async (f) => {
         try {
+          // Check for duplicate files before generating signed URL - scope to current user
+          if (f.size !== undefined) {
+            const duplicates = await storage.findDuplicateFiles(userId, f.name, f.size);
+            if (duplicates.length > 0) {
+              const funnyMessages = [
+                "File déjà vu! This file already exists in your collection! 🔄",
+                "Duplicate alert! This file is already living rent-free in your storage! 🏠",
+                "Twin files detected! No photocopying allowed here! 📋",
+                "This file is already uploaded! Are you testing my memory? 🧠",
+                "File already exists! Your storage doesn't need identical twins! 👯‍♀️"
+              ];
+              const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+              return {
+                ok: false,
+                name: f.name,
+                reason: "duplicate_file",
+                message: randomMessage
+                // SECURITY: Don't expose other users' file metadata
+              };
+            }
+          }
+          
           const contentType = resolveMime(f.name, f.mimeType);
           // Use the same path builder as the single-file route. Don't pre-encode names.
           const objectPath = `users/${userId}/docs/${randomUUID()}/${f.name}`; // raw name
