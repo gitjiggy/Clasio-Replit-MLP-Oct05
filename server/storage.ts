@@ -130,6 +130,7 @@ export interface IStorage {
   getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]>;
   getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]>;
   emptyTrash(): Promise<{ deletedCount: number }>;
+  purgeExpiredTrashedDocuments(): Promise<{ deletedCount: number }>;
   getDocumentsCount(filters: DocumentFilters): Promise<number>;
   getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined>;
   getDocumentContent(id: string): Promise<string | null>; // Get just the content for a document
@@ -588,6 +589,109 @@ export class DatabaseStorage implements IStorage {
     }
     
     console.log(`🗑️ Empty Trash: Permanently deleted ${deletedCount} documents, their files, and database records`);
+    
+    return { deletedCount };
+  }
+
+  async purgeExpiredTrashedDocuments(): Promise<{ deletedCount: number }> {
+    await this.ensureInitialized();
+    
+    // Calculate 7 days ago timestamp
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    // Get all trashed documents older than 7 days with their file paths
+    const expiredTrashedDocs = await db
+      .select({ 
+        id: documents.id,
+        objectPath: documents.objectPath,
+        filePath: documents.filePath, // Fallback for older documents
+        deletedAt: documents.deletedAt
+      })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.status, 'trashed'),
+          sql`${documents.deletedAt} <= ${sevenDaysAgo.toISOString()}`
+        )
+      );
+    
+    const deletedCount = expiredTrashedDocs.length;
+    
+    if (deletedCount === 0) {
+      console.log(`🕐 Auto-cleanup: No expired trashed documents found (older than 7 days)`);
+      return { deletedCount: 0 };
+    }
+    
+    console.log(`🕐 Auto-cleanup: Found ${deletedCount} expired trashed documents to purge`);
+    
+    // Delete actual files from GCS first (same logic as emptyTrash but for expired items only)
+    const objectStorageService = new ObjectStorageService();
+    const fileDeletionErrors: string[] = [];
+    
+    for (const doc of expiredTrashedDocs) {
+      try {
+        // Use objectPath if available (canonical), otherwise fall back to filePath
+        const pathToDelete = doc.objectPath || doc.filePath;
+        if (pathToDelete) {
+          await objectStorageService.deleteObject(pathToDelete);
+          console.log(`✅ Auto-cleanup: File deleted from GCS: ${pathToDelete}`);
+        }
+      } catch (gcsError: any) {
+        console.error(`❌ Auto-cleanup: Failed to delete file from GCS for document ${doc.id}:`, gcsError);
+        fileDeletionErrors.push(`Document ${doc.id}: ${gcsError.message}`);
+        // Continue deleting other files - don't fail the entire operation
+      }
+    }
+    
+    // Get all document versions for these expired trashed documents to delete their files too
+    const expiredVersions = await db
+      .select({ filePath: documentVersions.filePath })
+      .from(documentVersions)
+      .where(inArray(documentVersions.documentId, expiredTrashedDocs.map(d => d.id)));
+    
+    // Delete version files from GCS
+    for (const version of expiredVersions) {
+      if (version.filePath) {
+        try {
+          await objectStorageService.deleteObject(version.filePath);
+          console.log(`✅ Auto-cleanup: Version file deleted from GCS: ${version.filePath}`);
+        } catch (gcsError: any) {
+          console.error(`❌ Auto-cleanup: Failed to delete version file from GCS:`, gcsError);
+          fileDeletionErrors.push(`Version file ${version.filePath}: ${gcsError.message}`);
+          // Continue - don't fail the entire operation
+        }
+      }
+    }
+    
+    // Permanently delete all expired trashed documents and their associated data from database
+    await db.transaction(async (tx) => {
+      // Delete document tags
+      await tx
+        .delete(documentTags)
+        .where(inArray(documentTags.documentId, expiredTrashedDocs.map(d => d.id)));
+      
+      // Delete document versions
+      await tx
+        .delete(documentVersions)
+        .where(inArray(documentVersions.documentId, expiredTrashedDocs.map(d => d.id)));
+      
+      // Delete the expired trashed documents themselves
+      await tx
+        .delete(documents)
+        .where(
+          and(
+            eq(documents.status, 'trashed'),
+            sql`${documents.deletedAt} <= ${sevenDaysAgo.toISOString()}`
+          )
+        );
+    });
+    
+    if (fileDeletionErrors.length > 0) {
+      console.warn(`🕐 Auto-cleanup completed with some file deletion errors:`, fileDeletionErrors);
+    }
+    
+    console.log(`🕐 Auto-cleanup: Successfully purged ${deletedCount} expired documents, their files, and database records`);
     
     return { deletedCount };
   }

@@ -4,6 +4,8 @@ import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { aiQueueProcessor } from "./aiQueueProcessor";
+import * as cron from "node-cron";
+import { DatabaseStorage } from "./storage";
 
 // Environment variable validation
 function validateEnvironment() {
@@ -166,6 +168,29 @@ app.use((req, res, next) => {
   // Start AI Queue Processor for background document analysis
   console.log('Starting AI Queue Processor for document analysis');
   aiQueueProcessor.start();
+
+  // Start daily auto-cleanup job for expired trashed documents
+  console.log('Starting daily auto-cleanup job for trashed documents');
+  const storage = new DatabaseStorage();
+  
+  // Schedule daily cleanup at 2:00 AM to avoid peak usage hours
+  cron.schedule('0 2 * * *', async () => {
+    try {
+      console.log('🕐 Starting daily auto-cleanup of expired trashed documents...');
+      const result = await storage.purgeExpiredTrashedDocuments();
+      if (result.deletedCount > 0) {
+        console.log(`🕐 Daily auto-cleanup completed: ${result.deletedCount} expired documents purged`);
+      } else {
+        console.log('🕐 Daily auto-cleanup completed: No expired documents found');
+      }
+    } catch (error) {
+      console.error('❌ Daily auto-cleanup failed:', error);
+    }
+  }, {
+    timezone: 'UTC'
+  });
+
+  console.log('🕐 Daily auto-cleanup scheduled for 2:00 AM UTC');
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
