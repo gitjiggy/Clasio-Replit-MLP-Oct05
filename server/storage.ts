@@ -187,7 +187,7 @@ export interface IStorage {
   removeDocumentTag(documentId: string, tagId: string): Promise<void>;
   
   // Duplicate Detection
-  findDuplicateFiles(userId: string, originalName: string, fileSize: number): Promise<DocumentWithFolderAndTags[]>;
+  findDuplicateFiles(originalName: string, fileSize: number): Promise<DocumentWithFolderAndTags[]>;
   
   // Automatic Folder Organization
   findOrCreateCategoryFolder(category: string): Promise<Folder>;
@@ -3337,8 +3337,8 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-  // Duplicate Detection - scoped to specific user for security
-  async findDuplicateFiles(userId: string, originalName: string, fileSize: number): Promise<DocumentWithFolderAndTags[]> {
+  // Duplicate Detection for single-user application
+  async findDuplicateFiles(originalName: string, fileSize: number): Promise<DocumentWithFolderAndTags[]> {
     await this.ensureInitialized();
     
     // Use the same document selection pattern as getDocuments for consistency
@@ -3388,7 +3388,6 @@ export class DatabaseStorage implements IStorage {
     };
 
     // Find documents with the same original name and file size that are active (not trashed/deleted)
-    // CRITICAL: Only check within the current user's documents for security
     const results = await db
       .select({
         document: documentSelect,
@@ -3398,7 +3397,6 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(folders, eq(documents.folderId, folders.id))
       .where(
         and(
-          eq(documents.userId, userId), // SECURITY: Only check user's own files
           eq(documents.originalName, originalName),
           eq(documents.fileSize, fileSize),
           eq(documents.status, 'active'),

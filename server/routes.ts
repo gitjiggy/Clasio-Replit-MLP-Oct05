@@ -219,8 +219,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { originalname, mimetype, buffer, size } = req.file;
         const uid = req.user?.uid!;
         
-        // Check for duplicate files before proceeding with upload - scope to current user
-        const duplicates = await storage.findDuplicateFiles(uid, originalname, size);
+        // Check for duplicate files before proceeding with upload
+        const duplicates = await storage.findDuplicateFiles(originalname, size);
         if (duplicates.length > 0) {
           const funnyMessages = [
             "Déjà vu! This file is already in your collection. Did you time travel? 🕰️",
@@ -234,7 +234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(409).json({ 
             error: "duplicate_file", 
             message: randomMessage
-            // SECURITY: Don't expose other users' file metadata
+            // Don't expose internal file metadata
           });
         }
         
@@ -431,13 +431,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { name, originalName, fileSize, fileType, mimeType, folderId, tagIds } = validationResult.data;
 
-      // Check for duplicate files before creating document record - scope to current user
-      const currentUserId = req.user?.uid;
-      if (!currentUserId) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
-      
-      const duplicates = await storage.findDuplicateFiles(currentUserId, originalName, fileSize);
+      // Check for duplicate files before creating document record
+      const duplicates = await storage.findDuplicateFiles(originalName, fileSize);
       if (duplicates.length > 0) {
         const funnyMessages = [
           "File twins detected! This document already exists in your digital library! 📚",
@@ -451,7 +446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ 
           error: "duplicate_file", 
           message: randomMessage
-          // SECURITY: Don't expose other users' file metadata
+          // Don't expose internal file metadata
         });
       }
 
@@ -599,9 +594,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const results = await Promise.all(files.map(async (f) => {
         try {
-          // Check for duplicate files before generating signed URL - scope to current user
+          // Check for duplicate files before generating signed URL
           if (f.size !== undefined) {
-            const duplicates = await storage.findDuplicateFiles(userId, f.name, f.size);
+            const duplicates = await storage.findDuplicateFiles(f.name, f.size);
             if (duplicates.length > 0) {
               const funnyMessages = [
                 "File déjà vu! This file already exists in your collection! 🔄",
@@ -616,7 +611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 name: f.name,
                 reason: "duplicate_file",
                 message: randomMessage
-                // SECURITY: Don't expose other users' file metadata
+                // Don't expose internal file metadata
               };
             }
           }
