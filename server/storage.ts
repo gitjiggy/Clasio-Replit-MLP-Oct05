@@ -141,9 +141,9 @@ export interface DocumentFilters {
 export interface IStorage {
   // Documents
   createDocument(document: InsertDocument): Promise<Document>;
-  getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]>;
-  getAllActiveDocuments(): Promise<DocumentWithFolderAndTags[]>;
-  getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]>;
+  getDocuments(filters: DocumentFilters, userId: string): Promise<DocumentWithFolderAndTags[]>;
+  getAllActiveDocuments(userId: string): Promise<DocumentWithFolderAndTags[]>;
+  getTrashedDocuments(userId: string): Promise<DocumentWithFolderAndTags[]>;
   emptyTrash(): Promise<{ deletedCount: number }>;
   purgeExpiredTrashedDocuments(): Promise<{ deletedCount: number }>;
   reconcileGCSPaths(dryRun?: boolean): Promise<{
@@ -152,48 +152,48 @@ export interface IStorage {
     orphanedDBDocuments: { id: string; name: string; currentPath: string }[];
     summary: string;
   }>;
-  getDocumentsCount(filters: DocumentFilters): Promise<number>;
-  getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined>;
-  getDocumentContent(id: string): Promise<string | null>; // Get just the content for a document
-  getDocumentByDriveFileId(driveFileId: string): Promise<DocumentWithFolderAndTags | undefined>;
-  getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
-  updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
-  deleteDocument(id: string): Promise<boolean>;
-  restoreDocument(id: string): Promise<{ success: boolean; error?: string; alreadyLive?: boolean; message?: string }>;
-  analyzeDocumentWithAI(id: string, driveContent?: string, driveAccessToken?: string): Promise<boolean>;
-  extractDocumentContent(id: string, driveAccessToken?: string): Promise<boolean>;
-  getDocumentsWithoutContent(): Promise<Document[]>;
+  getDocumentsCount(filters: DocumentFilters, userId: string): Promise<number>;
+  getDocumentById(id: string, userId: string): Promise<DocumentWithFolderAndTags | undefined>;
+  getDocumentContent(id: string, userId: string): Promise<string | null>; // Get just the content for a document
+  getDocumentByDriveFileId(driveFileId: string, userId: string): Promise<DocumentWithFolderAndTags | undefined>;
+  getDocumentWithVersions(id: string, userId: string): Promise<DocumentWithVersions | undefined>;
+  updateDocument(id: string, updates: Partial<InsertDocument>, userId: string): Promise<Document | undefined>;
+  deleteDocument(id: string, userId: string): Promise<boolean>;
+  restoreDocument(id: string, userId: string): Promise<{ success: boolean; error?: string; alreadyLive?: boolean; message?: string }>;
+  analyzeDocumentWithAI(id: string, userId: string, driveContent?: string, driveAccessToken?: string): Promise<boolean>;
+  extractDocumentContent(id: string, userId: string, driveAccessToken?: string): Promise<boolean>;
+  getDocumentsWithoutContent(userId: string): Promise<Document[]>;
 
   // Document Versions
   createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
-  getDocumentVersions(documentId: string): Promise<DocumentVersion[]>;
-  setActiveVersion(documentId: string, versionId: string): Promise<boolean>;
-  deleteDocumentVersion(documentId: string, versionId: string): Promise<boolean>;
+  getDocumentVersions(documentId: string, userId: string): Promise<DocumentVersion[]>;
+  setActiveVersion(documentId: string, versionId: string, userId: string): Promise<boolean>;
+  deleteDocumentVersion(documentId: string, versionId: string, userId: string): Promise<boolean>;
 
   // Folders
-  createFolder(folder: InsertFolder): Promise<Folder>;
-  getFolders(): Promise<(Folder & { documentCount: number })[]>;
-  updateFolder(id: string, updates: Partial<InsertFolder>): Promise<Folder | undefined>;
-  deleteFolder(id: string): Promise<boolean>;
+  createFolder(folder: InsertFolder, userId: string): Promise<Folder>;
+  getFolders(userId: string): Promise<(Folder & { documentCount: number })[]>;
+  updateFolder(id: string, updates: Partial<InsertFolder>, userId: string): Promise<Folder | undefined>;
+  deleteFolder(id: string, userId: string): Promise<boolean>;
 
   // Tags
-  createTag(tag: InsertTag): Promise<Tag>;
-  getTags(): Promise<Tag[]>;
-  updateTag(id: string, updates: Partial<InsertTag>): Promise<Tag | undefined>;
-  deleteTag(id: string): Promise<boolean>;
+  createTag(tag: InsertTag, userId: string): Promise<Tag>;
+  getTags(userId: string): Promise<Tag[]>;
+  updateTag(id: string, updates: Partial<InsertTag>, userId: string): Promise<Tag | undefined>;
+  deleteTag(id: string, userId: string): Promise<boolean>;
 
   // Document Tags
-  addDocumentTag(documentTag: InsertDocumentTag): Promise<DocumentTag>;
-  removeDocumentTag(documentId: string, tagId: string): Promise<void>;
+  addDocumentTag(documentTag: InsertDocumentTag, userId: string): Promise<DocumentTag>;
+  removeDocumentTag(documentId: string, tagId: string, userId: string): Promise<void>;
   
   // Duplicate Detection
-  findDuplicateFiles(originalName: string, fileSize: number): Promise<DocumentWithFolderAndTags[]>;
+  findDuplicateFiles(originalName: string, fileSize: number, userId: string): Promise<DocumentWithFolderAndTags[]>;
   
   // Automatic Folder Organization
-  findOrCreateCategoryFolder(category: string): Promise<Folder>;
-  findOrCreateSubFolder(parentId: string, documentType: string): Promise<Folder>;
-  organizeDocumentIntoFolder(documentId: string, category: string, documentType: string): Promise<boolean>;
-  removeDocumentTags(documentId: string): Promise<void>;
+  findOrCreateCategoryFolder(category: string, userId: string): Promise<Folder>;
+  findOrCreateSubFolder(parentId: string, documentType: string, userId: string): Promise<Folder>;
+  organizeDocumentIntoFolder(documentId: string, category: string, documentType: string, userId: string): Promise<boolean>;
+  removeDocumentTags(documentId: string, userId: string): Promise<void>;
 
   // AI Analysis Queue Management
   enqueueDocumentForAnalysis(documentId: string, userId: string, priority?: number): Promise<AiAnalysisQueue>;
@@ -318,13 +318,14 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]> {
+  async getDocuments(filters: DocumentFilters, userId: string): Promise<DocumentWithFolderAndTags[]> {
     await this.ensureInitialized();
     
-    // Apply filters - exclude deleted and trashed documents by default
+    // Apply filters - exclude deleted and trashed documents by default, scope by user
     const conditions = [
       eq(documents.isDeleted, false), // Backward compatibility
-      eq(documents.status, 'active')   // New trash system - only show active documents
+      eq(documents.status, 'active'),   // New trash system - only show active documents
+      eq(documents.userId, userId)      // Multi-tenant: scope by user
     ];
 
     if (filters.search) {
@@ -2718,7 +2719,7 @@ export class DatabaseStorage implements IStorage {
     return result.count;
   }
 
-  async getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined> {
+  async getDocumentById(id: string, userId: string): Promise<DocumentWithFolderAndTags | undefined> {
     const result = await db
       .select({
         document: documents,
@@ -2729,7 +2730,8 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(documents.id, id), 
         eq(documents.isDeleted, false),
-        eq(documents.status, 'active')
+        eq(documents.status, 'active'),
+        eq(documents.userId, userId)
       ))
       .limit(1);
 
@@ -2750,7 +2752,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getDocumentContent(id: string): Promise<string | null> {
+  async getDocumentContent(id: string, userId: string): Promise<string | null> {
     const result = await db
       .select({ 
         documentContent: documents.documentContent 
@@ -2759,31 +2761,33 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(documents.id, id), 
         eq(documents.isDeleted, false),
-        eq(documents.status, 'active')
+        eq(documents.status, 'active'),
+        eq(documents.userId, userId)
       ))
       .limit(1);
 
     return result.length > 0 ? result[0].documentContent : null;
   }
 
-  async updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined> {
+  async updateDocument(id: string, updates: Partial<InsertDocument>, userId: string): Promise<Document | undefined> {
     const [updatedDocument] = await db
       .update(documents)
       .set(updates)
       .where(and(
         eq(documents.id, id), 
         eq(documents.isDeleted, false),
-        eq(documents.status, 'active')
+        eq(documents.status, 'active'),
+        eq(documents.userId, userId)
       ))
       .returning();
 
     return updatedDocument;
   }
 
-  async deleteDocument(id: string): Promise<boolean> {
+  async deleteDocument(id: string, userId: string): Promise<boolean> {
     try {
       // Get document details first (need objectPath for GCS deletion)
-      const document = await this.getDocumentById(id);
+      const document = await this.getDocumentById(id, userId);
       if (!document) {
         console.warn(`Document ${id} not found for deletion`);
         return false;
@@ -2997,8 +3001,8 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined> {
-    const documentWithDetails = await this.getDocumentById(id);
+  async getDocumentWithVersions(id: string, userId: string): Promise<DocumentWithVersions | undefined> {
+    const documentWithDetails = await this.getDocumentById(id, userId);
     if (!documentWithDetails) {
       return undefined;
     }
@@ -3337,8 +3341,8 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-  // Duplicate Detection for single-user application
-  async findDuplicateFiles(originalName: string, fileSize: number): Promise<DocumentWithFolderAndTags[]> {
+  // Duplicate Detection with multi-tenant scoping
+  async findDuplicateFiles(originalName: string, fileSize: number, userId: string): Promise<DocumentWithFolderAndTags[]> {
     await this.ensureInitialized();
     
     // Use the same document selection pattern as getDocuments for consistency
@@ -3400,7 +3404,8 @@ export class DatabaseStorage implements IStorage {
           eq(documents.originalName, originalName),
           eq(documents.fileSize, fileSize),
           eq(documents.status, 'active'),
-          eq(documents.isDeleted, false)
+          eq(documents.isDeleted, false),
+          eq(documents.userId, userId)
         )
       )
       .orderBy(desc(documents.uploadedAt));
@@ -3431,13 +3436,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // AI Analysis
-  async analyzeDocumentWithAI(documentId: string, driveContent?: string, driveAccessToken?: string): Promise<boolean> {
+  async analyzeDocumentWithAI(documentId: string, userId: string, driveContent?: string, driveAccessToken?: string): Promise<boolean> {
     try {
       // Import here to avoid circular dependencies
       const { summarizeDocument, analyzeDocumentContent, extractTextFromDocument } = await import("./gemini.js");
       
       // Get the document
-      const document = await this.getDocumentById(documentId);
+      const document = await this.getDocumentById(documentId, userId);
       if (!document) {
         return false;
       }
@@ -3514,14 +3519,14 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async extractDocumentContent(documentId: string, driveAccessToken?: string): Promise<boolean> {
+  async extractDocumentContent(documentId: string, userId: string, driveAccessToken?: string): Promise<boolean> {
     try {
       // Import here to avoid circular dependencies
       const { extractTextFromDocument } = await import("./gemini.js");
       
       
       // Get the document
-      const document = await this.getDocumentById(documentId);
+      const document = await this.getDocumentById(documentId, userId);
       if (!document) {
         console.error(`Document not found: ${documentId}`);
         return false;
@@ -3859,7 +3864,7 @@ export class DatabaseStorage implements IStorage {
     
     try {
       // Estimate tokens based on document content or size
-      const document = await this.getDocumentById(documentId);
+      const document = await this.getDocumentById(documentId, userId);
       let estimatedTokens = 3000; // Default estimate
       
       if (document && document.documentContent) {
@@ -3914,7 +3919,7 @@ export class DatabaseStorage implements IStorage {
     
     try {
       // Check if document already has embeddings
-      const document = await this.getDocumentById(documentId);
+      const document = await this.getDocumentById(documentId, userId);
       if (document?.embeddingsGenerated) {
         console.log(`Document ${documentId} already has embeddings, skipping`);
         // Return a dummy completed job

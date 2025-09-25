@@ -220,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const uid = req.user?.uid!;
         
         // Check for duplicate files before proceeding with upload
-        const duplicates = await storage.findDuplicateFiles(originalname, size);
+        const duplicates = await storage.findDuplicateFiles(originalname, size, uid);
         if (duplicates.length > 0) {
           const funnyMessages = [
             "Déjà vu! This file is already in your collection. Did you time travel? 🕰️",
@@ -296,7 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Step 4: Trigger background content extraction (same as normal uploads)
         console.log(`🔧 Starting content extraction for: ${originalname} (docId: ${document.id})`);
         try {
-          const extractionSuccess = await storage.extractDocumentContent(document.id);
+          const extractionSuccess = await storage.extractDocumentContent(document.id, uid);
           if (extractionSuccess) {
             console.log(`✅ Content extracted for: ${originalname} (proxy upload)`);
           } else {
@@ -335,9 +335,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/documents/:documentId/download", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const { documentId } = req.params;
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
       
-      // Get document from database
-      const document = await storage.getDocumentById(documentId);
+      // Get document from database - scoped by user for security
+      const document = await storage.getDocumentById(documentId, userId);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -366,6 +370,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve documents - protected with authentication and rate limiting
   app.get("/objects/:objectPath(*)", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      
+      // Validate user owns this object path for multi-tenant security
+      const objectPath = req.path.replace('/objects/', '');
+      
+      // Check if this object path belongs to the authenticated user
+      // Object paths should follow pattern: users/{userId}/docs/{docId}/{filename}
+      if (!objectPath.startsWith(`users/${userId}/`)) {
+        return res.status(403).json({ error: "Access denied - object not owned by user" });
+      }
+      
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
@@ -431,8 +449,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { name, originalName, fileSize, fileType, mimeType, folderId, tagIds } = validationResult.data;
 
+      // Get userId for duplicate check
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      
       // Check for duplicate files before creating document record
-      const duplicates = await storage.findDuplicateFiles(originalName, fileSize);
+      const duplicates = await storage.findDuplicateFiles(originalName, fileSize, userId);
       if (duplicates.length > 0) {
         const funnyMessages = [
           "File twins detected! This document already exists in your digital library! 📚",
@@ -493,7 +517,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const documentWithDetails = await storage.getDocumentById(document.id);
       
       // Trigger background content extraction with proper automation pipeline
-      storage.extractDocumentContent(document.id)
+      storage.extractDocumentContent(document.id, currentUserId)
         .then(async (success) => {
           if (success) {
             console.log(`✅ Content extracted for: ${document.name}`);
@@ -596,7 +620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           // Check for duplicate files before generating signed URL
           if (f.size !== undefined) {
-            const duplicates = await storage.findDuplicateFiles(f.name, f.size);
+            const duplicates = await storage.findDuplicateFiles(f.name, f.size, userId);
             if (duplicates.length > 0) {
               const funnyMessages = [
                 "File déjà vu! This file already exists in your collection! 🔄",
@@ -873,8 +897,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         limit,
       };
 
-      const documents = await storage.getDocuments(filters);
-      const total = await storage.getDocumentsCount(filters);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      
+      const documents = await storage.getDocuments(filters, userId);
+      const total = await storage.getDocumentsCount(filters, userId);
       
       res.json({
         documents,
@@ -894,7 +923,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get trashed documents (only show trashed items)
   app.get("/api/documents/trash", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const trashedDocuments = await storage.getTrashedDocuments();
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const trashedDocuments = await storage.getTrashedDocuments(userId);
       res.json({ documents: trashedDocuments });
     } catch (error) {
       console.error("Error fetching trashed documents:", error);
@@ -909,12 +942,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const storage = new DatabaseStorage();
       
       // Get ALL active documents (ignoring any filters)
-      const allActiveDocuments = await storage.getAllActiveDocuments();
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      
+      const allActiveDocuments = await storage.getAllActiveDocuments(userId);
       
       // Delete each document (move to trash)
       let deletedCount = 0;
       for (const document of allActiveDocuments) {
-        const success = await storage.deleteDocument(document.id);
+        const success = await storage.deleteDocument(document.id, userId);
         if (success) deletedCount++;
       }
 
@@ -1125,7 +1163,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/documents/:id/content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
-      const content = await storage.getDocumentContent(id);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const content = await storage.getDocumentContent(id, userId);
       
       if (content === null) {
         res.status(404).json({ error: "Document not found or has no content" });
@@ -1142,7 +1184,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get document by ID
   app.get("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const document = await storage.getDocumentById(req.params.id);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const document = await storage.getDocumentById(req.params.id, userId);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -1286,11 +1332,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { name, folderId, isFavorite, tagIds } = req.body;
       
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      
       const document = await storage.updateDocument(req.params.id, {
         name,
         folderId,
         isFavorite,
-      });
+      }, userId);
 
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
@@ -1298,15 +1349,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update tags if provided
       if (tagIds !== undefined) {
-        await storage.removeDocumentTags(document.id);
+        await storage.removeDocumentTags(document.id, userId);
         if (Array.isArray(tagIds)) {
           for (const tagId of tagIds) {
-            await storage.addDocumentTag({ documentId: document.id, tagId });
+            await storage.addDocumentTag({ documentId: document.id, tagId }, userId);
           }
         }
       }
 
-      const updatedDocument = await storage.getDocumentById(document.id);
+      const updatedDocument = await storage.getDocumentById(document.id, userId);
       res.json(updatedDocument);
     } catch (error) {
       console.error("Error updating document:", error);
@@ -1331,7 +1382,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { category, documentType } = validationResult.data;
       
       // Check if document exists
-      const document = await storage.getDocumentById(documentId);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      
+      const document = await storage.getDocumentById(documentId, userId);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -1341,21 +1397,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         overrideCategory: category,
         overrideDocumentType: documentType,
         classificationOverridden: true
-      });
+      }, userId);
       
       if (!updatedDocument) {
         return res.status(500).json({ error: "Failed to update document classification" });
       }
       
       // Reorganize document into the correct folder based on new classification
-      const organizeSuccess = await storage.organizeDocumentIntoFolder(documentId, category, documentType);
+      const organizeSuccess = await storage.organizeDocumentIntoFolder(documentId, category, documentType, userId);
       if (!organizeSuccess) {
         console.warn(`Failed to reorganize document ${documentId} into folder for category: ${category}, type: ${documentType}`);
         // Don't fail the request, as the classification was still updated
       }
       
       // Return the updated document with folder information
-      const finalDocument = await storage.getDocumentById(documentId);
+      const finalDocument = await storage.getDocumentById(documentId, userId);
       res.json(finalDocument);
       
     } catch (error) {
@@ -1367,7 +1423,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete document
   app.delete("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const deleted = await storage.deleteDocument(req.params.id);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const deleted = await storage.deleteDocument(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -1381,7 +1441,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Restore document from trash
   app.patch("/api/documents/:id/restore", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const result = await storage.restoreDocument(req.params.id);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const result = await storage.restoreDocument(req.params.id, userId);
       if (!result.success) {
         const statusCode = result.error?.includes("not found") ? 404 : 400;
         return res.status(statusCode).json({ 
@@ -1428,7 +1492,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if document exists
-      const document = await storage.getDocumentById(documentId);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      
+      const document = await storage.getDocumentById(documentId, userId);
       if (!document) {
         console.error("AI analysis failed: Document not found");
         return res.status(404).json({ error: "Document not found" });
@@ -1456,7 +1525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         try {
           // Pass the Drive access token if available, otherwise try without it
-          success = await storage.analyzeDocumentWithAI(documentId, undefined, driveAccessToken);
+          success = await storage.analyzeDocumentWithAI(documentId, userId, undefined, driveAccessToken);
         } catch (error) {
           console.error("AI analysis failed for Drive document:", error);
           success = false;
@@ -1464,7 +1533,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // For uploaded documents, analyze normally
         try {
-          success = await storage.analyzeDocumentWithAI(documentId);
+          success = await storage.analyzeDocumentWithAI(documentId, userId);
         } catch (aiError) {
           console.error("AI analysis failed for uploaded file:", aiError);
           success = false;
@@ -1477,7 +1546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Return updated document with AI analysis
-      const updatedDocument = await storage.getDocumentById(documentId);
+      const updatedDocument = await storage.getDocumentById(documentId, userId);
       res.json({
         success: true,
         message: "Document analyzed successfully",
@@ -1518,7 +1587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         try {
           // Extract with Drive authentication
-          success = await storage.extractDocumentContent(documentId, driveAccessToken);
+          success = await storage.extractDocumentContent(documentId, userId, driveAccessToken);
           
         } catch (driveError) {
           console.error("Drive authentication failed:", driveError);
@@ -1530,7 +1599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // Regular uploaded document
-        success = await storage.extractDocumentContent(documentId);
+        success = await storage.extractDocumentContent(documentId, userId);
       }
       
       if (!success) {
@@ -1555,7 +1624,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       
       // Get documents without extracted content
-      const documentsWithoutContent = await storage.getDocumentsWithoutContent();
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const documentsWithoutContent = await storage.getDocumentsWithoutContent(userId);
       
       if (documentsWithoutContent.length === 0) {
         return res.json({
@@ -1612,6 +1685,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       
       // Get all PDF documents that need analysis
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
       const allDocuments = await storage.getDocuments({
         search: "",
         page: 1,
@@ -1937,7 +2014,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Folders endpoints
   app.get("/api/folders", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const folders = await storage.getFolders();
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const folders = await storage.getFolders(userId);
       res.json(folders);
     } catch (error) {
       console.error("Error fetching folders:", error);
@@ -1983,9 +2064,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Tags endpoints
-  app.get("/api/tags", async (req, res) => {
+  app.get("/api/tags", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const tags = await storage.getTags();
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const tags = await storage.getTags(userId);
       res.json(tags);
     } catch (error) {
       console.error("Error fetching tags:", error);
