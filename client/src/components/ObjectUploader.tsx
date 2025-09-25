@@ -259,20 +259,21 @@ export function ObjectUploader({
       } else {
         setState("done");
         
+        // Notify parent first, then auto-close
+        onSuccess?.(finalize.docIds || []);
+        
         // Auto-close after brief success display
         setTimeout(() => {
           setShowModal(false);
           setState("idle");
           setSelectedFiles([]);
+          setErrors([]);
           
-          // Show success toast
+          // Show success toast AFTER modal closes
           toast({
             title: "Upload successful!",
             description: `Uploaded ${files.length} file${files.length !== 1 ? 's' : ''}. We'll analyze them in the background.`,
           });
-          
-          // Notify parent
-          onSuccess?.(finalize.docIds || []);
         }, 400);
       }
 
@@ -291,12 +292,16 @@ export function ObjectUploader({
 
   // Reset state when closing modal
   const handleModalClose = useCallback((open: boolean) => {
-    if (!open && state !== "uploading" && state !== "finalizing") {
+    // Only allow closing when not in active upload states
+    if (!open && state !== "uploading" && state !== "finalizing" && state !== "signing") {
       setShowModal(false);
       setState("idle");
       setErrors([]);
       setSelectedFiles([]);
       onClose?.();
+    } else if (!open && (state === "uploading" || state === "finalizing" || state === "signing")) {
+      // Prevent closing during active uploads - keep modal open
+      setShowModal(true);
     }
   }, [state, onClose]);
 
