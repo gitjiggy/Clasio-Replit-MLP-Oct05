@@ -26,6 +26,7 @@ import {
   aiAnalysisQueue,
   dailyApiUsage,
 } from "@shared/schema";
+import { ObjectStorageService } from "./objectStorage";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
@@ -351,6 +352,7 @@ export class DatabaseStorage implements IStorage {
       name: documents.name,
       originalName: documents.originalName,
       filePath: documents.filePath,
+      objectPath: documents.objectPath, // GCS path for deletions
       fileSize: documents.fileSize,
       fileType: documents.fileType,
       mimeType: documents.mimeType,
@@ -358,6 +360,9 @@ export class DatabaseStorage implements IStorage {
       uploadedAt: documents.uploadedAt,
       isFavorite: documents.isFavorite,
       isDeleted: documents.isDeleted,
+      // Trash system fields
+      status: documents.status,
+      deletedAt: documents.deletedAt,
       driveFileId: documents.driveFileId,
       driveWebViewLink: documents.driveWebViewLink,
       isFromDrive: documents.isFromDrive,
@@ -2293,13 +2298,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteDocument(id: string): Promise<boolean> {
-    const result = await db
-      .update(documents)
-      .set({ isDeleted: true })
-      .where(eq(documents.id, id))
-      .returning();
+    try {
+      // Get document details first (need objectPath for GCS deletion)
+      const document = await this.getDocumentById(id);
+      if (!document) {
+        console.warn(`Document ${id} not found for deletion`);
+        return false;
+      }
 
-    return result.length > 0;
+      // Mark as trashed in database (soft delete with 7-day retention)
+      const result = await db
+        .update(documents)
+        .set({ 
+          status: 'trashed',
+          deletedAt: new Date(),
+          isDeleted: true // Keep for backward compatibility
+        })
+        .where(eq(documents.id, id))
+        .returning();
+
+      if (result.length === 0) {
+        console.warn(`Failed to mark document ${id} as trashed`);
+        return false;
+      }
+
+      // Delete from GCS immediately (idempotent; treat 404 as success)
+      if (document.objectPath || document.filePath) {
+        try {
+          const objectPath = document.objectPath || document.filePath;
+          if (objectPath) {
+            const objectStorageService = new ObjectStorageService();
+            await objectStorageService.deleteObject(objectPath);
+            console.log(`✅ File deleted from GCS: ${objectPath}`);
+          }
+        } catch (gcsError: any) {
+          // Treat 404 as success (file already gone)
+          if (gcsError.code === 404 || gcsError.message?.includes('No such object')) {
+            console.log(`📁 File already deleted from GCS: ${document.objectPath || document.filePath}`);
+          } else {
+            console.error(`⚠️ GCS deletion failed for ${document.objectPath || document.filePath}:`, gcsError.message);
+            // Don't fail the operation - file will be cleaned up by reconcile job
+          }
+        }
+      }
+
+      // TODO: Invalidate search/embeddings (implement when adding search invalidation)
+      console.log(`🗑️ Document "${document.name}" moved to trash (auto-deletes in 7 days)`);
+      
+      return true;
+    } catch (error) {
+      console.error(`Error deleting document ${id}:`, error);
+      return false;
+    }
   }
 
   async getDocumentByDriveFileId(driveFileId: string): Promise<DocumentWithFolderAndTags | undefined> {

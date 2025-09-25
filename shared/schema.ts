@@ -36,13 +36,17 @@ export const documents = pgTable("documents", {
   name: text("name").notNull(),
   originalName: text("original_name").notNull(),
   filePath: text("file_path"),
+  objectPath: text("object_path"), // GCS object path for deletion
   fileSize: integer("file_size"),
   fileType: text("file_type").notNull(),
   mimeType: text("mime_type").notNull(),
   folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
   uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
   isFavorite: boolean("is_favorite").default(false).notNull(),
-  isDeleted: boolean("is_deleted").default(false).notNull(),
+  isDeleted: boolean("is_deleted").default(false).notNull(), // Keep for backward compatibility
+  // Trash system with 7-day retention
+  status: text("status").default("active").notNull(), // 'active', 'trashed', 'purged'
+  deletedAt: timestamp("deleted_at"), // When moved to trash
   // Google Drive integration fields
   driveFileId: text("drive_file_id"), // Google Drive file ID
   driveWebViewLink: text("drive_web_view_link"), // Google Drive web view URL
