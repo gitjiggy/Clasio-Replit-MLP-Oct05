@@ -368,13 +368,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.file.mimetype
       );
       
+      const determinedFileType = getFileTypeFromMimeType(req.file.mimetype);
+      console.log(`🔍 Proxy Upload Debug - File: ${originalFileName}, MIME: ${req.file.mimetype}, FileType: ${determinedFileType}`);
+      
       res.json({
         success: true,
         objectPath: canonicalPath,
         docId,
         originalFileName,
         fileSize: req.file.size,
-        fileType: getFileTypeFromMimeType(req.file.mimetype),
+        fileType: determinedFileType,
         mimeType: req.file.mimetype
       });
     } catch (error) {
