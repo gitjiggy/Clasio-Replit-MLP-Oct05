@@ -142,6 +142,7 @@ export interface IStorage {
   // Documents
   createDocument(document: InsertDocument): Promise<Document>;
   getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]>;
+  getAllActiveDocuments(): Promise<DocumentWithFolderAndTags[]>;
   getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]>;
   emptyTrash(): Promise<{ deletedCount: number }>;
   purgeExpiredTrashedDocuments(): Promise<{ deletedCount: number }>;
@@ -466,6 +467,35 @@ export class DatabaseStorage implements IStorage {
     );
 
     return docsWithTags;
+  }
+
+  async getAllActiveDocuments(): Promise<DocumentWithFolderAndTags[]> {
+    await this.ensureInitialized();
+    
+    // Get ALL active documents (no filters, no pagination)
+    const result = await db.query.documents.findMany({
+      where: and(
+        eq(documents.isDeleted, false),
+        eq(documents.status, 'active')
+      ),
+      with: {
+        folder: true,
+        documentTags: {
+          with: {
+            tag: true
+          }
+        }
+      },
+      orderBy: [desc(documents.uploadedAt)]
+    });
+
+    // Transform to include tags as array
+    const transformedDocs = result.map(doc => ({
+      ...doc,
+      tags: doc.documentTags?.map(dt => dt.tag) || []
+    }));
+    
+    return transformedDocs as DocumentWithFolderAndTags[];
   }
 
   async getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]> {

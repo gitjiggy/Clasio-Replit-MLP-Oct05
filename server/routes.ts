@@ -634,6 +634,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete all active documents (move all to trash)
+  app.delete("/api/documents/all", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { DatabaseStorage } = await import("./storage");
+      const storage = new DatabaseStorage();
+      
+      // Get ALL active documents (ignoring any filters)
+      const allActiveDocuments = await storage.getAllActiveDocuments();
+      
+      // Delete each document (move to trash)
+      let deletedCount = 0;
+      for (const document of allActiveDocuments) {
+        const success = await storage.deleteDocument(document.id);
+        if (success) deletedCount++;
+      }
+
+      res.json({ 
+        success: true, 
+        deletedCount,
+        message: `Successfully moved ${deletedCount} documents to trash`
+      });
+    } catch (error) {
+      console.error("Error deleting all documents:", error);
+      res.status(500).json({ error: "Failed to delete all documents" });
+    }
+  });
+
   // Empty trash - permanently delete all trashed documents
   app.delete("/api/documents/trash", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {

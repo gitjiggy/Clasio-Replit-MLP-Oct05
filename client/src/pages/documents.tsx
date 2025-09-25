@@ -617,22 +617,16 @@ export default function Documents() {
   // Delete all documents mutation (for testing)
   const deleteAllDocumentsMutation = useMutation({
     mutationFn: async () => {
-      if (!documentsData?.documents) return { success: true };
-      
-      // Delete all documents one by one
-      const deletePromises = documentsData.documents.map(doc => 
-        apiRequest("DELETE", `/api/documents/${doc.id}`)
-      );
-      
-      await Promise.all(deletePromises);
-      return { success: true };
+      // Use the new "delete all" endpoint that gets ALL active documents
+      const response = await apiRequest("DELETE", "/api/documents/all");
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
       toast({
         title: "All documents deleted",
-        description: "All documents have been deleted successfully.",
+        description: data.message || `Successfully moved ${data.deletedCount} documents to trash`,
       });
     },
     onError: (error) => {
