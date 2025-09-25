@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, unique, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, unique, index, uniqueIndex, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -47,6 +47,7 @@ export const documents = pgTable("documents", {
   // Trash system with 7-day retention
   status: text("status").default("active").notNull(), // 'active', 'trashed', 'purged'
   deletedAt: timestamp("deleted_at"), // When moved to trash
+  deletedGeneration: bigint("deleted_generation", { mode: "bigint" }), // GCS object generation for restore
   // Google Drive integration fields
   driveFileId: text("drive_file_id"), // Google Drive file ID
   driveWebViewLink: text("drive_web_view_link"), // Google Drive web view URL
