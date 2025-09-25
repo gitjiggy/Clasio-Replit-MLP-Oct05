@@ -267,8 +267,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: new Date().toISOString()
           }));
 
-          // Return special response - upload paused, awaiting user decision
-          return res.status(200).json({
+          // Return 409 Conflict status - upload paused, awaiting user decision
+          return res.status(409).json({
             ok: false,
             requiresUserDecision: true,
             type: "duplicate_detected",

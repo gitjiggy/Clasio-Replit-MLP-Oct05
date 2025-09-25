@@ -270,10 +270,20 @@ export function ObjectUploader({
             // Use single file upload endpoint as fallback
             const formData = new FormData();
             formData.append('file', file);
-            const result = await apiRequest('/api/documents/upload-proxy', {
-              method: 'POST',
-              body: formData
-            });
+            let result;
+            try {
+              result = await apiRequest('/api/documents/upload-proxy', {
+                method: 'POST',
+                body: formData
+              });
+            } catch (error: any) {
+              // Handle 409 conflict (duplicate detection) specially
+              if (error.status === 409 && error.data?.requiresUserDecision && error.data?.type === 'duplicate_detected') {
+                result = error.data; // Use the error response data for duplicate handling
+              } else {
+                throw error; // Re-throw other errors
+              }
+            }
             
             // Handle duplicate detection - upload paused, awaiting user decision
             if (result.requiresUserDecision && result.type === 'duplicate_detected') {
@@ -296,15 +306,28 @@ export function ObjectUploader({
                       retryFormData.append('file', file);
                       retryFormData.append('forceUpload', 'true');
                       
-                      apiRequest('/api/documents/upload-proxy', {
-                        method: 'POST',
-                        body: retryFormData
-                      }).then((retryResult) => {
-                        resolve({ success: true, docId: retryResult.docId });
-                      }).catch((retryError) => {
-                        console.error("Retry upload error:", retryError);
-                        resolve({ success: false, error: 'upload_failed' });
-                      });
+                      // Retry with forceUpload flag - handle the same way as initial upload
+                      (async () => {
+                        try {
+                          let retryResult;
+                          try {
+                            retryResult = await apiRequest('/api/documents/upload-proxy', {
+                              method: 'POST',
+                              body: retryFormData
+                            });
+                          } catch (retryError: any) {
+                            // If we get another 409 with forceUpload=true, that's an unexpected error
+                            if (retryError.status === 409) {
+                              console.error("Unexpected 409 on retry with forceUpload=true:", retryError);
+                            }
+                            throw retryError;
+                          }
+                          resolve({ success: true, docId: retryResult.docId });
+                        } catch (retryError) {
+                          console.error("Retry upload error:", retryError);
+                          resolve({ success: false, error: 'upload_failed' });
+                        }
+                      })();
                     } else if (decision === 'view') {
                       // User chose "View File" - navigate to existing document
                       const firstExisting = result.existingDocs?.[0];
