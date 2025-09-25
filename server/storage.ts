@@ -294,8 +294,11 @@ export class DatabaseStorage implements IStorage {
   async getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]> {
     await this.ensureInitialized();
     
-    // Apply filters
-    const conditions = [eq(documents.isDeleted, false)];
+    // Apply filters - exclude deleted and trashed documents by default
+    const conditions = [
+      eq(documents.isDeleted, false), // Backward compatibility
+      eq(documents.status, 'active')   // New trash system - only show active documents
+    ];
 
     if (filters.search) {
       // Search in document name, content, and tag names
@@ -1213,8 +1216,11 @@ export class DatabaseStorage implements IStorage {
         // Use ILIKE search (same as simple search) instead of FTS for consistency
         const searchTerm = `%${query}%`;
         
-        // Build search conditions (same as simple search)
-        const conditions = [eq(documents.isDeleted, false)];
+        // Build search conditions (same as simple search) - exclude trashed documents
+        const conditions = [
+          eq(documents.isDeleted, false),
+          eq(documents.status, 'active')
+        ];
         
         // Search in document name, content, and tag names (same as simple search)
         const nameCondition = ilike(documents.name, searchTerm);
@@ -1468,8 +1474,11 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // Apply base filters
-      const conditions = [eq(documents.isDeleted, false)];
+      // Apply base filters - exclude trashed documents
+      const conditions = [
+        eq(documents.isDeleted, false),
+        eq(documents.status, 'active')
+      ];
       
       // Add category filter from AI analysis or explicit filters
       if (queryAnalysis.categoryFilter) {
@@ -1648,8 +1657,11 @@ export class DatabaseStorage implements IStorage {
       if (foundDocuments.length === 0 && queryAnalysis.keywords.length > 0) {
         console.log("No matches found, trying broader search...");
         
-        // Try searching for individual keywords more broadly
-        const broadConditions = [eq(documents.isDeleted, false)];
+        // Try searching for individual keywords more broadly - exclude trashed documents
+        const broadConditions = [
+          eq(documents.isDeleted, false),
+          eq(documents.status, 'active')
+        ];
         const anyKeywordConditions = [];
         
         for (const keyword of queryAnalysis.keywords) {
@@ -2202,7 +2214,10 @@ export class DatabaseStorage implements IStorage {
 
   async getDocumentsCount(filters: DocumentFilters): Promise<number> {
     await this.ensureInitialized();
-    const conditions = [eq(documents.isDeleted, false)];
+    const conditions = [
+      eq(documents.isDeleted, false),
+      eq(documents.status, 'active')
+    ];
 
     if (filters.search) {
       // Search in both document name and content
@@ -2256,7 +2271,11 @@ export class DatabaseStorage implements IStorage {
       })
       .from(documents)
       .leftJoin(folders, eq(documents.folderId, folders.id))
-      .where(and(eq(documents.id, id), eq(documents.isDeleted, false)))
+      .where(and(
+        eq(documents.id, id), 
+        eq(documents.isDeleted, false),
+        eq(documents.status, 'active')
+      ))
       .limit(1);
 
     if (result.length === 0) {
@@ -2282,7 +2301,11 @@ export class DatabaseStorage implements IStorage {
         documentContent: documents.documentContent 
       })
       .from(documents)
-      .where(and(eq(documents.id, id), eq(documents.isDeleted, false)))
+      .where(and(
+        eq(documents.id, id), 
+        eq(documents.isDeleted, false),
+        eq(documents.status, 'active')
+      ))
       .limit(1);
 
     return result.length > 0 ? result[0].documentContent : null;
@@ -2292,7 +2315,11 @@ export class DatabaseStorage implements IStorage {
     const [updatedDocument] = await db
       .update(documents)
       .set(updates)
-      .where(and(eq(documents.id, id), eq(documents.isDeleted, false)))
+      .where(and(
+        eq(documents.id, id), 
+        eq(documents.isDeleted, false),
+        eq(documents.status, 'active')
+      ))
       .returning();
 
     return updatedDocument;
@@ -2414,7 +2441,11 @@ export class DatabaseStorage implements IStorage {
       })
       .from(documents)
       .leftJoin(folders, eq(documents.folderId, folders.id))
-      .where(and(eq(documents.driveFileId, driveFileId), eq(documents.isDeleted, false)))
+      .where(and(
+        eq(documents.driveFileId, driveFileId), 
+        eq(documents.isDeleted, false),
+        eq(documents.status, 'active')
+      ))
       .limit(1);
 
     if (result.length === 0) {
@@ -2659,7 +2690,8 @@ export class DatabaseStorage implements IStorage {
             .where(
               and(
                 eq(folders.parentId, folder.id),
-                eq(documents.isDeleted, false)
+                eq(documents.isDeleted, false),
+                eq(documents.status, 'active')
               )
             );
 
@@ -2674,7 +2706,8 @@ export class DatabaseStorage implements IStorage {
             .where(
               and(
                 eq(documents.folderId, folder.id),
-                eq(documents.isDeleted, false)
+                eq(documents.isDeleted, false),
+                eq(documents.status, 'active')
               )
             );
 
@@ -2922,6 +2955,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(documents.isDeleted, false),
+          eq(documents.status, 'active'),
           eq(documents.contentExtracted, false)
         )
       )
@@ -3155,6 +3189,7 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(documents.isDeleted, false),
+            eq(documents.status, 'active'),
             sql`${documents.aiCategory} IS NOT NULL`,
             sql`${documents.folderId} IS NULL`
           )
