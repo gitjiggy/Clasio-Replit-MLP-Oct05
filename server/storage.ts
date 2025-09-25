@@ -128,6 +128,7 @@ export interface IStorage {
   // Documents
   createDocument(document: InsertDocument): Promise<Document>;
   getDocuments(filters: DocumentFilters): Promise<DocumentWithFolderAndTags[]>;
+  getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]>;
   getDocumentsCount(filters: DocumentFilters): Promise<number>;
   getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined>;
   getDocumentContent(id: string): Promise<string | null>; // Get just the content for a document
@@ -444,6 +445,60 @@ export class DatabaseStorage implements IStorage {
           tags: docTags.map(dt => dt.tag).filter(Boolean) as Tag[],
           currentVersionNumber: currentVersionInfo[0]?.version || 1,
           versionCount: totalVersions[0]?.count || 1,
+        };
+      })
+    );
+
+    return docsWithTags;
+  }
+
+  async getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]> {
+    await this.ensureInitialized();
+    
+    // Get only documents that are trashed (status='trashed')
+    const results = await db
+      .select({
+        document: {
+          id: documents.id,
+          name: documents.name,
+          originalName: documents.originalName,
+          filePath: documents.filePath,
+          objectPath: documents.objectPath,
+          fileSize: documents.fileSize,
+          fileType: documents.fileType,
+          mimeType: documents.mimeType,
+          folderId: documents.folderId,
+          uploadedAt: documents.uploadedAt,
+          isFavorite: documents.isFavorite,
+          isDeleted: documents.isDeleted,
+          status: documents.status,
+          deletedAt: documents.deletedAt,
+          // Include other fields needed for display but exclude heavy content
+          aiSummary: documents.aiSummary,
+          aiKeyTopics: documents.aiKeyTopics,
+          aiDocumentType: documents.aiDocumentType,
+          aiCategory: documents.aiCategory,
+        },
+        folder: folders,
+      })
+      .from(documents)
+      .leftJoin(folders, eq(documents.folderId, folders.id))
+      .where(eq(documents.status, 'trashed'))
+      .orderBy(desc(documents.deletedAt)); // Show most recently deleted first
+
+    // Get tags for each trashed document
+    const docsWithTags = await Promise.all(
+      results.map(async (result) => {
+        const docTags = await db
+          .select({ tag: tags })
+          .from(documentTags)
+          .leftJoin(tags, eq(documentTags.tagId, tags.id))
+          .where(eq(documentTags.documentId, result.document.id));
+
+        return {
+          ...result.document,
+          folder: result.folder || undefined,
+          tags: docTags.map(dt => dt.tag).filter(Boolean) as Tag[],
         };
       })
     );

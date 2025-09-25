@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LoginModal } from "@/components/LoginModal";
 import { UserMenu } from "@/components/UserMenu";
 import Documents from "@/pages/documents";
+import Trash from "@/pages/trash";
 import Drive from "@/pages/drive";
 import AuthDrive from "@/pages/auth-drive";
 import DocumentViewer from "@/pages/document-viewer";
@@ -16,7 +17,7 @@ import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
 import { initGA } from "./lib/analytics";
 import { useAnalytics } from "./hooks/use-analytics";
-import { FileText, HardDrive } from "lucide-react";
+import { FileText, HardDrive, Trash2 } from "lucide-react";
 
 interface AppHeaderProps {
   onSignInClick: () => void;
@@ -58,17 +59,25 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
 
 function Navigation() {
   const [location] = useLocation();
-  const currentTab = location === "/drive" ? "drive" : "documents";
+  let currentTab = "documents";
+  if (location === "/drive") currentTab = "drive";
+  else if (location === "/trash") currentTab = "trash";
   
   return (
     <div className="border-b bg-background">
       <div className="container mx-auto px-6">
         <Tabs value={currentTab} className="w-full">
-          <TabsList className="grid w-full max-w-[400px] grid-cols-2">
+          <TabsList className="grid w-full max-w-[600px] grid-cols-3">
             <TabsTrigger value="documents" asChild>
               <Link href="/documents" className="flex items-center gap-2" data-testid="tab-documents">
                 <FileText className="h-4 w-4" />
                 Documents
+              </Link>
+            </TabsTrigger>
+            <TabsTrigger value="trash" asChild>
+              <Link href="/trash" className="flex items-center gap-2" data-testid="tab-trash">
+                <Trash2 className="h-4 w-4" />
+                Trash
               </Link>
             </TabsTrigger>
             <TabsTrigger value="drive" asChild>
@@ -94,6 +103,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Documents} />
         <Route path="/documents" component={Documents} />
+        <Route path="/trash" component={Trash} />
         <Route path="/drive" component={Drive} />
         <Route path="/viewer/:id" component={DocumentViewer} />
         <Route component={NotFound} />

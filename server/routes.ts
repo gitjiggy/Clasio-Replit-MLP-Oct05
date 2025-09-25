@@ -623,6 +623,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get trashed documents (only show trashed items)
+  app.get("/api/documents/trash", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const trashedDocuments = await storage.getTrashedDocuments();
+      res.json({ documents: trashedDocuments });
+    } catch (error) {
+      console.error("Error fetching trashed documents:", error);
+      res.status(500).json({ error: "Failed to fetch trashed documents" });
+    }
+  });
+
   // Enhanced conversational search endpoint using Flash-lite
   app.get("/api/documents/search", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
