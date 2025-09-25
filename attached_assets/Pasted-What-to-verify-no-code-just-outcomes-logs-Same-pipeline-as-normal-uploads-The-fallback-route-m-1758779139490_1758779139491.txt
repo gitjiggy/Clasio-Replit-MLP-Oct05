@@ -1,0 +1,65 @@
+What to verify (no code—just outcomes & logs)
+
+Same pipeline as normal uploads
+
+The fallback route must call the same document-creation + finalize logic used by the normal (signed URL) flow.
+
+Outcome: one code path creates the DB row, sets the same fields (userId, name, size, MIME type, fileType, objectPath, timestamps), and returns the docId.
+
+Server logs for one test upload (sanitized)
+
+Single log sequence for a fallback upload:
+
+upload-proxy.entry → shows uid and contentType: multipart/form-data…
+
+upload-proxy.gcs_saved → shows sanitized objectPath: users/<uid>/docs/<docId>/<file>
+
+upload-proxy.db_created → shows docId, fileType, and objectPathPrefix (no filename)
+
+upload-proxy.finalized → shows docId and analysisQueued: true|false
+
+Ask them to paste these four lines for one file with your UID.
+
+UI behavior
+
+After a fallback upload, the document appears in the Documents grid without a page refresh.
+
+The modal auto-closes when all files complete.
+
+“Analyze” status behaves the same as normal uploads (queued→done).
+
+Consistency checks (must pass)
+
+The DB row’s objectPath exactly matches the file you see in GCS.
+
+Deleting the document now removes both DB row and the GCS object.
+
+Restoring from trash (if applicable) re-shows in the UI and keeps the same objectPath (no duplicates created).
+
+Error-handling guarantees
+
+If DB insert fails after GCS save, the server deletes the just-uploaded GCS object and returns a clear error. (No new orphans.)
+
+If GCS save fails, no DB row is created. (Atomic behavior.)
+
+If the client retries the same file, it creates one document (no duplicates). (Idempotency based on the new docId path.)
+
+Performance
+
+Fallback uploads should run with concurrency ~3–5 files at a time so the UI stays snappy.
+
+Confirm end-to-end time for your five-file test is in the same ballpark as the signed-URL path.
+
+Regression tests
+
+Add a test that drives the fallback path and asserts:
+
+file saved to GCS,
+
+DB row created with matching objectPath,
+
+delete removes both,
+
+restore works.
+
+Include a filename with spaces & apostrophes to prevent future breakage.

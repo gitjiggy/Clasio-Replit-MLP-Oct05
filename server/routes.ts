@@ -229,6 +229,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           validation: false,
         });
 
+        console.info(JSON.stringify({
+          evt: "upload-proxy.gcs_saved",
+          uid, 
+          objectPath: obfuscatePath(objectPath), 
+          size
+        }));
+
         // Step 2: Create database record (this was missing!)
         const determinedFileType = getFileTypeFromMimeType(mimetype || "", originalname);
         const documentData = {
@@ -248,20 +255,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const validatedData = insertDocumentSchema.parse(documentData);
         const document = await storage.createDocument(validatedData);
 
+        console.info(JSON.stringify({
+          evt: "upload-proxy.db_created",
+          uid,
+          docId,
+          fileType: determinedFileType,
+          objectPathPrefix: `users/${uid}/docs/${docId}`
+        }));
+
         // Step 3: Queue for AI analysis (like other upload routes)
+        let analysisQueued = false;
         try {
           await storage.enqueueDocumentForAnalysis(document.id, uid, 5); // Normal priority
+          analysisQueued = true;
           console.log(`🔍 Auto-queued AI analysis for: ${originalname} (proxy upload)`);
         } catch (analysisError) {
           console.warn(`Failed to auto-queue AI analysis for ${originalname}:`, analysisError);
         }
 
         console.info(JSON.stringify({
-          evt: "upload-proxy.success",
-          uid, 
-          objectPath: `users/${uid}/docs/${docId}/<file>`, 
-          size,
-          dbCreated: true
+          evt: "upload-proxy.finalized",
+          uid,
+          docId,
+          analysisQueued
         }));
         
         return res.status(200).json({ 
