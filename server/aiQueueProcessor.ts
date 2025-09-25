@@ -237,7 +237,8 @@ class AIQueueProcessor {
                 const organized = await storage.organizeDocumentIntoFolder(
                   nextJob.documentId, 
                   analysisResult.category, 
-                  analysisResult.documentType
+                  analysisResult.documentType,
+                  nextJob.userId
                 );
                 if (organized) {
                   console.log(`✅ Smart Organization: "${document.name}" → ${analysisResult.category}/${analysisResult.documentType}`);
