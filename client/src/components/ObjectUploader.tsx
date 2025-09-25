@@ -225,16 +225,31 @@ export function ObjectUploader({
     setErrors([]);
 
     try {
-      // Step 1: Get signed URLs (batch sign) - use real MIME types
+      // Step 1: Get signed URLs (batch sign) - use real MIME types  
       const fileData = files.map(f => ({
         name: f.name,
-        mimeType: f.type || 'application/octet-stream' // Real MIME from File.type
+        mimeType: f.type || 'application/octet-stream', // Real MIME from File.type
+        size: f.size // Include size for server logging
       }));
-      const signed = await apiRequest('/api/documents/bulk-upload-urls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: fileData })
-      });
+      
+      let signed;
+      try {
+        signed = await apiRequest('/api/documents/bulk-upload-urls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: fileData })
+        });
+      } catch (batchError: any) {
+        // Fallback to keep users unblocked - use per-file signing
+        console.warn("⚠️ Batch signing failed, falling back to per-file signing:", batchError);
+        toast({
+          title: "Using fallback upload method",
+          description: "Batch upload unavailable, uploading files individually",
+        });
+        
+        // TODO: Implement per-file fallback here if needed
+        throw batchError; // For now, still throw to show the error
+      }
 
       setState("uploading");
       

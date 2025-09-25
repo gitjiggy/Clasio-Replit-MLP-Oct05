@@ -1,0 +1,85 @@
+Subject: /api/documents/bulk-upload-urls returns 500 for files that previously uploaded fine (regression)
+
+Symptoms
+
+Modal shows: 500: {"error":"Failed to generate bulk upload URLs"...} from POST /api/documents/bulk-upload-urls.
+
+Same files (with spaces & apostrophes) worked earlier with the prior flow, so filename encoding isn’t the culprit.
+
+This is failing before any PUT to GCS (no signed URL is returned).
+
+Please do the following:
+
+Instrument the batch route and return a real error (not 500 generic).
+
+// server: /api/documents/bulk-upload-urls
+try {
+  // existing code
+} catch (err:any) {
+  console.error("bulk-upload-urls failed", {
+    err: err?.stack || err?.message || String(err),
+    userId,
+    payload: (req.body?.files || []).map(f => ({ name: f?.name, mimeType: f?.mimeType, size: f?.size }))
+  });
+  // If schema validation fails, return 400 with details
+  return res.status(err?.statusCode === 400 ? 400 : 500)
+            .json({ error: "Failed to generate bulk upload URLs", detail: err?.message });
+}
+
+
+Make request/response schemas match exactly.
+Client sends:
+
+{ "files": [{ "name": "<original name>", "mimeType": "<File.type>", "size": <number> }] }
+
+
+Zod/TS on the server must accept that shape (no extra required fields; mimeType may be empty).
+
+Resolve MIME robustly (don’t crash if mimeType is empty).
+Use the real MIME if present, else infer from extension, else fallback:
+
+import { lookup as mimeLookup } from "mime-types";
+const resolveMime = (name: string, mime?: string) =>
+  (mime && mime.trim()) || mimeLookup(name) || "application/octet-stream";
+
+
+Build raw object paths; don’t pre-encode names.
+(This already worked before—reuse the same helper you used for the single-file flow.)
+
+const objectPath = `users/${userId}/docs/${docId}/${file.name}`; // raw name with spaces/apostrophes
+const contentType = resolveMime(file.name, file.mimeType);
+
+const [url] = await bucket.file(objectPath).getSignedUrl({
+  version: "v4",
+  action: "write",
+  expires: Date.now() + 10 * 60 * 1000,
+  contentType
+});
+
+results.push({ ok: true, url, method: "PUT", headers: { "Content-Type": contentType }, objectPath });
+
+
+Don’t fail the entire batch for one bad file.
+Return per-file results; any file error should be { ok:false, name, reason } so the UI can retry failed items without blocking the rest.
+
+Re-use the previously working single-file signing helper.
+The safest fix is to call the same function you used before for each file in the batch; avoid new logic that diverges on path/headers.
+
+Guard rails
+
+Verify userId is present; if not, return 401 (not 500).
+
+Ensure bucket client is initialized (envs present) and log bucket name once at route entry.
+
+Log for each signed file: {objectPath, contentType, expiresAtISO}.
+
+Fallback to keep users unblocked
+If the batch route throws, the client should fallback to per-file signing (same helper) and continue; show a non-blocking toast, not a hard stop.
+
+Test cases to run after patch
+
+Batch of the exact five files again (including Lewis C. Lin's … .xlsx and Traffic Ticket.jpeg).
+
+Mix of pdf/docx/xlsx/csv where some File.type is empty.
+
+Verify DevTools shows 200 on bulk-upload-urls, then PUT 200 for each file, then batch-finalize 200.

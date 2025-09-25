@@ -13,6 +13,7 @@ import { sql, eq } from "drizzle-orm";
 import { db } from "./db.js";
 import { z } from "zod";
 import { google } from 'googleapis';
+import { lookup as mimeLookup } from "mime-types";
 
 // Middleware to verify Drive access token belongs to the authenticated Firebase user
 async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any) {
@@ -111,11 +112,16 @@ const driveDocumentsQuerySchema = z.object({
   }),
 });
 
-// Bulk upload schemas
+// Robust MIME type resolution helper
+const resolveMime = (name: string, mime?: string) =>
+  (mime && mime.trim()) || mimeLookup(name) || "application/octet-stream";
+
+// Bulk upload schemas - match client request exactly
 const bulkUploadRequestSchema = z.object({
   files: z.array(z.object({
     name: z.string().min(1).max(255),
-    mimeType: z.string().min(1) // Real MIME type from File.type
+    mimeType: z.string().optional(), // File.type may be empty
+    size: z.number().optional() // For logging purposes
   })).min(1).max(50), // Required array of file objects for canonical paths
   folderId: z.string().uuid().nullish(),
   tagIds: z.array(z.string().uuid()).optional(),
@@ -390,61 +396,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+    const userId = req.user?.uid;
+    
     try {
+      // Verify userId is present first
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required for canonical object paths" });
+      }
+      
+      // Verify bucket client is initialized and log bucket name
+      if (!objectStorageService) {
+        console.error("❌ Object storage service not initialized");
+        return res.status(500).json({ error: "Storage service unavailable" });
+      }
+      console.log(`📦 Processing bulk upload for bucket: ${process.env.GCS_BUCKET_NAME || 'development-bucket'}`);
+      
       // Validate bulk upload request
       const validationResult = bulkUploadRequestSchema.safeParse(req.body);
       if (!validationResult.success) {
+        console.error("❌ Schema validation failed:", {
+          userId,
+          payload: (req.body?.files || []).map((f: any) => ({ name: f?.name, mimeType: f?.mimeType, size: f?.size }))
+        });
         return res.status(400).json({ 
-          error: "Hold up! 🛑 Your bulk upload request has some issues...",
-          details: validationResult.error.issues,
-          funnyMessage: "Even our most eager file-uploading robots need proper instructions! 🤖📋"
+          error: "Request validation failed",
+          details: validationResult.error.issues
         });
       }
 
       const { files, folderId, tagIds, analyzeImmediately } = validationResult.data;
-      const userId = req.user?.uid;
-
-      // Enforce canonical path structure
-      if (!userId) {
-        return res.status(401).json({ error: "User authentication required for canonical object paths" });
-      }
-
-      // Generate multiple upload URLs with proper structure (no fallbacks)
-      const uploadPromises = files.map(async (fileInfo: { name: string; mimeType: string }) => {
-        const result = await objectStorageService.getObjectEntityUploadURL(userId, fileInfo.name, fileInfo.mimeType);
-        return {
-          url: result.uploadURL,
-          objectPath: result.objectPath,
-          docId: result.docId,
-          originalFileName: fileInfo.name,
-          method: result.method,
-          headers: result.headers
-        };
-      });
       
-      const uploadURLs = await Promise.all(uploadPromises);
-
-
+      // Process each file individually - don't fail entire batch for one bad file
+      const results: any[] = [];
+      
+      for (const file of files) {
+        try {
+          // Build raw object path; don't pre-encode names
+          const docId = randomUUID();
+          const objectPath = `users/${userId}/docs/${docId}/${file.name}`; // raw name with spaces/apostrophes
+          const contentType = resolveMime(file.name, file.mimeType);
+          
+          // Re-use the previously working single-file signing helper
+          const signedResult = await objectStorageService.generateUploadURL(objectPath, contentType);
+          
+          // Log for each signed file
+          console.log(`🔐 Signed file:`, {
+            objectPath,
+            contentType,
+            expiresAtISO: new Date(Date.now() + 10 * 60 * 1000).toISOString()
+          });
+          
+          results.push({
+            ok: true,
+            url: signedResult.url,
+            method: signedResult.method,
+            headers: signedResult.headers,
+            objectPath: signedResult.objectPath,
+            docId,
+            originalFileName: file.name
+          });
+          
+        } catch (fileError: any) {
+          console.error(`❌ Failed to sign file ${file.name}:`, fileError);
+          results.push({
+            ok: false,
+            name: file.name,
+            reason: fileError?.message || "Failed to generate signed URL"
+          });
+        }
+      }
+      
+      // Return results even if some files failed
       res.json({
         success: true,
-        uploadURLs,
-        message: `🎉 Ready to upload ${files.length} files! Your digital filing cabinet is hungry for more documents!`,
+        uploadURLs: results.filter(r => r.ok), // Only successful ones for upload
+        failures: results.filter(r => !r.ok), // Failed ones for retry
+        message: `Ready to upload ${results.filter(r => r.ok).length} files`,
         bulkUploadConfig: {
           folderId,
           tagIds,
           analyzeImmediately,
-          maxFilesPerBatch: 50,
-          funnyTip: analyzeImmediately 
-            ? "AI analysis selected! Our digital brain will start munching on your files immediately! 🧠✨"
-            : "AI analysis queued! Your files will get the VIP treatment when our AI sommelier is ready! 🍷🤖"
+          maxFilesPerBatch: 50
         }
       });
-    } catch (error) {
-      console.error("Error generating bulk upload URLs:", error);
-      res.status(500).json({ 
-        error: "Failed to generate bulk upload URLs",
-        funnyMessage: "Our upload URL generator seems to be having a coffee break ☕ Please try again in a moment!"
+      
+    } catch (err: any) {
+      console.error("bulk-upload-urls failed", {
+        err: err?.stack || err?.message || String(err),
+        userId,
+        payload: (req.body?.files || []).map((f: any) => ({ name: f?.name, mimeType: f?.mimeType, size: f?.size }))
       });
+      
+      // If schema validation fails, return 400 with details
+      return res.status(err?.statusCode === 400 ? 400 : 500)
+                .json({ error: "Failed to generate bulk upload URLs", detail: err?.message });
     }
   });
 
