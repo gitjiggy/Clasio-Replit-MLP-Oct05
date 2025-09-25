@@ -189,7 +189,7 @@ class AIQueueProcessor {
               keyTopicsEmbedding: keyTopicsEmbedding ? serializeEmbeddingToJSON(keyTopicsEmbedding) : null,
               embeddingsGenerated: true,
               embeddingsGeneratedAt: new Date()
-            });
+            }, nextJob.userId);
 
             console.log(`📊 Generated ${apiCalls} embeddings for document: ${document.name}`);
             await storage.updateQueueJobStatus(nextJob.id, 'completed', `Generated ${apiCalls} embeddings successfully`);
@@ -229,7 +229,7 @@ class AIQueueProcessor {
               aiDocumentTypeConfidence: analysisResult.documentTypeConfidence,
               aiWordCount: analysisResult.wordCount,
               aiAnalyzedAt: new Date()
-            });
+            }, nextJob.userId);
             
             // 🗂️ SMART ORGANIZATION: Automatically organize document into appropriate folder
             try {
