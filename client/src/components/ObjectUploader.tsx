@@ -263,6 +263,7 @@ export function ObjectUploader({
                 title: "Duplicate File Warning! ⚠️",
                 description: result.warning.message,
                 variant: "default", // Use default variant (not destructive) since upload succeeded
+                duration: 6000, // Show for 6 seconds to ensure user sees it
               });
             }
             
@@ -313,14 +314,18 @@ export function ObjectUploader({
         warningFiles = r.results.filter((x: any) => x.ok && x.warning?.type === 'duplicate_warning');
         const failedFiles = r.results.filter((x: any) => !x.ok);
         
-        // Show duplicate warnings (informational toasts)
+        // Show duplicate warnings immediately (informational toasts)
         if (warningFiles.length > 0) {
-          warningFiles.forEach((file: any) => {
-            toast({
-              title: "Duplicate File Warning! ⚠️",
-              description: file.warning.message || "This file already exists but upload will proceed!",
-              variant: "default", // Use default variant since upload succeeds
-            });
+          warningFiles.forEach((file: any, index: number) => {
+            // Add slight delay to prevent toast conflicts and ensure all warnings show
+            setTimeout(() => {
+              toast({
+                title: "Duplicate File Warning! ⚠️",
+                description: file.warning?.message || "This file already exists but upload will proceed!",
+                variant: "default", // Use default variant since upload succeeds
+                duration: 6000, // Show for 6 seconds to ensure user sees it
+              });
+            }, index * 500); // Stagger warnings by 500ms to prevent conflicts
           });
         }
         
