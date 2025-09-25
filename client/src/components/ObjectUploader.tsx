@@ -240,6 +240,7 @@ export function ObjectUploader({
       });
       
       let signed;
+      let warningFiles: any[] = [];
       if (!r.ok || !r.results || r.results.every((x: any) => !x.ok)) {
         toast({
           title: "Using fallback upload method",
@@ -255,67 +256,46 @@ export function ObjectUploader({
               method: 'POST',
               body: formData
             });
-            return { success: true, docId: result.docId };
-          } catch (error: any) {
-            // Handle duplicate file error specifically
-            if (error.message.includes('409') && error.message.includes('duplicate_file')) {
-              try {
-                const errorResponse = JSON.parse(error.message.split(': ')[1]);
-                toast({
-                  title: "Duplicate File Detected! 🚨",
-                  description: errorResponse.message,
-                  variant: "destructive",
-                });
-                return { success: false, error: 'duplicate' };
-              } catch {
-                // Fallback for duplicate error handling
-                toast({
-                  title: "Duplicate File Detected! 🚨", 
-                  description: "This file already exists in your collection!",
-                  variant: "destructive",
-                });
-                return { success: false, error: 'duplicate' };
-              }
+            
+            // Handle duplicate warnings (soft warnings, upload still succeeds)
+            if (result.warning && result.warning.type === 'duplicate_warning') {
+              toast({
+                title: "Duplicate File Warning! ⚠️",
+                description: result.warning.message,
+                variant: "default", // Use default variant (not destructive) since upload succeeded
+              });
             }
-            throw error; // Re-throw other errors
+            
+            return { success: true, docId: result.docId, hadWarning: !!result.warning };
+          } catch (error: any) {
+            // Only handle actual errors now (duplicates are warnings, not errors)
+            console.error("Upload error:", error);
+            return { success: false, error: 'upload_failed' };
           }
         });
         
         const perFileResults = await Promise.all(perFilePromises);
         const successfulUploads = perFileResults.filter(r => r.success);
-        const duplicateUploads = perFileResults.filter(r => r.error === 'duplicate');
+        const failedUploads = perFileResults.filter(r => !r.success);
         const docIds = successfulUploads.map(r => r.docId).filter(Boolean);
+        const warningCount = perFileResults.filter(r => r.hadWarning).length;
         
         // If we have any successful uploads, show success
         if (successfulUploads.length > 0) {
           setState("done");
           onSuccess?.(docIds);
+          
+          let description = `Uploaded ${successfulUploads.length} file${successfulUploads.length !== 1 ? 's' : ''}. We'll analyze them in the background.`;
+          if (warningCount > 0) {
+            description += ` (${warningCount} had duplicate warnings)`;
+          }
+          
           toast({
             title: "Upload successful!",
-            description: `Uploaded ${successfulUploads.length} file${successfulUploads.length !== 1 ? 's' : ''}. We'll analyze them in the background.`,
+            description,
           });
-        } else if (duplicateUploads.length > 0) {
-          // All uploads were duplicates - show funny messages and close gracefully
-          setState("done");
-          const funnyMessages = [
-            "Déjà vu detected! All these files are already chilling in your collection! 😎",
-            "File twins everywhere! Your storage doesn't need photocopies! 📋",
-            "All duplicates found! No cloning allowed in this dimension! 🌌",
-            "Every file already exists! Are you testing my memory? 🧠"
-          ];
-          const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-          setErrors([randomMessage]);
-          
-          // Close modal after showing the funny message
-          setTimeout(() => {
-            setShowModal(false);
-            setState("idle");
-            setSelectedFiles([]);
-            setErrors([]);
-          }, 2500); // Give users time to read the funny message
-          return;
         } else {
-          // All uploads failed for other reasons
+          // All uploads failed for actual errors
           setState("error");
           setErrors(["Upload failed. Please try again."]);
           return;
@@ -329,47 +309,32 @@ export function ObjectUploader({
         }, 400);
         return; // Exit early
       } else {
-        // Check for duplicate files in the results
-        const duplicateFiles = r.results.filter((x: any) => !x.ok && x.reason === 'duplicate_file');
-        const otherFailedFiles = r.results.filter((x: any) => !x.ok && x.reason !== 'duplicate_file');
+        // Handle duplicate warnings and actual failures separately
+        warningFiles = r.results.filter((x: any) => x.ok && x.warning?.type === 'duplicate_warning');
+        const failedFiles = r.results.filter((x: any) => !x.ok);
         
-        // Show duplicate file toasts
-        if (duplicateFiles.length > 0) {
-          duplicateFiles.forEach((file: any) => {
+        // Show duplicate warnings (informational toasts)
+        if (warningFiles.length > 0) {
+          warningFiles.forEach((file: any) => {
             toast({
-              title: "Duplicate File Detected! 🚨",
-              description: file.message || "This file already exists in your collection!",
-              variant: "destructive",
+              title: "Duplicate File Warning! ⚠️",
+              description: file.warning.message || "This file already exists but upload will proceed!",
+              variant: "default", // Use default variant since upload succeeds
             });
           });
         }
         
-        // use batch results for those that are ok; fallback only the few that failed to sign for other reasons
+        // Use batch results for all files that got signed URLs (including those with warnings)
         signed = { uploadURLs: r.results.filter((x: any) => x.ok) };
         
-        if (otherFailedFiles.length > 0) {
-          console.warn(`Some files failed to sign: ${otherFailedFiles.map((f: any) => f.name).join(', ')}`);
+        if (failedFiles.length > 0) {
+          console.warn(`Some files failed to sign: ${failedFiles.map((f: any) => f.name).join(', ')}`);
         }
         
-        // If all files were duplicates, show funny message and close gracefully
+        // Only fail if there are actual failures, not warnings
         if (signed.uploadURLs.length === 0) {
-          setState("done");
-          const funnyMessages = [
-            "Déjà vu detected! All these files are already chilling in your collection! 😎",
-            "File twins everywhere! Your storage doesn't need photocopies! 📋",
-            "All duplicates found! No cloning allowed in this dimension! 🌌",
-            "Every file already exists! Are you testing my memory? 🧠"
-          ];
-          const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-          setErrors([randomMessage]);
-          
-          // Close modal after showing the funny message
-          setTimeout(() => {
-            setShowModal(false);
-            setState("idle");
-            setSelectedFiles([]);
-            setErrors([]);
-          }, 2500); // Give users time to read the funny message
+          setState("error");
+          setErrors(["No files could be uploaded. Please try again."]);
           return;
         }
       }
@@ -435,9 +400,16 @@ export function ObjectUploader({
           
           // Show success toast AFTER modal closes
           const successCount = finalize.docIds?.length || 0;
+          const warningCount = warningFiles?.length || 0;
+          
+          let description = `Uploaded ${successCount} file${successCount !== 1 ? 's' : ''}. We'll analyze them in the background.`;
+          if (warningCount > 0) {
+            description += ` (${warningCount} had duplicate warnings)`;
+          }
+          
           toast({
             title: "Upload successful!",
-            description: `Uploaded ${successCount} file${successCount !== 1 ? 's' : ''}. We'll analyze them in the background.`,
+            description,
           });
         }, 400);
       }

@@ -219,23 +219,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { originalname, mimetype, buffer, size } = req.file;
         const uid = req.user?.uid!;
         
-        // Check for duplicate files before proceeding with upload
+        // Check for duplicate files and warn user (but allow upload to proceed)
         const duplicates = await storage.findDuplicateFiles(originalname, size, uid);
+        let duplicateWarning = null;
         if (duplicates.length > 0) {
           const funnyMessages = [
             "Déjà vu! This file is already in your collection. Did you time travel? 🕰️",
-            "Hold up! This file already exists. No need to clone your documents! 🤖",
+            "Hold up! This file already exists. No need to clone your documents! 🤖", 
             "Whoa there! This file is already uploaded. Are we playing file hide-and-seek? 🙈",
             "File already exists! Your documents don't need a twin! 👯‍♀️",
-            "Stop right there! This file is already in the system. No duplicates allowed in this neighborhood! 🚫",
-            "File déjà vu detected! This document is already living its best life in your collection! ✨"
+            "File déjà vu detected! This document is already living its best life in your collection! ✨",
+            "Another copy? Your files are multiplying like rabbits! 🐰"
           ];
           const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-          return res.status(409).json({ 
-            error: "duplicate_file", 
+          duplicateWarning = {
+            type: "duplicate_warning",
             message: randomMessage
-            // Don't expose internal file metadata
-          });
+          };
         }
         
         const docId = randomUUID();
@@ -318,7 +318,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           objectPath, 
           docId, 
           contentType: mimetype, 
-          size 
+          size,
+          warning: duplicateWarning 
         });
       } catch (err: any) {
         console.error("upload-proxy failed", { err: err.message, stack: err.stack });
@@ -455,8 +456,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User authentication required" });
       }
       
-      // Check for duplicate files before creating document record
+      // Check for duplicate files and warn user (but allow upload to proceed)
       const duplicates = await storage.findDuplicateFiles(originalName, fileSize, userId);
+      let duplicateWarning = null;
       if (duplicates.length > 0) {
         const funnyMessages = [
           "File twins detected! This document already exists in your digital library! 📚",
@@ -464,14 +466,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           "Duplicate file alert! Your storage already has this masterpiece! 🎨",
           "This file already lives here! Are you trying to create a backup of a backup? 💾",
           "File déjà vu! This document is already chilling in your collection! 😎",
-          "Hold on! This file already exists. No cloning allowed in this dimension! 🌌"
+          "Another copy detected! Your files are having a family reunion! 👨‍👩‍👧‍👦"
         ];
         const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-        return res.status(409).json({ 
-          error: "duplicate_file", 
+        duplicateWarning = {
+          type: "duplicate_warning",
           message: randomMessage
-          // Don't expose internal file metadata
-        });
+        };
       }
 
       // Validate the object path structure and ownership  
@@ -537,7 +538,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`Content extraction error for document ${document.name}:`, error);
         });
       
-      res.status(201).json(documentWithDetails);
+      res.status(201).json({ 
+        ...documentWithDetails,
+        warning: duplicateWarning 
+      });
     } catch (error) {
       console.error("Error creating document:", error);
       res.status(500).json({ error: "Failed to create document" });
@@ -618,24 +622,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const results = await Promise.all(files.map(async (f) => {
         try {
-          // Check for duplicate files before generating signed URL
+          // Check for duplicate files and add warning (but allow upload to proceed)
+          let duplicateWarning = null;
           if (f.size !== undefined) {
             const duplicates = await storage.findDuplicateFiles(f.name, f.size, userId);
             if (duplicates.length > 0) {
               const funnyMessages = [
                 "File déjà vu! This file already exists in your collection! 🔄",
                 "Duplicate alert! This file is already living rent-free in your storage! 🏠",
-                "Twin files detected! No photocopying allowed here! 📋",
+                "Twin files detected! But hey, more the merrier! 📋",
                 "This file is already uploaded! Are you testing my memory? 🧠",
-                "File already exists! Your storage doesn't need identical twins! 👯‍♀️"
+                "File already exists! Your storage is having a reunion! 👯‍♀️"
               ];
               const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-              return {
-                ok: false,
-                name: f.name,
-                reason: "duplicate_file",
+              duplicateWarning = {
+                type: "duplicate_warning",
                 message: randomMessage
-                // Don't expose internal file metadata
               };
             }
           }
@@ -660,7 +662,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             method: "PUT", 
             headers: { "Content-Type": contentType }, 
             objectPath, 
-            name: f.name 
+            name: f.name,
+            warning: duplicateWarning 
           };
         } catch (e: any) {
           console.error("sign-failed", { name: f.name, err: e?.message, stack: e?.stack });
