@@ -1,4 +1,5 @@
 import { Storage, File } from "@google-cloud/storage";
+import { GoogleAuth } from "google-auth-library";
 import { Response } from "express";
 import { randomUUID } from "crypto";
 
@@ -413,16 +414,23 @@ export class ObjectStorageService {
         const encodedObjectPath = encodeURIComponent(objectPath);
         const restoreUrl = `https://storage.googleapis.com/storage/v1/b/${this.bucketName}/o/${encodedObjectPath}/restore`;
         
-        // Get OAuth2 access token
-        const authClient = await objectStorageClient.authClient.getAccessToken();
-        if (!authClient.token) {
+        // Get OAuth2 access token using GoogleAuth
+        const auth = new GoogleAuth({
+          projectId: process.env.GCP_PROJECT_ID,
+          credentials: JSON.parse(process.env.GCP_SERVICE_ACCOUNT_KEY || '{}'),
+          scopes: ['https://www.googleapis.com/auth/cloud-platform']
+        });
+        
+        const authClient = await auth.getClient();
+        const accessTokenResponse = await authClient.getAccessToken();
+        if (!accessTokenResponse.token) {
           throw new StorageAuthError("Failed to get access token for GCS restore");
         }
 
         const response = await fetch(restoreUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${authClient.token}`,
+            'Authorization': `Bearer ${accessTokenResponse.token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
