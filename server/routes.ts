@@ -207,11 +207,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     uploadProxy.single("file"), // <<< this must run before any json parser
     async (req: AuthenticatedRequest, res) => {
       try {
-        // Entry log with content-type
+        // Entry log with content-type and correlation ID
         console.info(JSON.stringify({ 
           evt: "upload-proxy.entry", 
+          reqId: (req as any).reqId,
           uid: req.user?.uid, 
-          ct: req.headers["content-type"] 
+          ct: req.headers["content-type"],
+          timestamp: new Date().toISOString()
         }));
 
         if (!req.file) return res.status(400).json({ error: "file missing" });
@@ -251,9 +253,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.info(JSON.stringify({
           evt: "upload-proxy.gcs_saved",
+          reqId: (req as any).reqId,
           uid, 
           objectPath: obfuscatePath(objectPath), 
-          size
+          size,
+          timestamp: new Date().toISOString()
         }));
 
         // Step 2: Create database record (this was missing!)
@@ -277,10 +281,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.info(JSON.stringify({
           evt: "upload-proxy.db_created",
+          reqId: (req as any).reqId,
           uid,
           docId,
           fileType: determinedFileType,
-          objectPathPrefix: `users/${uid}/docs/${docId}`
+          objectPathPrefix: `users/${uid}/docs/${docId}`,
+          timestamp: new Date().toISOString()
         }));
 
         // Step 3: Queue for AI analysis (like other upload routes)
@@ -288,29 +294,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           await storage.enqueueDocumentForAnalysis(document.id, uid, 5); // Normal priority
           analysisQueued = true;
-          console.log(`🔍 Auto-queued AI analysis for: ${originalname} (proxy upload)`);
+          console.info(JSON.stringify({
+            evt: "upload-proxy.analysis_queued",
+            reqId: (req as any).reqId,
+            uid,
+            docId,
+            filename: originalname,
+            timestamp: new Date().toISOString()
+          }));
         } catch (analysisError) {
-          console.warn(`Failed to auto-queue AI analysis for ${originalname}:`, analysisError);
+          console.warn(JSON.stringify({
+            evt: "upload-proxy.analysis_queue_failed",
+            reqId: (req as any).reqId,
+            uid,
+            docId,
+            filename: originalname,
+            error: analysisError instanceof Error ? analysisError.message : String(analysisError),
+            timestamp: new Date().toISOString()
+          }));
         }
 
         // Step 4: Trigger background content extraction (same as normal uploads)
-        console.log(`🔧 Starting content extraction for: ${originalname} (docId: ${document.id})`);
+        console.info(JSON.stringify({
+          evt: "upload-proxy.content_extraction_start",
+          reqId: (req as any).reqId,
+          uid,
+          docId: document.id,
+          filename: originalname,
+          timestamp: new Date().toISOString()
+        }));
         try {
           const extractionSuccess = await storage.extractDocumentContent(document.id, uid);
           if (extractionSuccess) {
-            console.log(`✅ Content extracted for: ${originalname} (proxy upload)`);
+            console.info(JSON.stringify({
+              evt: "upload-proxy.content_extracted",
+              reqId: (req as any).reqId,
+              uid,
+              docId,
+              filename: originalname,
+              timestamp: new Date().toISOString()
+            }));
           } else {
-            console.error(`❌ Content extraction failed for: ${originalname} (proxy upload)`);
+            console.error(JSON.stringify({
+              evt: "upload-proxy.content_extraction_failed",
+              reqId: (req as any).reqId,
+              uid,
+              docId,
+              filename: originalname,
+              timestamp: new Date().toISOString()
+            }));
           }
         } catch (extractionError) {
-          console.error(`❌ Content extraction error for ${originalname}:`, extractionError);
+          console.error(JSON.stringify({
+            evt: "upload-proxy.content_extraction_error",
+            reqId: (req as any).reqId,
+            uid,
+            docId,
+            filename: originalname,
+            error: extractionError instanceof Error ? extractionError.message : String(extractionError),
+            timestamp: new Date().toISOString()
+          }));
         }
 
         console.info(JSON.stringify({
           evt: "upload-proxy.finalized",
+          reqId: (req as any).reqId,
           uid,
           docId,
-          analysisQueued
+          analysisQueued,
+          timestamp: new Date().toISOString()
         }));
         
         return res.status(200).json({ 
@@ -322,7 +374,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           warning: duplicateWarning 
         });
       } catch (err: any) {
-        console.error("upload-proxy failed", { err: err.message, stack: err.stack });
+        // Error log with correlation ID
+        console.error(JSON.stringify({
+          evt: "upload-proxy.error",
+          reqId: (req as any).reqId,
+          uid: req.user?.uid,
+          error: err.message,
+          stack: err.stack,
+          timestamp: new Date().toISOString()
+        }));
         return res.status(500).json({ error: "proxy upload failed" });
       }
     }
@@ -510,7 +570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate user for queueing operations  
-      if (!currentUserId) {
+      if (!userId) {
         return res.status(401).json({ error: "User authentication required for document processing" });
       }
 
@@ -518,24 +578,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const documentWithDetails = await storage.getDocumentById(document.id);
       
       // Trigger background content extraction with proper automation pipeline
-      storage.extractDocumentContent(document.id, currentUserId)
+      const correlationId = (req as any).reqId; // Capture for background operations
+      storage.extractDocumentContent(document.id, userId)
         .then(async (success) => {
           if (success) {
-            console.log(`✅ Content extracted for: ${document.name}`);
+            console.info(JSON.stringify({
+              evt: "standard_upload.content_extracted",
+              reqId: correlationId,
+              uid: userId,
+              docId: document.id,
+              filename: document.name,
+              timestamp: new Date().toISOString()
+            }));
             
             // 🚀 AUTO-QUEUE AI ANALYSIS: Only after content extraction succeeds
             try {
-              await storage.enqueueDocumentForAnalysis(document.id, currentUserId, 5); // Normal priority
-              console.log(`🔍 Auto-queued AI analysis for: ${document.name} (triggered by content extraction)`);
+              await storage.enqueueDocumentForAnalysis(document.id, userId, 5); // Normal priority
+              console.info(JSON.stringify({
+                evt: "standard_upload.analysis_queued",
+                reqId: correlationId,
+                uid: userId,
+                docId: document.id,
+                filename: document.name,
+                timestamp: new Date().toISOString()
+              }));
             } catch (analysisError) {
-              console.warn(`Failed to auto-queue AI analysis for ${document.name}:`, analysisError);
+              console.warn(JSON.stringify({
+                evt: "standard_upload.analysis_queue_failed",
+                reqId: correlationId,
+                uid: userId,
+                docId: document.id,
+                filename: document.name,
+                error: analysisError instanceof Error ? analysisError.message : String(analysisError),
+                timestamp: new Date().toISOString()
+              }));
             }
           } else {
-            console.error(`Content extraction failed for document: ${document.name}`);
+            console.error(JSON.stringify({
+              evt: "standard_upload.content_extraction_failed",
+              reqId: correlationId,
+              uid: userId,
+              docId: document.id,
+              filename: document.name,
+              timestamp: new Date().toISOString()
+            }));
           }
         })
         .catch(error => {
-          console.error(`Content extraction error for document ${document.name}:`, error);
+          console.error(JSON.stringify({
+            evt: "standard_upload.content_extraction_error",
+            reqId: correlationId,
+            uid: userId,
+            docId: document.id,
+            filename: document.name,
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          }));
         });
       
       res.status(201).json({ 
@@ -543,7 +641,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         warning: duplicateWarning 
       });
     } catch (error) {
-      console.error("Error creating document:", error);
+      // Error log with correlation ID
+      console.error(JSON.stringify({
+        evt: "standard_upload.document_creation_error",
+        reqId: (req as any).reqId,
+        uid: req.user?.uid,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      }));
       res.status(500).json({ error: "Failed to create document" });
     }
   });
@@ -554,7 +660,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents/upload", verifyFirebaseToken, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?.uid;
-      console.log(`📤 Upload request for uid: ${userId}`);
+      
+      // Entry log with correlation ID
+      console.info(JSON.stringify({
+        evt: "standard_upload.entry",
+        reqId: (req as any).reqId,
+        uid: userId,
+        timestamp: new Date().toISOString()
+      }));
       
       if (!userId) {
         return res.status(401).json({ error: "User authentication required" });
@@ -576,7 +689,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       const determinedFileType = getFileTypeFromMimeType(req.file.mimetype, originalFileName);
-      console.log(`✅ Upload success - File: ${originalFileName}, MIME: ${req.file.mimetype}`);
+      
+      // Success log with correlation ID
+      console.info(JSON.stringify({
+        evt: "standard_upload.success",
+        reqId: (req as any).reqId,
+        uid: userId,
+        objectPath: obfuscatePath(canonicalPath),
+        fileType: determinedFileType,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        timestamp: new Date().toISOString()
+      }));
       
       res.json({
         success: true,
@@ -588,7 +712,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mimeType: req.file.mimetype
       });
     } catch (error) {
-      console.error(`❌ Upload failed:`, error);
+      // Error log with correlation ID
+      console.error(JSON.stringify({
+        evt: "standard_upload.error",
+        reqId: (req as any).reqId,
+        uid: req.user?.uid,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      }));
       res.status(500).json({ error: "Upload failed" });
     }
   });
@@ -615,10 +747,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         route: "/api/documents/bulk-upload-urls",
         reqId: (req as any).reqId,
         uid: userId,
-        files: files.map(f => ({ name: f.name, mimeType: f.mimeType, size: f.size }))
+        files: files.map(f => ({ name: f.name, mimeType: f.mimeType, size: f.size })),
+        timestamp: new Date().toISOString()
       }));
 
-      console.log(`📦 Processing bulk upload for ${files.length} files in bucket: ${process.env.GCS_BUCKET_NAME || 'development-bucket'}`);
+      console.info(JSON.stringify({
+        evt: "bulk_upload.processing_start",
+        reqId: (req as any).reqId,
+        uid: userId,
+        fileCount: files.length,
+        bucket: process.env.GCS_BUCKET_NAME || 'development-bucket',
+        timestamp: new Date().toISOString()
+      }));
       
       const results = await Promise.all(files.map(async (f) => {
         try {
@@ -655,7 +795,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contentType
           });
           
-          console.info("sign", { objectPath, contentType });
+          console.info(JSON.stringify({
+            evt: "bulk_upload.file_signed",
+            reqId: (req as any).reqId,
+            uid: userId,
+            objectPath: obfuscatePath(objectPath),
+            contentType,
+            fileName: f.name,
+            timestamp: new Date().toISOString()
+          }));
           return { 
             ok: true, 
             url, 
