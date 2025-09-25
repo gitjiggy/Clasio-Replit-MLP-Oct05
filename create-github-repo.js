@@ -50,11 +50,11 @@ async function createRepository() {
   try {
     const octokit = await getUncachableGitHubClient();
     
-    console.log('Creating repository: Clasio-Replit-MVP-Sep21');
+    console.log('Creating repository: Clasio-Replit-MLP-Sep24');
     
     const response = await octokit.rest.repos.createForAuthenticatedUser({
-      name: 'Clasio-Replit-MVP-Sep21',
-      description: 'DocuFlow - AI-powered document management system MVP (September 21, 2025)',
+      name: 'Clasio-Replit-MLP-Sep24',
+      description: 'AI-powered multi-tenant document management system with Google Gemini integration - Sep 24-25, 2025 upgrade with multi-tenancy, security fixes, and structured logging',
       private: false,
       auto_init: true
     });
@@ -74,12 +74,12 @@ async function uploadFiles() {
   try {
     const octokit = await getUncachableGitHubClient();
     const repoOwner = 'gitjiggy'; // Replace with actual username if different
-    const repoName = 'Clasio-Replit-MVP-Sep21';
+    const repoName = 'Clasio-Replit-MLP-Sep24';
     
     // Get all files to upload (excluding certain directories/files)
     const filesToUpload = [];
-    const excludeDirs = ['node_modules', '.git', '.next', 'dist', 'build', '.replit', 'tmp', '.cache'];
-    const excludeFiles = ['.env', '.env.local', '.env.production', 'package-lock.json', 'yarn.lock'];
+    const excludeDirs = ['node_modules', '.git', '.next', 'dist', 'build', '.replit', 'tmp', '.cache', 'logs'];
+    const excludeFiles = ['.env', '.env.local', '.env.production', 'yarn.lock', '.DS_Store'];
     
     function scanDirectory(dir, basePath = '') {
       const items = fs.readdirSync(dir);

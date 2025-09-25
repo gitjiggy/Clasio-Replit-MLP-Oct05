@@ -42,34 +42,100 @@ async function getUncachableGitHubClient() {
   return new Octokit({ auth: accessToken });
 }
 
+// Function to get existing file SHA (if it exists)
+async function getFileSha(octokit, owner, repo, path) {
+  try {
+    const response = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path
+    });
+    return response.data.sha;
+  } catch (error) {
+    if (error.status === 404) {
+      return null; // File doesn't exist
+    }
+    throw error;
+  }
+}
+
+// Function to upload or update a file properly with SHA handling
+async function uploadFileWithRetry(octokit, owner, repo, filePath, localPath, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const content = fs.readFileSync(localPath);
+      const base64Content = content.toString('base64');
+      
+      // Get existing file SHA if it exists
+      const existingSha = await getFileSha(octokit, owner, repo, filePath);
+      
+      const params = {
+        owner,
+        repo,
+        path: filePath,
+        message: existingSha ? `Update ${filePath}` : `Add ${filePath}`,
+        content: base64Content
+      };
+      
+      // Add SHA if file exists
+      if (existingSha) {
+        params.sha = existingSha;
+      }
+      
+      await octokit.rest.repos.createOrUpdateFileContents(params);
+      console.log(`✅ ${existingSha ? 'Updated' : 'Created'}: ${filePath}`);
+      return true;
+      
+    } catch (error) {
+      console.log(`❌ Attempt ${attempt}/${maxRetries} failed for ${filePath}: ${error.message}`);
+      
+      if (attempt === maxRetries) {
+        console.error(`🚨 Final failure for ${filePath}: ${error.message}`);
+        return false;
+      }
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+  return false;
+}
+
 async function uploadMissingFiles() {
   try {
     const octokit = await getUncachableGitHubClient();
     const repoOwner = 'gitjiggy';
-    const repoName = 'Clasio-Replit-MVP-Sep21';
+    const repoName = 'Clasio-Replit-MLP-Sep24';
     
     // List of critical files that MUST be in the repository
     const criticalFiles = [
+      'README.md',
       'package.json',
-      'package-lock.json',
+      'package-lock.json', 
       'tsconfig.json',
       'drizzle.config.ts',
       'components.json',
       'postcss.config.js',
       'tailwind.config.ts',
       'vite.config.ts',
-      'popup.png',
-      'after_load.png',
       'replit.md',
-      '.gitignore',
-      '.replit'
-    ];
-    
-    // Critical directories with their files
-    const criticalDirectories = [
-      { dir: 'shared', files: ['schema.ts'] },
-      { dir: 'migrations', files: ['0001_add_unique_active_version_constraint.sql'] },
-      { dir: 'test/data', files: ['05-versions-space.pdf'] }
+      'shared/schema.ts',
+      'server/storage.ts',
+      'server/routes.ts',
+      'server/objectStorage.ts',
+      'server/index.ts',
+      'server/auth.ts',
+      'server/db.ts',
+      'server/gemini.ts',
+      'server/aiQueueProcessor.ts',
+      'server/driveService.ts',
+      'server/objectAcl.ts',
+      'server/rateLimit.ts',
+      'server/vite.ts',
+      'client/src/App.tsx',
+      'client/src/main.tsx',
+      'client/index.html',
+      'migrations/0001_add_unique_active_version_constraint.sql'
     ];
     
     console.log('🔍 Uploading critical missing files...\n');
@@ -77,82 +143,26 @@ async function uploadMissingFiles() {
     let uploadedCount = 0;
     let failedCount = 0;
     
-    // Upload critical root files
+    // Upload critical files using retry logic
     for (const fileName of criticalFiles) {
       if (fs.existsSync(fileName)) {
-        try {
-          console.log(`📤 Uploading ${fileName}...`);
-          
-          const content = fs.readFileSync(fileName);
-          const base64Content = content.toString('base64');
-          
-          await octokit.rest.repos.createOrUpdateFileContents({
-            owner: repoOwner,
-            repo: repoName,
-            path: fileName,
-            message: `Add critical file: ${fileName}`,
-            content: base64Content
-          });
-          
+        console.log(`📤 Processing ${fileName}...`);
+        
+        const success = await uploadFileWithRetry(octokit, repoOwner, repoName, fileName, fileName);
+        if (success) {
           uploadedCount++;
-          console.log(`✅ Successfully uploaded: ${fileName}`);
-        } catch (error) {
+        } else {
           failedCount++;
-          console.log(`❌ Failed to upload ${fileName}: ${error.message}`);
         }
       } else {
         console.log(`⚠️  File not found: ${fileName}`);
       }
     }
     
-    // Upload critical directories
-    for (const { dir, files } of criticalDirectories) {
-      console.log(`\n📁 Processing directory: ${dir}/`);
-      
-      for (const fileName of files) {
-        const filePath = `${dir}/${fileName}`;
-        
-        if (fs.existsSync(filePath)) {
-          try {
-            console.log(`📤 Uploading ${filePath}...`);
-            
-            const content = fs.readFileSync(filePath);
-            const base64Content = content.toString('base64');
-            
-            await octokit.rest.repos.createOrUpdateFileContents({
-              owner: repoOwner,
-              repo: repoName,
-              path: filePath,
-              message: `Add critical file: ${filePath}`,
-              content: base64Content
-            });
-            
-            uploadedCount++;
-            console.log(`✅ Successfully uploaded: ${filePath}`);
-          } catch (error) {
-            failedCount++;
-            console.log(`❌ Failed to upload ${filePath}: ${error.message}`);
-          }
-        } else {
-          console.log(`⚠️  File not found: ${filePath}`);
-        }
-      }
-    }
-    
-    // Also upload entire directories if they exist
-    const additionalDirs = ['shared', 'migrations', 'test'];
-    
-    for (const dirName of additionalDirs) {
-      if (fs.existsSync(dirName)) {
-        console.log(`\n📁 Uploading entire directory: ${dirName}/`);
-        await uploadDirectory(octokit, repoOwner, repoName, dirName);
-      }
-    }
-    
     console.log(`\n🎉 Critical Files Upload Summary:`);
     console.log(`✅ Successfully uploaded: ${uploadedCount} files`);
     console.log(`❌ Failed uploads: ${failedCount} files`);
-    console.log(`\n🔗 Repository: https://github.com/gitjiggy/Clasio-Replit-MVP-Sep21`);
+    console.log(`\n🔗 Repository: https://github.com/gitjiggy/Clasio-Replit-MLP-Sep24`);
     
   } catch (error) {
     console.error('❌ Upload failed:', error.message);
