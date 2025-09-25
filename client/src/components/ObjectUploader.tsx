@@ -283,6 +283,7 @@ export function ObjectUploader({
         
         const perFileResults = await Promise.all(perFilePromises);
         const successfulUploads = perFileResults.filter(r => r.success);
+        const duplicateUploads = perFileResults.filter(r => r.error === 'duplicate');
         const docIds = successfulUploads.map(r => r.docId).filter(Boolean);
         
         // If we have any successful uploads, show success
@@ -293,10 +294,30 @@ export function ObjectUploader({
             title: "Upload successful!",
             description: `Uploaded ${successfulUploads.length} file${successfulUploads.length !== 1 ? 's' : ''}. We'll analyze them in the background.`,
           });
+        } else if (duplicateUploads.length > 0) {
+          // All uploads were duplicates - show funny messages and close gracefully
+          setState("done");
+          const funnyMessages = [
+            "Déjà vu detected! All these files are already chilling in your collection! 😎",
+            "File twins everywhere! Your storage doesn't need photocopies! 📋",
+            "All duplicates found! No cloning allowed in this dimension! 🌌",
+            "Every file already exists! Are you testing my memory? 🧠"
+          ];
+          const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+          setErrors([randomMessage]);
+          
+          // Close modal after showing the funny message
+          setTimeout(() => {
+            setShowModal(false);
+            setState("idle");
+            setSelectedFiles([]);
+            setErrors([]);
+          }, 2500); // Give users time to read the funny message
+          return;
         } else {
-          // All uploads failed (likely all duplicates)
+          // All uploads failed for other reasons
           setState("error");
-          setErrors(["All files were duplicates or failed to upload."]);
+          setErrors(["Upload failed. Please try again."]);
           return;
         }
         
@@ -330,10 +351,25 @@ export function ObjectUploader({
           console.warn(`Some files failed to sign: ${otherFailedFiles.map((f: any) => f.name).join(', ')}`);
         }
         
-        // If all files were duplicates, show error state
+        // If all files were duplicates, show funny message and close gracefully
         if (signed.uploadURLs.length === 0) {
-          setState("error");
-          setErrors(["All selected files are duplicates."]);
+          setState("done");
+          const funnyMessages = [
+            "Déjà vu detected! All these files are already chilling in your collection! 😎",
+            "File twins everywhere! Your storage doesn't need photocopies! 📋",
+            "All duplicates found! No cloning allowed in this dimension! 🌌",
+            "Every file already exists! Are you testing my memory? 🧠"
+          ];
+          const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+          setErrors([randomMessage]);
+          
+          // Close modal after showing the funny message
+          setTimeout(() => {
+            setShowModal(false);
+            setState("idle");
+            setSelectedFiles([]);
+            setErrors([]);
+          }, 2500); // Give users time to read the funny message
           return;
         }
       }
