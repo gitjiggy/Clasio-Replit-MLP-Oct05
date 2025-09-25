@@ -3612,7 +3612,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Automatic Folder Organization Methods
-  async findOrCreateCategoryFolder(category: string): Promise<Folder> {
+  async findOrCreateCategoryFolder(category: string, userId: string): Promise<Folder> {
     await this.ensureInitialized();
     
     // Validate that category is one of the predefined categories
@@ -3635,6 +3635,7 @@ export class DatabaseStorage implements IStorage {
         category: category,
         documentType: null,
         gcsPath: gcsPath,
+        userId: userId,
       })
       .onConflictDoNothing()
       .returning();
@@ -3651,6 +3652,7 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(folders.category, category),
           eq(folders.isAutoCreated, true),
+          eq(folders.userId, userId),
           sql`parent_id IS NULL`
         )
       )
@@ -3663,7 +3665,7 @@ export class DatabaseStorage implements IStorage {
     throw new Error(`Failed to create or find category folder: ${category}`);
   }
 
-  async findOrCreateSubFolder(parentId: string, documentType: string): Promise<Folder> {
+  async findOrCreateSubFolder(parentId: string, documentType: string, userId: string): Promise<Folder> {
     await this.ensureInitialized();
     
     // Normalize document type for folder naming
@@ -3697,6 +3699,7 @@ export class DatabaseStorage implements IStorage {
         category: parentFolder[0].category,
         documentType: normalizedType,
         gcsPath: gcsPath,
+        userId: userId,
       })
       .onConflictDoNothing()
       .returning();
@@ -3713,7 +3716,8 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(folders.parentId, parentId),
           eq(folders.documentType, normalizedType),
-          eq(folders.isAutoCreated, true)
+          eq(folders.isAutoCreated, true),
+          eq(folders.userId, userId)
         )
       )
       .limit(1);
@@ -3725,15 +3729,15 @@ export class DatabaseStorage implements IStorage {
     throw new Error(`Failed to create or find sub-folder: ${normalizedType} under ${parentId}`);
   }
 
-  async organizeDocumentIntoFolder(documentId: string, category: string, documentType: string): Promise<boolean> {
+  async organizeDocumentIntoFolder(documentId: string, category: string, documentType: string, userId: string): Promise<boolean> {
     try {
       await this.ensureInitialized();
       
       // Find or create the main category folder
-      const categoryFolder = await this.findOrCreateCategoryFolder(category);
+      const categoryFolder = await this.findOrCreateCategoryFolder(category, userId);
       
       // Find or create the document type sub-folder
-      const subFolder = await this.findOrCreateSubFolder(categoryFolder.id, documentType);
+      const subFolder = await this.findOrCreateSubFolder(categoryFolder.id, documentType, userId);
       
       // Update the document to assign it to the sub-folder
       const [updatedDoc] = await db
