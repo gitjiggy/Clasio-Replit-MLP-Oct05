@@ -275,17 +275,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Step 4: Trigger background content extraction (same as normal uploads)
         console.log(`🔧 Starting content extraction for: ${originalname} (docId: ${document.id})`);
-        storage.extractDocumentContent(document.id)
-          .then(async (success) => {
-            if (success) {
-              console.log(`✅ Content extracted for: ${originalname} (proxy upload)`);
-            } else {
-              console.error(`❌ Content extraction failed for: ${originalname} (proxy upload)`);
-            }
-          })
-          .catch(error => {
-            console.error(`❌ Content extraction error for ${originalname}:`, error);
-          });
+        try {
+          const extractionSuccess = await storage.extractDocumentContent(document.id);
+          if (extractionSuccess) {
+            console.log(`✅ Content extracted for: ${originalname} (proxy upload)`);
+          } else {
+            console.error(`❌ Content extraction failed for: ${originalname} (proxy upload)`);
+          }
+        } catch (extractionError) {
+          console.error(`❌ Content extraction error for ${originalname}:`, extractionError);
+        }
 
         console.info(JSON.stringify({
           evt: "upload-proxy.finalized",
