@@ -494,16 +494,24 @@ export class DatabaseStorage implements IStorage {
             })
           : undefined;
 
-        // Get tags
+        // Get tags - fetch document tags first, then tags separately
         const docTags = await db.query.documentTags.findMany({
-          where: eq(documentTags.documentId, doc.id),
-          with: { tag: true }
+          where: eq(documentTags.documentId, doc.id)
         });
+
+        // Fetch the actual tag data for each document tag
+        const tags = await Promise.all(
+          docTags.map(async (docTag) => {
+            return await db.query.tags.findFirst({
+              where: eq(tags.id, docTag.tagId)
+            });
+          })
+        );
 
         return {
           ...doc,
           folder,
-          tags: docTags.map(dt => dt.tag)
+          tags: tags.filter(tag => tag !== undefined)
         };
       })
     );
