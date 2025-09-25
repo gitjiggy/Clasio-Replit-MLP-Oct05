@@ -1,0 +1,183 @@
+1) What we’re doing (scope)
+
+Make the system multi-tenant in the database (each doc belongs to a user).
+
+Keep duplicate handling soft (warn, don’t block).
+
+Keep both upload paths (signed-URL and fallback proxy) in sync.
+
+Preserve atomicity (no orphaned GCS files), keep UI behavior unchanged except for a gentle duplicate notice.
+
+2) Database changes (low-risk migration)
+
+New / revised columns
+
+user_id (string) — owner’s Firebase UID
+
+content_hash (string, optional for now) — MD5/ETag if readily available
+
+(confirm existing) name, mime_type, size_bytes, object_path, timestamps
+
+Indexes
+
+Add a non-unique index on user_id.
+
+Add a non-unique index on (user_id, name, size_bytes) for soft duplicate lookups.
+
+(Optional now; not enforced) Add a non-unique index on (user_id, content_hash) for later hard dedupe.
+
+Migration sequence
+
+Add user_id (nullable) and the indexes above.
+
+Backfill user_id:
+
+If all existing docs belong to the same person, set user_id to that UID.
+
+If multiple users exist, infer from object_path prefix: users/<uid>/docs/....
+
+Verify counts (total rows before == after; number of rows per user matches expectation).
+
+Flip user_id to NOT NULL.
+
+(Optional) Add content_hash column now; leave it nullable.
+
+Rollback plan
+
+If backfill shows inconsistency, leave user_id nullable and do not flip to NOT NULL; fix the inference script and re-run.
+
+3) Server behavior changes (consistent across all routes)
+
+Authentication & scoping
+
+Every API that touches documents must extract the Firebase UID and use it as the single source of truth for authorization.
+
+All document queries (list, get, download, delete, restore, empty trash, search) must include WHERE user_id = <current UID>.
+
+If a document is not found for the current UID, return 404 (not 403/500).
+
+Upload – signed-URL flow (finalize step)
+
+When the client finalizes an uploaded file, write a new DB row with:
+
+user_id, name, mime_type, size_bytes, object_path (users/<uid>/docs/<docId>/<filename>), timestamps.
+
+If available cheaply, capture content hash (e.g., GCS object MD5).
+
+Atomicity: if the DB write fails after the file exists in GCS, delete the just-created GCS object and return a clean error. No orphans.
+
+Upload – fallback proxy flow
+
+After saving the multipart file to GCS, perform the same document creation as above (same fields, same validations, same logging).
+
+Atomicity: if the DB write fails, delete the new GCS object and return an error.
+
+Soft duplicate detection (per user)
+
+On create/finalize, perform a best-effort duplicate check limited to the current user. Order of preference:
+
+If content_hash is present, look for any existing row with the same (user_id, content_hash).
+
+Else, use (user_id, name, size_bytes) as a heuristic (fast).
+
+Do not block the upload.
+
+Return a flag in the response (e.g., duplicateCandidate: true and a reference to the previously uploaded doc), and log the event.
+
+The UI will simply show a polite “Looks like you may already have this” notice.
+
+Idempotency
+
+If the client retries the same finalize (same object_path for the same user_id), update the existing record rather than inserting a new one. (Upsert semantics by user_id + object_path.)
+
+Delete/restore
+
+Verify delete removes both the DB row (for that user_id) and the GCS object at object_path.
+
+Verify restore only exposes docs for the current user_id.
+
+4) UI behavior (small polish, no new screens)
+
+On soft duplicate flag, show a non-blocking notice with a “View existing” link; do not reject the upload.
+
+Uploader modal auto-closes when all files complete (both paths).
+
+No change to empty-trash/delete-all flows except that they operate within the user’s boundary.
+
+5) Logging we need (sanitized, structured)
+
+Log four events for each uploaded file (both flows), all including uid and a reqId correlation id:
+
+upload.entry — fields: uid, flow: "signed" | "proxy", name, size
+
+upload.gcs_saved — fields: uid, objectPathPrefix (show users/<uid>/docs/<docId>/ and redact filename), size
+
+upload.db_created — fields: uid, docId, fileType/mime, objectPathPrefix
+
+If duplicate candidate: upload.duplicate_candidate — fields: uid, docId, existingDocId or count of matches
+
+Never log tokens, full signed URLs, or raw filenames in logs.
+
+6) Testing / acceptance
+
+Migration
+
+Before/after row counts match; every row has user_id set; indexes exist.
+
+Sampling 10 rows shows object_path prefix user matches user_id.
+
+Functional
+
+Upload the same file twice as the same signed-in user:
+
+Both uploads succeed; second response includes duplicateCandidate: true.
+
+Only one actual file in GCS if your flow dedupes by path; otherwise two files but clearly marked in the app (both OK for MVP).
+
+Upload the same file as a different user:
+
+Upload succeeds; no duplicate warning for them.
+
+Delete a doc:
+
+Row disappears from the user’s list; GCS object is gone; no cross-user impact.
+
+Restore a doc (if applicable):
+
+Shows again for that user only; object path unchanged.
+
+Security
+
+With user A’s token, try fetching/deleting doc IDs belonging to user B → always 404.
+
+No endpoints return data for a different user_id.
+
+Performance
+
+Five files uploaded (mixed types) finish in a reasonable time; modal closes; UI updates without refresh.
+
+7) What NOT to do (for this MVP)
+
+Do not enforce a unique constraint on (user_id, content_hash) yet. We only warn.
+
+Do not hard-fail uploads due to duplicate heuristics.
+
+Do not leave any endpoint that touches documents without a user_id filter.
+
+8) “Done” checklist to sign off
+
+ user_id added, backfilled, NOT NULL, indexed.
+
+ All document reads/writes/deletes are scoped by user_id.
+
+ Both upload paths create DB records with user_id set; fallback and signed flow are consistent.
+
+ Soft duplicate detection returns a flag, not an error; logs the event.
+
+ Atomicity is guaranteed (no GCS orphans if DB writes fail).
+
+ UI shows duplicate notice and auto-closes uploader on success.
+
+ Sanitized logs for one full test show: upload.entry → gcs_saved → db_created (and duplicate_candidate if applicable).
+
+ Deleting/restoring affects only the current user and both DB + GCS.

@@ -33,6 +33,7 @@ export const tags = pgTable("tags", {
 
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull(), // Firebase UID - owner of the document
   name: text("name").notNull(),
   originalName: text("original_name").notNull(),
   filePath: text("file_path"),
@@ -40,6 +41,7 @@ export const documents = pgTable("documents", {
   fileSize: integer("file_size"),
   fileType: text("file_type").notNull(),
   mimeType: text("mime_type").notNull(),
+  contentHash: text("content_hash"), // MD5/ETag for content-based deduplication (optional)
   folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
   uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
   isFavorite: boolean("is_favorite").default(false).notNull(),
@@ -82,7 +84,12 @@ export const documents = pgTable("documents", {
   keyTopicsEmbedding: text("key_topics_embedding"), // JSON array of embedding for key topics
   embeddingsGenerated: boolean("embeddings_generated").default(false).notNull(),
   embeddingsGeneratedAt: timestamp("embeddings_generated_at"),
-});
+}, (table) => ({
+  // Multi-tenant indexes
+  userIdIndex: index("documents_user_id_idx").on(table.userId),
+  userDuplicateCheckIndex: index("documents_user_duplicate_idx").on(table.userId, table.originalName, table.fileSize),
+  userContentHashIndex: index("documents_user_content_hash_idx").on(table.userId, table.contentHash),
+}));
 
 export const documentVersions = pgTable("document_versions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
