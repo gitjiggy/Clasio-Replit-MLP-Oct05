@@ -2724,6 +2724,7 @@ export class DatabaseStorage implements IStorage {
         .set({
           status: 'active',
           deletedAt: null,
+          isDeleted: false, // ✅ CRITICAL FIX: Reset the legacy deleted flag too!
         })
         .where(eq(documents.id, id))
         .returning();
