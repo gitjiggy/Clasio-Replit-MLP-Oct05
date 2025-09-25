@@ -195,6 +195,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return m ? `users/${m[1]}/docs/${m[2]}/<file>` : p;
   };
 
+  // Configure multer for upload-proxy (BEFORE any JSON parser)
+  const uploadProxy = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 100 * 1024 * 1024 } // 100MB cap
+  });
+
+  // Upload proxy MUST consume the body before any JSON middleware
+  app.post("/api/documents/upload-proxy", 
+    verifyFirebaseToken,
+    uploadProxy.single("file"), // <<< this must run before any json parser
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        // Entry log with content-type
+        console.info(JSON.stringify({ 
+          evt: "upload-proxy.entry", 
+          uid: req.user?.uid, 
+          ct: req.headers["content-type"] 
+        }));
+
+        if (!req.file) return res.status(400).json({ error: "file missing" });
+
+        const { originalname, mimetype, buffer, size } = req.file;
+        const uid = req.user?.uid!;
+        const docId = randomUUID();
+        const objectPath = `users/${uid}/docs/${docId}/${originalname}`; // raw name; SDK encodes
+
+        const bucket = objectStorageService.getBucket();
+        await bucket.file(objectPath).save(buffer, {
+          contentType: mimetype || "application/octet-stream",
+          resumable: false,
+          validation: false,
+        });
+
+        console.info(JSON.stringify({
+          evt: "upload-proxy.success",
+          uid, 
+          objectPath: `users/${uid}/docs/${docId}/<file>`, 
+          size
+        }));
+        
+        return res.status(200).json({ 
+          ok: true, 
+          objectPath, 
+          docId, 
+          contentType: mimetype, 
+          size 
+        });
+      } catch (err: any) {
+        console.error("upload-proxy failed", { err: err.message, stack: err.stack });
+        return res.status(500).json({ error: "proxy upload failed" });
+      }
+    }
+  );
+
+  // Now apply JSON middleware for JSON routes only
+  app.use('/api', express.json());
+
   // Download documents by document ID - protected with authentication and rate limiting
   app.get("/api/documents/:documentId/download", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
@@ -366,47 +423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Bulk upload URL generation - for when you have more files than patience! 📁✨
-  // Server-side upload proxy to bypass CORS issues
-  app.post("/api/documents/upload-proxy", verifyFirebaseToken, upload.single('file'), async (req: AuthenticatedRequest, res) => {
-    try {
-      const userId = req.user?.uid;
-      if (!userId) {
-        return res.status(401).json({ error: "User authentication required" });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({ error: "No file provided" });
-      }
-
-      const originalFileName = req.file.originalname;
-      const docId = randomUUID();
-      const canonicalPath = generateDocumentPath(userId, docId, originalFileName);
-      
-      // Upload to GCS via server
-      await objectStorageService.uploadFileBuffer(
-        req.file.buffer, 
-        canonicalPath, 
-        req.file.mimetype
-      );
-      
-      const determinedFileType = getFileTypeFromMimeType(req.file.mimetype, originalFileName);
-      console.log(`🔍 Proxy Upload Debug - File: ${originalFileName}, MIME: ${req.file.mimetype}, FileType: ${determinedFileType}`);
-      
-      res.json({
-        success: true,
-        objectPath: canonicalPath,
-        docId,
-        originalFileName,
-        fileSize: req.file.size,
-        fileType: determinedFileType,
-        mimeType: req.file.mimetype
-      });
-    } catch (error) {
-      console.error("Server-side upload failed:", error);
-      res.status(500).json({ error: "Upload failed" });
-    }
-  });
+  // OLD upload-proxy route removed - now handled earlier before JSON parsing
 
   // Standard upload route - handles single file uploads with multipart data
   app.post("/api/documents/upload", verifyFirebaseToken, upload.single('file'), async (req: AuthenticatedRequest, res) => {

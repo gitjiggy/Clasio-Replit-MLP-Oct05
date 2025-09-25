@@ -93,7 +93,8 @@ app.use(helmet({
 
 // Rate limiters are now in separate module to avoid circular dependencies
 
-app.use(express.json());
+// JSON middleware moved to routes.ts to prevent parsing multipart uploads
+// app.use(express.json()); // REMOVED - now scoped to specific routes
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {

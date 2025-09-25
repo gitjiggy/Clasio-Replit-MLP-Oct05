@@ -1,0 +1,117 @@
+You’re still hitting the JSON parser on the fallback proxy. The modal shows:
+
+400 … "Unexpected token '-' … '------WebKit' is not valid JSON"
+… at body-parser/json.js …
+(…)/api/documents/upload-proxy
+
+
+That means the client is correctly sending multipart/form-data (FormData), but the server route /api/documents/upload-proxy is being passed through express.json() (or another JSON body parser) before a multipart handler runs.
+
+Here’s a precise note you can paste to Replit to fix it cleanly.
+
+Subject: /api/documents/upload-proxy still parsed as JSON — re-order middleware & add multipart handler
+
+What’s wrong
+
+Fallback uploader posts FormData to /api/documents/upload-proxy.
+
+Server tries to JSON-parse the multipart stream → Unexpected token '------WebKit' → 400.
+
+Please implement exactly this:
+
+Mount upload-proxy BEFORE any JSON parser and use a multipart handler.
+
+// server/router.ts
+import express from "express";
+import multer from "multer";
+import { requireAuth } from "./auth";
+
+const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB cap; adjust as needed
+});
+
+// Upload proxy MUST consume the body before any JSON middleware
+router.post(
+  "/documents/upload-proxy",
+  requireAuth,
+  upload.single("file"), // <<< this must run before any json parser
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "file missing" });
+
+      const { originalname, mimetype, buffer, size } = req.file;
+      const uid = req.user.uid;
+      const docId = crypto.randomUUID();
+      const objectPath = `users/${uid}/docs/${docId}/${originalname}`; // raw name; SDK encodes
+
+      await bucket.file(objectPath).save(buffer, {
+        contentType: mimetype || "application/octet-stream",
+        resumable: false,
+        validation: false,
+      });
+
+      console.info(JSON.stringify({
+        evt: "upload-proxy.success",
+        uid, objectPath: `users/${uid}/docs/${docId}/<file>`, size
+      }));
+      return res.status(200).json({ ok: true, objectPath, docId, contentType: mimetype, size });
+    } catch (err:any) {
+      console.error("upload-proxy failed", { err: err.message, stack: err.stack });
+      return res.status(500).json({ error: "proxy upload failed" });
+    }
+  }
+);
+
+// Now mount JSON middleware for the JSON routes only
+const api = express.Router();
+api.use(express.json());
+api.post("/documents/bulk-upload-urls", requireAuth, bulkSignHandler);
+api.post("/documents/batch-finalize",  requireAuth, finalizeHandler);
+
+router.use(api);
+export default router;
+
+
+If you currently have app.use(express.json()) globally, either move it after mounting /api/documents/upload-proxy, or scope it to an inner router as above so it never touches the multipart route.
+
+Client fallback (confirm)
+Make sure you send FormData and do not set Content-Type manually; the browser must add the boundary.
+
+const fd = new FormData();
+fd.append("file", file, file.name);
+fd.append("name", file.name);
+fd.append("mimeType", file.type || "");
+await fetch("/api/documents/upload-proxy", {
+  method: "POST",
+  body: fd,
+  credentials: "include",
+  headers: await authHeader() // e.g., { Authorization: `Bearer ${idToken}` }
+});
+
+
+Add two tiny logs to prove order
+
+// at upload-proxy entry
+console.info(JSON.stringify({ evt:"upload-proxy.entry", uid: req.user?.uid, ct: req.headers["content-type"] }));
+
+
+Expect ct to start with multipart/form-data; boundary=….
+
+Quick repro you can run
+
+TOKEN=<valid_firebase_id_token>
+curl -v -H "Authorization: Bearer $TOKEN" \
+     -F "file=@./sample.pdf" \
+     https://<host>/api/documents/upload-proxy
+# should return 200 with { ok:true, objectPath, docId }
+
+
+Acceptance criteria
+
+Posting multipart to /api/documents/upload-proxy returns 200; no more Unexpected token '------WebKit' errors.
+
+On success, the UI finalizes and the modal auto-closes.
+
+Log shows upload-proxy.entry with ct: multipart/form-data… and upload-proxy.success with sanitized objectPath
