@@ -259,15 +259,13 @@ export function ObjectUploader({
             
             // Handle duplicate warnings (soft warnings, upload still succeeds)
             if (result.warning && result.warning.type === 'duplicate_warning') {
-              console.log("🚨 FALLBACK DUPLICATE WARNING DETECTED:", file.name, "Message:", result.warning.message);
               toast({
-                title: "Duplicate File Warning! ⚠️",
+                title: "Duplicate File Detected! ⚠️",
                 description: result.warning.message,
-                variant: "default", // Use default variant (not destructive) since upload succeeded
-                duration: 6000, // Show for 6 seconds to ensure user sees it
+                variant: "destructive", // Make it more visible with warning colors
+                duration: 8000, // Show for 8 seconds to ensure visibility
+                className: "font-semibold", // Make text bolder
               });
-            } else {
-              console.log("✅ NO DUPLICATE WARNING in fallback upload for:", file.name, "Result:", result);
             }
             
             return { success: true, docId: result.docId, hadWarning: !!result.warning };
@@ -319,23 +317,18 @@ export function ObjectUploader({
         
         // Show duplicate warnings immediately (informational toasts)
         if (warningFiles.length > 0) {
-          console.log("🚨 BULK DUPLICATE WARNINGS DETECTED:", warningFiles.length, "warnings");
-          console.log("🚨 WARNING FILES:", warningFiles);
           warningFiles.forEach((file: any, index: number) => {
-            console.log(`🚨 SHOWING WARNING ${index + 1}:`, file.name, "Message:", file.warning?.message);
             // Add slight delay to prevent toast conflicts and ensure all warnings show
             setTimeout(() => {
-              console.log(`🚨 DISPLAYING TOAST FOR:`, file.name);
               toast({
-                title: "Duplicate File Warning! ⚠️",
+                title: "Duplicate File Detected! ⚠️",
                 description: file.warning?.message || "This file already exists but upload will proceed!",
-                variant: "default", // Use default variant since upload succeeds
-                duration: 6000, // Show for 6 seconds to ensure user sees it
+                variant: "destructive", // Make it more visible with warning colors
+                duration: 8000, // Show for 8 seconds to ensure visibility
+                className: "font-semibold", // Make text bolder
               });
-            }, index * 500); // Stagger warnings by 500ms to prevent conflicts
+            }, index * 750); // Longer stagger to prevent conflicts
           });
-        } else {
-          console.log("✅ NO DUPLICATE WARNINGS in bulk upload");
         }
         
         // Use batch results for all files that got signed URLs (including those with warnings)
