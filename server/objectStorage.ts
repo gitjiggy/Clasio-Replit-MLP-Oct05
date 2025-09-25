@@ -412,7 +412,7 @@ export class ObjectStorageService {
 
         // Use the Google Cloud Storage JSON API to restore the object
         const encodedObjectPath = encodeURIComponent(objectPath);
-        const restoreUrl = `https://storage.googleapis.com/storage/v1/b/${this.bucketName}/o/${encodedObjectPath}/restore`;
+        const restoreUrl = `https://storage.googleapis.com/storage/v1/b/${this.bucketName}/o/${encodedObjectPath}/restore?generation=${generation.toString()}`;
         
         // Get OAuth2 access token using GoogleAuth
         const auth = new GoogleAuth({
@@ -432,10 +432,7 @@ export class ObjectStorageService {
           headers: {
             'Authorization': `Bearer ${accessTokenResponse.token}`,
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            generation: generation.toString()
-          })
+          }
         });
 
         if (response.ok) {
