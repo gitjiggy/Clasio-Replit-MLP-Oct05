@@ -159,7 +159,7 @@ export interface IStorage {
   getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
-  restoreDocument(id: string): Promise<boolean>;
+  restoreDocument(id: string): Promise<{ success: boolean; error?: string }>;
   analyzeDocumentWithAI(id: string, driveContent?: string, driveAccessToken?: string): Promise<boolean>;
   extractDocumentContent(id: string, driveAccessToken?: string): Promise<boolean>;
   getDocumentsWithoutContent(): Promise<Document[]>;
@@ -2856,7 +2856,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async restoreDocument(id: string): Promise<boolean> {
+  async restoreDocument(id: string): Promise<{ success: boolean; error?: string }> {
     try {
       await this.ensureInitialized();
 
@@ -2869,7 +2869,7 @@ export class DatabaseStorage implements IStorage {
 
       if (trashedDoc.length === 0) {
         console.warn(`Document ${id} not found in trash or not eligible for restore`);
-        return false;
+        return { success: false, error: "Document not found in trash" };
       }
 
       const document = trashedDoc[0];
@@ -2879,34 +2879,82 @@ export class DatabaseStorage implements IStorage {
         const daysSinceDeleted = (Date.now() - document.deletedAt.getTime()) / (1000 * 60 * 60 * 24);
         if (daysSinceDeleted > 7) {
           console.warn(`Document ${id} is beyond the 7-day restore window (${daysSinceDeleted.toFixed(1)} days old)`);
-          return false;
+          return { success: false, error: `Document is beyond the 7-day restore window (${daysSinceDeleted.toFixed(1)} days old)` };
         }
       }
 
-      // Restore the document by updating status and clearing deletedAt
+      // Check if we have generation data for GCS restore
+      if (!document.deletedGeneration) {
+        console.warn(`No generation data for restore: ${id} - cannot restore GCS object`);
+        return { success: false, error: "Cannot restore: missing generation data (deleted before restore feature was implemented)" };
+      }
+
+      // Restore GCS object using stored generation
+      let gcsRestoreResult = null;
+      if (document.objectPath || document.filePath) {
+        try {
+          const objectPath = document.objectPath || document.filePath;
+          if (objectPath) {
+            const objectStorageService = new ObjectStorageService();
+            gcsRestoreResult = await objectStorageService.restoreObject(objectPath, document.deletedGeneration);
+            
+            if (!gcsRestoreResult.success) {
+              console.error(`GCS restore failed for ${objectPath}: ${gcsRestoreResult.error}`);
+              return { success: false, error: gcsRestoreResult.error };
+            }
+          }
+        } catch (gcsError: any) {
+          console.error(`Error during GCS restore for ${document.objectPath || document.filePath}:`, gcsError);
+          return { success: false, error: `Failed to restore file from cloud storage: ${gcsError.message}` };
+        }
+      }
+
+      // Verify object is actually live after restore (unless it was already live)
+      if (gcsRestoreResult && !gcsRestoreResult.alreadyLive) {
+        try {
+          const objectPath = document.objectPath || document.filePath;
+          if (objectPath) {
+            const objectStorageService = new ObjectStorageService();
+            const metadata = await objectStorageService.getObjectMetadata(objectPath);
+            
+            if (!metadata.exists) {
+              console.error(`Verification failed: Object not live after restore: ${objectPath}`);
+              return { success: false, error: "Restore verification failed - file is not accessible" };
+            }
+          }
+        } catch (verifyError: any) {
+          console.error(`Verification error after restore:`, verifyError);
+          return { success: false, error: "Failed to verify restore success" };
+        }
+      }
+
+      // Update database to restore the document
       const result = await db
         .update(documents)
         .set({
           status: 'active',
           deletedAt: null,
-          isDeleted: false, // ✅ CRITICAL FIX: Reset the legacy deleted flag too!
+          deletedGeneration: null, // Clear generation after successful restore
+          isDeleted: false, // Reset the legacy deleted flag
         })
         .where(eq(documents.id, id))
         .returning();
 
       if (result.length === 0) {
-        console.warn(`Failed to restore document ${id}`);
-        return false;
+        console.warn(`Failed to restore document ${id} in database`);
+        return { success: false, error: "Database restore failed" };
       }
 
-      // Note: Files were already deleted from GCS during trash operation
-      // User will need to re-upload the file if they want the content back
-      console.log(`🔄 Document "${document.name}" restored from trash (file content will need to be re-uploaded)`);
+      const restoreMessage = gcsRestoreResult?.alreadyLive 
+        ? `🔄 Document "${document.name}" restored from trash (file was already live)`
+        : `🔄 Document "${document.name}" and file restored from trash successfully`;
       
-      return true;
+      console.log(restoreMessage);
+      
+      return { success: true };
     } catch (error) {
       console.error(`Error restoring document ${id}:`, error);
-      return false;
+      return { success: false, error: `Restore failed: ${error.message}` };
     }
   }
 

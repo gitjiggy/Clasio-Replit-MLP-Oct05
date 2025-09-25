@@ -395,6 +395,89 @@ export class ObjectStorageService {
     });
   }
 
+  async restoreObject(objectPath: string, generation: bigint): Promise<{ success: boolean; error?: string; alreadyLive?: boolean }> {
+    if (!objectStorageClient) {
+      throw new StorageAuthError("GCS client not initialized");
+    }
+
+    return withRetry(async () => {
+      try {
+        // First check if object is already live (idempotency)
+        const metadata = await this.getObjectMetadata(objectPath);
+        if (metadata.exists) {
+          console.log(`🔄 Object already live, restore not needed: ${objectPath}`);
+          return { success: true, alreadyLive: true };
+        }
+
+        // Use the Google Cloud Storage JSON API to restore the object
+        const encodedObjectPath = encodeURIComponent(objectPath);
+        const restoreUrl = `https://storage.googleapis.com/storage/v1/b/${this.bucketName}/o/${encodedObjectPath}/restore`;
+        
+        // Get OAuth2 access token
+        const authClient = await objectStorageClient.authClient.getAccessToken();
+        if (!authClient.token) {
+          throw new StorageAuthError("Failed to get access token for GCS restore");
+        }
+
+        const response = await fetch(restoreUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authClient.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            generation: generation.toString()
+          })
+        });
+
+        if (response.ok) {
+          console.log(`✅ GCS object restored successfully: ${objectPath} (generation: ${generation})`);
+          return { success: true };
+        }
+
+        // Handle specific error cases
+        const errorText = await response.text();
+        console.error(`❌ GCS restore failed for ${objectPath}: ${response.status} ${errorText}`);
+
+        if (response.status === 409 || response.status === 412) {
+          // Object already live or precondition failed
+          console.log(`🔄 Object may already be live: ${objectPath}`);
+          return { success: true, alreadyLive: true };
+        }
+
+        if (response.status === 404) {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error?.reason === 'notFound') {
+            return { 
+              success: false, 
+              error: "File has been permanently deleted and cannot be restored (past 7-day retention period)" 
+            };
+          }
+        }
+
+        return { 
+          success: false, 
+          error: `GCS restore failed: ${response.status} ${errorText}` 
+        };
+
+      } catch (error: any) {
+        console.error(`❌ Error during GCS restore for ${objectPath}:`, error);
+        
+        if (error.message?.includes('notFound') || error.code === 404) {
+          return { 
+            success: false, 
+            error: "File has been permanently deleted and cannot be restored (past 7-day retention period)" 
+          };
+        }
+        
+        return { 
+          success: false, 
+          error: `Restore operation failed: ${error.message}` 
+        };
+      }
+    });
+  }
+
   async getObjectEntityUploadURL(userId?: string, originalFileName?: string, contentType?: string): Promise<{ uploadURL: string; objectPath: string; docId?: string }> {
     // Enforce canonical path structure - no temp path fallbacks
     if (!userId) {

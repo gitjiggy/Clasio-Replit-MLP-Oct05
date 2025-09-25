@@ -1126,17 +1126,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Restore document from trash
   app.patch("/api/documents/:id/restore", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const restored = await storage.restoreDocument(req.params.id);
-      if (!restored) {
-        return res.status(404).json({ 
-          error: "Document not found in trash or not eligible for restore",
-          details: "Documents can only be restored within 7 days of deletion"
+      const result = await storage.restoreDocument(req.params.id);
+      if (!result.success) {
+        const statusCode = result.error?.includes("not found") ? 404 : 400;
+        return res.status(statusCode).json({ 
+          error: result.error || "Failed to restore document",
+          details: result.error?.includes("7-day") 
+            ? "Documents can only be restored within 7 days of deletion"
+            : "Check if the document exists in trash and is eligible for restore"
         });
       }
       res.json({ 
         success: true,
-        message: "Document restored successfully",
-        note: "File content was deleted during trash operation - you may need to re-upload the file"
+        message: "Document and file restored successfully from trash",
+        note: "Both the document record and the file in cloud storage have been restored"
       });
     } catch (error) {
       console.error("Error restoring document:", error);
