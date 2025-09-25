@@ -2668,11 +2668,12 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getDocumentsCount(filters: DocumentFilters): Promise<number> {
+  async getDocumentsCount(filters: DocumentFilters, userId: string): Promise<number> {
     await this.ensureInitialized();
     const conditions = [
       eq(documents.isDeleted, false),
-      eq(documents.status, 'active')
+      eq(documents.status, 'active'),
+      eq(documents.userId, userId)  // CRITICAL: Filter by user to match document display
     ];
 
     if (filters.search) {

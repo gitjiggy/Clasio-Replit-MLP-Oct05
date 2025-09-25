@@ -259,12 +259,15 @@ export function ObjectUploader({
             
             // Handle duplicate warnings (soft warnings, upload still succeeds)
             if (result.warning && result.warning.type === 'duplicate_warning') {
+              console.log("🚨 FALLBACK DUPLICATE WARNING DETECTED:", file.name, "Message:", result.warning.message);
               toast({
                 title: "Duplicate File Warning! ⚠️",
                 description: result.warning.message,
                 variant: "default", // Use default variant (not destructive) since upload succeeded
                 duration: 6000, // Show for 6 seconds to ensure user sees it
               });
+            } else {
+              console.log("✅ NO DUPLICATE WARNING in fallback upload for:", file.name, "Result:", result);
             }
             
             return { success: true, docId: result.docId, hadWarning: !!result.warning };
@@ -316,9 +319,13 @@ export function ObjectUploader({
         
         // Show duplicate warnings immediately (informational toasts)
         if (warningFiles.length > 0) {
+          console.log("🚨 BULK DUPLICATE WARNINGS DETECTED:", warningFiles.length, "warnings");
+          console.log("🚨 WARNING FILES:", warningFiles);
           warningFiles.forEach((file: any, index: number) => {
+            console.log(`🚨 SHOWING WARNING ${index + 1}:`, file.name, "Message:", file.warning?.message);
             // Add slight delay to prevent toast conflicts and ensure all warnings show
             setTimeout(() => {
+              console.log(`🚨 DISPLAYING TOAST FOR:`, file.name);
               toast({
                 title: "Duplicate File Warning! ⚠️",
                 description: file.warning?.message || "This file already exists but upload will proceed!",
@@ -327,6 +334,8 @@ export function ObjectUploader({
               });
             }, index * 500); // Stagger warnings by 500ms to prevent conflicts
           });
+        } else {
+          console.log("✅ NO DUPLICATE WARNINGS in bulk upload");
         }
         
         // Use batch results for all files that got signed URLs (including those with warnings)
