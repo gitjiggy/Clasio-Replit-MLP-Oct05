@@ -221,6 +221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const docId = randomUUID();
         const objectPath = `users/${uid}/docs/${docId}/${originalname}`; // raw name; SDK encodes
 
+        // Step 1: Upload to GCS
         const bucket = objectStorageService.getBucket();
         await bucket.file(objectPath).save(buffer, {
           contentType: mimetype || "application/octet-stream",
@@ -228,11 +229,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           validation: false,
         });
 
+        // Step 2: Create database record (this was missing!)
+        const determinedFileType = getFileTypeFromMimeType(mimetype || "", originalname);
+        const documentData = {
+          id: docId,
+          userId: uid,
+          name: originalname,
+          originalName: originalname,
+          filePath: objectPath,
+          fileSize: size,
+          fileType: determinedFileType,
+          mimeType: mimetype || "application/octet-stream",
+          folderId: null, // No folder for fallback uploads
+          isFavorite: false,
+          isDeleted: false,
+        };
+
+        const validatedData = insertDocumentSchema.parse(documentData);
+        const document = await storage.createDocument(validatedData);
+
+        // Step 3: Queue for AI analysis (like other upload routes)
+        try {
+          await storage.enqueueDocumentForAnalysis(document.id, uid, 5); // Normal priority
+          console.log(`🔍 Auto-queued AI analysis for: ${originalname} (proxy upload)`);
+        } catch (analysisError) {
+          console.warn(`Failed to auto-queue AI analysis for ${originalname}:`, analysisError);
+        }
+
         console.info(JSON.stringify({
           evt: "upload-proxy.success",
           uid, 
           objectPath: `users/${uid}/docs/${docId}/<file>`, 
-          size
+          size,
+          dbCreated: true
         }));
         
         return res.status(200).json({ 
