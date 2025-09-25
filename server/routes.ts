@@ -273,6 +273,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.warn(`Failed to auto-queue AI analysis for ${originalname}:`, analysisError);
         }
 
+        console.log(`🔍 DEBUG: Reached content extraction section for: ${originalname}`);
+
         // Step 4: Trigger background content extraction (same as normal uploads)
         console.log(`🔧 Starting content extraction for: ${originalname} (docId: ${document.id})`);
         try {
