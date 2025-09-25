@@ -1138,8 +1138,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ 
         success: true,
-        message: "Document and file restored successfully from trash",
-        note: "Both the document record and the file in cloud storage have been restored"
+        message: result.message || "Document and file restored successfully from trash",
+        note: result.alreadyLive 
+          ? "Document restored (file was already available in cloud storage)"
+          : "Both the document record and the file in cloud storage have been restored",
+        alreadyLive: result.alreadyLive || false
       });
     } catch (error) {
       console.error("Error restoring document:", error);

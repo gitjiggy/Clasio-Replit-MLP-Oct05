@@ -87,15 +87,43 @@ export default function Trash() {
     onSuccess: (data, documentId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents/trash"] });
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
-      toast({
-        title: "Document restored",
-        description: data.message || "Document has been restored successfully",
-      });
+      
+      // Use the new response format with success flag and alreadyLive indicator
+      if (data.success) {
+        const title = data.alreadyLive 
+          ? "✅ Document restored (file was available)"
+          : "✅ Document and file restored";
+        
+        const description = data.note || (data.alreadyLive 
+          ? "Document restored - the file was already available in cloud storage"
+          : "Both the document record and file have been restored from cloud storage");
+        
+        toast({
+          title,
+          description,
+        });
+      }
     },
     onError: (error: any) => {
+      // Enhanced error handling for specific restore failure cases
+      let title = "Restore failed";
+      let description = error.details || error.message || "Failed to restore document";
+      
+      // Handle specific error cases with better messaging
+      if (error.message?.includes("generation data")) {
+        title = "Cannot restore file";
+        description = "This document was deleted before the restore feature was implemented. You can restore the document record, but you'll need to re-upload the file.";
+      } else if (error.message?.includes("permanently deleted")) {
+        title = "File permanently deleted";
+        description = "The file has passed the 7-day retention period and was permanently deleted. You can restore the document record, but you'll need to re-upload the file.";
+      } else if (error.message?.includes("7-day")) {
+        title = "Restore window expired";
+        description = "This document is beyond the 7-day restore window and cannot be restored.";
+      }
+      
       toast({
-        title: "Restore failed",
-        description: error.details || error.message || "Failed to restore document",
+        title,
+        description,
         variant: "destructive",
       });
     },
@@ -319,12 +347,13 @@ export default function Trash() {
 
         {/* Information Footer */}
         <div className="mt-8 p-4 bg-muted/50 rounded-lg">
-          <h3 className="font-medium mb-2">About Trash</h3>
+          <h3 className="font-medium mb-2">About Trash & Restore</h3>
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>• Documents in trash are automatically deleted after {retentionDays} days</li>
-            <li>• File content is immediately removed to save storage costs</li>
-            <li>• Restored documents will need their files re-uploaded</li>
-            <li>• Document metadata and organization are preserved during restore</li>
+            <li>• Files are soft-deleted and can be restored within the {retentionDays}-day window</li>
+            <li>• Restore recovers both document metadata and the original file content</li>
+            <li>• After {retentionDays} days, files are permanently deleted and cannot be recovered</li>
+            <li>• Document organization and AI analysis are preserved during restore</li>
           </ul>
           {trashConfig?.description && (
             <p className="text-sm text-muted-foreground mt-2 italic">

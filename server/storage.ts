@@ -159,7 +159,7 @@ export interface IStorage {
   getDocumentWithVersions(id: string): Promise<DocumentWithVersions | undefined>;
   updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
-  restoreDocument(id: string): Promise<{ success: boolean; error?: string }>;
+  restoreDocument(id: string): Promise<{ success: boolean; error?: string; alreadyLive?: boolean; message?: string }>;
   analyzeDocumentWithAI(id: string, driveContent?: string, driveAccessToken?: string): Promise<boolean>;
   extractDocumentContent(id: string, driveAccessToken?: string): Promise<boolean>;
   getDocumentsWithoutContent(): Promise<Document[]>;
@@ -2951,7 +2951,11 @@ export class DatabaseStorage implements IStorage {
       
       console.log(restoreMessage);
       
-      return { success: true };
+      return { 
+        success: true, 
+        alreadyLive: gcsRestoreResult?.alreadyLive || false,
+        message: restoreMessage
+      };
     } catch (error) {
       console.error(`Error restoring document ${id}:`, error);
       return { success: false, error: `Restore failed: ${error.message}` };
