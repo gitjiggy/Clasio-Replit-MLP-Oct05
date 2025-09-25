@@ -244,7 +244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date().toISOString()
         }));
         
-        let duplicateWarning = null;
+        // BLOCK UPLOAD if duplicates found (return 409 Conflict)
         if (duplicates.length > 0) {
           const funnyMessages = [
             "Déjà vu! This file is already in your collection. Did you time travel? 🕰️",
@@ -255,20 +255,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "Another copy? Your files are multiplying like rabbits! 🐰"
           ];
           const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-          duplicateWarning = {
-            type: "duplicate_warning",
-            message: randomMessage
-          };
           
           console.info(JSON.stringify({
-            evt: "duplicate-warning.created",
+            evt: "duplicate-upload.blocked",
             reqId: (req as any).reqId,
             uid,
             fileName: originalname,
             duplicateCount: duplicates.length,
-            warningMessage: randomMessage,
+            message: randomMessage,
             timestamp: new Date().toISOString()
           }));
+
+          // Return 409 Conflict to block duplicate upload
+          return res.status(409).json({
+            error: "Duplicate file detected",
+            type: "duplicate_conflict", 
+            message: randomMessage,
+            duplicateCount: duplicates.length,
+            existingDocs: duplicates.map(d => ({ 
+              id: d.id, 
+              name: d.name,
+              uploadDate: d.createdAt 
+            }))
+          });
         }
         
         const docId = randomUUID();
@@ -401,8 +410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           objectPath, 
           docId, 
           contentType: mimetype, 
-          size,
-          warning: duplicateWarning 
+          size
         });
       } catch (err: any) {
         // Error log with correlation ID
@@ -803,7 +811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: new Date().toISOString()
           }));
           
-          let duplicateWarning = null;
+          // BLOCK duplicates - return conflict status instead of signed URL  
           if (f.size !== undefined) {
             const duplicates = await storage.findDuplicateFiles(f.name, f.size, userId);
             
@@ -827,20 +835,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 "File already exists! Your storage is having a reunion! 👯‍♀️"
               ];
               const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-              duplicateWarning = {
-                type: "duplicate_warning",
-                message: randomMessage
-              };
               
               console.info(JSON.stringify({
-                evt: "bulk-duplicate-warning.created",
+                evt: "bulk-duplicate.blocked",
                 reqId: (req as any).reqId,
                 uid: userId,
                 fileName: f.name,
                 duplicateCount: duplicates.length,
-                warningMessage: randomMessage,
+                message: randomMessage,
                 timestamp: new Date().toISOString()
               }));
+
+              // Return conflict status instead of signed URL
+              return { 
+                ok: false,
+                status: "duplicate_conflict", 
+                name: f.name,
+                type: "duplicate_conflict", 
+                message: randomMessage,
+                duplicateCount: duplicates.length,
+                existingDocs: duplicates.map(d => ({ 
+                  id: d.id, 
+                  name: d.name,
+                  uploadDate: d.createdAt 
+                }))
+              };
             }
           }
           
@@ -872,8 +891,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             method: "PUT", 
             headers: { "Content-Type": contentType }, 
             objectPath, 
-            name: f.name,
-            warning: duplicateWarning 
+            name: f.name
           };
         } catch (e: any) {
           console.error("sign-failed", { name: f.name, err: e?.message, stack: e?.stack });

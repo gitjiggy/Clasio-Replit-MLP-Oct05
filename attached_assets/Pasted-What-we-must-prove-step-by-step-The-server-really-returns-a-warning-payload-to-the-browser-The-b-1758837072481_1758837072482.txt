@@ -1,0 +1,128 @@
+What we must prove, step by step
+
+The server really returns a warning payload to the browser.
+
+The browser actually calls the toast (or banner) renderer.
+
+The toast is mounted above the upload modal and is visually legible.
+
+The warning also shows somewhere persistent (inline), so it can’t be missed.
+
+1) Verify the payload (Network tab)
+
+Goal: confirm the warning exists in the HTTP response your browser gets (not just server logs).
+
+In the browser DevTools → Network:
+
+Upload a file that’s a known duplicate (same file as an existing doc).
+
+Click the finalize request (often POST /api/documents/batch-finalize or the proxy response).
+
+Inspect the Response body.
+
+Ask Replit to ensure the response includes a normalized warnings array, e.g.:
+
+{
+  "results":[...],
+  "warnings":[
+    {"type":"duplicate","fileName":"reg256-1_complete (1).pdf","existingDocId":"...","message":"..."}
+  ]
+}
+
+
+Pass: you can see warnings:[...] with type:"duplicate".
+
+Fail: there’s no warnings array — server logs alone are not enough.
+
+If it’s missing: tell Replit “Put duplicate warnings in the HTTP response of finalize/proxy, not only logs.”
+
+2) Verify the client is actually trying to show it (Console tab)
+
+Goal: prove the code path that raises the toast is being hit.
+
+Keep DevTools Console open.
+
+Re-upload the duplicate file.
+
+Ask Replit to add a temporary console breadcrumb right before the toast call (e.g., “showDuplicateToast for …”), or, if they won’t add code, ask them to confirm you should see an existing breadcrumb like:
+
+UI: duplicate warning -> rendering toast, with the filename.
+
+Pass: you see the breadcrumb every time a duplicate is detected.
+
+Fail: no breadcrumb → the toast function isn’t being called. Have Replit fix the client mapping from warnings[] to the toast call.
+
+3) Ensure the toast is actually visible above the modal
+
+Most “we swear we fired the toast” issues are layering or mount point problems.
+
+Ask Replit to verify (in plain English):
+
+Mount point: The toast container (e.g., Toaster/Portal) must be mounted once at the app root, not inside the upload modal subtree. If it’s inside the modal, it’s destroyed when the modal re-renders or closes.
+
+Layering: The toast container must have a z-index higher than the modal overlay and should be position:fixed attached to document.body.
+
+Request a temporary visual test: have them trigger a “test toast” on page load so you can see it without opening the upload modal. Then open the upload modal and confirm the toast still appears on top.
+
+Theme contrast: Ensure the toast text/background isn’t blending into the dark overlay (dark-on-dark problem). Ask them to switch the warning to a high-contrast variant and add a thin border for testing.
+
+Duration: Keep it at 8–10s while you test; short durations can be missed.
+
+Pass: a test toast is clearly visible both with and without the modal.
+Fail: if you only see it with the modal closed → it’s mounted under or behind the modal. Have them re-mount at app root and raise z-index.
+
+4) Add a persistent inline signal (safety net)
+
+To prevent “toast was missed” altogether (and to help QA):
+
+Ask Replit to also show an inline, non-blocking badge inside the upload list for any file flagged as duplicate:
+
+Example: small yellow pill “Possible duplicate · View existing”.
+
+Clicking View existing opens the existing doc.
+
+This way, even if the toast is missed, the user still sees a visible, actionable warning in the modal before it auto-closes.
+
+Acceptance: For any duplicate, you see both:
+
+A toast (visible, high contrast, on top of the modal), and
+
+An inline badge on that file row with “View existing · Upload anyway”.
+
+5) Test matrix (very quick)
+
+Run these three cases to be absolutely sure:
+
+Same file, same name (100% duplicate) → expect toast + inline badge.
+
+Same file, different name (hash match; name differs) → still expect toast + inline badge.
+
+Same name, different bytes (should not warn) → no toast, no badge.
+
+Also run once via:
+
+Normal signed-URL path, and
+
+Fallback proxy path (force it by blocking /bulk-upload-urls in DevTools Network → Request Blocking).
+
+You should get the same UX either path.
+
+6) What to ask Replit to send you (so you can close this out)
+
+A short screen capture (or screenshot set) showing:
+
+Network response with warnings:[{type:"duplicate"}].
+
+Console breadcrumb right before the toast call.
+
+Visible toast over the modal.
+
+Inline badge on the duplicate file row.
+
+A one-liner note confirming:
+
+Toast container is mounted at app root (not in modal subtree),
+
+z-index of toast container is above modal overlay,
+
+The warning path is identical for signed-URL and proxy uploads.

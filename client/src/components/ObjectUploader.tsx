@@ -257,20 +257,22 @@ export function ObjectUploader({
               body: formData
             });
             
-            // Handle duplicate warnings (soft warnings, upload still succeeds)
-            if (result.warning && result.warning.type === 'duplicate_warning') {
+            return { success: true, docId: result.docId };
+          } catch (error: any) {
+            // Handle 409 Conflict (duplicates blocked) 
+            if (error.status === 409 && error.data?.type === 'duplicate_conflict') {
+              const duplicateData = error.data;
               toast({
-                title: "Duplicate File Detected! ⚠️",
-                description: result.warning.message,
-                variant: "destructive", // Make it more visible with warning colors
-                duration: 8000, // Show for 8 seconds to ensure visibility
-                className: "font-semibold", // Make text bolder
+                title: "Duplicate File Blocked! 🚫",
+                description: `${duplicateData.message}\n\nThis file already exists and was not uploaded. You can view the existing file or rename this one to upload.`,
+                variant: "destructive",
+                duration: 10000, // Longer duration for important message
+                className: "font-semibold",
               });
+              return { success: false, error: 'duplicate_blocked', duplicateInfo: duplicateData };
             }
             
-            return { success: true, docId: result.docId, hadWarning: !!result.warning };
-          } catch (error: any) {
-            // Only handle actual errors now (duplicates are warnings, not errors)
+            // Handle other actual errors
             console.error("Upload error:", error);
             return { success: false, error: 'upload_failed' };
           }
@@ -280,7 +282,7 @@ export function ObjectUploader({
         const successfulUploads = perFileResults.filter(r => r.success);
         const failedUploads = perFileResults.filter(r => !r.success);
         const docIds = successfulUploads.map(r => r.docId).filter(Boolean);
-        const warningCount = perFileResults.filter(r => r.hadWarning).length;
+        const duplicateBlocked = perFileResults.filter(r => r.error === 'duplicate_blocked').length;
         
         // If we have any successful uploads, show success
         if (successfulUploads.length > 0) {
@@ -288,8 +290,8 @@ export function ObjectUploader({
           onSuccess?.(docIds);
           
           let description = `Uploaded ${successfulUploads.length} file${successfulUploads.length !== 1 ? 's' : ''}. We'll analyze them in the background.`;
-          if (warningCount > 0) {
-            description += ` (${warningCount} had duplicate warnings)`;
+          if (duplicateBlocked > 0) {
+            description += ` (${duplicateBlocked} duplicate${duplicateBlocked !== 1 ? 's' : ''} blocked)`;
           }
           
           toast({
@@ -311,23 +313,23 @@ export function ObjectUploader({
         }, 400);
         return; // Exit early
       } else {
-        // Handle duplicate warnings and actual failures separately
-        warningFiles = r.results.filter((x: any) => x.ok && x.warning?.type === 'duplicate_warning');
-        const failedFiles = r.results.filter((x: any) => !x.ok);
+        // Handle duplicate conflicts (blocked) and actual failures separately
+        const duplicateBlocked = r.results.filter((x: any) => !x.ok && x.status === 'duplicate_conflict');
+        const failedFiles = r.results.filter((x: any) => !x.ok && x.status !== 'duplicate_conflict');
         
-        // Show duplicate warnings immediately (informational toasts)
-        if (warningFiles.length > 0) {
-          warningFiles.forEach((file: any, index: number) => {
+        // Show duplicate conflict messages immediately (blocked uploads)
+        if (duplicateBlocked.length > 0) {
+          duplicateBlocked.forEach((file: any, index: number) => {
             // Add slight delay to prevent toast conflicts and ensure all warnings show
             setTimeout(() => {
               toast({
-                title: "Duplicate File Detected! ⚠️",
-                description: file.warning?.message || "This file already exists but upload will proceed!",
-                variant: "destructive", // Make it more visible with warning colors
-                duration: 8000, // Show for 8 seconds to ensure visibility
-                className: "font-semibold", // Make text bolder
+                title: "Duplicate File Blocked! 🚫",
+                description: `${file.message}\n\nFile "${file.name}" already exists and was not uploaded. You can view the existing file or rename this one to upload.`,
+                variant: "destructive",
+                duration: 10000, // Longer duration for important message
+                className: "font-semibold",
               });
-            }, index * 750); // Longer stagger to prevent conflicts
+            }, index * 1000); // Longer stagger for important messages
           });
         }
         
