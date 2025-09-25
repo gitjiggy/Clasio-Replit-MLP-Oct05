@@ -239,6 +239,18 @@ export class ObjectStorageService {
     }, DEFAULT_RETRY_CONFIG, `deleteFiles with prefix ${prefix}`);
   }
 
+  // List all objects in GCS with a given prefix
+  async listObjects(prefix: string = ''): Promise<string[]> {
+    const bucket = this.getBucket();
+
+    return withRetry(async () => {
+      const [files] = await bucket.getFiles({ prefix });
+      const objectPaths = files.map(file => file.name);
+      console.log(`📁 Found ${objectPaths.length} objects with prefix: ${prefix}`);
+      return objectPaths;
+    }, DEFAULT_RETRY_CONFIG, `listObjects with prefix ${prefix}`);
+  }
+
   // Stream download an object directly to response
   async downloadObject(objectPathOrFile: string | File, res: Response, originalFileName?: string): Promise<void> {
     let file: File;

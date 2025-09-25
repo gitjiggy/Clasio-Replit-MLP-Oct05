@@ -146,6 +146,12 @@ export interface IStorage {
   getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]>;
   emptyTrash(): Promise<{ deletedCount: number }>;
   purgeExpiredTrashedDocuments(): Promise<{ deletedCount: number }>;
+  reconcileGCSPaths(dryRun?: boolean): Promise<{
+    fixed: number;
+    orphanedGCSObjects: string[];
+    orphanedDBDocuments: { id: string; name: string; currentPath: string }[];
+    summary: string;
+  }>;
   getDocumentsCount(filters: DocumentFilters): Promise<number>;
   getDocumentById(id: string): Promise<DocumentWithFolderAndTags | undefined>;
   getDocumentContent(id: string): Promise<string | null>; // Get just the content for a document
@@ -656,6 +662,141 @@ export class DatabaseStorage implements IStorage {
     console.log(`🗑️ Empty Trash: Permanently deleted ${deletedCount} documents, their files, and database records`);
     
     return { deletedCount };
+  }
+
+  // 🔧 One-time reconciler to fix path mismatches between DB and GCS
+  async reconcileGCSPaths(dryRun: boolean = true): Promise<{
+    fixed: number;
+    orphanedGCSObjects: string[];
+    orphanedDBDocuments: { id: string; name: string; currentPath: string }[];
+    summary: string;
+  }> {
+    await this.ensureInitialized();
+    
+    const objectStorageService = new ObjectStorageService();
+    const results = {
+      fixed: 0,
+      orphanedGCSObjects: [] as string[],
+      orphanedDBDocuments: [] as { id: string; name: string; currentPath: string }[],
+      summary: ""
+    };
+
+    console.log(`🔧 Starting GCS path reconciliation (${dryRun ? 'DRY RUN' : 'LIVE RUN'})...`);
+
+    // 1. Get all GCS objects under users/
+    const gcsObjects = await objectStorageService.listObjects('users/');
+    console.log(`📁 Found ${gcsObjects.length} GCS objects under users/`);
+
+    // 2. Get all documents from database with their current paths
+    const allDocs = await db
+      .select({ 
+        id: documents.id,
+        name: documents.name,
+        originalName: documents.originalName,
+        objectPath: documents.objectPath,
+        filePath: documents.filePath
+      })
+      .from(documents);
+
+    console.log(`🗃️ Found ${allDocs.length} documents in database`);
+
+    // 3. Parse GCS objects and group by docId
+    const gcsObjectsByDocId = new Map<string, string[]>();
+    const canonicalPattern = /^users\/([^\/]+)\/docs\/([a-f0-9-]{36})\/(.+)$/;
+    
+    for (const objectPath of gcsObjects) {
+      const match = objectPath.match(canonicalPattern);
+      if (match) {
+        const [, userId, docId, fileName] = match;
+        if (!gcsObjectsByDocId.has(docId)) {
+          gcsObjectsByDocId.set(docId, []);
+        }
+        gcsObjectsByDocId.get(docId)!.push(objectPath);
+      } else {
+        console.warn(`⚠️ Non-canonical GCS object found: ${objectPath}`);
+      }
+    }
+
+    // 4. Match database documents to GCS objects and fix paths
+    const dbDocsByDocId = new Map<string, typeof allDocs[0]>();
+    for (const doc of allDocs) {
+      dbDocsByDocId.set(doc.id, doc);
+    }
+
+    // Match and update incorrect paths
+    for (const [docId, gcsObjectPaths] of gcsObjectsByDocId) {
+      const dbDoc = dbDocsByDocId.get(docId);
+      
+      if (dbDoc) {
+        // Find the main object path (should match originalName)
+        const correctObjectPath = gcsObjectPaths.find(path => {
+          const match = path.match(canonicalPattern);
+          return match && match[3] === dbDoc.originalName;
+        }) || gcsObjectPaths[0]; // Fallback to first if exact match not found
+
+        // Check if database has wrong path
+        const needsUpdate = dbDoc.objectPath !== correctObjectPath;
+        
+        if (needsUpdate) {
+          console.log(`🔄 Document ${dbDoc.name} (${docId})`);
+          console.log(`   Current: ${dbDoc.objectPath || dbDoc.filePath || 'NULL'}`);
+          console.log(`   Correct: ${correctObjectPath}`);
+          
+          if (!dryRun) {
+            // Update the database with correct objectPath
+            await db
+              .update(documents)
+              .set({ objectPath: correctObjectPath })
+              .where(eq(documents.id, docId));
+          }
+          
+          results.fixed++;
+        }
+        
+        // Remove from our tracking map
+        dbDocsByDocId.delete(docId);
+      } else {
+        // GCS objects with no database record (orphans)
+        results.orphanedGCSObjects.push(...gcsObjectPaths);
+      }
+    }
+
+    // 5. Remaining documents in dbDocsByDocId are database orphans
+    for (const [docId, doc] of dbDocsByDocId) {
+      results.orphanedDBDocuments.push({
+        id: docId,
+        name: doc.name,
+        currentPath: doc.objectPath || doc.filePath || 'NULL'
+      });
+    }
+
+    // 6. Clean up orphaned GCS objects (if not dry run)
+    if (!dryRun && results.orphanedGCSObjects.length > 0) {
+      console.log(`🗑️ Deleting ${results.orphanedGCSObjects.length} orphaned GCS objects...`);
+      for (const orphanPath of results.orphanedGCSObjects) {
+        try {
+          await objectStorageService.deleteObject(orphanPath);
+        } catch (error) {
+          console.warn(`⚠️ Failed to delete orphaned object ${orphanPath}:`, error);
+        }
+      }
+    }
+
+    // 7. Generate summary
+    results.summary = `
+🔧 GCS Path Reconciliation ${dryRun ? '(DRY RUN)' : '(COMPLETED)'}
+  📊 Stats:
+    - Total GCS objects: ${gcsObjects.length}
+    - Total DB documents: ${allDocs.length}
+    - Path mismatches fixed: ${results.fixed}
+    - Orphaned GCS objects: ${results.orphanedGCSObjects.length}
+    - Orphaned DB documents: ${results.orphanedDBDocuments.length}
+  
+  ${dryRun ? '🔍 This was a dry run. Run with dryRun=false to apply changes.' : '✅ Changes have been applied.'}
+    `;
+
+    console.log(results.summary);
+    return results;
   }
 
   async purgeExpiredTrashedDocuments(): Promise<{ deletedCount: number }> {

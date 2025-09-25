@@ -676,6 +676,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🔧 GCS Path Reconciler - fixes path mismatches between DB and GCS
+  app.post("/api/admin/reconcile-gcs-paths", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { dryRun = true } = req.body;
+      
+      console.log(`🔧 Starting GCS reconciliation (dryRun: ${dryRun})`);
+      const result = await storage.reconcileGCSPaths(dryRun);
+      
+      res.json({
+        success: true,
+        result,
+        message: dryRun 
+          ? "Dry run completed. Review results and call with dryRun=false to apply changes."
+          : "Reconciliation completed successfully!"
+      });
+    } catch (error) {
+      console.error("Error during GCS reconciliation:", error);
+      res.status(500).json({ 
+        error: "Failed to reconcile GCS paths",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Get trash configuration (retention period)
   app.get("/api/config/trash", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
