@@ -923,13 +923,14 @@ export default function Documents() {
             </li>
           </ul>
           
-          {/* Automatic Organization Folders */}
-          {hierarchicalFolders.length > 0 && (
-            <div className="mt-8">
-              <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center">
-                <Sparkles className="mr-1 h-3 w-3" />
-                Smart Organization
-              </h3>
+          {/* Automatic Organization Folders - Always visible */}
+          <div className="mt-8">
+            <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center">
+              <Sparkles className="mr-1 h-3 w-3" />
+              Smart Organization
+            </h3>
+            
+            {hierarchicalFolders.length > 0 ? (
               <ul className="mt-2 space-y-1">
                 {hierarchicalFolders.map((category) => (
                   <li key={category.id}>
@@ -975,8 +976,12 @@ export default function Documents() {
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            ) : (
+              <div className="mt-2 px-3 py-4 text-xs text-muted-foreground text-center">
+                Upload some documents to see your smart folders! 📁
+              </div>
+            )}
+          </div>
 
           
           <div className="mt-8">
