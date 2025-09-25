@@ -649,6 +649,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get trash configuration (retention period)
+  app.get("/api/config/trash", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Use the same validated function as storage layer to ensure consistency
+      const { getTrashRetentionDays } = await import("./storage");
+      const retentionDays = getTrashRetentionDays();
+      res.json({ 
+        retentionDays,
+        policy: `Documents are automatically deleted after ${retentionDays} days in trash`,
+        description: "Files are immediately removed when trashed to save storage costs, but document metadata is preserved for restore within the retention period."
+      });
+    } catch (error) {
+      console.error("Error fetching trash config:", error);
+      res.status(500).json({ error: "Failed to fetch trash configuration" });
+    }
+  });
+
   // Enhanced conversational search endpoint using Flash-lite
   app.get("/api/documents/search", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {

@@ -24,10 +24,10 @@ import {
 } from "lucide-react";
 
 // Calculate days remaining until auto-deletion
-function getDaysRemaining(deletedAt: string): number {
+function getDaysRemaining(deletedAt: string, retentionDays: number = 7): number {
   const deletedDate = new Date(deletedAt);
   const now = new Date();
-  const diffTime = 7 * 24 * 60 * 60 * 1000 - (now.getTime() - deletedDate.getTime()); // 7 days minus elapsed time
+  const diffTime = retentionDays * 24 * 60 * 60 * 1000 - (now.getTime() - deletedDate.getTime()); // retention days minus elapsed time
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return Math.max(0, diffDays);
 }
@@ -54,6 +54,12 @@ interface TrashedDocumentsResponse {
   documents: DocumentWithFolderAndTags[];
 }
 
+interface TrashConfigResponse {
+  retentionDays: number;
+  policy: string;
+  description: string;
+}
+
 export default function Trash() {
   const [showEmptyTrashDialog, setShowEmptyTrashDialog] = useState(false);
   const { toast } = useToast();
@@ -62,6 +68,12 @@ export default function Trash() {
   // Fetch trashed documents
   const { data: trashedData, isLoading, error } = useQuery<TrashedDocumentsResponse>({
     queryKey: ["/api/documents/trash"],
+    enabled: true,
+  });
+
+  // Fetch trash configuration
+  const { data: trashConfig } = useQuery<TrashConfigResponse>({
+    queryKey: ["/api/config/trash"],
     enabled: true,
   });
 
@@ -114,6 +126,7 @@ export default function Trash() {
   });
 
   const trashedDocuments = trashedData?.documents || [];
+  const retentionDays = trashConfig?.retentionDays && !isNaN(trashConfig.retentionDays) ? trashConfig.retentionDays : 7;
 
   if (isLoading) {
     return (
@@ -155,7 +168,7 @@ export default function Trash() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Trash</h1>
             <p className="text-muted-foreground mt-1">
-              Documents are automatically deleted after 7 days
+              {trashConfig?.policy || `Documents are automatically deleted after ${retentionDays} days`}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -182,7 +195,7 @@ export default function Trash() {
                         <p className="font-medium text-foreground">This action cannot be undone.</p>
                         <div className="bg-muted p-3 rounded-lg text-sm">
                           <p className="font-medium mb-1">Why empty trash manually?</p>
-                          <p>Documents normally auto-delete after 7 days. Use this only if you want to permanently remove them immediately for storage or privacy reasons.</p>
+                          <p>Documents normally auto-delete after {retentionDays} days. Use this only if you want to permanently remove them immediately for storage or privacy reasons.</p>
                         </div>
                       </DialogDescription>
                     </DialogHeader>
@@ -216,13 +229,13 @@ export default function Trash() {
             <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-lg text-muted-foreground">Trash is empty</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Deleted documents will appear here for 7 days before being permanently removed
+              Deleted documents will appear here for {retentionDays} days before being permanently removed
             </p>
           </div>
         ) : (
           <div className="grid gap-4">
             {trashedDocuments.map((document) => {
-              const daysRemaining = getDaysRemaining(document.deletedAt!);
+              const daysRemaining = getDaysRemaining(document.deletedAt!, retentionDays);
               const countdownMessage = getCountdownMessage(daysRemaining);
               const isExpiringSoon = daysRemaining <= 1;
 
@@ -308,11 +321,16 @@ export default function Trash() {
         <div className="mt-8 p-4 bg-muted/50 rounded-lg">
           <h3 className="font-medium mb-2">About Trash</h3>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Documents in trash are automatically deleted after 7 days</li>
+            <li>• Documents in trash are automatically deleted after {retentionDays} days</li>
             <li>• File content is immediately removed to save storage costs</li>
             <li>• Restored documents will need their files re-uploaded</li>
             <li>• Document metadata and organization are preserved during restore</li>
           </ul>
+          {trashConfig?.description && (
+            <p className="text-sm text-muted-foreground mt-2 italic">
+              {trashConfig.description}
+            </p>
+          )}
         </div>
       </div>
     </div>

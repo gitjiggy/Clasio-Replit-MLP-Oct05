@@ -41,6 +41,20 @@ import {
   serializeEmbeddingToJSON 
 } from "./gemini.js";
 
+// Utility function to get configurable trash retention period
+export function getTrashRetentionDays(): number {
+  const envValue = process.env.TRASH_RETENTION_DAYS;
+  if (envValue) {
+    const parsed = parseInt(envValue, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      console.warn(`⚠️ Invalid TRASH_RETENTION_DAYS value: ${envValue}. Using default 7 days.`);
+      return 7;
+    }
+    return parsed;
+  }
+  return 7; // Default to 7 days
+}
+
 // Query embedding cache for performance optimization
 interface QueryEmbeddingCache {
   [query: string]: {
@@ -596,11 +610,12 @@ export class DatabaseStorage implements IStorage {
   async purgeExpiredTrashedDocuments(): Promise<{ deletedCount: number }> {
     await this.ensureInitialized();
     
-    // Calculate 7 days ago timestamp
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Calculate retention threshold timestamp using configurable period
+    const retentionDays = getTrashRetentionDays();
+    const retentionThreshold = new Date();
+    retentionThreshold.setDate(retentionThreshold.getDate() - retentionDays);
     
-    // Get all trashed documents older than 7 days with their file paths
+    // Get all trashed documents older than retention period with their file paths
     const expiredTrashedDocs = await db
       .select({ 
         id: documents.id,
@@ -612,18 +627,18 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(documents.status, 'trashed'),
-          sql`${documents.deletedAt} <= ${sevenDaysAgo.toISOString()}`
+          sql`${documents.deletedAt} <= ${retentionThreshold.toISOString()}`
         )
       );
     
     const deletedCount = expiredTrashedDocs.length;
     
     if (deletedCount === 0) {
-      console.log(`🕐 Auto-cleanup: No expired trashed documents found (older than 7 days)`);
+      console.log(`🕐 Auto-cleanup: No expired trashed documents found (older than ${retentionDays} days)`);
       return { deletedCount: 0 };
     }
     
-    console.log(`🕐 Auto-cleanup: Found ${deletedCount} expired trashed documents to purge`);
+    console.log(`🕐 Auto-cleanup: Found ${deletedCount} expired trashed documents to purge (older than ${retentionDays} days)`);
     
     // Delete actual files from GCS first (same logic as emptyTrash but for expired items only)
     const objectStorageService = new ObjectStorageService();
@@ -682,7 +697,7 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(documents.status, 'trashed'),
-            sql`${documents.deletedAt} <= ${sevenDaysAgo.toISOString()}`
+            sql`${documents.deletedAt} <= ${retentionThreshold.toISOString()}`
           )
         );
     });

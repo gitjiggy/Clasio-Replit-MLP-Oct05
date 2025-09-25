@@ -17,6 +17,7 @@ function validateEnvironment() {
   const optionalEnvVars = [
     'GEMINI_API_KEY', // Optional but recommended for AI features
     'PORT',
+    'TRASH_RETENTION_DAYS', // Optional, defaults to 7 days
   ];
 
   const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);
@@ -35,6 +36,8 @@ function validateEnvironment() {
     missingOptional.forEach(envVar => {
       if (envVar === 'GEMINI_API_KEY') {
         console.warn(`  - ${envVar} (AI analysis features will be disabled)`);
+      } else if (envVar === 'TRASH_RETENTION_DAYS') {
+        console.warn(`  - ${envVar} (defaults to 7 days - documents auto-delete after this period)`);
       } else {
         console.warn(`  - ${envVar}`);
       }
