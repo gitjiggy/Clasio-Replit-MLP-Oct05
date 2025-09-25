@@ -1,13 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Eye, ArrowRight, XCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
 // Upload state machine
 type UploadState = "idle" | "signing" | "uploading" | "finalizing" | "done" | "error";
+
+// Duplicate detection modal state
+interface DuplicateModalState {
+  isOpen: boolean;
+  file?: File;
+  duplicateInfo?: {
+    message: string;
+    duplicateCount: number;
+    existingDocs: Array<{
+      id: string;
+      name: string;
+      uploadDate: string;
+    }>;
+  };
+  onResolve?: (decision: 'view' | 'proceed' | 'cancel') => void;
+}
 
 // Helper function to get file type from filename
 const getFileTypeFromName = (filename: string): string => {
@@ -184,6 +201,7 @@ export function ObjectUploader({
   const [state, setState] = useState<UploadState>("idle");
   const [errors, setErrors] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState>({ isOpen: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   
@@ -257,29 +275,59 @@ export function ObjectUploader({
               body: formData
             });
             
-            // Handle duplicate warnings (soft warnings, upload still succeeds)
-            if (result.warning && result.warning.type === 'duplicate_warning') {
-              toast({
-                title: "Duplicate File Detected! ⚠️",
-                description: `${result.warning.message}`,
-                variant: "default", // Not destructive since upload succeeds
-                duration: 8000,
-                className: "font-semibold",
-                action: result.warning.existingDocs?.[0] ? (
-                  <button 
-                    onClick={() => {
-                      // Navigate to existing document - you can implement this
-                      console.log("View existing:", result.warning.existingDocs[0].id);
-                    }}
-                    className="text-sm underline"
-                  >
-                    View Existing
-                  </button>
-                ) : undefined
+            // Handle duplicate detection - upload paused, awaiting user decision
+            if (result.requiresUserDecision && result.type === 'duplicate_detected') {
+              // Show modal with 3 options and wait for user choice
+              return new Promise((resolve) => {
+                setDuplicateModal({
+                  isOpen: true,
+                  file,
+                  duplicateInfo: {
+                    message: result.message,
+                    duplicateCount: result.duplicateCount,
+                    existingDocs: result.existingDocs || []
+                  },
+                  onResolve: (decision) => {
+                    setDuplicateModal({ isOpen: false });
+                    
+                    if (decision === 'proceed') {
+                      // User chose "Proceed with upload anyway" - retry upload
+                      const retryFormData = new FormData();
+                      retryFormData.append('file', file);
+                      retryFormData.append('forceUpload', 'true');
+                      
+                      apiRequest('/api/documents/upload-proxy', {
+                        method: 'POST',
+                        body: retryFormData
+                      }).then((retryResult) => {
+                        resolve({ success: true, docId: retryResult.docId });
+                      }).catch((retryError) => {
+                        console.error("Retry upload error:", retryError);
+                        resolve({ success: false, error: 'upload_failed' });
+                      });
+                    } else if (decision === 'view') {
+                      // User chose "View File" - navigate to existing document
+                      const firstExisting = result.existingDocs?.[0];
+                      if (firstExisting) {
+                        // TODO: Navigate to document view - implement navigation logic here
+                        console.log("Navigating to document:", firstExisting.id);
+                        toast({
+                          title: "Opening Document",
+                          description: `Navigating to "${firstExisting.name}"`,
+                          duration: 3000,
+                        });
+                      }
+                      resolve({ success: false, error: 'user_chose_view' });
+                    } else {
+                      // User chose "Don't bother uploading"
+                      resolve({ success: false, error: 'user_cancelled', reason: 'duplicate_cancelled' });
+                    }
+                  }
+                });
               });
             }
             
-            return { success: true, docId: result.docId, hadWarning: !!result.warning };
+            return { success: true, docId: result.docId };
           } catch (error: any) {
             // Handle actual errors
             console.error("Upload error:", error);
@@ -322,35 +370,28 @@ export function ObjectUploader({
         }, 400);
         return; // Exit early
       } else {
-        // Handle duplicate warnings and actual failures separately
-        warningFiles = r.results.filter((x: any) => x.ok && x.warning?.type === 'duplicate_warning');
-        const failedFiles = r.results.filter((x: any) => !x.ok);
+        // Handle duplicate detections that require user decision 
+        const duplicatesRequiringDecision = r.results.filter((x: any) => x.requiresUserDecision && x.type === 'duplicate_detected');
+        const failedFiles = r.results.filter((x: any) => !x.ok && !x.requiresUserDecision);
+        const warningFiles: any[] = []; // For tracking warning files
         
-        // Show duplicate warnings immediately (informational toasts)
-        if (warningFiles.length > 0) {
-          warningFiles.forEach((file: any, index: number) => {
-            // Add slight delay to prevent toast conflicts and ensure all warnings show
-            setTimeout(() => {
-              toast({
-                title: "Duplicate File Detected! ⚠️",
-                description: file.warning?.message || "This file already exists but upload will proceed!",
-                variant: "default", // Not destructive since upload succeeds
-                duration: 8000,
-                className: "font-semibold",
-                action: file.warning?.existingDocs?.[0] ? (
-                  <button 
-                    onClick={() => {
-                      // Navigate to existing document - you can implement this  
-                      console.log("View existing:", file.warning.existingDocs[0].id);
-                    }}
-                    className="text-sm underline"
-                  >
-                    View Existing
-                  </button>
-                ) : undefined
-              });
-            }, index * 750);
-          });
+        // If any files require user decision for duplicates, handle them with modal
+        if (duplicatesRequiringDecision.length > 0) {
+          // For bulk uploads with duplicates, we'll show individual modals
+          // TODO: Could be enhanced to show a bulk decision modal
+          for (const fileResult of duplicatesRequiringDecision) {
+            // For bulk uploads, we can't pause the promise chain like single uploads
+            // So we'll show toast messages for now
+            toast({
+              title: "Duplicate File Detected! ⚠️",
+              description: `${fileResult.message}\n\nFile "${fileResult.name}" was skipped due to duplicate detection.`,
+              variant: "default",
+              duration: 8000,
+            });
+          }
+          
+          // For now, bulk duplicates are simply skipped
+          // Individual files can use the modal, bulk files show warnings
         }
         
         // Use batch results for all files that got signed URLs (including those with warnings)
@@ -562,6 +603,75 @@ export function ObjectUploader({
                 )}
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Duplicate Detection Modal */}
+      <Dialog open={duplicateModal.isOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-yellow-600">
+              Duplicate File Detected! ⚠️
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              {duplicateModal.duplicateInfo?.message}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3">
+              <p className="text-sm">
+                <strong>File:</strong> {duplicateModal.file?.name}
+              </p>
+              <p className="text-sm mt-1">
+                <strong>Already exists:</strong> {duplicateModal.duplicateInfo?.duplicateCount} time{duplicateModal.duplicateInfo?.duplicateCount !== 1 ? 's' : ''}
+              </p>
+              {duplicateModal.duplicateInfo?.existingDocs?.[0] && (
+                <p className="text-sm mt-1">
+                  <strong>Original:</strong> "{duplicateModal.duplicateInfo.existingDocs[0].name}"
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-medium">What would you like to do?</p>
+              
+              <div className="grid grid-cols-1 gap-2">
+                {/* View File Option */}
+                <Button
+                  onClick={() => duplicateModal.onResolve?.('view')}
+                  variant="outline"
+                  className="w-full justify-start"
+                  data-testid="button-view-existing"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Existing File
+                </Button>
+
+                {/* Proceed Option */}
+                <Button
+                  onClick={() => duplicateModal.onResolve?.('proceed')}
+                  variant="default"
+                  className="w-full justify-start bg-blue-600 hover:bg-blue-700"
+                  data-testid="button-proceed-upload"
+                >
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  Proceed with Upload Anyway
+                </Button>
+
+                {/* Cancel Option */}
+                <Button
+                  onClick={() => duplicateModal.onResolve?.('cancel')}
+                  variant="destructive"
+                  className="w-full justify-start"
+                  data-testid="button-cancel-upload"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Don't Bother Uploading
+                </Button>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

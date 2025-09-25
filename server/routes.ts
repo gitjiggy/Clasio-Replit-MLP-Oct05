@@ -220,8 +220,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const { originalname, mimetype, buffer, size } = req.file;
         const uid = req.user?.uid!;
+        const forceUpload = req.body.forceUpload === 'true'; // Check if user decided to force upload
         
-        // Check for duplicate files and warn user (but allow upload to proceed)
+        // Check for duplicate files unless user is forcing upload after decision
         console.info(JSON.stringify({
           evt: "duplicate-check.start",
           reqId: (req as any).reqId,
@@ -244,9 +245,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date().toISOString()
         }));
         
-        // Check for duplicates and create warning (but allow upload to proceed)
-        let duplicateWarning = null;
-        if (duplicates.length > 0) {
+        // PAUSE upload if duplicates found AND user hasn't already decided to force upload
+        if (duplicates.length > 0 && !forceUpload) {
           const funnyMessages = [
             "Déjà vu! This file is already in your collection. Did you time travel? 🕰️",
             "Hold up! This file already exists. No need to clone your documents! 🤖", 
@@ -256,26 +256,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "Another copy? Your files are multiplying like rabbits! 🐰"
           ];
           const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-          duplicateWarning = {
-            type: "duplicate_warning",
+          
+          console.info(JSON.stringify({
+            evt: "duplicate-detected.awaiting-decision",
+            reqId: (req as any).reqId,
+            uid,
+            fileName: originalname,
+            duplicateCount: duplicates.length,
             message: randomMessage,
+            timestamp: new Date().toISOString()
+          }));
+
+          // Return special response - upload paused, awaiting user decision
+          return res.status(200).json({
+            ok: false,
+            requiresUserDecision: true,
+            type: "duplicate_detected",
+            message: randomMessage,
+            fileName: originalname,
             duplicateCount: duplicates.length,
             existingDocs: duplicates.map(d => ({ 
               id: d.id, 
               name: d.name,
               uploadDate: d.createdAt 
             }))
-          };
-          
-          console.info(JSON.stringify({
-            evt: "duplicate-warning.created",
-            reqId: (req as any).reqId,
-            uid,
-            fileName: originalname,
-            duplicateCount: duplicates.length,
-            warningMessage: randomMessage,
-            timestamp: new Date().toISOString()
-          }));
+          });
         }
         
         const docId = randomUUID();
@@ -408,8 +413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           objectPath, 
           docId, 
           contentType: mimetype, 
-          size,
-          warning: duplicateWarning
+          size
         });
       } catch (err: any) {
         // Error log with correlation ID
@@ -810,8 +814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: new Date().toISOString()
           }));
           
-          // Check for duplicate files and add warning (but allow upload to proceed)
-          let duplicateWarning = null;
+          // PAUSE bulk upload if duplicates found - return special response
           if (f.size !== undefined) {
             const duplicates = await storage.findDuplicateFiles(f.name, f.size, userId);
             
@@ -835,8 +838,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 "File already exists! Your storage is having a reunion! 👯‍♀️"
               ];
               const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-              duplicateWarning = {
-                type: "duplicate_warning",
+              
+              console.info(JSON.stringify({
+                evt: "bulk-duplicate-detected.awaiting-decision",
+                reqId: (req as any).reqId,
+                uid: userId,
+                fileName: f.name,
+                duplicateCount: duplicates.length,
+                message: randomMessage,
+                timestamp: new Date().toISOString()
+              }));
+
+              // Return special response - no signed URL, awaiting user decision
+              return {
+                ok: false,
+                requiresUserDecision: true,
+                type: "duplicate_detected",
+                name: f.name,
                 message: randomMessage,
                 duplicateCount: duplicates.length,
                 existingDocs: duplicates.map(d => ({ 
@@ -845,16 +863,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   uploadDate: d.createdAt 
                 }))
               };
-              
-              console.info(JSON.stringify({
-                evt: "bulk-duplicate-warning.created",
-                reqId: (req as any).reqId,
-                uid: userId,
-                fileName: f.name,
-                duplicateCount: duplicates.length,
-                warningMessage: randomMessage,
-                timestamp: new Date().toISOString()
-              }));
             }
           }
           
@@ -886,8 +894,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             method: "PUT", 
             headers: { "Content-Type": contentType }, 
             objectPath, 
-            name: f.name,
-            warning: duplicateWarning
+            name: f.name
           };
         } catch (e: any) {
           console.error("sign-failed", { name: f.name, err: e?.message, stack: e?.stack });
