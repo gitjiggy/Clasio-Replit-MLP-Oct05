@@ -1,0 +1,171 @@
+1) Close the upload pop-up when uploads succeed
+
+Acceptance criteria
+
+When all files in the current batch successfully reach the “finalize” step (DB rows created), the uploader modal auto-closes within 300–500ms.
+
+If any file fails, the modal stays open and shows a compact error list; success files are not retried.
+
+Implementation pattern (React/TS)
+
+// ObjectUploader.tsx (or wherever the modal is controlled)
+type UploadState = "idle"|"signing"|"uploading"|"finalizing"|"done"|"error";
+
+const [state, setState] = useState<UploadState>("idle");
+const [errors, setErrors] = useState<string[]>([]);
+
+async function handleUpload(files: File[]) {
+  setState("signing");
+  setErrors([]);
+
+  try {
+    const signed = await api.getSignedUrlsBatch(files);          // batch sign
+    setState("uploading");
+    await uploadAllWithConcurrency(signed, files, 5);            // PUTs in parallel
+
+    setState("finalizing");
+    const finalize = await api.batchFinalize(signed, files);     // one finalize call
+    const failed = finalize.results.filter(r => !r.ok).map(r => r.reason);
+
+    if (failed.length) {
+      setErrors(failed);
+      setState("error");    // keep modal open, show list
+    } else {
+      setState("done");
+      // let the user see "Done!" briefly, then close
+      setTimeout(() => props.onClose?.(), 400);
+      // optionally refresh list
+      props.onSuccess?.(finalize.docIds);
+    }
+  } catch (e:any) {
+    setErrors([e?.message || "Upload failed"]);
+    setState("error");
+  }
+}
+
+
+Key: catch everything so no unhandled promise ever fires the dev overlay, and call onClose() only on full success.
+
+2) Friendly, funny flavor text during upload
+
+Acceptance criteria
+
+The modal shows stage-based messages; they update as the state changes.
+
+Messages rotate every ~2–3s while a stage is active.
+
+Implementation pattern
+
+const FLAVOR = {
+  signing: [
+    "Sharpening quills… generating upload scrolls.",
+    "Filing the intergalactic paperwork for your files…",
+  ],
+  uploading: [
+    "Transmogrifying your files through quantum tubes…",
+    "Packing bits into tiny suitcases…",
+    "Politely asking the cloud to hold these for you…",
+  ],
+  finalizing: [
+    "Stamping passports and checking in metadata…",
+    "Teaching your docs to introduce themselves nicely…",
+  ],
+  analyzing: [
+    "Letting our librarian-bot skim the highlights…",
+    "Extracting wisdom with gentle robot hands…",
+  ],
+  done: ["All set! High-fives delivered."],
+  error: ["Uh-oh. The cloud sneezed. Let’s retry."]
+} as const;
+
+function useFlavor(state: UploadState){
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (state==="done" || state==="error") return;
+    const arr = FLAVOR[state] || ["Working…"];
+    const t = setInterval(()=> setIdx(i => (i+1)%arr.length), 2500);
+    return () => clearInterval(t);
+  }, [state]);
+  const arr = FLAVOR[state] || ["Working…"];
+  return arr[idx];
+}
+
+// In the modal body:
+const message = useFlavor(state);
+return (
+  <Modal open onClose={props.onClose}>
+    <h3 className="text-lg font-semibold">
+      {state==="uploading" ? "Uploading…" :
+       state==="finalizing" ? "Finishing up…" :
+       state==="signing" ? "Preparing uploads…" :
+       state==="done" ? "Done!" :
+       state==="error" ? "Some files need attention" : "Starting…"}
+    </h3>
+    <p className="text-sm opacity-80 mt-2">{message}</p>
+
+    {/* show progress bars or an indeterminate bar */}
+    <Progress indeterminate={state!=="done" && state!=="error"} />
+    {errors.length>0 && (
+      <ul className="mt-3 text-red-600 text-sm list-disc ml-5">
+        {errors.map((e,i)=><li key={i}>{e}</li>)}
+      </ul>
+    )}
+  </Modal>
+);
+
+
+We don’t rely on fetch upload progress (browser limitations); we show stage-based progress for snappy UX.
+
+3) Concurrency helper (keeps UI responsive)
+async function uploadAllWithConcurrency(
+  signed: { url:string; headers?:Record<string,string> }[],
+  files: File[],
+  limit = 5
+){
+  const queue = [...files.keys()];
+  let active = 0;
+  let err: any;
+
+  return new Promise<void>((resolve, reject) => {
+    const next = () => {
+      if (err) return;                          // short-circuit on first network error if desired
+      if (queue.length===0 && active===0) return resolve();
+      while (active < limit && queue.length) {
+        const i = queue.shift()!;
+        active++;
+        const h = {"Content-Type": files[i].type || "application/octet-stream", ...(signed[i].headers||{})};
+        fetch(signed[i].url, { method:"PUT", headers:h, body:files[i] })
+          .then(r => { if (!r.ok) throw new Error(`PUT ${r.status}`); })
+          .catch(e => { err = e; })
+          .finally(() => { active--; next(); });
+      }
+    };
+    next();
+  });
+}
+
+4) UX polish & safeguards
+
+Success toast: after modal closes, show “Uploaded 5 files. We’ll analyze them in the background.”
+
+Partial success: if some failed, keep modal open, show the error list, and a Retry failed button.
+
+Never throw in UI handlers; every await sits inside try/catch.
+
+Dev overlay: keep server.hmr.overlay=true; our catching prevents it from triggering.
+
+5) What to literally tell Replit (copy/paste)
+
+Uploader UX + flavor text:
+
+Convert uploader to a small state machine (idle → signing → uploading → finalizing → done/error).
+
+Auto-close the modal when all files finalize successfully (delay 400ms), and fire onSuccess(docIds) so the list refreshes.
+
+If any file fails, keep modal open, show an error list, and offer “Retry failed.”
+
+Add rotating stage-based flavor text (array per stage; rotates every 2.5s).
+
+Ensure all async paths are caught (no unhandled rejections); errors never trigger Vite’s overlay.
+
+Keep uploads parallel (concurrency 5); sign & finalize via batch endpoints we discussed.

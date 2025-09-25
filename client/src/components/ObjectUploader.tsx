@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import Uppy from "@uppy/core";
-import { DashboardModal } from "@uppy/react";
-import "@uppy/core/dist/style.min.css";
-import "@uppy/dashboard/dist/style.min.css";
-import AwsS3 from "@uppy/aws-s3";
-import type { UploadResult } from "@uppy/core";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+
+// Upload state machine
+type UploadState = "idle" | "signing" | "uploading" | "finalizing" | "done" | "error";
 
 // Helper function to get file type from filename
 const getFileTypeFromName = (filename: string): string => {
@@ -23,27 +23,119 @@ const getFileTypeFromName = (filename: string): string => {
     case 'csv': return 'csv';
     case 'xlsx': case 'xls': return 'xlsx';
     case 'pptx': case 'ppt': return 'pptx';
-    default: return 'txt'; // Changed from 'txt' to ensure valid enum
+    default: return 'txt';
   }
 };
+
+// Rotating flavor text for each upload stage
+const FLAVOR = {
+  signing: [
+    "Sharpening quills… generating upload scrolls.",
+    "Filing the intergalactic paperwork for your files…",
+    "Calculating the perfect trajectory for your documents…",
+    "Asking the cloud politely to prepare some storage space…",
+  ],
+  uploading: [
+    "Transmogrifying your files through quantum tubes…",
+    "Packing bits into tiny suitcases…",
+    "Politely asking the cloud to hold these for you…",
+    "Teaching your files how to fly through the internet…",
+    "Zipping your documents through our digital pneumatic tubes…",
+  ],
+  finalizing: [
+    "Stamping passports and checking in metadata…",
+    "Teaching your docs to introduce themselves nicely…",
+    "Arranging your files in our digital filing cabinet…",
+    "Making sure everything has a proper home…",
+  ],
+  analyzing: [
+    "Letting our librarian-bot skim the highlights…",
+    "Extracting wisdom with gentle robot hands…",
+    "Teaching our AI to read between the lines…",
+  ],
+  done: ["All set! High-fives delivered."],
+  error: ["Uh-oh. The cloud sneezed. Let's retry."]
+} as const;
+
+// Custom hook for rotating flavor text
+function useFlavor(state: UploadState) {
+  const [idx, setIdx] = useState(0);
+  
+  useEffect(() => {
+    if (state === "done" || state === "error" || state === "idle") return;
+    
+    const arr = FLAVOR[state] || ["Working…"];
+    const timer = setInterval(() => {
+      setIdx(i => (i + 1) % arr.length);
+    }, 2500);
+    
+    return () => clearInterval(timer);
+  }, [state]);
+  
+  const arr = FLAVOR[state] || ["Working…"];
+  return arr[idx] || "Working…";
+}
+
+// Concurrency helper for parallel uploads
+async function uploadAllWithConcurrency(
+  signed: { url: string; headers?: Record<string, string> }[],
+  files: File[],
+  limit = 5
+): Promise<void> {
+  const queue = [...files.keys()];
+  let active = 0;
+  let firstError: any = null;
+
+  return new Promise<void>((resolve, reject) => {
+    const next = () => {
+      // If we have an error and prefer to fail fast, uncomment:
+      // if (firstError) return reject(firstError);
+      
+      if (queue.length === 0 && active === 0) {
+        return firstError ? reject(firstError) : resolve();
+      }
+      
+      while (active < limit && queue.length > 0) {
+        const i = queue.shift()!;
+        active++;
+        
+        const headers = {
+          "Content-Type": files[i].type || "application/octet-stream",
+          ...(signed[i].headers || {}),
+        };
+        
+        fetch(signed[i].url, { 
+          method: "PUT", 
+          headers, 
+          body: files[i] 
+        })
+          .then(r => { 
+            if (!r.ok) throw new Error(`PUT ${r.status} ${r.statusText}`); 
+          })
+          .catch(e => { 
+            if (!firstError) firstError = e; 
+          })
+          .finally(() => { 
+            active--; 
+            next(); 
+          });
+      }
+    };
+    next();
+  });
+}
 
 // Helper function to get Firebase ID token
 const getFirebaseIdToken = async (): Promise<string> => {
   try {
-    // Import Firebase auth to get the current user's ID token
     const { auth } = await import("@/lib/firebase");
     const currentUser = auth.currentUser;
     
-    console.log("🔍 Debug - Current user:", currentUser ? "authenticated" : "not authenticated");
-    
     if (!currentUser) {
-      console.warn("⚠️ No authenticated user found");
       return "";
     }
     
-    // Get the Firebase ID token from the current user
     const idToken = await currentUser.getIdToken();
-    console.log("🔍 Debug - Firebase ID token obtained:", idToken ? "valid token" : "failed");
     return idToken || "";
   } catch (error) {
     console.error("❌ Failed to get Firebase ID token:", error);
@@ -54,386 +146,180 @@ const getFirebaseIdToken = async (): Promise<string> => {
 interface ObjectUploaderProps {
   maxNumberOfFiles?: number;
   maxFileSize?: number;
-  onGetUploadParameters: () => Promise<{
-    method: "PUT";
-    url: string;
-  }>;
-  onComplete?: (
-    result: UploadResult<Record<string, unknown>, Record<string, unknown>>
-  ) => void;
   buttonClassName?: string;
   children: ReactNode;
-  // Bulk upload support
-  enableBulkUpload?: boolean;
-  onGetBulkUploadParameters?: (fileNames: string[]) => Promise<{
-    uploadURLs: Array<{ method: "PUT"; url: string }>;
-    bulkUploadConfig: {
-      folderId?: string | null;
-      tagIds?: string[];
-      analyzeImmediately?: boolean;
-      message: string;
-      funnyTip: string;
-    };
-  }>;
-  onBulkUploadComplete?: (result: {
-    successful: number;
-    failed: number;
-    details: Array<{ success: boolean; originalName: string; error?: string }>;
-    message: string;
-    aiAnalysis: {
-      status: string;
-      message: string;
-      queueStatus: {
-        pending: number;
-        processing: number;
-        completed: number;
-        failed: number;
-      };
-    };
-  }) => void;
+  onSuccess?: (docIds: string[]) => void;
+  onClose?: () => void;
 }
 
 /**
- * A file upload component that renders as a button and provides a modal interface for
- * file management.
+ * Modern file upload component with state machine pattern, flavor text, and auto-close.
  * 
  * Features:
- * - Renders as a customizable button that opens a file upload modal
- * - Provides a modal interface for:
- *   - File selection
- *   - File preview
- *   - Upload progress tracking
- *   - Upload status display
- * 
- * The component uses Uppy under the hood to handle all file upload functionality.
- * All file management features are automatically handled by the Uppy dashboard modal.
- * 
- * @param props - Component props
- * @param props.maxNumberOfFiles - Maximum number of files allowed to be uploaded
- *   (default: 1)
- * @param props.maxFileSize - Maximum file size in bytes (default: 10MB)
- * @param props.onGetUploadParameters - Function to get upload parameters (method and URL).
- *   Typically used to fetch a presigned URL from the backend server for direct-to-S3
- *   uploads.
- * @param props.onComplete - Callback function called when upload is complete. Typically
- *   used to make post-upload API calls to update server state and set object ACL
- *   policies.
- * @param props.buttonClassName - Optional CSS class name for the button
- * @param props.children - Content to be rendered inside the button
+ * - State machine pattern (idle → signing → uploading → finalizing → done/error)
+ * - Auto-close modal on success after 400ms delay
+ * - Rotating flavor text for each upload stage
+ * - Concurrency-controlled parallel uploads
+ * - Proper error handling with partial success scenarios
+ * - Success toast notifications
  */
 export function ObjectUploader({
-  maxNumberOfFiles = 1,
-  maxFileSize = 10485760, // 10MB default
-  onGetUploadParameters,
-  onComplete,
+  maxNumberOfFiles = 10,
+  maxFileSize = 52428800, // 50MB default
   buttonClassName,
   children,
-  enableBulkUpload = false,
-  onGetBulkUploadParameters,
-  onBulkUploadComplete,
+  onSuccess,
+  onClose,
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
-  const [isBulkUploading, setIsBulkUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string>("");
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [state, setState] = useState<UploadState>("idle");
+  const [errors, setErrors] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
   
-  const [uppy] = useState(() => {
-    const uppyInstance = new Uppy({
-      restrictions: {
-        maxNumberOfFiles,
-        maxFileSize,
-      },
-      autoProceed: false,
-    });
-
-    if (enableBulkUpload && onGetBulkUploadParameters && onBulkUploadComplete) {
-      // Bulk upload mode - custom upload handling
-      uppyInstance.on("upload", async () => {
-        setIsBulkUploading(true);
-        
-        try {
-          const files = uppyInstance.getFiles();
-          if (files.length === 0) return;
-
-          // Get bulk upload URLs with rate limit error handling
-          let bulkResponse;
-          try {
-            bulkResponse = await onGetBulkUploadParameters(files.map(file => file.name).filter((name): name is string => name !== undefined));
-          } catch (error) {
-            console.error("Error getting bulk upload URLs:", error);
-            if (error instanceof Error && (error.message.includes("429") || error.message.includes("speed racer") || error.message.includes("Too many bulk uploads"))) {
-              setUploadStatus("🐹 Our upload hamsters need a coffee break! Please wait a few minutes and try again.");
-              setUploadProgress(0);
-              setIsBulkUploading(false);
-              setTimeout(() => {
-                setUploadStatus("");
-                setShowModal(false);
-              }, 5000);
-              return;
-            }
-            throw error;
-          }
-          
-          // Upload files - try direct GCS first, fallback to server proxy on CORS errors
-          const uploadPromises = files.map(async (file, index) => {
-            const fileName = file.name || 'unknown';
-            try {
-              const uploadURL = bulkResponse.uploadURLs[index];
-              setUploadStatus(`📤 Uploading "${fileName}" - our digital postman is hard at work!`);
-              setUploadProgress(40 + (index / files.length) * 40);
-              
-              // Try direct GCS upload with proper CORS error handling (per documentation)
-              let directUploadResult: any;
-              try {
-                // Ensure Content-Type matches exactly what the signed URL was generated with
-                const contentType = file.type || 'application/octet-stream';
-                const headers: Record<string, string> = {
-                  'Content-Type': contentType
-                };
-                
-                console.log(`🔄 Attempting direct GCS upload for ${fileName} with Content-Type: ${contentType}`);
-                
-                const response = await fetch(uploadURL.url, {
-                  method: uploadURL.method || 'PUT',
-                  headers,
-                  body: file.data instanceof Blob ? file.data : new Blob([file.data], { type: contentType }),
-                });
-                
-                if (response.ok) {
-                  console.log(`✅ GCS direct upload successful for ${fileName}`);
-                  directUploadResult = {
-                    success: true,
-                    originalName: fileName,
-                    uploadURL: uploadURL.url,
-                    fileSize: file.size,
-                    fileType: getFileTypeFromName(fileName),
-                    mimeType: contentType,
-                  };
-                } else {
-                  // Try to read error message (may fail if CORS not allowed)
-                  const errorText = await response.text().catch(() => 'Unknown error');
-                  console.warn(`❌ GCS direct upload failed for ${fileName}:`, response.status, errorText);
-                  directUploadResult = {
-                    success: false,
-                    error: `Direct upload failed: ${response.status} ${response.statusText} - ${errorText}`
-                  };
-                }
-              } catch (networkError) {
-                // This is the CORS/network error - the file might still be uploaded!
-                console.warn(`🌐 Network/CORS error for ${fileName} (file may still be uploaded):`, networkError);
-                directUploadResult = {
-                  success: false, 
-                  error: `Network/CORS error: ${networkError instanceof Error ? networkError.message : String(networkError)}`,
-                  possiblyUploaded: true // Flag that file might actually be there
-                };
-              }
-              
-              if (directUploadResult.success) {
-                return directUploadResult;
-              }
-              
-              // Direct upload failed, try server proxy fallback
-              console.warn(`Direct upload failed for ${fileName}, trying server proxy:`, directUploadResult.error);
-              setUploadStatus(`🔄 Retrying "${fileName}" via server proxy...`);
-              
-              try {
-                  const formData = new FormData();
-                  formData.append('file', file.data as File, fileName);
-                  
-                  const idToken = await getFirebaseIdToken();
-                  console.log('🔑 Firebase token obtained for proxy upload:', idToken ? 'Token present' : 'No token');
-                  
-                  const proxyResponse = await fetch('/api/documents/upload-proxy', {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                      'Authorization': `Bearer ${idToken}`,
-                    },
-                  });
-                  
-                  console.log('📡 Proxy response status:', proxyResponse.status);
-                  
-                  if (!proxyResponse.ok) {
-                    const errorText = await proxyResponse.text();
-                    throw new Error(`Server proxy upload failed: ${proxyResponse.status} ${proxyResponse.statusText} - ${errorText}`);
-                  }
-                  
-                  const proxyResult = await proxyResponse.json();
-                  return {
-                    success: true,
-                    originalName: fileName,
-                    uploadURL: '/proxy-upload-success', // Placeholder for bulk creation validation
-                    objectPath: proxyResult.objectPath,
-                    docId: proxyResult.docId,
-                    fileSize: proxyResult.fileSize,
-                    fileType: proxyResult.fileType,
-                    mimeType: proxyResult.mimeType,
-                  };
-              } catch (proxyError) {
-                console.error(`Both direct and proxy upload failed for ${fileName}:`, proxyError);
-                return {
-                  success: false,
-                  originalName: fileName,
-                  error: `Upload failed: ${proxyError instanceof Error ? proxyError.message : String(proxyError)}`,
-                };
-              }
-            } catch (error) {
-              console.error(`Upload error for ${fileName}:`, error);
-              return {
-                success: false,
-                originalName: fileName,
-                error: error instanceof Error ? error.message : String(error),
-              };
-            }
-          });
-          
-          const uploadResults = await Promise.allSettled(uploadPromises).then(results => 
-            results.map(result => 
-              result.status === 'fulfilled' ? result.value : {
-                success: false,
-                originalName: 'unknown',
-                error: result.reason instanceof Error ? result.reason.message : String(result.reason)
-              }
-            )
-          );
-          const successful = uploadResults.filter(r => r.success);
-          const failed = uploadResults.filter(r => !r.success);
-          
-          setUploadStatus("🎉 Files uploaded! Now registering them in our digital library...");
-          setUploadProgress(80);
-          
-          // Create documents via bulk API
-          if (successful.length > 0) {
-            const documentsData = successful.map(result => {
-              const originalFileType = (result as any).fileType;
-              const correctedFileType = originalFileType === 'other' ? getFileTypeFromName(result.originalName) : originalFileType;
-              
-              return {
-                uploadURL: (result as any).uploadURL || '/proxy-upload-success',
-                objectPath: (result as any).objectPath || undefined,
-                name: result.originalName.replace(/\.[^/.]+$/, ""), // Remove extension
-                originalName: result.originalName,
-                fileSize: (result as any).fileSize,
-                fileType: correctedFileType,
-                mimeType: (result as any).mimeType,
-              };
-            });
-            
-            console.log('🔍 Debug - Documents data for bulk creation:', documentsData);
-            
-            try {
-              const requestBody = {
-                documents: documentsData,
-                folderId: bulkResponse.bulkUploadConfig.folderId,
-                tagIds: bulkResponse.bulkUploadConfig.tagIds,
-                analyzeImmediately: bulkResponse.bulkUploadConfig.analyzeImmediately,
-              };
-              
-              
-              // Get fresh Firebase token using the same method as bulk-upload-urls
-              const { auth } = await import("@/lib/firebase");
-              const firebaseToken = auth.currentUser ? await auth.currentUser.getIdToken() : "";
-              
-              const response = await fetch('/api/documents/bulk', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${firebaseToken}`,
-                },
-                body: JSON.stringify(requestBody),
-              });
-              
-              
-              if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Bulk document creation failed:', response.status, response.statusText);
-                throw new Error(`Bulk document creation failed: ${response.status} ${response.statusText} - ${errorText}`);
-              }
-              
-              const bulkResult = await response.json();
-              
-              setUploadStatus("🎊 Success! Your documents are now safely stored and ready for AI analysis!");
-              setUploadProgress(100);
-              
-              // Show completion message for a moment
-              setTimeout(() => {
-                onBulkUploadComplete({
-                  successful: successful.length,
-                  failed: failed.length,
-                  details: uploadResults,
-                  message: bulkResult.message,
-                  aiAnalysis: bulkResult.aiAnalysis,
-                });
-                
-                // Clear files from Uppy and close modal
-                uppyInstance.cancelAll();
-                setShowModal(false);
-                setUploadStatus("");
-                setUploadProgress(0);
-              }, 2000);
-            } catch (error) {
-              console.error('Bulk document creation failed:', error instanceof Error ? error.message : String(error));
-              
-              // Handle bulk creation failure with user-friendly message
-              setUploadStatus("⚠️ Files uploaded but failed to register in database. Contact support if this persists.");
-              setUploadProgress(100);
-              
-              // Still notify about upload completion but with error details
-              setTimeout(() => {
-                onBulkUploadComplete({
-                  successful: 0, // Mark as failed since database creation failed
-                  failed: successful.length,
-                  details: successful.map(result => ({
-                    ...result,
-                    success: false,
-                    error: `Database registration failed: ${error instanceof Error ? error.message : String(error)}`
-                  })),
-                  message: "Files uploaded to storage but database registration failed",
-                  aiAnalysis: {
-                    status: "failed",
-                    message: "Database registration failed - no AI analysis performed",
-                    queueStatus: { pending: 0, processing: 0, completed: 0, failed: successful.length }
-                  },
-                });
-                
-                // Clear files from Uppy and close modal
-                uppyInstance.cancelAll();
-                setShowModal(false);
-                setUploadStatus("");
-                setUploadProgress(0);
-              }, 3000);
-            }
-          }
-        } catch (error) {
-          console.error('Bulk upload failed:', error);
-        } finally {
-          setIsBulkUploading(false);
-        }
-      });
-    } else {
-      // Single upload mode - use existing AWS S3 plugin
-      uppyInstance
-        .use(AwsS3, {
-          shouldUseMultipart: false,
-          getUploadParameters: onGetUploadParameters,
-        })
-        .on("complete", (result) => {
-          onComplete?.(result);
-        });
+  const flavorText = useFlavor(state);
+  
+  // File selection handler
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    
+    // Show modal as soon as files are selected
+    setShowModal(true);
+    
+    // Validate file count
+    if (files.length > maxNumberOfFiles) {
+      setErrors([`Please select no more than ${maxNumberOfFiles} files.`]);
+      setState("error");
+      return;
     }
     
-    return uppyInstance;
-  });
+    // Validate file sizes
+    const oversizedFiles = files.filter(file => file.size > maxFileSize);
+    if (oversizedFiles.length > 0) {
+      setErrors([
+        `Files too large: ${oversizedFiles.map(f => f.name).join(', ')}. Max size: ${Math.round(maxFileSize / 1024 / 1024)}MB`
+      ]);
+      setState("error");
+      return;
+    }
+    
+    setSelectedFiles(files);
+    if (files.length > 0) {
+      handleUpload(files);
+    }
+  }, [maxNumberOfFiles, maxFileSize]);
+
+  // Main upload function with state machine
+  const handleUpload = useCallback(async (files: File[]) => {
+    setState("signing");
+    setErrors([]);
+
+    try {
+      // Step 1: Get signed URLs (batch sign)
+      const fileNames = files.map(f => f.name);
+      const signed = await apiRequest('/api/documents/bulk-upload-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileNames })
+      });
+
+      setState("uploading");
+      
+      // Step 2: Upload files with concurrency
+      await uploadAllWithConcurrency(signed.uploadURLs, files, 5);
+
+      setState("finalizing");
+      
+      // Step 3: Finalize - create document records
+      const documentsData = files.map((file, index) => ({
+        uploadURL: signed.uploadURLs[index].url,
+        name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+        originalName: file.name,
+        fileSize: file.size,
+        fileType: getFileTypeFromName(file.name),
+        mimeType: file.type || 'application/octet-stream',
+      }));
+
+      const finalize = await apiRequest('/api/documents/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documents: documentsData,
+          analyzeImmediately: true,
+        })
+      });
+
+      // Check for any failures
+      const failed = finalize.results?.filter((r: any) => !r.ok)?.map((r: any) => r.reason) || [];
+
+      if (failed.length > 0) {
+        setErrors(failed);
+        setState("error");
+      } else {
+        setState("done");
+        
+        // Auto-close after brief success display
+        setTimeout(() => {
+          setShowModal(false);
+          setState("idle");
+          setSelectedFiles([]);
+          
+          // Show success toast
+          toast({
+            title: "Upload successful!",
+            description: `Uploaded ${files.length} file${files.length !== 1 ? 's' : ''}. We'll analyze them in the background.`,
+          });
+          
+          // Notify parent
+          onSuccess?.(finalize.docIds || []);
+        }, 400);
+      }
+
+    } catch (e: any) {
+      setErrors([e?.message || "Upload failed"]);
+      setState("error");
+    }
+  }, [toast, onSuccess]);
+
+  // Retry failed uploads
+  const handleRetry = useCallback(() => {
+    if (selectedFiles.length > 0) {
+      handleUpload(selectedFiles);
+    }
+  }, [selectedFiles, handleUpload]);
+
+  // Reset state when closing modal
+  const handleModalClose = useCallback((open: boolean) => {
+    if (!open && state !== "uploading" && state !== "finalizing") {
+      setShowModal(false);
+      setState("idle");
+      setErrors([]);
+      setSelectedFiles([]);
+      onClose?.();
+    }
+  }, [state, onClose]);
 
   return (
     <div>
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={handleFileSelect}
+        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.webp,.csv,.xlsx,.xls,.pptx,.ppt"
+      />
+      
+      {/* Upload Button */}
       <Button 
-        onClick={() => setShowModal(true)} 
+        onClick={() => fileInputRef.current?.click()} 
         className={buttonClassName}
-        disabled={isBulkUploading}
+        disabled={state === "uploading" || state === "finalizing"}
         data-testid="button-upload"
       >
-        {isBulkUploading ? (
+        {state === "uploading" || state === "finalizing" ? (
           <>
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
             Uploading...
@@ -443,42 +329,70 @@ export function ObjectUploader({
         )}
       </Button>
 
-      {/* Upload Status Overlay */}
-      {isBulkUploading && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <div className="text-center space-y-4">
-              <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {uploadStatus || "Processing your files..."}
-              </div>
-              
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${uploadProgress}%` }}
-                ></div>
-              </div>
-              
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {uploadProgress}% complete
-              </div>
-              
-              {uploadProgress < 100 && (
-                <div className="text-xs text-gray-500 dark:text-gray-500">
-                  Please don't close this window while we work our magic! ✨
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Upload Modal */}
+      <Dialog open={showModal} onOpenChange={handleModalClose}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">
+              {state === "signing" ? "Preparing uploads…" :
+               state === "uploading" ? "Uploading…" :
+               state === "finalizing" ? "Finishing up…" :
+               state === "done" ? "Done!" :
+               state === "error" ? "Some files need attention" : "Upload Files"}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Flavor text */}
+            <p className="text-sm text-muted-foreground">
+              {flavorText}
+            </p>
 
-      <DashboardModal
-        uppy={uppy}
-        open={showModal}
-        onRequestClose={() => setShowModal(false)}
-        proudlyDisplayPoweredByUppy={false}
-      />
+            {/* Progress indicator */}
+            <Progress 
+              value={state === "done" ? 100 : undefined}
+              className="w-full"
+            />
+            
+            {/* File list */}
+            {selectedFiles.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Files:</h4>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  {selectedFiles.map((file, index) => (
+                    <li key={index} className="flex items-center justify-between">
+                      <span className="truncate">{file.name}</span>
+                      <span className="text-xs">{Math.round(file.size / 1024)}KB</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Error list */}
+            {errors.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-destructive">Errors:</h4>
+                <ul className="space-y-1 text-sm text-destructive list-disc ml-5">
+                  {errors.map((error, i) => (
+                    <li key={i}>{error}</li>
+                  ))}
+                </ul>
+                {state === "error" && selectedFiles.length > 0 && (
+                  <Button
+                    onClick={handleRetry}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    Retry Failed
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
