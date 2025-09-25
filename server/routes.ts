@@ -274,6 +274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Step 4: Trigger background content extraction (same as normal uploads)
+        console.log(`🔧 Starting content extraction for: ${originalname} (docId: ${document.id})`);
         storage.extractDocumentContent(document.id)
           .then(async (success) => {
             if (success) {
