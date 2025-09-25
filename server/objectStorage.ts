@@ -218,14 +218,25 @@ export class ObjectStorageService {
     }, DEFAULT_RETRY_CONFIG, `objectExists for ${objectPath}`);
   }
 
-  // Delete an object
+  // Delete an object (idempotent - treats 404s as success)
   async deleteObject(objectPath: string): Promise<void> {
     const bucket = this.getBucket();
     const file = bucket.file(objectPath);
 
     return withRetry(async () => {
-      await file.delete();
+      await file.delete({ ignoreNotFound: true });
+      console.log(`🗑️ GCS object deleted (or already gone): ${objectPath}`);
     }, DEFAULT_RETRY_CONFIG, `deleteObject for ${objectPath}`);
+  }
+
+  // Delete all objects with a given prefix (for document folders)
+  async deleteFiles(prefix: string): Promise<void> {
+    const bucket = this.getBucket();
+
+    return withRetry(async () => {
+      await bucket.deleteFiles({ prefix, force: true });
+      console.log(`🗑️ GCS objects deleted with prefix: ${prefix}`);
+    }, DEFAULT_RETRY_CONFIG, `deleteFiles with prefix ${prefix}`);
   }
 
   // Stream download an object directly to response
