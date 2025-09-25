@@ -182,6 +182,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Apply standard rate limiting to all API routes
   app.use('/api', standardLimiter);
+  
+  // Add correlation ID for request tracking
+  app.use((req: any, res, next) => { 
+    req.reqId = randomUUID(); 
+    next(); 
+  });
+  
+  // Helper to sanitize paths: keep userId/docId, hide filename
+  const obfuscatePath = (p?: string) => {
+    const m = p?.match(/^users\/([^/]+)\/docs\/([^/]+)\/(.+)$/);
+    return m ? `users/${m[1]}/docs/${m[2]}/<file>` : p;
+  };
 
   // Download documents by document ID - protected with authentication and rate limiting
   app.get("/api/documents/:documentId/download", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
@@ -455,6 +467,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mimeType: z.string().optional()
       })).parse(req.body?.files ?? []);
 
+      // ENTRY log – batch sign
+      console.info(JSON.stringify({
+        evt: "bulk_sign.entry",
+        route: "/api/documents/bulk-upload-urls",
+        reqId: (req as any).reqId,
+        uid: userId,
+        files: files.map(f => ({ name: f.name, mimeType: f.mimeType, size: f.size }))
+      }));
+
       console.log(`📦 Processing bulk upload for ${files.length} files in bucket: ${process.env.GCS_BUCKET_NAME || 'development-bucket'}`);
       
       const results = await Promise.all(files.map(async (f) => {
@@ -489,6 +510,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             reason: e?.message || "sign failed" 
           };
         }
+      }));
+
+      // EXIT log – batch sign (per-file result, sanitized)
+      console.info(JSON.stringify({
+        evt: "bulk_sign.success",
+        reqId: (req as any).reqId,
+        uid: userId,
+        status: 200,
+        results: results.map(r => ({
+          name: r.name,
+          ok: r.ok,
+          objectPath: r.ok ? obfuscatePath(r.objectPath) : undefined,
+          reason: r.ok ? undefined : r.reason
+        }))
       }));
 
       return res.status(200).json({ results });
@@ -539,6 +574,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           funnyMessage: "Who goes there?! 🕵️‍♀️ Our security guards need to know who's uploading all these files!"
         });
       }
+
+      // ENTRY log – batch finalize
+      console.info(JSON.stringify({
+        evt: "finalize.entry",
+        route: "/api/documents/bulk",
+        reqId: (req as any).reqId,
+        uid: userId,
+        count: documentsData?.length
+      }));
 
       // Normalize folder ID
       const normalizedFolderId = folderId && folderId !== "all" ? folderId : null;
@@ -617,6 +661,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get queue status for user feedback
       const queueStatus = await storage.getQueueStatus(userId);
+      
+      // Extract created document IDs for logging
+      const createdDocIds = successful.map(r => r.document?.id).filter(Boolean);
+      
+      // EXIT log – batch finalize
+      console.info(JSON.stringify({
+        evt: "finalize.success",
+        reqId: (req as any).reqId,
+        uid: userId,
+        status: 201,
+        createdDocIds
+      }));
 
       res.status(201).json({
         success: true,

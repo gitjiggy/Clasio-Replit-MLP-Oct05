@@ -57,6 +57,16 @@ export const verifyFirebaseToken = async (
   } catch (error) {
     console.log(`🚫 Auth failed for ${req.method} ${req.path} - ${error instanceof Error ? error.message : 'Unknown error'}`);
     
+    // Log auth failures with correlation ID for debugging
+    if ((req as any).reqId) {
+      console.info(JSON.stringify({
+        evt: "auth.error",
+        reqId: (req as any).reqId,
+        route: req.path,
+        reason: error instanceof Error ? error.message : 'Unknown error'
+      }));
+    }
+    
     // Provide more specific error messages for debugging
     if (error instanceof Error) {
       if (error.message.includes('Decoding Firebase ID token failed')) {

@@ -1,0 +1,104 @@
+Subject: Please share sanitized, correlated logs for one successful batch upload
+
+Ask
+
+Add/request the following structured logs around POST /api/documents/bulk-upload-urls and POST /api/documents/batch-finalize:
+
+// middleware (one-time): add a correlation id
+app.use((req,res,next)=>{ req.reqId = crypto.randomUUID(); next(); });
+
+// helper to sanitize paths: keep userId/docId, hide filename
+const obfuscatePath = (p?: string) => {
+  const m = p?.match(/^users\/([^/]+)\/docs\/([^/]+)\/(.+)$/);
+  return m ? `users/${m[1]}/docs/${m[2]}/<file>` : undefined;
+};
+
+// ENTRY log – batch sign
+console.info(JSON.stringify({
+  evt: "bulk_sign.entry",
+  route: "/api/documents/bulk-upload-urls",
+  reqId: req.reqId,
+  uid: req.user?.uid,              // Firebase UID only
+  files: files.map(f => ({ name: f.name, mimeType: f.mimeType, size: f.size }))
+}));
+
+// EXIT log – batch sign (per-file result, sanitized)
+console.info(JSON.stringify({
+  evt: "bulk_sign.success",
+  reqId: req.reqId,
+  uid: req.user?.uid,
+  status: 200,
+  results: results.map(r => ({
+    name: r.name,
+    ok: r.ok,
+    objectPath: r.ok ? obfuscatePath(r.objectPath) : undefined,
+    reason: r.ok ? undefined : r.reason
+  }))
+}));
+
+// ENTRY log – batch finalize
+console.info(JSON.stringify({
+  evt: "finalize.entry",
+  route: "/api/documents/batch-finalize",
+  reqId: req.reqId,
+  uid: req.user?.uid,
+  count: body?.documents?.length
+}));
+
+// EXIT log – batch finalize
+console.info(JSON.stringify({
+  evt: "finalize.success",
+  reqId: req.reqId,
+  uid: req.user?.uid,
+  status: 200,
+  createdDocIds: createdDocIds // or count only if you prefer
+}));
+
+
+Sanitization rules
+
+Include: reqId, uid (Firebase UID), event name, HTTP status, filenames, MIME types, sizes.
+
+Exclude/Redact: signed URLs, auth tokens, IPs, cookies.
+
+For objectPath, show only the prefix users/<uid>/docs/<docId>/ and replace the filename with "<file>".
+
+Run one test batch (the same five files I’m using), and then paste back exactly four log lines with the same reqId:
+
+bulk_sign.entry
+
+bulk_sign.success (status 200, per-file ok/failed)
+
+finalize.entry
+
+finalize.success (status 200)
+
+Example of the reply I’m expecting (sanitized)
+
+{"evt":"bulk_sign.entry","route":"/api/documents/bulk-upload-urls","reqId":"f7d2b3b1-4c9e-4a1a-8e4b-2e9a","uid":"TGE7oyssfjgQK3vteYF17lk6p1o2",
+ "files":[
+  {"name":"Filters Launch Strategy.docx","mimeType":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","size":27648},
+  {"name":"Disney PoV on B2B2C Writeup.docx","mimeType":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","size":32768},
+  {"name":"Amagi Product Portfolio.txt","mimeType":"text/plain","size":4096},
+  {"name":"Srini Presentation and Amagi Value Prop.txt","mimeType":"text/plain","size":8192},
+  {"name":"1099-G for 2020 Tax Refund.JPG","mimeType":"image/jpeg","size":885k}
+ ]}
+
+{"evt":"bulk_sign.success","reqId":"f7d2b3b1-4c9e-4a1a-8e4b-2e9a","uid":"TGE7oyssfjgQK3vteYF17lk6p1o2","status":200,
+ "results":[
+  {"name":"Filters Launch Strategy.docx","ok":true,"objectPath":"users/TGE7oyssfjgQK3vteYF17lk6p1o2/docs/312f…c9/<file>"},
+  {"name":"Disney PoV on B2B2C Writeup.docx","ok":true,"objectPath":"users/TGE7…/docs/a41b…7e/<file>"},
+  {"name":"Amagi Product Portfolio.txt","ok":true,"objectPath":"users/TGE7…/docs/5b61…2f/<file>"},
+  {"name":"Srini Presentation and Amagi Value Prop.txt","ok":true,"objectPath":"users/TGE7…/docs/9a32…1e/<file>"},
+  {"name":"1099-G for 2020 Tax Refund.JPG","ok":true,"objectPath":"users/TGE7…/docs/e8a4…11/<file>"}
+ ]}
+
+{"evt":"finalize.entry","route":"/api/documents/batch-finalize","reqId":"f7d2b3b1-4c9e-4a1a-8e4b-2e9a","uid":"TGE7oyssfjgQK3vteYF17lk6p1o2","count":5}
+
+{"evt":"finalize.success","reqId":"f7d2b3b1-4c9e-4a1a-8e4b-2e9a","uid":"TGE7oyssfjgQK3vteYF17lk6p1o2","status":200,
+ "createdDocIds":["312f…c9","a41b…7e","5b61…2f","9a32…1e","e8a4…11"]}
+
+
+If any step returns 401, please also paste the auth log for that reqId (but no tokens), e.g.:
+
+{"evt":"auth.error","reqId":"…","reason":"invalid_token"}
