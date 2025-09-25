@@ -205,7 +205,7 @@ class AIQueueProcessor {
           console.log(`🔍 Analyzing document: ${document.name}`);
           
           // Get document content for analysis
-          const content = await storage.getDocumentContent(nextJob.documentId);
+          const content = await storage.getDocumentContent(nextJob.documentId, nextJob.userId);
           if (!content) {
             throw new Error(`No content available for document ${nextJob.documentId}`);
           }
@@ -346,7 +346,7 @@ class AIQueueProcessor {
       }
 
       // Get document content for analysis
-      const content = await storage.getDocumentContent(documentId);
+      const content = await storage.getDocumentContent(documentId, userId);
       if (!content) {
         console.error(`No content available for document ${documentId}`);
         return false;
