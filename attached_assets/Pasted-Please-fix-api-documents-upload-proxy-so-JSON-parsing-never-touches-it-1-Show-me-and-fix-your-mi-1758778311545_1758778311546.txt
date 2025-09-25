@@ -1,0 +1,82 @@
+Please fix /api/documents/upload-proxy so JSON parsing never touches it
+1) Show me (and fix) your middleware order
+
+Paste the exact init order around these lines in your server:
+
+// BAD (causes our error if mounted globally or with type:*/*)
+app.use(express.json(/* anything */));
+app.use(express.urlencoded({ extended: true }));
+
+// GOOD — multipart route FIRST
+app.post(
+  "/api/documents/upload-proxy",
+  requireAuth,
+  multer({ storage: multer.memoryStorage(), limits: { fileSize: 100*1024*1024 } }).single("file"),
+  uploadProxyHandler
+);
+
+// Then scope JSON parsing to JSON routes only
+const api = express.Router();
+api.use(express.json({ type: "application/json" })); // <- IMPORTANT
+api.post("/documents/bulk-upload-urls", requireAuth, bulkSignHandler);
+api.post("/documents/batch-finalize",  requireAuth, batchFinalizeHandler);
+app.use("/api", api);
+
+
+Key rules
+
+Do not use express.json({ type: "*/*" }) or any custom type: () => true.
+
+Do not mount a global JSON parser before upload-proxy.
+
+If you must keep a global parser, restrict it:
+app.use(express.json({ type: "application/json" }));
+
+2) Add an entry log to prove it’s fixed
+app.post("/api/documents/upload-proxy", requireAuth, upload.single("file"), (req, res) => {
+  console.info(JSON.stringify({
+    evt: "upload-proxy.entry",
+    uid: req.user?.uid,
+    contentType: req.headers["content-type"] // should start with "multipart/form-data; boundary=..."
+  }));
+  // ...save buffer to GCS and return 200...
+});
+
+
+If that log ever shows application/json, your client is sending the wrong header or a default header is being injected.
+
+3) Verify the client isn’t forcing JSON headers on the fallback
+
+When sending FormData, do not set Content-Type manually.
+
+Your fetch wrapper must not add a default Content-Type: application/json for this call.
+
+const fd = new FormData();
+fd.append("file", file, file.name);
+fd.append("name", file.name);
+fd.append("mimeType", file.type || "");
+
+await fetch("/api/documents/upload-proxy", {
+  method: "POST",
+  body: fd,
+  credentials: "include",
+  headers: { ...(await authHeader()) }  // e.g. { Authorization: `Bearer ${idToken}` }
+  // NO 'Content-Type' here
+});
+
+4) One-line cURL you can run to prove the server is fixed
+TOKEN=<valid_id_token>
+curl -v -H "Authorization: Bearer $TOKEN" \
+     -F "file=@./Filters\ Launch\ Strategy.docx" \
+     https://<host>/api/documents/upload-proxy
+# Expect: HTTP/2 200 and JSON { ok:true, objectPath, docId }
+
+5) Acceptance criteria
+
+upload-proxy.entry log shows contentType: "multipart/form-data; boundary=..." and a uid.
+
+The route returns 200 with { ok: true, objectPath, docId }.
+
+No more Unexpected token '------WebKit' errors in logs.
+
+After proxy upload returns 200, the client finalizes and the modal auto-closes on success.

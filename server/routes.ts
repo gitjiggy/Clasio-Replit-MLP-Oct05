@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { ObjectStorageService, ObjectNotFoundError, generateDocumentPath } from "./objectStorage";
@@ -249,8 +249,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // Now apply JSON middleware for JSON routes only
-  app.use('/api', express.json());
+  // Create separate router for JSON routes only
+  const jsonRouter = express.Router();
+  jsonRouter.use(express.json({ type: "application/json" })); // IMPORTANT: restrict type
 
   // Download documents by document ID - protected with authentication and rate limiting
   app.get("/api/documents/:documentId/download", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
