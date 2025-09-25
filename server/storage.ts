@@ -472,30 +472,43 @@ export class DatabaseStorage implements IStorage {
   async getAllActiveDocuments(): Promise<DocumentWithFolderAndTags[]> {
     await this.ensureInitialized();
     
-    // Get ALL active documents (no filters, no pagination)
-    const result = await db.query.documents.findMany({
-      where: and(
-        eq(documents.isDeleted, false),
-        eq(documents.status, 'active')
-      ),
-      with: {
-        folder: true,
-        documentTags: {
-          with: {
-            tag: true
-          }
-        }
-      },
-      orderBy: [desc(documents.uploadedAt)]
-    });
+    // Get ALL active documents using simple query to avoid relational issues
+    const docs = await db
+      .select()
+      .from(documents)
+      .where(
+        and(
+          eq(documents.isDeleted, false),
+          eq(documents.status, 'active')
+        )
+      )
+      .orderBy(desc(documents.uploadedAt));
 
-    // Transform to include tags as array
-    const transformedDocs = result.map(doc => ({
-      ...doc,
-      tags: doc.documentTags?.map(dt => dt.tag) || []
-    }));
-    
-    return transformedDocs as DocumentWithFolderAndTags[];
+    // For each document, fetch folder and tags separately 
+    const result = await Promise.all(
+      docs.map(async (doc) => {
+        // Get folder
+        const folder = doc.folderId 
+          ? await db.query.folders.findFirst({
+              where: eq(folders.id, doc.folderId)
+            })
+          : undefined;
+
+        // Get tags
+        const docTags = await db.query.documentTags.findMany({
+          where: eq(documentTags.documentId, doc.id),
+          with: { tag: true }
+        });
+
+        return {
+          ...doc,
+          folder,
+          tags: docTags.map(dt => dt.tag)
+        };
+      })
+    );
+
+    return result as DocumentWithFolderAndTags[];
   }
 
   async getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]> {
