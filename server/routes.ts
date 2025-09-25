@@ -2177,10 +2177,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/folders", async (req, res) => {
+  app.post("/api/folders", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
       const validatedData = insertFolderSchema.parse(req.body);
-      const folder = await storage.createFolder(validatedData);
+      const folder = await storage.createFolder(validatedData, userId);
       res.status(201).json(folder);
     } catch (error) {
       console.error("Error creating folder:", error);
@@ -2188,9 +2192,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/folders/:id", async (req, res) => {
+  app.put("/api/folders/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const folder = await storage.updateFolder(req.params.id, req.body);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const folder = await storage.updateFolder(req.params.id, req.body, userId);
       if (!folder) {
         return res.status(404).json({ error: "Folder not found" });
       }
@@ -2201,9 +2209,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/folders/:id", async (req, res) => {
+  app.delete("/api/folders/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const deleted = await storage.deleteFolder(req.params.id);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const deleted = await storage.deleteFolder(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Folder not found" });
       }
@@ -2229,10 +2241,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tags", async (req, res) => {
+  app.post("/api/tags", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
       const validatedData = insertTagSchema.parse(req.body);
-      const tag = await storage.createTag(validatedData);
+      const tag = await storage.createTag(validatedData, userId);
       res.status(201).json(tag);
     } catch (error) {
       console.error("Error creating tag:", error);
@@ -2240,9 +2256,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/tags/:id", async (req, res) => {
+  app.put("/api/tags/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const tag = await storage.updateTag(req.params.id, req.body);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const tag = await storage.updateTag(req.params.id, req.body, userId);
       if (!tag) {
         return res.status(404).json({ error: "Tag not found" });
       }
@@ -2253,9 +2273,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/tags/:id", async (req, res) => {
+  app.delete("/api/tags/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const deleted = await storage.deleteTag(req.params.id);
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      const deleted = await storage.deleteTag(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Tag not found" });
       }
@@ -2267,10 +2291,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Document-Tags endpoints
-  app.post("/api/document-tags", async (req, res) => {
+  app.post("/api/document-tags", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
       const validatedData = insertDocumentTagSchema.parse(req.body);
-      const documentTag = await storage.addDocumentTag(validatedData);
+      const documentTag = await storage.addDocumentTag(validatedData, userId);
       res.status(201).json(documentTag);
     } catch (error) {
       console.error("Error adding tag to document:", error);
@@ -2278,10 +2306,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/document-tags/:documentId/:tagId", async (req, res) => {
+  app.delete("/api/document-tags/:documentId/:tagId", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
       const { documentId, tagId } = req.params;
-      await storage.removeDocumentTag(documentId, tagId);
+      await storage.removeDocumentTag(documentId, tagId, userId);
       res.status(204).send();
     } catch (error) {
       console.error("Error removing tag from document:", error);

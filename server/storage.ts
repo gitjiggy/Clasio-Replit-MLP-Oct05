@@ -3180,24 +3180,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Folders
-  async createFolder(insertFolder: InsertFolder): Promise<Folder> {
+  async createFolder(insertFolder: InsertFolder, userId: string): Promise<Folder> {
     const [folder] = await db
       .insert(folders)
       .values({
         ...insertFolder,
+        userId, // Ensure folder is owned by the user
         color: insertFolder.color ?? "#f59e0b",
       })
       .returning();
     return folder;
   }
 
-  async getFolders(): Promise<(Folder & { documentCount: number })[]> {
+  async getFolders(userId: string): Promise<(Folder & { documentCount: number })[]> {
     await this.ensureInitialized();
     
-    // Get all folders with their basic info
+    // Get folders owned by the user
     const allFolders = await db
       .select({
         id: folders.id,
+        userId: folders.userId,
         name: folders.name,
         color: folders.color,
         parentId: folders.parentId,
@@ -3208,6 +3210,7 @@ export class DatabaseStorage implements IStorage {
         createdAt: folders.createdAt,
       })
       .from(folders)
+      .where(eq(folders.userId, userId))
       .orderBy(folders.name);
 
     // Calculate document counts for each folder
@@ -3216,7 +3219,7 @@ export class DatabaseStorage implements IStorage {
         let documentCount = 0;
 
         if (!folder.parentId) {
-          // For main category folders (no parent), count all documents in subfolders
+          // For main category folders (no parent), count all documents in subfolders owned by user
           const subfolderDocs = await db
             .select({
               count: sql<number>`CAST(COUNT(${documents.id}) AS INTEGER)`,
@@ -3226,6 +3229,8 @@ export class DatabaseStorage implements IStorage {
             .where(
               and(
                 eq(folders.parentId, folder.id),
+                eq(folders.userId, userId), // Ensure subfolder belongs to user
+                eq(documents.userId, userId), // Ensure documents belong to user
                 eq(documents.isDeleted, false),
                 eq(documents.status, 'active')
               )
@@ -3233,7 +3238,7 @@ export class DatabaseStorage implements IStorage {
 
           documentCount = subfolderDocs[0]?.count || 0;
         } else {
-          // For subfolders, count direct documents
+          // For subfolders, count direct documents owned by user
           const directDocs = await db
             .select({
               count: sql<number>`CAST(COUNT(${documents.id}) AS INTEGER)`,
@@ -3242,6 +3247,7 @@ export class DatabaseStorage implements IStorage {
             .where(
               and(
                 eq(documents.folderId, folder.id),
+                eq(documents.userId, userId), // Ensure documents belong to user
                 eq(documents.isDeleted, false),
                 eq(documents.status, 'active')
               )
@@ -3260,69 +3266,74 @@ export class DatabaseStorage implements IStorage {
     return foldersWithCounts;
   }
 
-  async updateFolder(id: string, updates: Partial<InsertFolder>): Promise<Folder | undefined> {
+  async updateFolder(id: string, updates: Partial<InsertFolder>, userId: string): Promise<Folder | undefined> {
     const [updatedFolder] = await db
       .update(folders)
       .set(updates)
-      .where(eq(folders.id, id))
+      .where(and(eq(folders.id, id), eq(folders.userId, userId)))
       .returning();
 
     return updatedFolder;
   }
 
-  async deleteFolder(id: string): Promise<boolean> {
+  async deleteFolder(id: string, userId: string): Promise<boolean> {
     const result = await db
       .delete(folders)
-      .where(eq(folders.id, id))
+      .where(and(eq(folders.id, id), eq(folders.userId, userId)))
       .returning();
 
     return result.length > 0;
   }
 
   // Tags
-  async createTag(insertTag: InsertTag): Promise<Tag> {
+  async createTag(insertTag: InsertTag, userId: string): Promise<Tag> {
     const [tag] = await db
       .insert(tags)
       .values({
         ...insertTag,
+        userId, // Ensure tag is owned by the user
         color: insertTag.color ?? "#3b82f6",
       })
       .returning();
     return tag;
   }
 
-  async getTags(): Promise<Tag[]> {
+  async getTags(userId: string): Promise<Tag[]> {
     await this.ensureInitialized();
     return await db
       .select()
       .from(tags)
+      .where(eq(tags.userId, userId))
       .orderBy(tags.name);
   }
 
-  async updateTag(id: string, updates: Partial<InsertTag>): Promise<Tag | undefined> {
+  async updateTag(id: string, updates: Partial<InsertTag>, userId: string): Promise<Tag | undefined> {
     const [updatedTag] = await db
       .update(tags)
       .set(updates)
-      .where(eq(tags.id, id))
+      .where(and(eq(tags.id, id), eq(tags.userId, userId)))
       .returning();
 
     return updatedTag;
   }
 
-  async deleteTag(id: string): Promise<boolean> {
+  async deleteTag(id: string, userId: string): Promise<boolean> {
     const result = await db
       .delete(tags)
-      .where(eq(tags.id, id))
+      .where(and(eq(tags.id, id), eq(tags.userId, userId)))
       .returning();
 
     return result.length > 0;
   }
 
   // Document Tags
-  async addDocumentTag(insertDocumentTag: InsertDocumentTag): Promise<DocumentTag> {
+  async addDocumentTag(insertDocumentTag: InsertDocumentTag, userId: string): Promise<DocumentTag> {
     const [documentTag] = await db
       .insert(documentTags)
-      .values(insertDocumentTag)
+      .values({
+        ...insertDocumentTag,
+        userId, // Ensure document-tag relationship is owned by the user
+      })
       .returning();
     return documentTag;
   }
@@ -3333,11 +3344,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(documentTags.documentId, documentId));
   }
 
-  async removeDocumentTag(documentId: string, tagId: string): Promise<void> {
+  async removeDocumentTag(documentId: string, tagId: string, userId: string): Promise<void> {
     await db
       .delete(documentTags)
       .where(
-        sql`${documentTags.documentId} = ${documentId} AND ${documentTags.tagId} = ${tagId}`
+        and(
+          eq(documentTags.documentId, documentId),
+          eq(documentTags.tagId, tagId),
+          eq(documentTags.userId, userId) // Ensure user owns the relationship
+        )
       );
   }
 
