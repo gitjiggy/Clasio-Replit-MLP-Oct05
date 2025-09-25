@@ -1941,17 +1941,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper function to determine file type from MIME type
   function getFileTypeFromMimeType(mimeType: string): string {
     const mimeTypeMap: { [key: string]: string } = {
+      // PDF files
       'application/pdf': 'pdf',
-      'application/vnd.google-apps.document': 'document',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
-      'application/msword': 'document',
-      'text/plain': 'text',
-      'text/csv': 'spreadsheet',
-      'application/rtf': 'document',
-      'text/html': 'text'
+      
+      // Word documents  
+      'application/vnd.google-apps.document': 'docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'application/msword': 'doc',
+      'application/rtf': 'docx',
+      
+      // PowerPoint files
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+      'application/vnd.ms-powerpoint': 'pptx',
+      
+      // Excel files
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'application/vnd.ms-excel': 'xlsx',
+      'text/csv': 'csv',
+      
+      // Text files
+      'text/plain': 'txt',
+      'text/html': 'txt',
+      
+      // Image files
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg', 
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp'
     };
     
-    return mimeTypeMap[mimeType] || 'other';
+    return mimeTypeMap[mimeType] || 'txt'; // Default to 'txt' instead of 'other'
   }
 
   const httpServer = createServer(app);
