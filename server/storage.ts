@@ -979,6 +979,63 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  // Generate match explanation for why a document was found
+  private getMatchReasons(doc: any, query: string): string {
+    const keywords = query.toLowerCase().split(/\s+/).filter(word => word.trim().length > 0);
+    const reasons = [];
+    
+    // Check filename matches
+    const nameMatches = keywords.filter(keyword => 
+      doc.name && doc.name.toLowerCase().includes(keyword.toLowerCase())
+    );
+    if (nameMatches.length > 0) {
+      reasons.push(`the filename contains "${nameMatches.join('", "')}"`);}
+    
+    // Check AI category matches
+    const categoryMatches = keywords.filter(keyword =>
+      doc.aiCategory && doc.aiCategory.toLowerCase().includes(keyword.toLowerCase())
+    );
+    if (categoryMatches.length > 0) {
+      reasons.push(`it's categorized as "${doc.aiCategory}"`);
+    }
+    
+    // Check AI document type matches
+    const typeMatches = keywords.filter(keyword =>
+      doc.aiDocumentType && doc.aiDocumentType.toLowerCase().includes(keyword.toLowerCase())
+    );
+    if (typeMatches.length > 0) {
+      reasons.push(`it's classified as "${doc.aiDocumentType}"`);
+    }
+    
+    // Check content matches (if available)
+    const contentMatches = keywords.filter(keyword =>
+      doc.documentContent && doc.documentContent.toLowerCase().includes(keyword.toLowerCase())
+    );
+    if (contentMatches.length > 0) {
+      reasons.push(`the document content mentions "${contentMatches.join('", "')}"`);}
+    
+    // Check summary matches
+    const summaryMatches = keywords.filter(keyword =>
+      doc.aiSummary && doc.aiSummary.toLowerCase().includes(keyword.toLowerCase())
+    );
+    if (summaryMatches.length > 0) {
+      reasons.push(`the summary mentions "${summaryMatches.join('", "')}"`);}
+    
+    // Default reason if no specific matches found
+    if (reasons.length === 0) {
+      reasons.push("it contains relevant keywords");
+    }
+    
+    // Join reasons with "and"
+    if (reasons.length === 1) {
+      return reasons[0];
+    } else if (reasons.length === 2) {
+      return `${reasons[0]} and ${reasons[1]}`;
+    } else {
+      return `${reasons.slice(0, -1).join(', ')}, and ${reasons[reasons.length - 1]}`;
+    }
+  }
+
   // Calculate confidence score for document match
   private calculateConfidenceScore(doc: any, keywords: string[]): number {
     let score = 0;
@@ -1793,29 +1850,25 @@ export class DatabaseStorage implements IStorage {
     if (finalResults.length === 0) {
       conversationalResponse = `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`;
     } else {
-      // Always use consistent numbered format (replaces AI-generated prose for consistency)
+      // Detailed numbered format with match explanations
       if (finalResults.length === 1) {
         const doc = finalResults[0];
-        conversationalResponse = `🎯 **Perfect Match!** I found exactly what you're looking for:\n\n**1.** "${doc.name}" (${doc.confidenceScore}% confidence)\n   ${doc.aiSummary ? `📄 ${doc.aiSummary.substring(0, 120)}...` : 'Document ready for review'}\n\nThis appears to be exactly what you were searching for!`;
+        const matchReasons = this.getMatchReasons(doc, preprocessedQuery);
+        conversationalResponse = `**Found 1 relevant document:**\n\n1. "${doc.name}" - matches because ${matchReasons}`;
       } else {
-        // Multi-document response with numbered rankings
-        let responseLines = [`🔍 **Found ${finalResults.length} relevant documents:**\n`];
+        // Multi-document response with numbered explanations
+        let responseLines = [`**Found ${finalResults.length} relevant documents:**\n`];
         
-        finalResults.slice(0, 3).forEach((doc, index) => {
+        finalResults.slice(0, 5).forEach((doc, index) => {
           const ranking = index + 1;
-          const emoji = ranking === 1 ? '🥇' : ranking === 2 ? '🥈' : '🥉';
-          const confidence = doc.confidenceScore >= 70 ? 'High' : doc.confidenceScore >= 50 ? 'Medium' : 'Low';
+          const matchReasons = this.getMatchReasons(doc, preprocessedQuery);
           
-          responseLines.push(`${emoji} **${ranking}.** "${doc.name}" (${doc.confidenceScore}% - ${confidence} confidence)`);
-          
-          if (doc.aiSummary) {
-            responseLines.push(`   📄 ${doc.aiSummary.substring(0, 100)}...`);
-          }
-          responseLines.push('');
+          responseLines.push(`${ranking}. "${doc.name}" - matches because ${matchReasons}`);
+          responseLines.push(''); // Empty line between results
         });
         
-        if (finalResults.length > 3) {
-          responseLines.push(`📚 *Plus ${finalResults.length - 3} more documents with lower confidence scores.*`);
+        if (finalResults.length > 5) {
+          responseLines.push(`Plus ${finalResults.length - 5} more documents with lower relevance.`);
         }
         
         conversationalResponse = responseLines.join('\n');
