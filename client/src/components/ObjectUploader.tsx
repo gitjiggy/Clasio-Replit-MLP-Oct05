@@ -107,7 +107,7 @@ async function uploadAllWithConcurrency(
   return new Promise<void>((resolve, reject) => {
     // Set up abort handler to immediately reject when cancelled
     const abortHandler = () => {
-      reject(new Error('Upload cancelled by user'));
+      reject(new DOMException('Upload cancelled by user', 'AbortError'));
     };
     
     if (abortSignal) {
@@ -444,13 +444,13 @@ export function ObjectUploader({
         const perFileResults = await new Promise<any[]>((resolve, reject) => {
           // If already aborted, reject immediately
           if (signal.aborted) {
-            reject(new Error('Upload cancelled by user'));
+            reject(new DOMException('Upload cancelled by user', 'AbortError'));
             return;
           }
           
           // Set up abort handler
           const abortHandler = () => {
-            reject(new Error('Upload cancelled by user'));
+            reject(new DOMException('Upload cancelled by user', 'AbortError'));
           };
           signal.addEventListener('abort', abortHandler);
           
@@ -681,7 +681,7 @@ export function ObjectUploader({
 
     } catch (e: any) {
       // Handle abort operations gracefully
-      if (e.name === 'AbortError' || e?.code === 'ABORT_ERR') {
+      if (e.name === 'AbortError' || e?.code === 'ABORT_ERR' || e.message === 'Upload cancelled by user') {
         console.log("🚫 Upload was aborted:", e.message);
         // Check if this was a user-initiated cancellation using our flag
         if (userCancelledRef.current) {
