@@ -1844,43 +1844,32 @@ export class DatabaseStorage implements IStorage {
     if (finalResults.length === 0) {
       conversationalResponse = `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`;
     } else {
-      try {
-        // Generate friendly AI response with numbered rankings
-        conversationalResponse = await generateConversationalResponse(
-          query,
-          finalResults,
-          'hybrid_search'
-        );
-      } catch (error) {
-        console.warn('Failed to generate conversational response, using enhanced fallback:', error);
-        // Enhanced fallback with numbered rankings and confidence levels
+      // Always use consistent numbered format (replaces AI-generated prose for consistency)
+      if (finalResults.length === 1) {
+        const doc = finalResults[0];
+        conversationalResponse = `🎯 **Perfect Match!** I found exactly what you're looking for:\n\n**1.** "${doc.name}" (${doc.confidenceScore}% confidence)\n   ${doc.aiSummary ? `📄 ${doc.aiSummary.substring(0, 120)}...` : 'Document ready for review'}\n\nThis appears to be exactly what you were searching for!`;
+      } else {
+        // Multi-document response with numbered rankings
+        let responseLines = [`🔍 **Found ${finalResults.length} relevant documents:**\n`];
         
-        if (finalResults.length === 1) {
-          const doc = finalResults[0];
-          conversationalResponse = `🎯 **Perfect Match!** I found exactly what you're looking for:\n\n**1.** "${doc.name}" (${doc.confidenceScore}% confidence)\n   ${doc.aiSummary ? `📄 ${doc.aiSummary.substring(0, 120)}...` : 'Document ready for review'}\n\nThis appears to be exactly what you were searching for!`;
-        } else {
-          // Multi-document response with numbered rankings
-          let responseLines = [`🔍 **Found ${finalResults.length} relevant documents:**\n`];
+        finalResults.slice(0, 3).forEach((doc, index) => {
+          const ranking = index + 1;
+          const emoji = ranking === 1 ? '🥇' : ranking === 2 ? '🥈' : '🥉';
+          const confidence = doc.confidenceScore >= 70 ? 'High' : doc.confidenceScore >= 50 ? 'Medium' : 'Low';
           
-          finalResults.slice(0, 3).forEach((doc, index) => {
-            const ranking = index + 1;
-            const emoji = ranking === 1 ? '🥇' : ranking === 2 ? '🥈' : '🥉';
-            const confidence = doc.confidenceScore >= 70 ? 'High' : doc.confidenceScore >= 50 ? 'Medium' : 'Low';
-            
-            responseLines.push(`${emoji} **${ranking}.** "${doc.name}" (${doc.confidenceScore}% - ${confidence} confidence)`);
-            
-            if (doc.aiSummary) {
-              responseLines.push(`   📄 ${doc.aiSummary.substring(0, 100)}...`);
-            }
-            responseLines.push('');
-          });
+          responseLines.push(`${emoji} **${ranking}.** "${doc.name}" (${doc.confidenceScore}% - ${confidence} confidence)`);
           
-          if (finalResults.length > 3) {
-            responseLines.push(`📚 *Plus ${finalResults.length - 3} more documents with lower confidence scores.*`);
+          if (doc.aiSummary) {
+            responseLines.push(`   📄 ${doc.aiSummary.substring(0, 100)}...`);
           }
-          
-          conversationalResponse = responseLines.join('\n');
+          responseLines.push('');
+        });
+        
+        if (finalResults.length > 3) {
+          responseLines.push(`📚 *Plus ${finalResults.length - 3} more documents with lower confidence scores.*`);
         }
+        
+        conversationalResponse = responseLines.join('\n');
       }
     }
 
