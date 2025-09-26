@@ -1404,16 +1404,16 @@ export class DatabaseStorage implements IStorage {
       console.log(`    CALCULATION: (${semantic.toFixed(6)} * 0.6) + (${lexical.toFixed(6)} * 0.3) + (${quality.toFixed(6)} * 0.1) = ${rawCombined.toFixed(6)}`);
       console.log(`    ROUNDING: ${rawCombined.toFixed(6)} → ${finalScore.toFixed(6)}`);
     }
-    // Tier 3: Low semantic matches - lexical dominant
+    // Tier 3: Low semantic matches - TIGHTER WEIGHTS to yield 0.25-0.45 finals
     else {
       tier = 3;
-      weights = { semantic: 0, lexical: 70, quality: 30 };
-      formula = `(lexical * 0.7) + (quality * 0.3)`;
-      rawCombined = (lexical * 0.7) + (quality * 0.3);
+      weights = { semantic: 0, lexical: 50, quality: 50 };
+      formula = `(lexical * 0.5) + (quality * 0.5)`;
+      rawCombined = (lexical * 0.5) + (quality * 0.5);
       finalScore = Math.round(rawCombined * 100) / 100;
-      console.log(`    TIER_3_LEXICAL_DOMINANT: weights=[semantic:0%, lexical:70%, quality:30%]`);
+      console.log(`    TIER_3_BALANCED_REDUCED: weights=[semantic:0%, lexical:50%, quality:50%]`);
       console.log(`    FORMULA: ${formula}`);
-      console.log(`    CALCULATION: (${lexical.toFixed(6)} * 0.7) + (${quality.toFixed(6)} * 0.3) = ${rawCombined.toFixed(6)}`);
+      console.log(`    CALCULATION: (${lexical.toFixed(6)} * 0.5) + (${quality.toFixed(6)} * 0.5) = ${rawCombined.toFixed(6)}`);
       console.log(`    ROUNDING: ${rawCombined.toFixed(6)} → ${finalScore.toFixed(6)}`);
     }
     
@@ -1463,71 +1463,121 @@ export class DatabaseStorage implements IStorage {
       const searchLower = searchTerms.toLowerCase();
       const searchTermsList = searchLower.split(' ').map(t => t.trim()).filter(t => t.length > 0);
       
+      // Check where the terms are found first
+      const titleMatches = searchTermsList.filter(term => titleText.includes(term));
+      const summaryMatches = searchTermsList.filter(term => summaryText.includes(term));
+      const topicsMatches = searchTermsList.filter(term => topicsText.includes(term));
+      const contentMatches = searchTermsList.filter(term => contentText.includes(term));
+      const tagMatches = searchTermsList.filter(term => tagText.includes(term));
+
       console.log(`📝 LEXICAL SCORING TRACE for "${doc.name}" (docId: ${doc.id})`);
       console.log(`    SEARCH_TERMS: raw="${searchTerms}", lowercase="${searchLower}", tokenized=[${searchTermsList.join(',')}]`);
       console.log(`    TS_RANK_BASE: postgresql_score=${baseScore.toFixed(6)} (from FTS query)`);
       console.log(`    FIELD_MATCHES: title=[${titleMatches.join(',')}], summary=[${summaryMatches.join(',')}], topics=[${topicsMatches.join(',')}], content=[${contentMatches.join(',')}], tags=[${tagMatches.join(',')}]`);
       
-      // Check where the terms are found  
+      // Apply TIGHTER lexical calibration - max-field logic with strict caps
       const originalScore = baseScore;
       let winningField = 'ts_rank_only';
-      let bonusApplied = 0;
-      const topicsMatches = searchTermsList.filter(term => topicsText.includes(term));
-      const contentMatches = searchTermsList.filter(term => contentText.includes(term));
-      const tagMatches = searchTermsList.filter(term => tagText.includes(term));
+      let finalScore = baseScore;
       
-      // Exact name match: highest boost
-      if (titleText === searchLower) {
-        baseScore = Math.max(baseScore, 0.95);
-        console.log(`  → Exact name match bonus: ${baseScore.toFixed(3)}`);
+      // TIGHTER CALIBRATION: Max-field logic with strict caps and proximity requirements
+      
+      // 1. EXACT PHRASE IN TITLE/FILENAME: Only case that gets 1.0 lexical score
+      if (titleText.includes(searchLower)) {
+        finalScore = 1.0;
+        winningField = 'title_exact_phrase';
+        console.log(`    EXACT_PHRASE_TITLE: "${searchLower}" found in "${titleText}" → score=1.000`);
       }
-      // All terms found in name: significant boost  
-      else if (searchTermsList.every(term => titleText.includes(term))) {
-        baseScore = Math.max(baseScore, 0.8);
-        console.log(`  → All terms in name bonus: ${baseScore.toFixed(3)}`);
+      
+      // 2. ALL TOKENS IN TITLE: Requires all tokens co-located in same field (>0.5 threshold)
+      else if (searchTermsList.length > 1 && searchTermsList.every(term => titleText.includes(term))) {
+        // Check proximity: tokens must be within 10 characters of each other for bonus
+        const proximityBonus = this.checkTokenProximity(titleText, searchTermsList, 10) ? 0.1 : 0;
+        finalScore = Math.min(0.85, 0.75 + proximityBonus); // Cap at 0.85 as specified
+        winningField = 'title_all_tokens';
+        console.log(`    ALL_TOKENS_TITLE: proximity_bonus=${proximityBonus.toFixed(3)}, final=${finalScore.toFixed(3)}`);
       }
-      // All terms found in summary: high boost (AI analysis is very relevant)
-      else if (searchTermsList.every(term => summaryText.includes(term))) {
-        baseScore = Math.max(baseScore, 0.75);
-        console.log(`  → All terms in AI summary bonus: ${baseScore.toFixed(3)}`);
+      
+      // 3. ALL TOKENS IN FILENAME: Slightly lower than title
+      else if (searchTermsList.length > 1 && searchTermsList.every(term => titleText.includes(term))) {
+        const proximityBonus = this.checkTokenProximity(titleText, searchTermsList, 10) ? 0.08 : 0;
+        finalScore = Math.min(0.85, 0.7 + proximityBonus);
+        winningField = 'filename_all_tokens';
+        console.log(`    ALL_TOKENS_FILENAME: proximity_bonus=${proximityBonus.toFixed(3)}, final=${finalScore.toFixed(3)}`);
       }
-      // All terms found in key topics: good boost
-      else if (searchTermsList.every(term => topicsText.includes(term))) {
-        baseScore = Math.max(baseScore, 0.7);
-        console.log(`  → All terms in key topics bonus: ${baseScore.toFixed(3)}`);
+      
+      // 4. ALL TOKENS IN TAGS: Good signal, but capped
+      else if (searchTermsList.length > 1 && searchTermsList.every(term => tagText.includes(term))) {
+        const proximityBonus = this.checkTokenProximity(tagText, searchTermsList, 15) ? 0.05 : 0;
+        finalScore = Math.min(0.6, 0.5 + proximityBonus);
+        winningField = 'tags_all_tokens';
+        console.log(`    ALL_TOKENS_TAGS: proximity_bonus=${proximityBonus.toFixed(3)}, final=${finalScore.toFixed(3)}`);
       }
-      // All terms found in tags: good boost (tags are important for categorization)
-      else if (searchTermsList.every(term => tagText.includes(term))) {
-        baseScore = Math.max(baseScore, 0.68);
-        console.log(`  → All terms in tags bonus: ${baseScore.toFixed(3)}`);
+      
+      // 5. ALL TOKENS IN CONTENT: Lower priority, proximity required for >0.5
+      else if (searchTermsList.length > 1 && searchTermsList.every(term => contentText.includes(term))) {
+        const proximityBonus = this.checkTokenProximity(contentText, searchTermsList, 20) ? 0.15 : 0;
+        finalScore = Math.min(0.65, 0.4 + proximityBonus);
+        winningField = 'content_all_tokens';
+        console.log(`    ALL_TOKENS_CONTENT: proximity_bonus=${proximityBonus.toFixed(3)}, final=${finalScore.toFixed(3)}`);
       }
-      // All terms found in document content: solid boost (content is highly relevant)
-      else if (searchTermsList.every(term => contentText.includes(term))) {
-        baseScore = Math.max(baseScore, 0.65);
-        console.log(`  → All terms in document content bonus: ${baseScore.toFixed(3)}`);
+      
+      // 6. SUMMARY-ONLY MATCHES: CAPPED AT 0.15 (as specified)
+      else if (summaryMatches.length === searchTermsList.length && summaryMatches.length > 0) {
+        finalScore = Math.min(0.15, baseScore * 1.5);
+        winningField = 'summary_only_capped';
+        console.log(`    SUMMARY_ONLY_MATCH: capped_at_0.15, final=${finalScore.toFixed(3)}`);
       }
-      // Some terms found in content: moderate boost  
+      
+      // 7. PARTIAL MATCHES: Very low scores for incomplete matches
+      else if (titleMatches.length > 0 || tagMatches.length > 0) {
+        finalScore = Math.min(0.3, baseScore * 2);
+        winningField = 'partial_title_or_tags';
+        console.log(`    PARTIAL_TITLE_OR_TAGS: final=${finalScore.toFixed(3)}`);
+      }
+      
+      // 8. CONTENT-ONLY PARTIAL: Lowest priority
       else if (contentMatches.length > 0) {
-        baseScore = Math.max(baseScore, 0.55);
-        console.log(`  → Some terms found in content (${contentMatches.join(',')}) bonus: ${baseScore.toFixed(3)}`);
-      }
-      // Some terms found anywhere: base boost
-      else if (searchTermsList.some(term => allSearchableText.includes(term))) {
-        const allMatches = Array.from(new Set([...titleMatches, ...summaryMatches, ...topicsMatches, ...contentMatches, ...tagMatches]));
-        baseScore = Math.max(baseScore, 0.4);
-        console.log(`  → Some terms found bonus (${allMatches.join(',')}) in searchable fields: ${baseScore.toFixed(3)}`);
-      }
-      // Pure ts_rank with better normalization
-      else {
-        baseScore = Math.min(0.8, baseScore * 2); // Scale up ts_rank scores
-        console.log(`  → No field match, scaled ts_rank: ${baseScore.toFixed(3)}`);
+        finalScore = Math.min(0.25, baseScore * 1.8);
+        winningField = 'partial_content_only';
+        console.log(`    PARTIAL_CONTENT: final=${finalScore.toFixed(3)}`);
       }
       
-      return Math.min(1, Math.max(0, baseScore));
+      // 9. NO MEANINGFUL MATCH: ts_rank only
+      else {
+        finalScore = Math.min(0.2, baseScore * 1.2);
+        winningField = 'ts_rank_fallback';
+        console.log(`    NO_MATCH: ts_rank_only, final=${finalScore.toFixed(3)}`);
+      }
+      
+      console.log(`    WINNING_FIELD: ${winningField}, original_ts_rank=${originalScore.toFixed(6)}, final_lexical=${finalScore.toFixed(6)}`);
+      return Math.min(1, Math.max(0, finalScore));
     } catch (error) {
       console.error('FTS scoring failed for doc:', doc.name, 'error:', error);
       return 0;
     }
+  }
+
+  // Helper method for proximity-based scoring
+  private checkTokenProximity(text: string, tokens: string[], maxDistance: number): boolean {
+    if (tokens.length < 2) return true; // Single token always has "proximity"
+    
+    const positions = tokens.map(token => {
+      const index = text.toLowerCase().indexOf(token.toLowerCase());
+      return index >= 0 ? index : -1;
+    }).filter(pos => pos >= 0);
+    
+    if (positions.length !== tokens.length) return false; // Not all tokens found
+    
+    // Check if any two tokens are within maxDistance characters
+    for (let i = 0; i < positions.length - 1; i++) {
+      for (let j = i + 1; j < positions.length; j++) {
+        if (Math.abs(positions[i] - positions[j]) <= maxDistance) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
   
   private async calculateQualityBoost(doc: any, userId?: string): Promise<number> {
