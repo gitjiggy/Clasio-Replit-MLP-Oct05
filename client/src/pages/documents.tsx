@@ -423,10 +423,15 @@ export default function Documents() {
         });
       } catch (error) {
         console.error('AI Search failed:', error);
+        console.error('Error details:', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          name: error instanceof Error ? error.name : undefined
+        });
         setAiSearchResults(null);
         toast({
           title: "Search Error",
-          description: "AI search failed. Please try again.",
+          description: error instanceof Error ? error.message : "AI search failed. Please try again.",
           variant: "destructive"
         });
       } finally {
