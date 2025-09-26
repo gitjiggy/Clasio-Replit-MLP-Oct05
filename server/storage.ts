@@ -1900,7 +1900,7 @@ export class DatabaseStorage implements IStorage {
         const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding);
         
         // Calculate lexical score for text matching
-        const lexicalScore = this.calculateQueryAwareLexicalScore(doc, preprocessedQuery);
+        const lexicalScore = await this.calculateLexicalScore(doc, preprocessedQuery);
         
         // Calculate quality score based on metadata completeness
         const qualityScore = await this.calculateQualityBoost(doc);
