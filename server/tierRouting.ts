@@ -36,14 +36,15 @@ export class TierRouter {
     qualitySignals: QualitySignals,
     policy: SearchPolicy,
     analysis: QueryAnalysis,
-    docContent: any  // For exact phrase detection
+    docContent: any,  // For exact phrase detection
+    originalQuery: string  // CRITICAL: Pass original query for exact phrase detection
   ): TierClassification {
     
     const lexicalScore = lexicalResult.finalScore;
     const qualityScore = this.calculateQualityScore(qualitySignals, policy.qualityWeight);
     
     // Tier 1: High semantic OR exact phrase in high-signal fields
-    if (semanticScore >= policy.semantic_high || this.hasExactPhraseInHighSignalFields(docContent, analysis, lexicalResult)) {
+    if (semanticScore >= policy.semantic_high || this.hasExactPhraseInHighSignalFields(docContent, analysis, lexicalResult, originalQuery)) {
       return this.calculateTierScore(1, semanticScore, lexicalScore, qualityScore, policy, 'High semantic score or exact phrase in title/filename');
     }
     
@@ -62,13 +63,14 @@ export class TierRouter {
   private hasExactPhraseInHighSignalFields(
     docContent: any, 
     analysis: QueryAnalysis, 
-    lexicalResult: LexicalAnalysisResult
+    lexicalResult: LexicalAnalysisResult,
+    originalQuery: string  // CRITICAL: Use actual query text
   ): boolean {
     
-    // Only check for exact phrases in title/filename for high confidence
+    // Use the original query directly for exact phrase detection
     const query = analysis.signals.isQuoted ? 
-      this.extractQuotedPhrase(docContent.name || '') : 
-      this.getQueryText(analysis);
+      this.extractQuotedPhrase(originalQuery) : 
+      originalQuery.trim();
     
     if (!query) return false;
     

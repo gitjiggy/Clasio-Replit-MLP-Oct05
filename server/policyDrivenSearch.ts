@@ -90,9 +90,9 @@ export class PolicyDrivenSearchEngine {
         // Calculate quality signals
         const qualitySignals = this.extractQualitySignals(doc, userId);
         
-        // Tier routing and fusion with policy
+        // Tier routing and fusion with policy - CRITICAL: Pass original query for exact phrase detection
         const tierClassification = this.tierRouter.classifyAndScore(
-          semanticScore, lexicalResult, qualitySignals, policy, queryAnalysis, doc
+          semanticScore, lexicalResult, qualitySignals, policy, queryAnalysis, doc, query
         );
         
         scoredResults.push(tierClassification);
