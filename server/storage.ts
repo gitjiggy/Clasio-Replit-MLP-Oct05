@@ -1836,19 +1836,66 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    // Skip redundant semantic phase - documents already have AI analysis from upload!
-    // Use text search results with pre-computed AI metadata (aiCategory, aiDocumentType, etc.)
-    const finalResults = ftsResults.map(doc => ({
-      ...doc,
-      semanticScore: 0.8, // High default since text search already found good matches
-      qualityBoost: 0,
-      combinedScore: doc.ftsScore || 1.0, // Use FTS score directly
-      confidenceScore: 85, // High confidence for text matches with AI metadata
-      tags: [] // Ensure tags array exists
-    })).sort((a, b) => b.combinedScore - a.combinedScore);
+    // Phase 2: Proper per-document semantic analysis using 3-tier scoring system
+    const semanticStartTime = performance.now();
+    const queryEmbedding = await this.queryEmbeddingCache.getOrGenerate(preprocessedQuery);
+    
+    const finalResults = [];
+    for (const doc of ftsResults) {
+      try {
+        // Calculate semantic score using embeddings
+        const semanticScore = await this.calculateSemanticScore(doc, queryEmbedding);
+        
+        // Calculate lexical score for text matching
+        const lexicalScore = this.calculateQueryAwareLexicalScore(doc, preprocessedQuery);
+        
+        // Calculate quality score based on metadata completeness
+        const qualityScore = await this.calculateQualityBoost(doc);
+        
+        // Apply 3-tier scoring system
+        const tieredScore = this.calculateTieredScore(semanticScore, lexicalScore, qualityScore);
+        
+        // Convert to percentage and add variance to prevent identical scores
+        const confidenceScore = Math.min(Math.round(tieredScore * 100), 100);
+        
+        finalResults.push({
+          ...doc,
+          semanticScore,
+          lexicalScore,
+          qualityScore,
+          combinedScore: tieredScore,
+          confidenceScore,
+          tags: [] // Ensure tags array exists
+        });
+        
+        console.log(`Document "${doc.name}": semantic=${semanticScore.toFixed(3)}, lexical=${lexicalScore.toFixed(3)}, quality=${qualityScore.toFixed(3)}, final=${tieredScore.toFixed(3)} (${confidenceScore}%)`);
+        
+      } catch (error) {
+        console.warn(`Scoring failed for document ${doc.name}:`, error);
+        // Fallback to text-based scoring
+        const lexicalScore = this.calculateQueryAwareLexicalScore(doc, preprocessedQuery);
+        const qualityScore = await this.calculateQualityBoost(doc);
+        const tieredScore = this.calculateTieredScore(0, lexicalScore, qualityScore);
+        
+        finalResults.push({
+          ...doc,
+          semanticScore: 0,
+          lexicalScore,
+          qualityScore,
+          combinedScore: tieredScore,
+          confidenceScore: Math.min(Math.round(tieredScore * 100), 100),
+          tags: []
+        });
+      }
+    }
+    
+    // Sort by combined score (highest first)
+    finalResults.sort((a, b) => b.combinedScore - a.combinedScore);
+    
+    const semanticTime = performance.now() - semanticStartTime;
 
     const totalTime = performance.now() - startTime;
-    console.log(`🚀 Fast search completed: ${totalTime.toFixed(2)}ms (FTS: ${ftsTime.toFixed(2)}ms, Semantic: 0ms - skipped redundant analysis)`);
+    console.log(`🚀 Hybrid search completed: ${totalTime.toFixed(2)}ms (FTS: ${ftsTime.toFixed(2)}ms, Semantic: ${semanticTime.toFixed(2)}ms - 3-tier scoring applied)`);
 
     // Group results by confidence level
     const relevantDocuments = finalResults.filter(doc => doc.confidenceScore >= 50);
@@ -1892,7 +1939,7 @@ export class DatabaseStorage implements IStorage {
       response: conversationalResponse,
       intent: 'hybrid_search',
       keywords: preprocessedQuery.split(' ').filter(word => word.trim().length > 0),
-      timing: { total: totalTime, fts: ftsTime, semantic: 0 }
+      timing: { total: totalTime, fts: ftsTime, semantic: semanticTime }
     };
   }
 
