@@ -3769,6 +3769,13 @@ export class DatabaseStorage implements IStorage {
         )
       );
     
+    // First check for exact match with the smart folder name
+    const exactMatch = existingSubFolders.find(folder => folder.name === smartFolderName);
+    if (exactMatch) {
+      console.log(`🎯 Found exact match folder: "${exactMatch.name}"`);
+      return exactMatch;
+    }
+    
     // Check for 80%+ similarity with existing folders
     const similarFolder = this.findSimilarFolder(smartFolderName, existingSubFolders);
     if (similarFolder) {
@@ -3847,9 +3854,44 @@ export class DatabaseStorage implements IStorage {
       return `${documentYear}-${documentPurpose.replace(/-/g, '-')}`;
     }
     
-    // Business/Employment - use year + purpose if available
-    if ((category === 'Business' || category === 'Employment') && documentYear && documentPurpose) {
-      return `${documentYear}-${documentPurpose.replace(/-/g, '-')}`;
+    // Travel Documents - use year + document subtype or purpose
+    if (category === 'Travel') {
+      if (documentYear && documentSubtype) {
+        return `${documentYear}-${documentSubtype.replace(/-/g, '-')}`;
+      }
+      if (documentYear && documentPurpose) {
+        return `${documentYear}-${documentPurpose.replace(/-/g, '-')}`;
+      }
+      if (documentYear) {
+        return `${documentYear}-travel-docs`;
+      }
+      // Use document subtype without year as fallback
+      if (documentSubtype) {
+        return documentSubtype.replace(/-/g, '-');
+      }
+      if (documentPurpose) {
+        return documentPurpose.replace(/-/g, '-');
+      }
+    }
+    
+    // Business/Employment - use year + purpose, but be more lenient with fallbacks
+    if (category === 'Business' || category === 'Employment') {
+      if (documentYear && documentPurpose) {
+        return `${documentYear}-${documentPurpose.replace(/-/g, '-')}`;
+      }
+      if (documentYear && documentSubtype) {
+        return `${documentYear}-${documentSubtype.replace(/-/g, '-')}`;
+      }
+      if (documentYear) {
+        return `${documentYear}-${category.toLowerCase()}-docs`;
+      }
+      // Fallback to purpose or subtype without year
+      if (documentPurpose) {
+        return documentPurpose.replace(/-/g, '-');
+      }
+      if (documentSubtype) {
+        return documentSubtype.replace(/-/g, '-');
+      }
     }
     
     // Insurance/Legal - use year if available, otherwise descriptive name
@@ -3860,7 +3902,21 @@ export class DatabaseStorage implements IStorage {
       return `${documentYear}-${category.toLowerCase()}-docs`;
     }
     
-    // Fallback: Use normalized document type
+    // Enhanced fallback: Try to use document purpose or subtype even without category-specific logic
+    if (documentYear && documentPurpose) {
+      return `${documentYear}-${documentPurpose.replace(/-/g, '-')}`;
+    }
+    if (documentYear && documentSubtype) {
+      return `${documentYear}-${documentSubtype.replace(/-/g, '-')}`;
+    }
+    if (documentPurpose) {
+      return documentPurpose.replace(/-/g, '-');
+    }
+    if (documentSubtype) {
+      return documentSubtype.replace(/-/g, '-');
+    }
+    
+    // Final fallback: Use normalized document type
     return this.normalizeDocumentType(documentType);
   }
 
