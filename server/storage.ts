@@ -3798,23 +3798,48 @@ export class DatabaseStorage implements IStorage {
     const gcsPath = `${parentFolder[0].gcsPath}/${this.slugify(smartFolderName)}`;
     
     // Try to insert the new smart sub-folder
-    const insertResult = await db
-      .insert(folders)
-      .values({
-        name: smartFolderName,
-        color: "#9ca3af", // Gray color for sub-folders
-        parentId: parentId,
-        isAutoCreated: true,
-        documentType: this.normalizeDocumentType(documentType),
-        gcsPath: gcsPath,
-        userId: userId,
-      })
-      .onConflictDoNothing()
-      .returning();
-    
-    if (insertResult.length > 0) {
-      console.log(`✨ Created new smart sub-folder: "${smartFolderName}"`);
-      return insertResult[0];
+    try {
+      const insertResult = await db
+        .insert(folders)
+        .values({
+          name: smartFolderName,
+          color: "#9ca3af", // Gray color for sub-folders
+          parentId: parentId,
+          isAutoCreated: true,
+          documentType: this.normalizeDocumentType(documentType),
+          gcsPath: gcsPath,
+          userId: userId,
+        })
+        .onConflictDoNothing()
+        .returning();
+      
+      if (insertResult.length > 0) {
+        console.log(`✨ Created new smart sub-folder: "${smartFolderName}"`);
+        return insertResult[0];
+      }
+      
+      // onConflictDoNothing returned empty - folder with this name already exists
+      // Let's find and return the existing folder
+      console.log(`🔍 Smart folder "${smartFolderName}" already exists, finding it...`);
+      const existingFolder = await db
+        .select()
+        .from(folders)
+        .where(
+          and(
+            eq(folders.parentId, parentId),
+            eq(folders.name, smartFolderName),
+            eq(folders.userId, userId)
+          )
+        )
+        .limit(1);
+      
+      if (existingFolder.length > 0) {
+        console.log(`🎯 Found existing smart folder: "${smartFolderName}"`);
+        return existingFolder[0];
+      }
+      
+    } catch (error) {
+      console.error(`❌ Smart folder creation error: ${error}`);
     }
     
     // Fallback: if smart folder creation fails, use the original logic
