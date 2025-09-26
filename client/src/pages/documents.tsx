@@ -448,7 +448,7 @@ export default function Documents() {
   });
 
   // Fetch folders with document counts
-  const { data: folders = [] } = useQuery<(Folder & { documentCount: number })[]>({
+  const { data: folders = [], isLoading: foldersLoading } = useQuery<(Folder & { documentCount: number })[]>({
     queryKey: ['/api/folders'],
   });
 
@@ -473,6 +473,7 @@ export default function Documents() {
       const hasSubFoldersWithDocuments = category.subFolders.length > 0;
       return hasDirectDocuments || hasSubFoldersWithDocuments;
     });
+  
 
 
   // Fetch tags
@@ -1038,7 +1039,11 @@ export default function Documents() {
               Smart Organization
             </h3>
             
-            {hierarchicalFolders.length > 0 ? (
+            {foldersLoading ? (
+              <div className="mt-2 px-3 py-4 text-xs text-muted-foreground text-center">
+                Loading smart folders... 📁
+              </div>
+            ) : hierarchicalFolders.length > 0 ? (
               <ul className="mt-2 space-y-1">
                 {hierarchicalFolders.map((category) => (
                   <li key={category.id}>
