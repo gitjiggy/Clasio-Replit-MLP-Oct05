@@ -214,8 +214,9 @@ export interface IStorage {
   enqueueDocumentForAnalysis(documentId: string, userId: string, priority?: number): Promise<AiAnalysisQueue>;
   enqueueDocumentForEmbedding(documentId: string, userId: string, priority?: number): Promise<AiAnalysisQueue>;
   bulkEnqueueDocumentsForEmbedding(userId: string, priority?: number): Promise<{queued: number; skipped: number; errors: string[]}>;
-  dequeueNextAnalysisJob(): Promise<AiAnalysisQueue | null>;
+  dequeueNextAnalysisJob(jobType?: string): Promise<AiAnalysisQueue | null>;
   updateQueueJobStatus(jobId: string, status: string, failureReason?: string): Promise<boolean>;
+  rescheduleJob(jobId: string, scheduledAt: Date): Promise<boolean>;
   getQueueStatus(userId?: string): Promise<{pending: number; processing: number; completed: number; failed: number}>;
   getQueueJobsByUser(userId: string): Promise<AiAnalysisQueue[]>;
   
@@ -4475,28 +4476,36 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async dequeueNextAnalysisJob(): Promise<AiAnalysisQueue | null> {
+  async dequeueNextAnalysisJob(jobType?: string): Promise<AiAnalysisQueue | null> {
     await this.ensureInitialized();
     
     try {
-      // Check daily quota first
-      const today = new Date().toISOString().split('T')[0];
-      const quotaCheck = await this.canProcessAnalysis();
+      // Check daily quota first (only for analysis and embedding jobs, not content extraction)
+      if (!jobType || jobType !== 'content_extraction') {
+        const today = new Date().toISOString().split('T')[0];
+        const quotaCheck = await this.canProcessAnalysis();
+        
+        if (!quotaCheck.canProcess) {
+          return null;
+        }
+      }
+
+      // Build where conditions based on job type
+      const whereConditions = [
+        eq(aiAnalysisQueue.status, "pending"),
+        sql`scheduled_at <= NOW()`
+      ];
       
-      if (!quotaCheck.canProcess) {
-        return null;
+      // Add job type filter if specified
+      if (jobType) {
+        whereConditions.push(eq(aiAnalysisQueue.jobType, jobType));
       }
 
       // Get next job by priority and schedule time
       const [nextJob] = await db
         .select()
         .from(aiAnalysisQueue)
-        .where(
-          and(
-            eq(aiAnalysisQueue.status, "pending"),
-            sql`scheduled_at <= NOW()`
-          )
-        )
+        .where(and(...whereConditions))
         .orderBy(aiAnalysisQueue.priority, aiAnalysisQueue.requestedAt)
         .limit(1);
 
@@ -4545,6 +4554,26 @@ export class DatabaseStorage implements IStorage {
       return false;
     } catch (error) {
       console.error(`❌ Failed to update queue job ${jobId} status:`, error);
+      return false;
+    }
+  }
+
+  async rescheduleJob(jobId: string, scheduledAt: Date): Promise<boolean> {
+    await this.ensureInitialized();
+    
+    try {
+      const [updatedJob] = await db
+        .update(aiAnalysisQueue)
+        .set({ 
+          scheduledAt: scheduledAt,
+          status: "pending" 
+        })
+        .where(eq(aiAnalysisQueue.id, jobId))
+        .returning();
+
+      return !!updatedJob;
+    } catch (error) {
+      console.error(`❌ Failed to reschedule job ${jobId}:`, error);
       return false;
     }
   }
