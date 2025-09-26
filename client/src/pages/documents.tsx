@@ -529,6 +529,9 @@ export default function Documents() {
       setIsPollingForAI(false);
       setRecentUploads({ timestamp: 0, documentIds: [] });
       
+      // NOW invalidate folders query after Smart Organization has completed
+      queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
+      
       if (recentlyAnalyzed.length > 0) {
         toast({
           title: "Smart Organization Complete! 🎯",
@@ -562,9 +565,9 @@ export default function Documents() {
     });
     setIsPollingForAI(true);
     
-    // Invalidate cache to refresh UI immediately
+    // Invalidate documents and queue status immediately, but NOT folders
+    // Folders will be invalidated after Smart Organization completes
     queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
     queryClient.invalidateQueries({ queryKey: ["/api/queue/status"] });
   }, [queryClient]);
 
