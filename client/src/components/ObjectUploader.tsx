@@ -314,10 +314,6 @@ export function ObjectUploader({
       let signed;
       let warningFiles: any[] = [];
       if (!r.ok || !r.results || r.results.every((x: any) => !x.ok)) {
-        toast({
-          title: "Using fallback upload method",
-          description: "Uploading files individually",
-        });
         // silently proceed with per-file signing & PUT
         const perFilePromises = files.map(async (file) => {
           try {
