@@ -602,9 +602,36 @@ export default function Documents() {
         queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
         
         // Force refetch the current documents data to ensure folder names are updated
+        console.log('🔄 Executing refetchQueries for documents...');
         queryClient.refetchQueries({ 
           queryKey: ['/api/documents'],
           exact: false 
+        }).then((results) => {
+          console.log('✅ RefetchQueries completed:', results);
+          
+          // Check what data we actually got back using the correct query key
+          const currentQueryKey = ['/api/documents', { 
+            search: searchQuery, 
+            fileType: selectedFileType === "all" ? "" : selectedFileType, 
+            folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
+            tagId: selectedTagId, 
+            page: currentPage 
+          }];
+          const documentsQuery = queryClient.getQueryData(currentQueryKey);
+          console.log('📊 Current documents data after refetch:', documentsQuery);
+          console.log('🔑 Using query key:', currentQueryKey);
+          
+          if (documentsQuery && documentsQuery.documents) {
+            const docsWithFolders = documentsQuery.documents.filter(doc => doc.folder?.name);
+            const docsWithoutFolders = documentsQuery.documents.filter(doc => !doc.folder?.name);
+            console.log(`📁 Documents with folders: ${docsWithFolders.length}, without folders: ${docsWithoutFolders.length}`);
+            
+            if (docsWithoutFolders.length > 0) {
+              console.log('❌ Documents still missing folder data:', docsWithoutFolders.map(d => ({ id: d.id, name: d.name, folderId: d.folderId })));
+            }
+          }
+        }).catch((error) => {
+          console.error('❌ RefetchQueries failed:', error);
         });
       }, 2000); // Shorter delay for secondary refresh
       
@@ -615,7 +642,7 @@ export default function Documents() {
         });
       }
     }
-  }, [documentsData, isPollingForAI, recentUploads, toast]);
+  }, [documentsData, isPollingForAI, recentUploads, toast, searchQuery, selectedFileType, selectedFolderId, selectedTagId, currentPage]);
 
   // Auto-stop polling after timeout
   useEffect(() => {
