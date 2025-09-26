@@ -105,12 +105,37 @@ async function uploadAllWithConcurrency(
   let firstError: any = null;
 
   return new Promise<void>((resolve, reject) => {
+    // Set up abort handler to immediately reject when cancelled
+    const abortHandler = () => {
+      reject(new Error('Upload cancelled by user'));
+    };
+    
+    if (abortSignal) {
+      // If already aborted, reject immediately
+      if (abortSignal.aborted) {
+        reject(new Error('Upload cancelled by user'));
+        return;
+      }
+      abortSignal.addEventListener('abort', abortHandler);
+    }
+    
+    const cleanupAndResolve = (result?: any) => {
+      if (abortSignal) {
+        abortSignal.removeEventListener('abort', abortHandler);
+      }
+      if (result instanceof Error) {
+        reject(result);
+      } else {
+        resolve();
+      }
+    };
+    
     const next = () => {
       // If we have an error and prefer to fail fast, uncomment:
       // if (firstError) return reject(firstError);
       
       if (queue.length === 0 && active === 0) {
-        return firstError ? reject(firstError) : resolve();
+        return firstError ? cleanupAndResolve(firstError) : cleanupAndResolve();
       }
       
       while (active < limit && queue.length > 0) {
@@ -415,7 +440,31 @@ export function ObjectUploader({
           }
         });
         
-        const perFileResults = await Promise.all(perFilePromises);
+        // Make Promise.all cancellable by wrapping it with abort signal
+        const perFileResults = await new Promise<any[]>((resolve, reject) => {
+          // If already aborted, reject immediately
+          if (signal.aborted) {
+            reject(new Error('Upload cancelled by user'));
+            return;
+          }
+          
+          // Set up abort handler
+          const abortHandler = () => {
+            reject(new Error('Upload cancelled by user'));
+          };
+          signal.addEventListener('abort', abortHandler);
+          
+          // Run Promise.all
+          Promise.all(perFilePromises)
+            .then(results => {
+              signal.removeEventListener('abort', abortHandler);
+              resolve(results);
+            })
+            .catch(error => {
+              signal.removeEventListener('abort', abortHandler);
+              reject(error);
+            });
+        });
         const successfulUploads = perFileResults.filter(r => r.success);
         const failedUploads = perFileResults.filter(r => !r.success && !r.skipErrorHandling);
         const userCancelledUploads = perFileResults.filter(r => !r.success && r.skipErrorHandling);
