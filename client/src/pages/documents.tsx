@@ -1460,7 +1460,7 @@ export default function Documents() {
                   data-testid="button-delete-all"
                 >
                   <Trash2 className="h-4 w-4" />
-                  {deleteFlavorText}
+                  {deleteAllDocumentsMutation.isPending ? 'Deleting All...' : 'Delete All'}
                 </Button>
               )}
               
