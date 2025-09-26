@@ -488,17 +488,40 @@ export default function Documents() {
 
     // Check if any recently uploaded documents have been analyzed
     const currentTime = Date.now();
+    const uploadTime = recentUploads.timestamp;
+    
+    console.log(`🔍 Polling check: Looking for ${recentUploads.documentIds.length} documents`, {
+      uploadTime: new Date(uploadTime).toISOString(),
+      currentTime: new Date(currentTime).toISOString(),
+      documentIds: recentUploads.documentIds
+    });
+    
     const recentlyAnalyzed = documentsData.documents.filter(doc => {
       // Check if this is a recently uploaded document that now has AI analysis
       const isRecentUpload = recentUploads.documentIds.includes(doc.id);
-      const hasAIAnalysis = doc.aiAnalyzedAt && new Date(doc.aiAnalyzedAt).getTime() > recentUploads.timestamp;
+      
+      // Deterministic AI analysis completion check - simply check if aiAnalyzedAt exists
+      // This is the most reliable indicator that AI analysis has completed
+      const hasAIAnalysis = !!doc.aiAnalyzedAt;
+      
+      if (isRecentUpload) {
+        console.log(`📄 Document ${doc.id} (${doc.name}):`, {
+          hasAIAnalysis,
+          aiAnalyzedAt: doc.aiAnalyzedAt ? new Date(doc.aiAnalyzedAt).toISOString() : 'null',
+          aiCategory: doc.aiCategory || 'null',
+          aiDocumentType: doc.aiDocumentType || 'null'
+        });
+      }
+      
       return isRecentUpload && hasAIAnalysis;
     });
+
+    console.log(`📊 Polling status: ${recentlyAnalyzed.length}/${recentUploads.documentIds.length} documents analyzed`);
 
     // Stop polling if all recent uploads have been analyzed or timeout reached (3 minutes)
     const shouldStopPolling = 
       recentlyAnalyzed.length === recentUploads.documentIds.length || 
-      (currentTime - recentUploads.timestamp) > 180000; // 3 minute timeout
+      (currentTime - uploadTime) > 180000; // 3 minute timeout
 
     if (shouldStopPolling) {
       console.log('🎉 AI analysis complete for uploaded documents, stopping polling');
