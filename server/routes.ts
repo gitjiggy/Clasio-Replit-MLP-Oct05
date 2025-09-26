@@ -419,7 +419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             evt: "upload-proxy.analysis_queued",
             reqId: (req as any).reqId,
             uid,
-            docId,
+            docId: document.id,
             filename: originalname,
             timestamp: new Date().toISOString()
           }));
@@ -428,7 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             evt: "upload-proxy.analysis_queue_failed",
             reqId: (req as any).reqId,
             uid,
-            docId,
+            docId: document.id,
             filename: originalname,
             error: analysisError instanceof Error ? analysisError.message : String(analysisError),
             timestamp: new Date().toISOString()
@@ -465,7 +465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           evt: "upload-proxy.finalized",
           reqId: (req as any).reqId,
           uid,
-          docId,
+          docId: document.id,
           analysisQueued,
           timestamp: new Date().toISOString()
         }));
@@ -473,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(200).json({ 
           ok: true, 
           objectPath, 
-          docId, 
+          docId: document.id, 
           contentType: mimetype, 
           size
         });
