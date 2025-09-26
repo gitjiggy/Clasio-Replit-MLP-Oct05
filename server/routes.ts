@@ -206,6 +206,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     verifyFirebaseToken,
     uploadProxy.single("file"), // <<< this must run before any json parser
     async (req: AuthenticatedRequest, res) => {
+      // Set up abort detection
+      let isAborted = false;
+      req.on('aborted', () => {
+        isAborted = true;
+        console.info(JSON.stringify({
+          evt: "upload-proxy.client_aborted",
+          reqId: (req as any).reqId,
+          uid: req.user?.uid,
+          timestamp: new Date().toISOString()
+        }));
+      });
+
+      // Helper function to check if request was aborted
+      const checkAborted = (operation: string) => {
+        if (isAborted) {
+          console.info(JSON.stringify({
+            evt: "upload-proxy.operation_halted",
+            reqId: (req as any).reqId,
+            uid: req.user?.uid,
+            operation,
+            timestamp: new Date().toISOString()
+          }));
+          return true;
+        }
+        return false;
+      };
+
       try {
         // Entry log with content-type and correlation ID
         console.info(JSON.stringify({ 
@@ -233,6 +260,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
         
         const duplicates = await storage.findDuplicateFiles(originalname, size, uid);
+        
+        // Check if client aborted after duplicate check
+        if (checkAborted("duplicate-check")) {
+          return; // Request was aborted, stop processing
+        }
         
         console.info(JSON.stringify({
           evt: "duplicate-check.result",
@@ -286,6 +318,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const docId = randomUUID();
         const objectPath = `users/${uid}/docs/${docId}/${originalname}`; // raw name; SDK encodes
 
+        // Check if client aborted before GCS upload
+        if (checkAborted("pre-gcs-upload")) {
+          return; // Request was aborted, stop processing
+        }
+
         // Step 1: Upload to GCS
         const bucket = objectStorageService.getBucket();
         await bucket.file(objectPath).save(buffer, {
@@ -302,6 +339,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           size,
           timestamp: new Date().toISOString()
         }));
+
+        // Check if client aborted after GCS upload, before database operations
+        if (checkAborted("pre-db-operations")) {
+          return; // Request was aborted, stop processing
+        }
 
         // Step 2: Create database record (this was missing!)
         const determinedFileType = getFileTypeFromMimeType(mimetype || "", originalname);
@@ -357,46 +399,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }));
         }
 
-        // Step 4: Trigger background content extraction (same as normal uploads)
+        // Step 4: Queue content extraction for background processing (non-blocking)
         console.info(JSON.stringify({
-          evt: "upload-proxy.content_extraction_start",
+          evt: "upload-proxy.content_extraction_queued",
           reqId: (req as any).reqId,
           uid,
           docId: document.id,
           filename: originalname,
           timestamp: new Date().toISOString()
         }));
+        
+        // Queue content extraction as a background task instead of blocking the response
         try {
-          const extractionSuccess = await storage.extractDocumentContent(document.id, uid);
-          if (extractionSuccess) {
-            console.info(JSON.stringify({
-              evt: "upload-proxy.content_extracted",
-              reqId: (req as any).reqId,
-              uid,
-              docId,
-              filename: originalname,
-              timestamp: new Date().toISOString()
-            }));
-          } else {
-            console.error(JSON.stringify({
-              evt: "upload-proxy.content_extraction_failed",
-              reqId: (req as any).reqId,
-              uid,
-              docId,
-              filename: originalname,
-              timestamp: new Date().toISOString()
-            }));
-          }
-        } catch (extractionError) {
-          console.error(JSON.stringify({
-            evt: "upload-proxy.content_extraction_error",
+          await storage.enqueueDocumentForContentExtraction(document.id, uid, 3); // Medium priority, background
+        } catch (queueError) {
+          console.warn(JSON.stringify({
+            evt: "upload-proxy.content_extraction_queue_failed",
             reqId: (req as any).reqId,
             uid,
-            docId,
+            docId: document.id,
             filename: originalname,
-            error: extractionError instanceof Error ? extractionError.message : String(extractionError),
+            error: queueError instanceof Error ? queueError.message : String(queueError),
             timestamp: new Date().toISOString()
           }));
+          // Don't fail the upload if queueing fails - content can be extracted later
         }
 
         console.info(JSON.stringify({

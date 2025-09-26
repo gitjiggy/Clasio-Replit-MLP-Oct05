@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
 // Upload state machine
-type UploadState = "idle" | "signing" | "uploading" | "finalizing" | "done" | "error";
+type UploadState = "idle" | "signing" | "uploading" | "finalizing" | "analyzing" | "done" | "error";
 
 // Duplicate detection modal state
 interface DuplicateModalState {
@@ -93,10 +93,11 @@ function useFlavor(state: UploadState) {
   return arr[idx] || "Working…";
 }
 
-// Concurrency helper for parallel uploads
+// Concurrency helper for parallel uploads with abort support
 async function uploadAllWithConcurrency(
   signed: { url: string; method: string; headers: Record<string, string>; objectPath: string }[],
   files: File[],
+  abortSignal?: AbortSignal,
   limit = 5
 ): Promise<void> {
   const queue = [...files.keys()];
@@ -129,7 +130,8 @@ async function uploadAllWithConcurrency(
         fetch(url, { 
           method: method || "PUT", 
           headers, // Use exact headers from server
-          body: files[i] 
+          body: files[i],
+          signal: abortSignal
         })
           .then(r => { 
             if (!r.ok) {
@@ -203,9 +205,26 @@ export function ObjectUploader({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState>({ isOpen: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   
   const flavorText = useFlavor(state);
+  
+  // Cancel upload function
+  const cancelUpload = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setState("idle");
+      setShowModal(false);
+      setErrors([]);
+      setSelectedFiles([]);
+      toast({
+        title: "Upload cancelled",
+        description: "File upload has been cancelled.",
+      });
+    }
+  }, [toast]);
   
   // File selection handler
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -242,6 +261,10 @@ export function ObjectUploader({
     setState("signing");
     setErrors([]);
 
+    // Create new AbortController for this upload
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     try {
       // Step 1: Get signed URLs (batch sign) - use real MIME types  
       const fileData = files.map(f => ({
@@ -254,7 +277,8 @@ export function ObjectUploader({
       const r = await apiRequest('/api/documents/bulk-upload-urls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: fileData })
+        body: JSON.stringify({ files: fileData }),
+        signal: signal
       });
       
       let signed;
@@ -274,7 +298,8 @@ export function ObjectUploader({
             try {
               result = await apiRequest('/api/documents/upload-proxy', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                signal: signal
               });
             } catch (error: any) {
               // Handle 409 conflict (duplicate detection) specially
@@ -313,7 +338,8 @@ export function ObjectUploader({
                           try {
                             retryResult = await apiRequest('/api/documents/upload-proxy', {
                               method: 'POST',
-                              body: retryFormData
+                              body: retryFormData,
+                              signal: signal
                             });
                           } catch (retryError: any) {
                             // If we get another 409 with forceUpload=true, that's an unexpected error
@@ -365,12 +391,14 @@ export function ObjectUploader({
         const docIds = successfulUploads.map(r => r.docId).filter(Boolean);
         const warningCount = perFileResults.filter(r => r.hadWarning).length;
         
-        // If we have any successful uploads OR only user-cancelled uploads, show success
+        // If we have any successful uploads OR only user-cancelled uploads, transition to analyzing
         if (successfulUploads.length > 0 || (failedUploads.length === 0 && userCancelledUploads.length > 0)) {
-          setState("done");
           onSuccess?.(docIds);
           
           if (successfulUploads.length > 0) {
+            // Transition to analyzing state instead of going directly to done
+            setState("analyzing");
+            
             let description = `Uploaded ${successfulUploads.length} file${successfulUploads.length !== 1 ? 's' : ''}. We'll analyze them in the background.`;
             if (warningCount > 0) {
               description += ` (${warningCount} had duplicate warnings)`;
@@ -380,6 +408,26 @@ export function ObjectUploader({
               title: "Upload successful!",
               description,
             });
+            
+            // Start monitoring background processing and transition to done after a delay
+            setTimeout(() => {
+              setState("done");
+              setTimeout(() => {
+                setShowModal(false);
+                setState("idle");
+                setSelectedFiles([]);
+                setErrors([]);
+              }, 1500); // Show "Done!" for a bit longer
+            }, 3000); // Show analyzing state for 3 seconds to indicate background processing
+          } else {
+            // For user-cancelled uploads, go directly to done
+            setState("done");
+            setTimeout(() => {
+              setShowModal(false);
+              setState("idle");
+              setSelectedFiles([]);
+              setErrors([]);
+            }, 400);
           }
           // For user-cancelled uploads (View File/Don't Bother), we don't show success toast
         } else {
@@ -389,12 +437,6 @@ export function ObjectUploader({
           return;
         }
         
-        setTimeout(() => {
-          setShowModal(false);
-          setState("idle");
-          setSelectedFiles([]);
-          setErrors([]);
-        }, 400);
         return; // Exit early
       } else {
         // Handle duplicate detections that require user decision 
@@ -443,7 +485,7 @@ export function ObjectUploader({
       const filesToUpload = files.filter((file, index) => 
         r.results[index].ok
       );
-      await uploadAllWithConcurrency(signed.uploadURLs, filesToUpload, 5);
+      await uploadAllWithConcurrency(signed.uploadURLs, filesToUpload, signal, 5);
 
       setState("finalizing");
       
@@ -483,38 +525,51 @@ export function ObjectUploader({
         setErrors(failed);
         setState("error");
       } else {
-        setState("done");
+        // Transition to analyzing state to show background processing
+        setState("analyzing");
         
-        // Notify parent first, then auto-close
+        // Notify parent first
         onSuccess?.(finalize.docIds || []);
         
-        // Auto-close after brief success display
+        // Show success toast immediately
+        const successCount = finalize.docIds?.length || 0;
+        const warningCount = warningFiles?.length || 0;
+        
+        let description = `Uploaded ${successCount} file${successCount !== 1 ? 's' : ''}. We'll analyze them in the background.`;
+        if (warningCount > 0) {
+          description += ` (${warningCount} had duplicate warnings)`;
+        }
+        
+        toast({
+          title: "Upload successful!",
+          description,
+        });
+        
+        // Show analyzing state for 3 seconds to indicate background processing
         setTimeout(() => {
-          setShowModal(false);
-          setState("idle");
-          setSelectedFiles([]);
-          setErrors([]);
-          
-          // Show success toast AFTER modal closes
-          const successCount = finalize.docIds?.length || 0;
-          const warningCount = warningFiles?.length || 0;
-          
-          let description = `Uploaded ${successCount} file${successCount !== 1 ? 's' : ''}. We'll analyze them in the background.`;
-          if (warningCount > 0) {
-            description += ` (${warningCount} had duplicate warnings)`;
-          }
-          
-          toast({
-            title: "Upload successful!",
-            description,
-          });
-        }, 400);
+          setState("done");
+          setTimeout(() => {
+            setShowModal(false);
+            setState("idle");
+            setSelectedFiles([]);
+            setErrors([]);
+          }, 1500); // Show "Done!" for a bit longer
+        }, 3000); // Show analyzing state for 3 seconds to indicate background processing
       }
 
     } catch (e: any) {
+      // Handle abort operations gracefully
+      if (e.name === 'AbortError' || e?.code === 'ABORT_ERR') {
+        console.log("Upload cancelled by user");
+        return; // Don't show error state for user-initiated cancellation
+      }
+      
       console.error("Upload failed:", e);
       setErrors([e?.message || "Upload failed"]);
       setState("error");
+    } finally {
+      // Clean up abort controller
+      abortControllerRef.current = null;
     }
   }, [toast, onSuccess]);
 
@@ -527,15 +582,15 @@ export function ObjectUploader({
 
   // Reset state when closing modal
   const handleModalClose = useCallback((open: boolean) => {
-    // Only allow closing when not in active upload states
-    if (!open && state !== "uploading" && state !== "finalizing" && state !== "signing") {
+    // Only allow closing when not in active upload or processing states
+    if (!open && state !== "uploading" && state !== "finalizing" && state !== "signing" && state !== "analyzing") {
       setShowModal(false);
       setState("idle");
       setErrors([]);
       setSelectedFiles([]);
       onClose?.();
-    } else if (!open && (state === "uploading" || state === "finalizing" || state === "signing")) {
-      // Prevent closing during active uploads - keep modal open
+    } else if (!open && (state === "uploading" || state === "finalizing" || state === "signing" || state === "analyzing")) {
+      // Prevent closing during active uploads or analysis - keep modal open
       setShowModal(true);
     }
   }, [state, onClose]);
@@ -556,13 +611,13 @@ export function ObjectUploader({
       <Button 
         onClick={() => fileInputRef.current?.click()} 
         className={buttonClassName}
-        disabled={state === "uploading" || state === "finalizing"}
+        disabled={state === "uploading" || state === "finalizing" || state === "analyzing"}
         data-testid="button-upload"
       >
-        {state === "uploading" || state === "finalizing" ? (
+        {state === "uploading" || state === "finalizing" || state === "analyzing" ? (
           <>
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-            Uploading...
+            {state === "analyzing" ? "Analyzing..." : "Uploading..."}
           </>
         ) : (
           children
@@ -577,6 +632,7 @@ export function ObjectUploader({
               {state === "signing" ? "Preparing uploads…" :
                state === "uploading" ? "Uploading…" :
                state === "finalizing" ? "Finishing up…" :
+               state === "analyzing" ? "AI Analysis in Progress…" :
                state === "done" ? "Done!" :
                state === "error" ? "Some files need attention" : "Upload Files"}
             </DialogTitle>
@@ -606,6 +662,22 @@ export function ObjectUploader({
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* Cancel button - only show during active upload states */}
+            {(state === "signing" || state === "uploading" || state === "finalizing") && (
+              <div className="flex justify-center">
+                <Button
+                  onClick={cancelUpload}
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  data-testid="button-cancel-upload"
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Cancel Upload
+                </Button>
               </div>
             )}
 

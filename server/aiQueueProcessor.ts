@@ -200,6 +200,33 @@ class AIQueueProcessor {
             throw embeddingError;
           }
 
+        } else if (nextJob.jobType === 'content_extraction') {
+          // CONTENT EXTRACTION JOB (background processing)
+          console.log(`📄 Extracting content for document: ${document.name}`);
+          
+          // Check if content already extracted
+          if (document.contentExtracted) {
+            console.log(`Document ${nextJob.documentId} already has content extracted, marking as completed`);
+            await storage.updateQueueJobStatus(nextJob.id, 'completed', 'Content already extracted');
+            return;
+          }
+
+          try {
+            // Extract document content
+            const extractionSuccess = await storage.extractDocumentContent(nextJob.documentId, nextJob.userId);
+            
+            if (extractionSuccess) {
+              console.log(`✅ Content extracted successfully for: ${document.name}`);
+              await storage.updateQueueJobStatus(nextJob.id, 'completed', 'Content extraction completed successfully');
+            } else {
+              console.warn(`⚠️ Content extraction failed for: ${document.name}`);
+              await storage.updateQueueJobStatus(nextJob.id, 'failed', 'Content extraction failed');
+            }
+          } catch (extractionError) {
+            console.error(`❌ Content extraction error for "${document.name}":`, extractionError);
+            throw extractionError;
+          }
+
         } else {
           // DOCUMENT ANALYSIS JOB (existing logic)
           console.log(`🔍 Analyzing document: ${document.name}`);

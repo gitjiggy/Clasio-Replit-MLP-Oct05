@@ -4023,6 +4023,82 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async enqueueDocumentForContentExtraction(documentId: string, userId: string, priority: number = 3): Promise<AiAnalysisQueue> {
+    await this.ensureInitialized();
+    
+    try {
+      // Check if document already has content extracted
+      const document = await this.getDocumentById(documentId, userId);
+      if (document?.contentExtracted) {
+        console.log(`Document ${documentId} already has content extracted, skipping`);
+        // Return a dummy completed job
+        const existingJob = await db
+          .select()
+          .from(aiAnalysisQueue)
+          .where(
+            and(
+              eq(aiAnalysisQueue.documentId, documentId),
+              eq(aiAnalysisQueue.jobType, "content_extraction"),
+              eq(aiAnalysisQueue.status, "completed")
+            )
+          )
+          .limit(1);
+        
+        if (existingJob[0]) {
+          return existingJob[0];
+        }
+      }
+
+      // Estimate tokens for content extraction (very low)
+      let estimatedTokens = 100; // Base estimate for content extraction (no AI involved)
+      
+      if (document && document.fileSize) {
+        // Minimal estimate for content extraction processing
+        estimatedTokens = Math.min(Math.ceil(document.fileSize / 100), 500); // Cap at 500 tokens
+      }
+
+      const [queueJob] = await db
+        .insert(aiAnalysisQueue)
+        .values({
+          documentId,
+          userId,
+          jobType: "content_extraction",
+          priority, // Default 3 for medium priority background content extraction
+          estimatedTokens,
+          status: "pending",
+          scheduledAt: new Date(),
+        })
+        .onConflictDoNothing() // Handle duplicate prevention
+        .returning();
+
+      if (!queueJob) {
+        // Job already exists, get existing one
+        const existingJob = await db
+          .select()
+          .from(aiAnalysisQueue)
+          .where(
+            and(
+              eq(aiAnalysisQueue.documentId, documentId),
+              eq(aiAnalysisQueue.jobType, "content_extraction"),
+              inArray(aiAnalysisQueue.status, ["pending", "processing"])
+            )
+          )
+          .limit(1);
+        
+        if (existingJob[0]) {
+          return existingJob[0];
+        }
+        throw new Error("Failed to enqueue document for content extraction and no existing job found");
+      }
+
+      console.log(`📄 Enqueued document ${documentId} for content extraction`);
+      return queueJob;
+    } catch (error) {
+      console.error(`❌ Failed to enqueue document ${documentId} for content extraction:`, error);
+      throw error;
+    }
+  }
+
   async bulkEnqueueDocumentsForEmbedding(userId: string, priority: number = 9): Promise<{queued: number; skipped: number; errors: string[]}> {
     await this.ensureInitialized();
     
