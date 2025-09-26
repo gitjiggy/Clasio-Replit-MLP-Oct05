@@ -27,6 +27,61 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // DEVELOPMENT ONLY: Check for test authentication
+    const checkTestAuth = () => {
+      if (import.meta.env.DEV) {
+        const testToken = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('test_auth='))
+          ?.split('=')[1];
+        
+        if (testToken === 'test-token-for-automated-testing-only') {
+          // Create fake Firebase user for test authentication
+          const testUser: User = {
+            uid: 'test-user-uid',
+            email: 'test@example.com',
+            displayName: 'Test User',
+            emailVerified: true,
+            isAnonymous: false,
+            metadata: {
+              creationTime: new Date().toISOString(),
+              lastSignInTime: new Date().toISOString()
+            },
+            providerData: [],
+            refreshToken: 'test-refresh-token',
+            tenantId: null,
+            delete: async () => {},
+            getIdToken: async () => 'test-id-token',
+            getIdTokenResult: async () => ({
+              token: 'test-id-token',
+              authTime: new Date().toISOString(),
+              issuedAtTime: new Date().toISOString(),
+              expirationTime: new Date(Date.now() + 3600000).toISOString(),
+              signInProvider: 'test',
+              signInSecondFactor: null,
+              claims: {}
+            }),
+            reload: async () => {},
+            toJSON: () => ({}),
+            phoneNumber: null,
+            photoURL: null,
+            providerId: 'test'
+          } as User;
+          
+          console.log('✅ Test authentication detected, setting test user');
+          setUser(testUser);
+          setLoading(false);
+          return true; // Indicate test auth was used
+        }
+      }
+      return false; // No test auth
+    };
+
+    // Try test auth first in development
+    if (checkTestAuth()) {
+      return; // Skip Firebase auth if test auth was successful
+    }
+
     // Handle auth redirect on app load (fallback method)
     const handleAuth = async () => {
       try {

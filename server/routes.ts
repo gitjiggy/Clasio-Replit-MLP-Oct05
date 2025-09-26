@@ -188,6 +188,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     req.reqId = randomUUID(); 
     next(); 
   });
+
+  // DEVELOPMENT ONLY: Test authentication endpoint for automated testing
+  if (process.env.NODE_ENV === 'development') {
+    app.post("/api/test-auth", (req, res) => {
+      const testToken = 'test-token-for-automated-testing-only';
+      const testUser = {
+        uid: 'test-user-uid',
+        email: 'test@example.com',
+        name: 'Test User'
+      };
+      
+      // Set both httpOnly cookie for server-side auth and non-httpOnly for frontend
+      res.cookie('auth_token', testToken, {
+        httpOnly: true,
+        secure: false, // Development only
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: 'lax'
+      });
+      
+      // Frontend-readable cookie for client-side authentication detection
+      res.cookie('test_auth', testToken, {
+        httpOnly: false, // Allow frontend to read this
+        secure: false, // Development only
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: 'lax'
+      });
+      
+      console.log('✅ Test authentication endpoint called - setting test cookies');
+      
+      res.json({ 
+        success: true, 
+        message: 'Test authentication set',
+        user: testUser 
+      });
+    });
+  }
   
   // Helper to sanitize paths: keep userId/docId, hide filename
   const obfuscatePath = (p?: string) => {

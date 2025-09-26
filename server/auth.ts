@@ -44,6 +44,27 @@ export const verifyFirebaseToken = async (
       return;
     }
 
+    // DEVELOPMENT ONLY: Handle test authentication token
+    if (process.env.NODE_ENV === 'development' && idToken === 'test-token-for-automated-testing-only') {
+      const testUser = {
+        uid: 'test-user-uid',
+        email: 'test@example.com',
+        name: 'Test User',
+        iss: 'test',
+        aud: 'test',
+        exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+        iat: Math.floor(Date.now() / 1000),
+        sub: 'test-user-uid'
+      };
+      
+      req.user = testUser as any;
+      req.userId = testUser.uid;
+      
+      console.log(`✅ Test auth verified for ${req.method} ${req.path} - uid: ${req.userId}`);
+      next();
+      return;
+    }
+
     // Verify the Firebase ID token
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     
