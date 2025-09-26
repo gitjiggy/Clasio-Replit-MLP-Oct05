@@ -484,18 +484,6 @@ export default function Documents() {
     }
   };
 
-  // Fetch documents with AI analysis polling
-  const { data: documentsData, isLoading: documentsLoading } = useQuery<DocumentsResponse>({
-    queryKey: ['/api/documents', { 
-      search: searchQuery, 
-      fileType: selectedFileType === "all" ? "" : selectedFileType, 
-      folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
-      tagId: selectedTagId, 
-      page: currentPage 
-    }],
-    refetchInterval: isPollingForAI ? 5000 : false, // Poll every 5 seconds when expecting AI analysis
-  });
-
   // Fetch folders with document counts
   const { data: folders = [], isLoading: foldersLoading } = useQuery<(Folder & { documentCount: number })[]>({
     queryKey: ['/api/folders'],
@@ -522,6 +510,29 @@ export default function Documents() {
       const hasSubFoldersWithDocuments = category.subFolders.length > 0;
       return hasDirectDocuments || hasSubFoldersWithDocuments;
     });
+
+  // Determine if selected folder is a main category or sub-folder
+  const selectedFolder = folders.find(f => f.id === selectedFolderId);
+  const isMainCategorySelected = selectedFolder && !selectedFolder.parentId;
+  const isSubFolderSelected = selectedFolder && selectedFolder.parentId;
+  
+  // Get sub-folders for the selected main category
+  const selectedCategorySubFolders = isMainCategorySelected ? 
+    subFolders.filter(sub => sub.parentId === selectedFolderId && sub.documentCount > 0) : 
+    [];
+
+  // Fetch documents with AI analysis polling
+  const { data: documentsData, isLoading: documentsLoading } = useQuery<DocumentsResponse>({
+    queryKey: ['/api/documents', { 
+      search: searchQuery, 
+      fileType: selectedFileType === "all" ? "" : selectedFileType, 
+      folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
+      tagId: selectedTagId, 
+      page: currentPage 
+    }],
+    enabled: !isMainCategorySelected, // Only fetch documents when NOT viewing main category sub-folders
+    refetchInterval: isPollingForAI ? 5000 : false, // Poll every 5 seconds when expecting AI analysis
+  });
   
 
 
@@ -1239,9 +1250,19 @@ export default function Documents() {
         <header className="bg-card border-b border-border px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <h2 className="text-lg font-semibold text-foreground">All Documents</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                {isMainCategorySelected 
+                  ? `${selectedFolder?.name} Sub-folders`
+                  : isSubFolderSelected 
+                    ? selectedFolder?.name 
+                    : "All Documents"
+                }
+              </h2>
               <span className="text-sm text-muted-foreground" data-testid="document-count">
-                {documentsData?.pagination.total || 0} documents
+                {isMainCategorySelected 
+                  ? `${selectedCategorySubFolders.length} sub-folders`
+                  : `${documentsData?.pagination.total || 0} documents`
+                }
               </span>
             </div>
             
@@ -1474,8 +1495,65 @@ export default function Documents() {
             </div>
           )}
           
-          {/* Loading State */}
-          {(documentsLoading || aiSearchLoading) ? (
+          {/* Sub-folders View (when main category is selected) */}
+          {isMainCategorySelected && selectedCategorySubFolders.length > 0 ? (
+            <div>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  {selectedFolder?.name} Sub-folders
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Choose a sub-folder to view its documents
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {selectedCategorySubFolders.map((subFolder) => (
+                  <Card 
+                    key={subFolder.id} 
+                    className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" 
+                    data-testid={`subfolder-card-${subFolder.id}`}
+                    onClick={() => setSelectedFolderId(subFolder.id)}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <div 
+                          className="w-8 h-8 rounded-lg flex items-center justify-center"
+                          style={{ backgroundColor: `${subFolder.color || '#9ca3af'}20` }}
+                        >
+                          <FolderOpen 
+                            className="h-5 w-5" 
+                            style={{ color: subFolder.color || '#9ca3af' }} 
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-foreground truncate">
+                            {subFolder.name}
+                          </h3>
+                          <p className="text-xs text-muted-foreground">
+                            {subFolder.documentCount || 0} documents
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Click to view documents in this folder
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ) : isMainCategorySelected ? (
+            <div className="text-center py-12">
+              <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                No sub-folders found
+              </h3>
+              <p className="text-muted-foreground">
+                This category doesn't have any sub-folders with documents yet.
+              </p>
+            </div>
+          ) : /* Loading State */
+          (documentsLoading || aiSearchLoading) ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Card key={i} className="animate-pulse">
