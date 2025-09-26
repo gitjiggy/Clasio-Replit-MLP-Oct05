@@ -1500,15 +1500,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Enhanced response with comprehensive instrumentation
       res.json({
-        documents: searchResult.documents.map(doc => ({
+        documents: searchResult.documents.map((doc, index) => ({
           ...doc,
-          finalScore: doc.classification?.finalScore || 0,
-          tier: doc.classification?.tier || 'unknown',
+          finalScore: searchResult.documents[index]?.finalScore || 0,
+          tier: searchResult.documents[index]?.tier || 'unknown',
           scoringBreakdown: {
-            semantic: doc.classification?.semanticScore || 0,
-            lexical: doc.classification?.lexicalScore || 0,
-            quality: doc.classification?.qualityScore || 0,
-            weights: doc.classification?.weights || {}
+            semantic: searchResult.documents[index]?.semanticScore || 0,
+            lexical: searchResult.documents[index]?.lexicalScore || 0,
+            quality: searchResult.documents[index]?.qualityScore || 0,
+            weights: searchResult.documents[index]?.weights || {}
           }
         })),
         relevantDocuments: searchResult.relevantDocuments,
@@ -1528,7 +1528,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         policyUsed: {
           name: searchResult.policyUsed.name,
           description: searchResult.policyUsed.description,
-          thresholds: searchResult.policyUsed.thresholds
+          thresholds: {
+            semantic_high: searchResult.policyUsed.semantic_high,
+            semantic_mid: searchResult.policyUsed.semantic_mid,
+            hideBelow: searchResult.policyUsed.hideBelow,
+            labelBelow: searchResult.policyUsed.labelBelow
+          }
         },
         topDocumentTraces: searchResult.topDocumentTraces,
         anomalies: searchResult.anomalies,
