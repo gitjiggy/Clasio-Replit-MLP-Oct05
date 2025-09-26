@@ -105,15 +105,17 @@ async function uploadAllWithConcurrency(
   let firstError: any = null;
 
   return new Promise<void>((resolve, reject) => {
-    // Set up abort handler to immediately reject when cancelled
+    // Set up abort handler to resolve gracefully when cancelled
     const abortHandler = () => {
-      reject(new DOMException('Upload cancelled by user', 'AbortError'));
+      console.log("🚫 Upload cancelled - resolving gracefully");
+      resolve();
     };
     
     if (abortSignal) {
-      // If already aborted, reject immediately
+      // If already aborted, resolve gracefully
       if (abortSignal.aborted) {
-        reject(new Error('Upload cancelled by user'));
+        console.log("🚫 Signal already aborted - resolving gracefully");
+        resolve();
         return;
       }
       abortSignal.addEventListener('abort', abortHandler);
@@ -442,15 +444,17 @@ export function ObjectUploader({
         
         // Make Promise.all cancellable by wrapping it with abort signal
         const perFileResults = await new Promise<any[]>((resolve, reject) => {
-          // If already aborted, reject immediately
+          // If already aborted, resolve with empty results
           if (signal.aborted) {
-            reject(new DOMException('Upload cancelled by user', 'AbortError'));
+            console.log("🚫 Signal already aborted - resolving with empty results");
+            resolve([]);
             return;
           }
           
-          // Set up abort handler
+          // Set up abort handler to resolve gracefully
           const abortHandler = () => {
-            reject(new DOMException('Upload cancelled by user', 'AbortError'));
+            console.log("🚫 Upload cancelled - resolving with empty results");
+            resolve([]);
           };
           signal.addEventListener('abort', abortHandler);
           
@@ -681,18 +685,9 @@ export function ObjectUploader({
 
     } catch (e: any) {
       // Handle abort operations gracefully
-      if (e.name === 'AbortError' || e?.code === 'ABORT_ERR' || e.message === 'Upload cancelled by user') {
-        console.log("🚫 Upload was aborted:", e.message);
-        // Check if this was a user-initiated cancellation using our flag
-        if (userCancelledRef.current) {
-          console.log("👤 User cancelled upload - returning gracefully");
-          return; // Don't show error state for user-initiated cancellation
-        }
-        // Otherwise, treat as an unexpected error that should be shown
-        console.error("❌ Unexpected abort during upload:", e);
-        setErrors(["Upload was unexpectedly cancelled. Please try again."]);
-        setState("error");
-        return;
+      if (e.name === 'AbortError' || e?.code === 'ABORT_ERR' || e.message === 'Upload cancelled by user' || userCancelledRef.current) {
+        console.log("🚫 Upload was cancelled by user - returning gracefully");
+        return; // Don't show error state for user-initiated cancellation
       }
       
       console.error("Upload failed:", e);

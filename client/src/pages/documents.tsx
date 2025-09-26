@@ -1,4 +1,35 @@
 import { useState, useEffect, useCallback } from "react";
+
+// Humorous delete messaging for Clasio's document management
+const DELETE_FLAVOR_TEXT = [
+  "Saying goodbye to your files...",
+  "Bidding adieu to your documents...",
+  "Organizing the great digital decluttering...",
+  "Teaching your docs to pack their bags...",
+  "Filing papers in the virtual shredder...",
+  "Helping documents find their way to the cloud recycling bin...",
+  "Convincing files to take a well-deserved vacation...",
+  "Orchestrating the grand document exodus...",
+  "Whispering sweet farewells to your uploads...",
+  "Conducting the paperless office cleanup ceremony...",
+];
+
+// Custom hook for rotating delete flavor text
+function useDeleteFlavor(isDeleting: boolean) {
+  const [idx, setIdx] = useState(0);
+  
+  useEffect(() => {
+    if (!isDeleting) return;
+    
+    const timer = setInterval(() => {
+      setIdx(i => (i + 1) % DELETE_FLAVOR_TEXT.length);
+    }, 2000); // Change every 2 seconds
+    
+    return () => clearInterval(timer);
+  }, [isDeleting]);
+  
+  return isDeleting ? DELETE_FLAVOR_TEXT[idx] : "Delete All";
+}
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -855,6 +886,9 @@ export default function Documents() {
     },
   });
 
+  // Delete flavor text for humorous delete messaging
+  const deleteFlavorText = useDeleteFlavor(deleteAllDocumentsMutation.isPending);
+
   const getUploadParameters = async () => {
     const response = await apiRequest("POST", "/api/documents/upload-url", {});
     const data = await response.json();
@@ -1372,7 +1406,7 @@ export default function Documents() {
                   data-testid="button-delete-all"
                 >
                   <Trash2 className="h-4 w-4" />
-                  {deleteAllDocumentsMutation.isPending ? 'Deleting All...' : 'Delete All'}
+                  {deleteFlavorText}
                 </Button>
               )}
               
