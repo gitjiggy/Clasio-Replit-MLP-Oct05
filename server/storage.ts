@@ -1710,8 +1710,12 @@ export class DatabaseStorage implements IStorage {
         
         const tagCondition = inArray(documents.id, tagSearchSubquery);
         
+        // Search in AI metadata fields (CRITICAL: this was missing and causing regression!)
+        const aiCategoryCondition = ilike(documents.aiCategory, searchTerm);
+        const aiDocumentTypeCondition = ilike(documents.aiDocumentType, searchTerm);
+        
         // Combine all search conditions
-        const searchConditions = [nameCondition, contentCondition, tagCondition];
+        const searchConditions = [nameCondition, contentCondition, tagCondition, aiCategoryCondition, aiDocumentTypeCondition];
         conditions.push(or(...searchConditions)!);
         
         // Apply additional filters
