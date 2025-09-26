@@ -1369,7 +1369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // New AI-powered search endpoint with enhanced scoring
-  app.post("/api/search", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/search", express.json({ limit: '10mb' }), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?.uid;
       if (!userId) {
