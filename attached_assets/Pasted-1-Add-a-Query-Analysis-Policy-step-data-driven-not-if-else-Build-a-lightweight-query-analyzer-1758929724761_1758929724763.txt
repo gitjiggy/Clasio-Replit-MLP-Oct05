@@ -1,0 +1,127 @@
+1) Add a Query Analysis → Policy step (data-driven, not if/else)
+
+Build a lightweight query analyzer that returns:
+
+class (one of): entity.proper, id/code, date/range, short.keyword, phrase, question, topic.freeform
+
+signals: token count, token casing pattern, presence of digits, hyphens, quotes, operators, stop-word ratio, etc.
+
+Map (class, signals) to a policy via a config/registry, e.g. JSON or env-backed table. No code branches per use case.
+
+Each policy defines:
+
+Tier thresholds: semantic_high, semantic_mid
+
+Field caps for lexical: {title, filename, headings, body, summary, tags, folder} (0..1)
+
+Fusion weights per tier: {semantic, lexical, quality}
+
+Proximity window (token distance) and max-field vs. sum logic
+
+UI gating thresholds (hide_below, label_below)
+
+Start with a Default policy that works for most queries; add a few generic classes (not “name-specific”), e.g.:
+
+entity.proper (proper-noun heavy, incl. people, orgs, places)
+
+id/code (e.g., “1099-INT”, “HSA-Form 8889”)
+
+short.keyword (1–3 common tokens)
+
+phrase (quoted or long exact phrase)
+
+topic.freeform (≥4 tokens, mixed case)
+
+The analyzer is heuristic (no ML needed). It must be transparent and deterministic.
+
+Acceptance check: print QueryAnalysis → { class, signals } and the policy name chosen for every search.
+
+2) Make lexical scoring field-aware and clamped (policy-driven)
+
+Compute lexical signals per field, then combine via max-field (not additive) unless policy says otherwise.
+
+Enforce caps from policy so summary/body mentions can’t dominate.
+
+Apply proximity bonus only if tokens occur within policy’s window in the same field.
+
+Always log a one-line trace per document:
+
+docId | cosine | lex:title | lex:filename | lex:headings | lex:body | lex:summary | proximity | tier | weights(sem,lex,qual) | final
+
+
+Acceptance check: For any doc with high score, at least one field must justify it under policy caps; no “summary-only” inflation.
+
+3) Tier routing & fusion (generic, policy-driven)
+
+Tier selection (from policy):
+
+Tier-1: cosine ≥ semantic_high OR exact phrase in high-signal fields (title/filename/headings if allowed by policy)
+
+Tier-2: semantic_mid ≤ cosine < semantic_high with acceptable lexical
+
+Tier-3: everything else
+
+Fusion: per policy {semantic, lexical, quality} and per-tier ceilings.
+Example (not hard-coded—lives in policy):
+
+Tier-1 ceiling 0.99, Tier-2 ceiling 0.70, Tier-3 ceiling 0.45
+
+Remove any global re-scaling/renormalization. Scores must live on an absolute scale.
+
+Acceptance check: For the same query, you see a spread, not bunching; Tier-3 never exceeds its ceiling.
+
+4) Quality signal usage (generic)
+
+Keep quality in the registry with a per-class weight (often small or 0).
+
+For short/entity-like queries, default quality=0.
+
+For broad topic queries, allow quality ≤ 0.10–0.20.
+
+Never let quality lift a doc across a tier boundary.
+
+Acceptance check: In traces, quality is either zero or small and never the reason a doc crosses 0.70.
+
+5) Candidate generation stays hybrid (no special casing)
+
+ANN semantic retrieval + keyword prefilter stays unchanged.
+
+Policy affects scoring, not recall.
+
+6) UI behavior (policy-driven, generic)
+
+Use policy’s hide_below to suppress low-confidence by default (e.g., 0.70).
+
+Show “Broader matches” collapsible section for results below the main threshold.
+
+7) Instrumentation & guardrails
+
+Add three logs for every query:
+
+QueryAnalysis (class, signals, policy)
+
+PolicyDump (thresholds, caps, weights)
+
+Top-5 document traces (see line format above)
+
+Emit an anomaly metric if:
+
+≥3 results fall within a narrow band (e.g., width ≤ 0.04) → potential bunching
+
+Any doc exceeds its tier ceiling
+
+A doc with only summary-field lexical crosses 0.5
+
+Save a tiny golden set (10–15 diverse queries) and assert stable dispersion (no regression in spread/tiers).
+
+8) Acceptance criteria for the “niraj desai” example (but enforced generically)
+
+With the default policy’s parameters (not hard-coded to names):
+
+1 top document around 0.90–0.98 (strong field or cosine evidence).
+
+Others that mention tokens only in body/summary should fall into Tier-3 and score ≤ 0.45.
+
+No more than one result ≥ 0.70 unless there’s strong field/cosine evidence.
+
+If this fails, post the three logs so we can adjust policy caps/weights—not add code branches.
