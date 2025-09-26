@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -357,6 +357,10 @@ export default function Documents() {
   const [aiSearchResults, setAiSearchResults] = useState<any>(null);
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
   
+  // State for AI analysis polling
+  const [recentUploads, setRecentUploads] = useState<{ timestamp: number; documentIds: string[] }>({ timestamp: 0, documentIds: [] });
+  const [isPollingForAI, setIsPollingForAI] = useState(false);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -431,7 +435,7 @@ export default function Documents() {
     }
   };
 
-  // Fetch documents
+  // Fetch documents with AI analysis polling
   const { data: documentsData, isLoading: documentsLoading } = useQuery<DocumentsResponse>({
     queryKey: ['/api/documents', { 
       search: searchQuery, 
@@ -440,6 +444,7 @@ export default function Documents() {
       tagId: selectedTagId, 
       page: currentPage 
     }],
+    refetchInterval: isPollingForAI ? 5000 : false, // Poll every 5 seconds when expecting AI analysis
   });
 
   // Fetch folders with document counts
@@ -475,6 +480,70 @@ export default function Documents() {
     queryKey: ['/api/tags'],
   });
 
+  // Check for AI analysis completion and manage polling
+  useEffect(() => {
+    if (!documentsData?.documents || !isPollingForAI || recentUploads.documentIds.length === 0) {
+      return;
+    }
+
+    // Check if any recently uploaded documents have been analyzed
+    const currentTime = Date.now();
+    const recentlyAnalyzed = documentsData.documents.filter(doc => {
+      // Check if this is a recently uploaded document that now has AI analysis
+      const isRecentUpload = recentUploads.documentIds.includes(doc.id);
+      const hasAIAnalysis = doc.aiAnalyzedAt && new Date(doc.aiAnalyzedAt).getTime() > recentUploads.timestamp;
+      return isRecentUpload && hasAIAnalysis;
+    });
+
+    // Stop polling if all recent uploads have been analyzed or timeout reached (3 minutes)
+    const shouldStopPolling = 
+      recentlyAnalyzed.length === recentUploads.documentIds.length || 
+      (currentTime - recentUploads.timestamp) > 180000; // 3 minute timeout
+
+    if (shouldStopPolling) {
+      console.log('🎉 AI analysis complete for uploaded documents, stopping polling');
+      setIsPollingForAI(false);
+      setRecentUploads({ timestamp: 0, documentIds: [] });
+      
+      if (recentlyAnalyzed.length > 0) {
+        toast({
+          title: "Smart Organization Complete! 🎯",
+          description: `${recentlyAnalyzed.length} document${recentlyAnalyzed.length > 1 ? 's' : ''} automatically organized and analyzed.`,
+        });
+      }
+    }
+  }, [documentsData, isPollingForAI, recentUploads, toast]);
+
+  // Auto-stop polling after timeout
+  useEffect(() => {
+    if (!isPollingForAI) return;
+
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ Polling timeout reached, stopping AI analysis polling');
+      setIsPollingForAI(false);
+      setRecentUploads({ timestamp: 0, documentIds: [] });
+    }, 180000); // 3 minute timeout
+
+    return () => clearTimeout(timeoutId);
+  }, [isPollingForAI]);
+
+  // Function to handle upload completion and trigger AI polling
+  const handleUploadSuccess = useCallback((docIds: string[]) => {
+    console.log('📁 Upload complete, starting AI analysis polling for:', docIds);
+    
+    // Set recent uploads and start polling
+    setRecentUploads({
+      timestamp: Date.now(),
+      documentIds: docIds
+    });
+    setIsPollingForAI(true);
+    
+    // Invalidate cache to refresh UI immediately
+    queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/queue/status"] });
+  }, [queryClient]);
+
   // Upload mutation
   const uploadMutation = useMutation({
     mutationFn: async (data: {
@@ -490,9 +559,16 @@ export default function Documents() {
       const response = await apiRequest("POST", "/api/documents", data);
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/folders'] }); // Keep folder counts fresh
+    onSuccess: (data) => {
+      // Extract document ID from response and trigger AI polling
+      if (data?.id) {
+        handleUploadSuccess([data.id]);
+      } else {
+        // Fallback: just invalidate queries if no ID available
+        queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+      }
+      
       toast({
         title: "Upload successful",
         description: "Document has been uploaded successfully.",
@@ -681,11 +757,11 @@ export default function Documents() {
     }
   };
 
-  // Handle bulk upload completion with fun messaging
+  // Handle bulk upload completion with fun messaging and AI polling
   const handleBulkUploadComplete = (result: {
     successful: number;
     failed: number;
-    details: Array<{ success: boolean; originalName: string; error?: string }>;
+    details: Array<{ success: boolean; originalName: string; error?: string; document?: { id: string } }>;
     message: string;
     aiAnalysis: {
       status: string;
@@ -699,12 +775,21 @@ export default function Documents() {
       total: result.successful + result.failed
     });
     
-    // Refresh document lists and folders
-    queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/queue/status"] });
+    // Extract document IDs from successful uploads and trigger AI polling
+    const successfulDocIds = result.details
+      .filter(detail => detail.success && detail.document?.id)
+      .map(detail => detail.document!.id);
     
-    // Show success toast with fun messaging
+    if (successfulDocIds.length > 0) {
+      handleUploadSuccess(successfulDocIds);
+    } else {
+      // Fallback: just invalidate queries if no document IDs available
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/queue/status"] });
+    }
+    
+    // Show success toast with fun messaging (shorter message since handleUploadSuccess will show AI completion toast)
     const successMessage = result.successful > 0 ? 
       `🎉 Successfully uploaded ${result.successful} document${result.successful > 1 ? 's' : ''}!` : 
       "";
@@ -1145,12 +1230,7 @@ export default function Documents() {
                 onGetBulkUploadParameters={getBulkUploadParameters}
                 onComplete={handleUploadComplete}
                 onBulkUploadComplete={handleBulkUploadComplete}
-                onSuccess={(docIds) => {
-                  // Handle fallback upload success - invalidate cache to refresh UI
-                  queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/queue/status"] });
-                }}
+                onSuccess={handleUploadSuccess}
                 buttonClassName="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Upload className="mr-2 h-4 w-4" />
