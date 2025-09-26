@@ -1,0 +1,51 @@
+Confirm / disprove these specific failure modes (one by one):
+
+Score normalization inflation
+
+Are you doing min-max normalization within the current candidate set? If yes, everything in a tight band will blow up toward 0.9+. Please show raw cosine values (expected spread for real-world queries: ~0.25–0.85).
+
+Do you add a floor (e.g., +0.4 baseline) anywhere? Remove any global floor.
+
+Wrong cosine math
+
+Prove vectors are L2-normalized before the dot product.
+
+If you use a “cosine distance,” ensure you’re not doing both 1 - distance and also re-normalizing again (double inversion ⇒ ~0.98 for many items).
+
+Tier routing bug
+
+Show the query classification result used to choose Tier 1/2/3. If classification is failing “open” to Tier 1, everything will look “high confidence.”
+
+For each doc in the trace, confirm Tier actually varies across results.
+
+Weight saturation
+
+If Tier 2 = 60% semantic + 30% lexical + 10% quality, verify actual numbers plugged in.
+
+Ensure the quality component can’t add huge constant boosts (e.g., “has summary” = +0.2); quality should be small and bounded.
+
+Field-weighting bug
+
+“Maximum field logic” should pick the strongest field, not sum across fields. Please confirm you are not summing title+content+summary matches (summing inflates scores).
+
+Embedding mis-use
+
+Confirm the query embedding is generated with the query model (e.g., “RETRIEVAL_QUERY”) and documents with the document model; not both with the same or swapped.
+
+Show that the QueryEmbeddingCache hit/miss works and returns the same vector for identical preprocessed queries. Provide the cache key you used here.
+
+Per-result vs global scaling
+
+Confirm you do no min-max across the top-K or dynamic bucketing that rescales everything to 0.9–1.0. Scores should remain comparable across queries.
+
+Lexical booster too strong
+
+Show the BM25/keyword raw score and the exact transform → 0–1. If the lexical transform is too aggressive, Tier 2 will saturate close to Tier 1.
+
+Freshness/recency multiplier
+
+If you apply time decay, verify it decays, not boosts; and it’s capped. A common bug is an inverted sign or a big cap that saturates to near 1.
+
+Hardcoded constants
+
+Prove there is no leftover constant (e.g., return 0.99) anywhere in the scoring path. Grep the code, but please also show where you removed it.

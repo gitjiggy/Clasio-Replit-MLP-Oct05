@@ -1294,70 +1294,76 @@ export class DatabaseStorage implements IStorage {
 
   private async calculateSemanticScore(doc: any, queryEmbedding: number[]): Promise<number> {
     // Use maximum field scoring instead of weighted averages to prevent dilution of strong signals
-    const fieldScores: number[] = [];
+    const fieldScores: { field: string, rawSimilarity: number, processedScore: number }[] = [];
     
-    console.log(`    Semantic debug for "${doc.name}": using maximum field scoring`);
+    console.log(`🔍 SEMANTIC SCORING TRACE for "${doc.name}" (docId: ${doc.id})`);
+    console.log(`    Vector normalization: Query embedding L2-norm = ${Math.sqrt(queryEmbedding.reduce((sum, val) => sum + val*val, 0)).toFixed(6)}`);
     
     // Title embedding (with slight boost)
     if (doc.titleEmbedding) {
       const titleEmb = parseEmbeddingFromJSON(doc.titleEmbedding);
       if (titleEmb) {
-        const similarity = calculateCosineSimilarity(queryEmbedding, titleEmb);
-        const titleScore = similarity * 0.9; // Slight boost for titles
-        console.log(`      Title cosine similarity: ${similarity.toFixed(4)} → boosted to ${titleScore.toFixed(4)}`);
-        fieldScores.push(titleScore);
+        const titleNorm = Math.sqrt(titleEmb.reduce((sum, val) => sum + val*val, 0));
+        const rawSimilarity = calculateCosineSimilarity(queryEmbedding, titleEmb);
+        const titleScore = rawSimilarity * 1.1; // Title boost
+        console.log(`    TITLE: raw_cosine=${rawSimilarity.toFixed(6)}, doc_L2_norm=${titleNorm.toFixed(6)}, boost=1.1x, final=${titleScore.toFixed(6)}`);
+        fieldScores.push({ field: 'title', rawSimilarity, processedScore: titleScore });
       } else {
-        console.log(`      Title embedding parsing failed`);
+        console.log(`    TITLE: embedding_parse_failed`);
       }
     } else {
-      console.log(`      No title embedding`);
+      console.log(`    TITLE: no_embedding`);
     }
     
     // Key topics embedding
     if (doc.keyTopicsEmbedding) {
       const keyTopicsEmb = parseEmbeddingFromJSON(doc.keyTopicsEmbedding);
       if (keyTopicsEmb) {
-        const similarity = calculateCosineSimilarity(queryEmbedding, keyTopicsEmb);
-        console.log(`      Key topics cosine similarity: ${similarity.toFixed(4)}`);
-        fieldScores.push(similarity);
+        const topicsNorm = Math.sqrt(keyTopicsEmb.reduce((sum, val) => sum + val*val, 0));
+        const rawSimilarity = calculateCosineSimilarity(queryEmbedding, keyTopicsEmb);
+        console.log(`    KEY_TOPICS: raw_cosine=${rawSimilarity.toFixed(6)}, doc_L2_norm=${topicsNorm.toFixed(6)}, boost=1.0x, final=${rawSimilarity.toFixed(6)}`);
+        fieldScores.push({ field: 'key_topics', rawSimilarity, processedScore: rawSimilarity });
       } else {
-        console.log(`      Key topics embedding parsing failed`);
+        console.log(`    KEY_TOPICS: embedding_parse_failed`);
       }
     } else {
-      console.log(`      No key topics embedding`);
+      console.log(`    KEY_TOPICS: no_embedding`);
     }
     
     // Summary embedding  
     if (doc.summaryEmbedding) {
       const summaryEmb = parseEmbeddingFromJSON(doc.summaryEmbedding);
       if (summaryEmb) {
-        const similarity = calculateCosineSimilarity(queryEmbedding, summaryEmb);
-        console.log(`      Summary cosine similarity: ${similarity.toFixed(4)}`);
-        fieldScores.push(similarity);
+        const summaryNorm = Math.sqrt(summaryEmb.reduce((sum, val) => sum + val*val, 0));
+        const rawSimilarity = calculateCosineSimilarity(queryEmbedding, summaryEmb);
+        console.log(`    SUMMARY: raw_cosine=${rawSimilarity.toFixed(6)}, doc_L2_norm=${summaryNorm.toFixed(6)}, boost=1.0x, final=${rawSimilarity.toFixed(6)}`);
+        fieldScores.push({ field: 'summary', rawSimilarity, processedScore: rawSimilarity });
       } else {
-        console.log(`      Summary embedding parsing failed`);
+        console.log(`    SUMMARY: embedding_parse_failed`);
       }
     } else {
-      console.log(`      No summary embedding`);
+      console.log(`    SUMMARY: no_embedding`);
     }
     
     // Content embedding
     if (doc.contentEmbedding) {
       const contentEmb = parseEmbeddingFromJSON(doc.contentEmbedding);
       if (contentEmb) {
-        const similarity = calculateCosineSimilarity(queryEmbedding, contentEmb);
-        console.log(`      Content cosine similarity: ${similarity.toFixed(4)}`);
-        fieldScores.push(similarity);
+        const contentNorm = Math.sqrt(contentEmb.reduce((sum, val) => sum + val*val, 0));
+        const rawSimilarity = calculateCosineSimilarity(queryEmbedding, contentEmb);
+        console.log(`    CONTENT: raw_cosine=${rawSimilarity.toFixed(6)}, doc_L2_norm=${contentNorm.toFixed(6)}, boost=1.0x, final=${rawSimilarity.toFixed(6)}`);
+        fieldScores.push({ field: 'content', rawSimilarity, processedScore: rawSimilarity });
       } else {
-        console.log(`      Content embedding parsing failed`);
+        console.log(`    CONTENT: embedding_parse_failed`);
       }
     } else {
-      console.log(`      No content embedding`);
+      console.log(`    CONTENT: no_embedding`);
     }
     
     // Use the maximum score across all fields (let strongest field dominate)
-    const maxSemanticScore = fieldScores.length > 0 ? Math.max(...fieldScores) : 0;
-    console.log(`      → Maximum field score: ${maxSemanticScore.toFixed(4)} (strongest field wins)`);
+    const maxSemanticScore = fieldScores.length > 0 ? Math.max(...fieldScores.map(f => f.processedScore)) : 0;
+    const winningField = fieldScores.find(f => f.processedScore === maxSemanticScore);
+    console.log(`    MAXIMUM_FIELD_LOGIC: winner="${winningField?.field || 'none'}", final_semantic=${maxSemanticScore.toFixed(6)}`);
     return maxSemanticScore;
   }
   
@@ -1367,28 +1373,52 @@ export class DatabaseStorage implements IStorage {
     const lexical = lexicalScore; 
     const quality = qualityScore;
     
-    console.log(`    Tiered scoring: semantic=${semantic.toFixed(3)}, lexical=${lexical.toFixed(3)}, quality=${quality.toFixed(3)}`);
+    console.log(`🎯 TIER CLASSIFICATION: semantic=${semantic.toFixed(6)}, lexical=${lexical.toFixed(6)}, quality=${quality.toFixed(6)}`);
+    
+    let tier: number;
+    let weights: { semantic: number, lexical: number, quality: number };
+    let formula: string;
+    let rawCombined: number;
+    let finalScore: number;
     
     // Tier 1: High confidence semantic matches (adjusted for realistic Gemini embedding scores)
     if (semantic >= 0.7) {
-      const tier1Score = Math.round(semantic * 100); // Return 70-100% directly
-      console.log(`    → Tier 1 (high semantic): ${tier1Score}%`);
-      return tier1Score / 100;
+      tier = 1;
+      weights = { semantic: 100, lexical: 0, quality: 0 };
+      formula = `semantic * 1.0`;
+      rawCombined = semantic;
+      finalScore = Math.round(semantic * 100) / 100; // Round to 2 decimals
+      console.log(`    TIER_1_SEMANTIC_DOMINANT: weights=[semantic:100%, lexical:0%, quality:0%]`);
+      console.log(`    FORMULA: ${formula} = ${semantic.toFixed(6)} * 1.0 = ${rawCombined.toFixed(6)}`);
+      console.log(`    ROUNDING: ${rawCombined.toFixed(6)} → ${finalScore.toFixed(6)}`);
     }
-    
     // Tier 2: Moderate semantic matches  
-    if (semantic >= 0.4) {
-      const combined = (semantic * 0.6) + (lexical * 0.3) + (quality * 0.1);
-      const tier2Score = Math.round(combined * 100);
-      console.log(`    → Tier 2 (moderate semantic): ${tier2Score}%`);
-      return tier2Score / 100;
+    else if (semantic >= 0.4) {
+      tier = 2;
+      weights = { semantic: 60, lexical: 30, quality: 10 };
+      formula = `(semantic * 0.6) + (lexical * 0.3) + (quality * 0.1)`;
+      rawCombined = (semantic * 0.6) + (lexical * 0.3) + (quality * 0.1);
+      finalScore = Math.round(rawCombined * 100) / 100;
+      console.log(`    TIER_2_FUSION: weights=[semantic:60%, lexical:30%, quality:10%]`);
+      console.log(`    FORMULA: ${formula}`);
+      console.log(`    CALCULATION: (${semantic.toFixed(6)} * 0.6) + (${lexical.toFixed(6)} * 0.3) + (${quality.toFixed(6)} * 0.1) = ${rawCombined.toFixed(6)}`);
+      console.log(`    ROUNDING: ${rawCombined.toFixed(6)} → ${finalScore.toFixed(6)}`);
+    }
+    // Tier 3: Low semantic matches - lexical dominant
+    else {
+      tier = 3;
+      weights = { semantic: 0, lexical: 70, quality: 30 };
+      formula = `(lexical * 0.7) + (quality * 0.3)`;
+      rawCombined = (lexical * 0.7) + (quality * 0.3);
+      finalScore = Math.round(rawCombined * 100) / 100;
+      console.log(`    TIER_3_LEXICAL_DOMINANT: weights=[semantic:0%, lexical:70%, quality:30%]`);
+      console.log(`    FORMULA: ${formula}`);
+      console.log(`    CALCULATION: (${lexical.toFixed(6)} * 0.7) + (${quality.toFixed(6)} * 0.3) = ${rawCombined.toFixed(6)}`);
+      console.log(`    ROUNDING: ${rawCombined.toFixed(6)} → ${finalScore.toFixed(6)}`);
     }
     
-    // Tier 3: Low semantic matches - lexical dominant
-    const fallback = (lexical * 0.7) + (quality * 0.3);
-    const tier3Score = Math.round(fallback * 100);
-    console.log(`    → Tier 3 (lexical dominant): ${tier3Score}%`);
-    return tier3Score / 100;
+    console.log(`    FINAL_TIER_RESULT: tier=${tier}, final_score=${(finalScore * 100).toFixed(2)}%`);
+    return finalScore;
   }
   
   private async calculateLexicalScore(doc: any, searchTerms: string): Promise<number> {
@@ -1433,11 +1463,15 @@ export class DatabaseStorage implements IStorage {
       const searchLower = searchTerms.toLowerCase();
       const searchTermsList = searchLower.split(' ').map(t => t.trim()).filter(t => t.length > 0);
       
-      console.log(`FTS Debug for "${doc.name}": search="${searchLower}", terms=[${searchTermsList.join(',')}], baseScore=${baseScore.toFixed(3)}`);
+      console.log(`📝 LEXICAL SCORING TRACE for "${doc.name}" (docId: ${doc.id})`);
+      console.log(`    SEARCH_TERMS: raw="${searchTerms}", lowercase="${searchLower}", tokenized=[${searchTermsList.join(',')}]`);
+      console.log(`    TS_RANK_BASE: postgresql_score=${baseScore.toFixed(6)} (from FTS query)`);
+      console.log(`    FIELD_MATCHES: title=[${titleMatches.join(',')}], summary=[${summaryMatches.join(',')}], topics=[${topicsMatches.join(',')}], content=[${contentMatches.join(',')}], tags=[${tagMatches.join(',')}]`);
       
-      // Check where the terms are found
-      const titleMatches = searchTermsList.filter(term => titleText.includes(term));
-      const summaryMatches = searchTermsList.filter(term => summaryText.includes(term));
+      // Check where the terms are found  
+      const originalScore = baseScore;
+      let winningField = 'ts_rank_only';
+      let bonusApplied = 0;
       const topicsMatches = searchTermsList.filter(term => topicsText.includes(term));
       const contentMatches = searchTermsList.filter(term => contentText.includes(term));
       const tagMatches = searchTermsList.filter(term => tagText.includes(term));
