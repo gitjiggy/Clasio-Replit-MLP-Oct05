@@ -256,7 +256,29 @@ The application is designed to run on modern cloud platforms:
 
 ---
 
-## 🆕 **What's New (September 24-25, 2025)**
+## 🆕 **What's New for Sep 25, 2025**
+
+### Critical Bug Fixes & Performance Improvements
+- **✅ FIXED: React Query Cache Invalidation**: Resolved critical issue where document cards weren't showing updated Smart Organization folder assignments
+- **✅ FIXED: AI Search JSON Middleware**: Added missing Express.json middleware to `/api/search` endpoint, restoring AI search functionality
+- **✅ PERFECT 1:1 CORRESPONDENCE**: Achieved perfect synchronization between Smart Organization panel and document cards using `exact: false` parameter in cache invalidation
+
+### Smart Organization Enhancements
+- **Descriptive Folder Names**: AI now creates perfect descriptive folder names like "Cybersecurity Risk Analysis", "Property Viewing List", "2023 Knee Report"
+- **Real-time Updates**: Document cards now immediately reflect Smart Organization changes without page refresh
+- **Enhanced AI Analysis**: Improved accuracy and speed of document categorization
+
+### Frontend Cache Management
+- **Intelligent Cache Strategy**: Implemented sophisticated React Query cache invalidation that matches all document queries regardless of filter parameters
+- **Seamless UX**: Users now see instant updates when Smart Organization processes complete
+- **Performance Optimization**: Reduced unnecessary API calls while maintaining data freshness
+
+### GitHub Repository Preparation
+- **Vendor Handoff Ready**: Complete repository structure prepared for external frontend vendor collaboration
+- **Comprehensive Documentation**: Full feature documentation and setup instructions
+- **Architecture Validation**: Architect-reviewed codebase ensuring all essential files are included
+
+## 🆕 **Previous Updates (September 24-25, 2025)**
 
 This release represents a major architectural upgrade focusing on multi-tenancy, security, and observability. Here's what was accomplished during our intensive development session:
 
