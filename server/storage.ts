@@ -1838,7 +1838,26 @@ export class DatabaseStorage implements IStorage {
 
     // Phase 2: Proper per-document semantic analysis using 3-tier scoring system
     const semanticStartTime = performance.now();
-    const queryEmbedding = await this.queryEmbeddingCache.getOrGenerate(preprocessedQuery);
+    
+    // Generate or retrieve cached query embedding (same pattern as existing code)
+    let queryEmbedding: number[];
+    const cachedEmbedding = this.queryEmbeddingCache.getCachedEmbedding(preprocessedQuery);
+    
+    if (cachedEmbedding) {
+      console.log(`Using cached query embedding for: "${preprocessedQuery}"`);
+      queryEmbedding = cachedEmbedding;
+    } else {
+      try {
+        console.log(`Generating new query embedding for: "${preprocessedQuery}"`);
+        queryEmbedding = await generateEmbedding(preprocessedQuery, 'RETRIEVAL_QUERY');
+        this.queryEmbeddingCache.setCachedEmbedding(preprocessedQuery, queryEmbedding);
+        console.log(`Cached new query embedding for future searches`);
+      } catch (error) {
+        console.warn('Query embedding generation failed, falling back to lexical-only scoring:', error);
+        // Continue with lexical-only scoring (set queryEmbedding to empty for fallback)
+        queryEmbedding = [];
+      }
+    }
     
     const finalResults = [];
     for (const doc of ftsResults) {
