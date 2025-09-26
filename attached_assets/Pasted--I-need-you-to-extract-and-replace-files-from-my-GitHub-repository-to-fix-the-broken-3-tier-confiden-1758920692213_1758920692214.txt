@@ -1,0 +1,49 @@
+ I need you to extract and replace files from my GitHub repository to fix the broken 3-tier confidence scoring system. DO NOT GENERATE ANY NEW CODE - only copy the existing code from GitHub.
+
+  **GITHUB REPOSITORY**: https://github.com/gitjiggy/Clasio-Replit-MLP-Sep23
+
+  **STEP 1 - EXTRACT THESE EXACT FILES FROM GITHUB:**
+  shared/schema.ts
+  server/storage.tsserver/gemini.ts
+
+  **STEP 2 - REPLACE FILES IN THIS REPLIT:**
+  - Replace `./shared/schema.ts` with the GitHub version
+  - Replace `./server/storage.ts` with the GitHub version
+  - Replace `./server/gemini.ts` with the GitHub version
+
+  **STEP 3 - VERIFICATION (DO NOT MODIFY CODE):**
+  After replacement, verify these specific methods exist in the copied files:
+
+  In `server/storage.ts`:
+  - `calculateTieredScore()` method (around line 826-854)
+  - `new3StageScoring()` method (around line 1000-1108)
+  - `searchFTSPlusSemanticOptimized()` method (around line 1167-1414)
+  - `calculateSemanticScore()` method (around line 757-824)
+  - `calculateLexicalScore()` method (around line 856-959)
+  - `calculateQualityBoost()` method (around line 961-998)
+
+  In `shared/schema.ts`:
+  - `DocumentWithFolderAndTags` type with `confidenceScore?: number` field (around line 223-229)
+
+  In `server/gemini.ts`:
+  - `analyzeDocumentRelevance()` function (around line 703-798)
+
+  **STEP 4 - SYNTAX CHECK:**
+  - Run TypeScript compiler to check for syntax errors
+  - Fix any import/export path issues that may arise from file replacement
+  - Ensure all dependencies are properly resolved
+
+  **CRITICAL REQUIREMENTS:**
+  1. USE ONLY THE EXACT CODE FROM GITHUB - do not modify, improve, or generate any new code
+  2. Do a complete file replacement, not partial merging
+  3. Maintain the exact folder structure: `shared/` and `server/` directories
+  4. If there are TypeScript errors after replacement, only fix import paths - do not modify the core logic
+  5. Confirm that the 3-tier scoring system logic is intact after replacement
+
+  **EXPECTED OUTCOME:**
+  The confidence scoring should work with these tiers:
+  - Tier 1: ≥70% semantic score
+  - Tier 2: 40-69% semantic score
+  - Tier 3: <40% semantic score
+
+  Please confirm completion and report any import/syntax errors that need path fixes (but do not modify the scoring logic itself).

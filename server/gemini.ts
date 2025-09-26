@@ -63,11 +63,6 @@ export async function analyzeDocumentContent(text: string): Promise<{
     conciseTitle: string;
     categoryConfidence: number;
     documentTypeConfidence: number;
-    documentYear: string | null;
-    documentPurpose: string | null;
-    filingStatus: string | null;
-    bodyPart: string | null;
-    documentSubtype: string | null;
 }> {
     if (!text || text.trim().length === 0) {
         return {
@@ -77,12 +72,7 @@ export async function analyzeDocumentContent(text: string): Promise<{
             wordCount: 0,
             conciseTitle: "Empty Document",
             categoryConfidence: 50,
-            documentTypeConfidence: 50,
-            documentYear: null,
-            documentPurpose: null,
-            filingStatus: null,
-            bodyPart: null,
-            documentSubtype: null
+            documentTypeConfidence: 50
         };
     }
 
@@ -94,78 +84,25 @@ export async function analyzeDocumentContent(text: string): Promise<{
             wordCount: text.split(/\s+/).length,
             conciseTitle: "Untitled Document",
             categoryConfidence: 0,
-            documentTypeConfidence: 0,
-            documentYear: null,
-            documentPurpose: null,
-            filingStatus: null,
-            bodyPart: null,
-            documentSubtype: null
+            documentTypeConfidence: 0
         };
     }
 
     const wordCount = text.split(/\s+/).length;
-    
+
     // Pre-processing: Apply keyword-based rules for better accuracy
     const textLower = text.toLowerCase();
     let keywordCategory = null;
     let keywordDocumentType = null;
-    
-    // Legal document patterns - prevent misclassification as Travel
-    if (/(vehicle transfer|title transfer|deed|notice to appear|traffic ticket|court notice|legal notice|lawsuit|settlement|power of attorney|will|trust|legal agreement|notarized|witness|affidavit|subpoena|summons|judgment|lien|foreclosure|eviction|custody|divorce|restraining order|probate)/i.test(text)) {
-        keywordCategory = "Legal";
-        if (/(vehicle transfer|title transfer|registration transfer|ownership transfer)/i.test(text)) {
-            keywordDocumentType = "Legal Document";
-        } else if (/(traffic ticket|notice to appear|court|lawsuit|legal notice)/i.test(text)) {
-            keywordDocumentType = "Legal Document";
-        } else if (/(deed|will|trust|power of attorney)/i.test(text)) {
-            keywordDocumentType = "Legal Document";
-        }
-    }
-    
-    // Medical patterns - specific body parts and procedures
-    else if (/(medical|diagnosis|prescription|doctor|physician|hospital|clinic|mri|x-ray|blood test|lab results|surgery|treatment|medication|therapy|examination|checkup|knee|hip|shoulder|back|heart|lung|brain|dental|vision|hearing|physical therapy|specialist|radiology)/i.test(text)) {
-        keywordCategory = "Medical";
-        keywordDocumentType = "Medical Record";
-    }
-    
-    // Financial patterns - avoid misclassification
-    else if (/(bank statement|financial statement|credit report|loan|mortgage|investment|portfolio|401k|retirement|pension|ira|savings|checking|account balance|transaction history|credit card statement|payment history)/i.test(text)) {
-        keywordCategory = "Financial";
-        keywordDocumentType = "Financial Statement";
-    }
-    
-    // Tax document patterns - very specific
-    else if (/(tax return|1040|w-2|w-4|1099|tax form|irs|tax preparation|tax receipt|deduction|tax refund|tax liability|tax payment|estimated tax|quarterly tax|tax extension)/i.test(text)) {
-        keywordCategory = "Taxes";
-        keywordDocumentType = "Tax Document";
-    }
-    
-    // Travel document patterns - actual travel docs only
-    else if (/(passport|visa|boarding pass|flight ticket|hotel reservation|travel itinerary|customs declaration|travel insurance|immigration stamp|entry permit|travel authorization|airline ticket|cruise ticket|rental car|travel voucher)/i.test(text)) {
-        keywordCategory = "Travel";
-        keywordDocumentType = "Travel Document";
-    }
-    
+
     // Education-specific patterns - made more specific to avoid false positives
-    else if (/(back to school night|syllabus|homework assignment|pta meeting|pto meeting|school night|curriculum guide|parent teacher conference|class schedule|school event announcement|academic calendar|teacher communication|school enrollment|grade report)/i.test(text)) {
+    if (/(back to school night|syllabus|homework assignment|pta meeting|pto meeting|school night|curriculum guide|parent teacher conference|class schedule|school event announcement|academic calendar|teacher communication|school enrollment|grade report)/i.test(text)) {
         keywordCategory = "Education";
         if (/(back to school|school night|pta|pto|school event|meeting|notice|announcement)/i.test(text)) {
             keywordDocumentType = "Event Notice";
         } else if (/(syllabus|curriculum|homework|academic)/i.test(text)) {
             keywordDocumentType = "Academic Document";
         }
-    }
-    
-    // Employment patterns
-    else if (/(employment|job offer|employment contract|salary|payroll|employee handbook|performance review|termination|resignation|hr|human resources|benefits|employment verification|reference letter)/i.test(text)) {
-        keywordCategory = "Employment";
-        keywordDocumentType = "Employment Document";
-    }
-    
-    // Insurance patterns
-    else if (/(insurance policy|insurance claim|coverage|premium|deductible|beneficiary|insurance card|policy number|claim number|adjuster|insurance company|liability|coverage limit)/i.test(text)) {
-        keywordCategory = "Insurance";
-        keywordDocumentType = "Insurance Document";
     }
 
     const prompt = `You are a document classification expert. Analyze the following document and provide a JSON response.
@@ -175,7 +112,7 @@ STRICT REQUIREMENTS:
 2. Key topics: Extract up to 5 most important topics as an array of strings
 3. Document type: Must be EXACTLY one of these options (NEVER use "Other"):
    - "Resume"
-   - "Cover Letter" 
+   - "Cover Letter"
    - "Contract"
    - "Invoice"
    - "Receipt"
@@ -198,20 +135,12 @@ STRICT REQUIREMENTS:
 
 5. Confidence scores: Provide confidence (0.0 to 1.0) for both category and document type classifications
 
-6. ENHANCED METADATA for Smart Organization:
-   - documentYear: Extract the primary year (YYYY format) if clearly identifiable, otherwise null
-   - documentPurpose: Brief descriptor of specific purpose (e.g., "donation-receipt", "completed-return", "knee-examination", "driver-license", "employment-contract")
-   - filingStatus: For tax documents only - "pre-filing" (receipts, prep documents) or "filed" (completed returns) or null
-   - bodyPart: For medical documents only - specific body part/area if mentioned (e.g., "knee", "heart", "dental") or null
-   - documentSubtype: Specific subtype (e.g., "1040-form", "w2-statement", "mri-report", "passport", "birth-certificate")
-
 IMPORTANT: If uncertain about classification, choose the CLOSEST matching option. NEVER use "Other" - always pick the best fit from the available options.
 
 EXAMPLES:
-- "2023 Charity Donation Receipt" → {"conciseTitle": "Charity Donation Receipt", "documentType": "Tax Document", "category": "Taxes", "documentYear": "2023", "documentPurpose": "donation-receipt", "filingStatus": "pre-filing", "documentSubtype": "donation-receipt"}
-- "Completed 2022 Tax Return Form 1040" → {"conciseTitle": "Filed Tax Return", "documentType": "Tax Document", "category": "Taxes", "documentYear": "2022", "documentPurpose": "completed-return", "filingStatus": "filed", "documentSubtype": "1040-form"}
-- "MRI Knee Report Jan 2024" → {"conciseTitle": "Knee MRI Medical Report", "documentType": "Medical Record", "category": "Medical", "documentYear": "2024", "documentPurpose": "knee-examination", "bodyPart": "knee", "documentSubtype": "mri-report"}
-- "Driver License 2025" → {"conciseTitle": "Driver License Document", "documentType": "Immigration Document", "category": "Personal", "documentYear": "2025", "documentPurpose": "driver-license", "documentSubtype": "driver-license"}
+- "2022 Fall Back to School Night" → {"conciseTitle": "School Event Notification", "documentType": "Event Notice", "category": "Education", "categoryConfidence": 0.95, "documentTypeConfidence": 0.90}
+- "John Smith Resume 2024" → {"conciseTitle": "Professional Resume Document", "documentType": "Resume", "category": "Employment", "categoryConfidence": 0.98, "documentTypeConfidence": 0.99}
+- "Stanford Personal Statement Draft" → {"conciseTitle": "College Application Essay", "documentType": "Personal Statement", "category": "Education", "categoryConfidence": 0.92, "documentTypeConfidence": 0.88}
 
 ${keywordCategory ? `HINT: Based on content analysis, this appears to be category "${keywordCategory}"` : ''}
 ${keywordDocumentType ? ` and type "${keywordDocumentType}"` : ''}
@@ -223,19 +152,14 @@ Format response as JSON only:
   "documentType": "Document Type",
   "category": "Category",
   "categoryConfidence": 0.95,
-  "documentTypeConfidence": 0.90,
-  "documentYear": "2023",
-  "documentPurpose": "specific-purpose",
-  "filingStatus": "pre-filing",
-  "bodyPart": "knee",
-  "documentSubtype": "specific-subtype"
+  "documentTypeConfidence": 0.90
 }
 
 Document content:
 ${text}`;
 
     try {
-        const model = genAI.getGenerativeModel({ 
+        const model = genAI.getGenerativeModel({
             model: "gemini-2.5-flash-lite",
             generationConfig: {
                 temperature: 0,
@@ -243,11 +167,11 @@ ${text}`;
                 responseMimeType: "application/json"
             }
         });
-        
+
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const rawJson = response.text();
-        
+
         // Log AI response only in debug mode to avoid exposing sensitive content
         if (process.env.DEBUG_AI === '1') {
             console.debug(`AI Analysis Response: ${rawJson}`);
@@ -256,21 +180,21 @@ ${text}`;
         if (rawJson) {
             // With responseMimeType: "application/json", the response should be clean JSON
             const data = JSON.parse(rawJson);
-            
+
             // Post-processing validation: Ensure responses conform to strict taxonomy
-            const validDocumentTypes = [
-                "Resume", "Cover Letter", "Contract", "Invoice", "Receipt", "Tax Document",
-                "Medical Record", "Insurance Document", "Legal Document", "Immigration Document",
-                "Financial Statement", "Employment Document", "Event Notice", "Academic Document",
-                "Real Estate Document", "Travel Document", "Personal Statement", 
-                "Technical Documentation", "Business Report"
+            const validDocumentTypes = [\
+                "Resume", "Cover Letter", "Contract", "Invoice", "Receipt", "Tax Document",\
+                "Medical Record", "Insurance Document", "Legal Document", "Immigration Document",\
+                "Financial Statement", "Employment Document", "Event Notice", "Academic Document",\
+                "Real Estate Document", "Travel Document", "Personal Statement",\
+                "Technical Documentation", "Business Report"\
             ];
-            
-            const validCategories = [
-                "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial",
-                "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
+
+            const validCategories = [\
+                "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial",\
+                "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"\
             ];
-            
+
             // Confidence normalization helper - handles various input formats and clamps to 0-100
             const normalizeConfidence = (value: any): number => {
                 let num = Number(value);
@@ -278,25 +202,25 @@ ${text}`;
                 if (num <= 1) num *= 100; // Convert 0-1 scale to 0-100
                 return Math.max(0, Math.min(100, Math.round(num)));
             };
-            
+
             // Extract and validate confidence scores
             const categoryConfidence = normalizeConfidence(data.categoryConfidence);
             const documentTypeConfidence = normalizeConfidence(data.documentTypeConfidence);
-            
+
             // Apply keyword overrides if detected, with fallback logic to prevent "Other"
             let finalDocumentType = validDocumentTypes.includes(data.documentType) ? data.documentType : "Technical Documentation";
             let finalCategory = validCategories.includes(data.category) ? data.category : "Personal";
-            
+
             // Apply keyword overrides when AI confidence is low (<50) or when classification is invalid
-            if (keywordCategory && validCategories.includes(keywordCategory) && 
+            if (keywordCategory && validCategories.includes(keywordCategory) &&
                 (categoryConfidence < 50 || !validCategories.includes(data.category))) {
                 finalCategory = keywordCategory;
             }
-            if (keywordDocumentType && validDocumentTypes.includes(keywordDocumentType) && 
+            if (keywordDocumentType && validDocumentTypes.includes(keywordDocumentType) &&
                 (documentTypeConfidence < 50 || !validDocumentTypes.includes(data.documentType))) {
                 finalDocumentType = keywordDocumentType;
             }
-            
+
             // Validate and clean concise title (4-7 words)
             let conciseTitle = data.conciseTitle || "Untitled Document";
             const titleWords = conciseTitle.trim().split(/\s+/);
@@ -305,8 +229,8 @@ ${text}`;
             } else if (titleWords.length > 7) {
                 conciseTitle = titleWords.slice(0, 7).join(" ");
             }
-            
-            
+
+
             return {
                 keyTopics: Array.isArray(data.keyTopics) ? data.keyTopics.slice(0, 5) : ["Analysis unavailable"],
                 documentType: finalDocumentType,
@@ -314,12 +238,7 @@ ${text}`;
                 wordCount,
                 conciseTitle,
                 categoryConfidence,
-                documentTypeConfidence,
-                documentYear: data.documentYear || null,
-                documentPurpose: data.documentPurpose || null,
-                filingStatus: data.filingStatus || null,
-                bodyPart: data.bodyPart || null,
-                documentSubtype: data.documentSubtype || null
+                documentTypeConfidence
             };
         } else {
             throw new Error("Empty response from model");
@@ -333,12 +252,7 @@ ${text}`;
             wordCount,
             conciseTitle: "Analysis Failed",
             categoryConfidence: 0,
-            documentTypeConfidence: 0,
-            documentYear: null,
-            documentPurpose: null,
-            filingStatus: null,
-            bodyPart: null,
-            documentSubtype: null
+            documentTypeConfidence: 0
         };
     }
 }
@@ -346,7 +260,7 @@ ${text}`;
 // Utility function to sanitize extracted text for PostgreSQL storage
 function sanitizeTextForDatabase(text: string): string {
     if (!text) return "";
-    
+
     return text
         // Remove null bytes and other control characters that cause PostgreSQL issues
         .replace(/\x00/g, '') // Remove null bytes
@@ -358,40 +272,40 @@ function sanitizeTextForDatabase(text: string): string {
 
 export async function extractTextFromDocument(filePath: string, mimeType: string, driveAccessToken?: string): Promise<string> {
     try {
-        
+
         // Handle Google Drive documents
         if (filePath.startsWith('drive:')) {
             const driveFileId = filePath.substring(6); // Remove 'drive:' prefix
-            
+
             if (!driveAccessToken) {
                 return `Google Drive document content extraction requires authentication. Please provide a valid access token.`;
             }
-            
+
             try {
                 // Import DriveService here to avoid circular dependencies
                 const { DriveService } = await import('./driveService.js');
                 const driveService = new DriveService(driveAccessToken);
-                
+
                 // Handle text files using existing getFileContent method
-                if (mimeType === 'application/vnd.google-apps.document' || 
+                if (mimeType === 'application/vnd.google-apps.document' ||
                     mimeType === 'text/plain' || mimeType === 'text/csv' || mimeType === 'text/html') {
                     const fileContent = await driveService.getFileContent(driveFileId);
                     if (fileContent && fileContent.content !== `[Binary file: ${fileContent.name}]`) {
                         return sanitizeTextForDatabase(fileContent.content);
                     }
                     return `Failed to extract text content from Drive file: ${driveFileId}`;
-                } 
-                
+                }
+
                 // Handle binary files (PDFs, Word docs) using new getFileBuffer method
-                else if (mimeType === 'application/pdf' || 
+                else if (mimeType === 'application/pdf' ||
                            mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
                            mimeType === 'application/msword') {
-                    
+
                     const fileBuffer = await driveService.getFileBuffer(driveFileId);
                     if (!fileBuffer) {
                         return `Failed to download binary file from Drive: ${driveFileId}`;
                     }
-                    
+
                     // Use enhanced extraction functions for binary files (same as object storage path)
                     if (mimeType === 'application/pdf') {
                         return await extractTextFromPDF(fileBuffer.buffer);
@@ -408,597 +322,342 @@ export async function extractTextFromDocument(filePath: string, mimeType: string
                 return `Error extracting Google Drive document: ${error instanceof Error ? error.message : 'Unknown error'}`;
             }
         }
-        
-        // Extract the object path from the file path
-        // File paths are stored as canonical GCS paths like "users/{userId}/docs/{docId}/{fileName}"
-        // Remove any leading slash if present, as GCS uses relative paths
-        const objectPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-        
-        // Get the file buffer from object storage
-        const fileBuffer = await objectStorageService.getObjectBuffer(objectPath);
-        
-        // For text files, convert buffer to string
-        if (mimeType === 'text/plain' || mimeType === 'text/csv') {
-            return sanitizeTextForDatabase(fileBuffer.toString('utf-8'));
+
+        // Extract text from Object Storage files 
+        const fileBuffer = await objectStorageService.getFile(filePath);
+        if (!fileBuffer) {
+            return `Failed to download file from storage: ${filePath}`;
         }
-        
-        // For PDF files
-        if (mimeType === 'application/pdf') {
-            return await extractTextFromPDF(fileBuffer);
+
+        switch (mimeType) {
+            case 'application/pdf':
+                return await extractTextFromPDF(fileBuffer);
+
+            case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+                return await extractTextFromWordDocx(fileBuffer);
+
+            case 'application/msword':
+                return await extractTextFromWordDoc(fileBuffer);
+
+            case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+            case 'application/vnd.ms-excel':
+                return await extractTextFromExcel(fileBuffer);
+
+            case 'text/plain':
+            case 'text/csv':
+            case 'text/html':
+                return sanitizeTextForDatabase(fileBuffer.toString('utf-8'));
+
+            default:
+                return `Unsupported file type for text extraction: ${mimeType}`;
         }
-        
-        // For Word documents (.docx)
-        if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-            return await extractTextFromWordDocx(fileBuffer);
-        }
-        
-        // For legacy Word documents (.doc)
-        if (mimeType === 'application/msword') {
-            return await extractTextFromWordDoc(fileBuffer);
-        }
-        
-        // For Excel files
-        if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-            mimeType === 'application/vnd.ms-excel') {
-            return await extractTextFromExcel(fileBuffer);
-        }
-        
-        // For images, use Gemini's vision capabilities to extract text
-        if (mimeType.startsWith('image/')) {
-            return await extractTextFromImageBuffer(fileBuffer, mimeType);
-        }
-        
-        // For unsupported file types, return a message
-        return `Text extraction from ${mimeType} files is not yet supported. Currently supporting PDF, Word (.doc/.docx), Excel (.xls/.xlsx), text files, and images.`;
-        
     } catch (error) {
-        console.error("Error extracting text from document:", error);
-        return "Error extracting text from document. Please ensure the file is accessible and try again.";
+        console.error(`Error extracting text from ${filePath}:`, error);
+        return `Error extracting text from file: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
 }
 
-// PDF text extraction using pdf-parse with comprehensive error handling
+// Enhanced text extraction functions with improved error handling
+
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     try {
-        
-        // Check if buffer is valid and not empty
-        if (!buffer || buffer.length === 0) {
-            console.error("PDF buffer is empty or invalid");
-            return "Error: PDF file is empty or corrupted.";
-        }
-        
-        // Check for minimum PDF size (PDFs smaller than 100 bytes are likely corrupted)
-        if (buffer.length < 100) {
-            console.error("PDF too small - likely corrupted during download");
-            return "Error: PDF file appears to be corrupted or incomplete.";
-        }
-        
-        // Verify PDF header
-        const pdfHeader = buffer.toString('ascii', 0, 4);
-        if (pdfHeader !== '%PDF') {
-            console.error("Invalid PDF header (expected %PDF)");
-            return "Error: File does not appear to be a valid PDF.";
-        }
-        
-        
         const data = await pdfParse(buffer);
-        const text = data.text?.trim();
+        const extractedText = data.text || '';
         
-        if (!text || text.length === 0) {
-            // If no text found, try OCR using Gemini vision as fallback
-            try {
-                const ocrText = await extractTextFromImageBuffer(buffer, 'application/pdf');
-                if (ocrText && ocrText.length > 10) {
-                    return ocrText + " (extracted via OCR)";
-                } else {
-                    return "Error: Unable to extract text from this PDF. It may be an image-based document without readable text.";
-                }
-            } catch (ocrError) {
-                console.error("OCR fallback failed:", ocrError);
-                return "Error: Unable to extract text from this PDF. Both text extraction and OCR failed.";
-            }
+        if (!extractedText.trim()) {
+            return 'This PDF appears to be image-based or has no extractable text content.';
         }
         
-        return sanitizeTextForDatabase(text);
+        return sanitizeTextForDatabase(extractedText);
     } catch (error) {
-        console.error("Error extracting text from PDF:", error);
-        
-        // Provide specific error information for debugging
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
-        // For password-protected PDFs, try OCR immediately as fallback
-        if (errorMessage.includes('encrypted') || errorMessage.includes('No password given') || errorMessage.includes('password')) {
-            console.warn("PDF is password-protected, attempting OCR extraction...");
-            try {
-                const ocrText = await extractTextFromImageBuffer(buffer, 'application/pdf');
-                if (ocrText && ocrText.length > 10) {
-                    console.log("✅ OCR extraction successful for password-protected PDF");
-                    return ocrText + " (extracted via OCR from password-protected PDF)";
-                } else {
-                    console.error("OCR extraction failed for password-protected PDF");
-                    return "Error: This PDF is password-protected and OCR extraction failed. Please provide an unprotected version.";
-                }
-            } catch (ocrError) {
-                console.error("OCR fallback failed for password-protected PDF:", ocrError);
-                return "Error: This PDF is password-protected and OCR extraction failed. Please provide an unprotected version.";
-            }
-        }
-        
-        if (errorMessage.includes('Invalid PDF structure')) {
-            return "Error: PDF file structure is corrupted or unsupported.";
-        } else {
-            return `Error extracting text from PDF: ${errorMessage}`;
-        }
+        console.error('PDF extraction error:', error);
+        return `Error extracting text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
 }
 
-// Word document (.docx) text extraction using mammoth
 async function extractTextFromWordDocx(buffer: Buffer): Promise<string> {
     try {
         const result = await mammoth.extractRawText({ buffer });
-        const text = result.value?.trim();
         
-        if (result.messages && result.messages.length > 0) {
+        if (!result.value.trim()) {
+            return 'This Word document appears to have no extractable text content.';
         }
         
-        return sanitizeTextForDatabase(text || "No text content found in Word document.");
+        return sanitizeTextForDatabase(result.value);
     } catch (error) {
-        console.error("Error extracting text from DOCX:", error);
-        return "Error extracting text from Word document.";
+        console.error('Word DOCX extraction error:', error);
+        return `Error extracting text from Word document: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
 }
 
-// Legacy Word document (.doc) text extraction using word-extractor
 async function extractTextFromWordDoc(buffer: Buffer): Promise<string> {
     try {
         const WordExtractor = await getWordExtractor();
         const extractor = new WordExtractor();
         const extracted = await extractor.extract(buffer);
-        const text = extracted.getBody()?.trim();
+        const text = extracted.getBody();
         
-        return sanitizeTextForDatabase(text || "No text content found in Word document.");
+        if (!text.trim()) {
+            return 'This Word document appears to have no extractable text content.';
+        }
+        
+        return sanitizeTextForDatabase(text);
     } catch (error) {
-        console.error("Error extracting text from DOC:", error);
-        return "Error extracting text from legacy Word document.";
+        console.error('Word DOC extraction error:', error);
+        return `Error extracting text from Word document: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
 }
 
-// Excel text extraction using xlsx
 async function extractTextFromExcel(buffer: Buffer): Promise<string> {
     try {
         const workbook = XLSX.read(buffer, { type: 'buffer' });
         let allText = '';
         
-        // Extract text from all worksheets
-        workbook.SheetNames.forEach((sheetName, index) => {
-            const worksheet = workbook.Sheets[sheetName];
-            
-            // Convert sheet to array of arrays
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-                header: 1, 
-                defval: '', 
-                raw: false 
-            });
-            
-            // Add sheet header
-            if (workbook.SheetNames.length > 1) {
-                allText += `\n=== Sheet: ${sheetName} ===\n`;
-            }
-            
-            // Extract text from each row
-            jsonData.forEach((row: unknown) => {
-                if (Array.isArray(row)) {
-                    const rowText = row
-                        .filter(cell => cell && String(cell).trim())
-                        .join(' | ');
-                    if (rowText.trim()) {
-                        allText += rowText + '\n';
-                    }
-                }
-            });
+        // Extract text from all sheets
+        workbook.SheetNames.forEach(sheetName => {
+            const sheet = workbook.Sheets[sheetName];
+            const sheetText = XLSX.utils.sheet_to_csv(sheet, { header: 1 });
+            allText += `Sheet: ${sheetName}\n${sheetText}\n\n`;
         });
         
-        const text = allText.trim();
-        return sanitizeTextForDatabase(text || "No text content found in Excel document.");
-    } catch (error) {
-        console.error("Error extracting text from Excel:", error);
-        return "Error extracting text from Excel document.";
-    }
-}
-
-async function extractTextFromImageBuffer(imageBuffer: Buffer, mimeType: string): Promise<string> {
-    try {
-        if (!process.env.GEMINI_API_KEY) {
-            return "AI image analysis unavailable - API key not configured.";
+        if (!allText.trim()) {
+            return 'This Excel file appears to have no extractable text content.';
         }
-
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-
-        const imagePart = {
-            inlineData: {
-                data: imageBuffer.toString("base64"),
-                mimeType: mimeType,
-            },
-        };
-
-        const prompt = "Please extract and transcribe all text content from this image. If there is no text, describe what you see in the image.";
-
-        const result = await model.generateContent([prompt, imagePart]);
-        const response = await result.response;
-        const text = response.text();
-
-        return sanitizeTextForDatabase(text || "No text could be extracted from this image.");
-    } catch (error) {
-        console.error("Error extracting text from image:", error);
-        return "Error extracting text from image.";
-    }
-}
-
-// Enhanced conversational search functions using Gemini 2.5 Flash-lite
-export async function generateEmbedding(text: string, taskType: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT' = 'RETRIEVAL_DOCUMENT'): Promise<number[]> {
-    if (!text || text.trim().length === 0) {
-        throw new Error("Text is required for embedding generation");
-    }
-
-    if (!process.env.GEMINI_API_KEY) {
-        throw new Error("Gemini API key not configured");
-    }
-
-    try {
-        const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
-        const result = await model.embedContent(text);
         
-        return result.embedding.values;
+        return sanitizeTextForDatabase(allText);
     } catch (error) {
-        console.error("Error generating embedding:", error);
-        throw new Error("Failed to generate embedding");
+        console.error('Excel extraction error:', error);
+        return `Error extracting text from Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
 }
 
-// Utility functions for new 3-stage scoring system
+// Conversational response generation for search
+export async function processConversationalQuery(query: string): Promise<string> {
+    // Process user query to understand intent and extract key information
+    // This is a simple implementation - could be enhanced with more sophisticated NLP
+    
+    const queryLower = query.toLowerCase();
+    
+    // Extract potential document types and categories from query
+    const documentTypes = ["resume", "contract", "invoice", "receipt", "legal", "medical", "tax", "financial"];
+    const categories = ["taxes", "medical", "insurance", "legal", "immigration", "financial", "employment"];
+    
+    // Basic intent recognition
+    if (queryLower.includes("show") || queryLower.includes("find") || queryLower.includes("search")) {
+        return "search";
+    } else if (queryLower.includes("recent") || queryLower.includes("latest")) {
+        return "recent";
+    } else {
+        return "general";
+    }
+}
 
-export function calculateCosineSimilarity(vectorA: number[], vectorB: number[]): number {
-    if (vectorA.length !== vectorB.length) {
-        throw new Error("Vectors must have the same length");
+export async function generateConversationalResponse(
+    documents: any[], 
+    query: string, 
+    intent: string = "search"
+): Promise<string> {
+    if (documents.length === 0) {
+        return `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`;
     }
+
+    // Generate a conversational response based on results
+    const count = documents.length;
     
-    if (vectorA.length === 0) {
-        return 0;
+    if (count === 1) {
+        const doc = documents[0];
+        return `I found 1 document matching "${query}": "${doc.name}"${doc.aiSummary ? `. ${doc.aiSummary}` : ''}`;
+    } else {
+        const firstDoc = documents[0];
+        const others = count - 1;
+        return `I found ${count} documents matching "${query}". The most relevant is "${firstDoc.name}"${firstDoc.aiSummary ? ` - ${firstDoc.aiSummary}` : ''}${others > 0 ? ` and ${others} other${others > 1 ? 's' : ''}.` : '.'}`;
     }
-    
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-    
-    for (let i = 0; i < vectorA.length; i++) {
-        dotProduct += vectorA[i] * vectorB[i];
-        normA += vectorA[i] * vectorA[i];
-        normB += vectorB[i] * vectorB[i];
-    }
-    
-    if (normA === 0 || normB === 0) {
-        return 0;
-    }
-    
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 export function isAmbiguousQuery(query: string): boolean {
-    const lowerQuery = query.toLowerCase().trim();
+    const ambiguousPatterns = [
+        /^(show|find|get|search)\s+(me\s+)?(my\s+)?(all\s+)?(the\s+)?documents?\s*$/i,
+        /^(what|which)\s+documents?\s+do\s+i\s+have\??$/i,
+        /^documents?\s*$/i
+    ];
     
-    // Query length validation - extremely long queries might indicate abuse
-    const wordCount = lowerQuery.split(/\s+/).length;
-    if (wordCount > 100) {
-        console.warn(`Potentially abusive query detected: ${wordCount} words`);
-        return true; // Treat overly long queries as ambiguous
-    }
-    
-    const hasNumbers = /\d+/.test(query); // "2023", "100"
-    const hasDocumentTerms = /(contract|invoice|receipt|policy|report|statement|tax|resume|document|file|paper)/i.test(query);
-    const hasSpecificTerms = query.length > 10 && !/^(find|show|get|where|what|give|list)/.test(lowerQuery);
-    
-    // Return true if query is ambiguous (no specific indicators)
-    return !(hasNumbers || hasDocumentTerms || hasSpecificTerms);
+    return ambiguousPatterns.some(pattern => pattern.test(query.trim()));
 }
 
-export function parseEmbeddingFromJSON(embeddingStr: string | null): number[] | null {
-    if (!embeddingStr) return null;
+// Embedding generation and management functions
+export async function generateEmbedding(text: string): Promise<number[]> {
+    if (!text || text.trim().length === 0) {
+        throw new Error('Cannot generate embedding for empty text');
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY is required for embedding generation');
+    }
+
     try {
-        const parsed = JSON.parse(embeddingStr);
-        return Array.isArray(parsed) ? parsed : null;
-    } catch {
-        return null;
+        const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
+        const result = await model.embedContent(text);
+        const embedding = result.embedding;
+        
+        if (!embedding.values || !Array.isArray(embedding.values) || embedding.values.length === 0) {
+            throw new Error('Invalid embedding response from Gemini');
+        }
+
+        return embedding.values;
+    } catch (error) {
+        console.error('Error generating embedding:', error);
+        throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
 
 export function serializeEmbeddingToJSON(embedding: number[]): string {
+    if (!Array.isArray(embedding) || embedding.length === 0) {
+        throw new Error('Invalid embedding array for serialization');
+    }
     return JSON.stringify(embedding);
 }
 
-export async function processConversationalQuery(query: string): Promise<{
-    intent: string;
-    keywords: string[];
-    categoryFilter?: string;
-    documentTypeFilter?: string;
-    semanticQuery: string;
-}> {
-    if (!process.env.GEMINI_API_KEY) {
-        throw new Error("Gemini API key not configured");
+export function parseEmbeddingFromJSON(jsonString: string | null): number[] | null {
+    if (!jsonString) return null;
+    
+    try {
+        const parsed = JSON.parse(jsonString);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+            return null;
+        }
+        
+        // Validate that all elements are numbers
+        if (!parsed.every(val => typeof val === 'number' && !isNaN(val))) {
+            return null;
+        }
+        
+        return parsed;
+    } catch (error) {
+        console.error('Error parsing embedding JSON:', error);
+        return null;
+    }
+}
+
+export function calculateCosineSimilarity(embedding1: number[], embedding2: number[]): number {
+    if (!embedding1 || !embedding2 || embedding1.length !== embedding2.length) {
+        return 0;
     }
 
-    const prompt = `You are a smart document search assistant. Extract keywords from natural language search queries.
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
 
-IMPORTANT: Focus on extracting the actual search terms users want to find, especially from questions like:
-- "do I have any documents with the term X?" → extract "X"
-- "find documents containing Y" → extract "Y"  
-- "show me files about Z" → extract "Z"
+    for (let i = 0; i < embedding1.length; i++) {
+        dotProduct += embedding1[i] * embedding2[i];
+        norm1 += embedding1[i] * embedding1[i];
+        norm2 += embedding2[i] * embedding2[i];
+    }
 
-AVAILABLE CATEGORIES: "Taxes", "Medical", "Insurance", "Legal", "Immigration", "Financial", "Employment", "Education", "Real Estate", "Travel", "Personal", "Business"
+    const magnitude = Math.sqrt(norm1) * Math.sqrt(norm2);
+    return magnitude > 0 ? dotProduct / magnitude : 0;
+}
 
-AVAILABLE DOCUMENT TYPES: "Resume", "Cover Letter", "Contract", "Invoice", "Receipt", "Tax Document", "Medical Record", "Insurance Document", "Legal Document", "Immigration Document", "Financial Statement", "Employment Document", "Event Notice", "Academic Document", "Real Estate Document", "Travel Document", "Personal Statement", "Technical Documentation", "Business Report"
+// Document relevance analysis function for semantic search
+export async function analyzeDocumentRelevance(
+    documents: any[], 
+    query: string
+): Promise<{ 
+    relevantDocuments: any[], 
+    relatedDocuments: any[], 
+    explanations: Map<string, string> 
+}> {
+    if (!process.env.GEMINI_API_KEY || documents.length === 0) {
+        return {
+            relevantDocuments: documents,
+            relatedDocuments: [],
+            explanations: new Map()
+        };
+    }
+
+    try {
+        // Create document summaries for AI analysis
+        const docSummaries = documents.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            summary: doc.aiSummary || 'No summary available',
+            category: doc.aiCategory || 'Unknown',
+            type: doc.aiDocumentType || 'Unknown'
+        }));
+
+        const prompt = `You are a document relevance analyst. Given a user query and a list of documents, determine which documents are DIRECTLY RELEVANT vs TANGENTIALLY RELATED to the query.
 
 Query: "${query}"
 
-EXAMPLES:
-- "do I have any documents with the term mcasd?" → keywords: ["mcasd"]
-- "find my tax documents" → keywords: ["tax"], categoryFilter: "Taxes"
-- "show me insurance papers" → keywords: ["insurance"], categoryFilter: "Insurance"
-- "documents containing EIN number" → keywords: ["EIN", "number"]
+Documents:
+${docSummaries.map((doc, idx) => `${idx + 1}. ID: ${doc.id}
+   Name: ${doc.name}
+   Summary: ${doc.summary}
+   Category: ${doc.category}
+   Type: ${doc.type}`).join('\n\n')}
 
-Extract:
-1. Intent: What is the user trying to find?
-2. Keywords: The actual terms to search for in document content (be very liberal - include any specific terms mentioned)
-3. Category filter: If query clearly implies a specific category, return it exactly as listed above
-4. Document type filter: If query clearly implies a specific document type, return it exactly as listed above  
-5. Semantic query: Rephrase as a search-optimized query
+For each document, determine:
+1. RELEVANT: Document directly answers or relates to the query (high confidence)
+2. RELATED: Document is tangentially connected but not directly relevant (medium confidence)
+3. UNRELATED: Document has no meaningful connection to the query (should be excluded)
 
-Format as JSON:
+Also provide a brief explanation for each document about why it matches (or doesn't match) the query.
+
+Respond in JSON format:
 {
-  "intent": "intent_description",
-  "keywords": ["keyword1", "keyword2", "keyword3"],
-  "categoryFilter": "Category or null",
-  "documentTypeFilter": "Document Type or null", 
-  "semanticQuery": "optimized search query"
+  "relevantDocuments": ["doc_id_1", "doc_id_2"],
+  "relatedDocuments": ["doc_id_3"],
+  "explanations": {
+    "doc_id_1": "This document matches because...",
+    "doc_id_2": "Relevant because..."
+  }
 }`;
 
-    try {
-        const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash-lite",
-            generationConfig: {
-                temperature: 0,
-                maxOutputTokens: 500,
-                responseMimeType: "application/json"
-            }
-        });
-        
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const rawJson = response.text();
-        
-        if (rawJson) {
-            const data = JSON.parse(rawJson);
-            return {
-                intent: data.intent || "general_search",
-                keywords: Array.isArray(data.keywords) ? data.keywords : [],
-                categoryFilter: data.categoryFilter || undefined,
-                documentTypeFilter: data.documentTypeFilter || undefined,
-                semanticQuery: data.semanticQuery || query
-            };
-        }
-        
-        // Fallback if AI fails
-        return {
-            intent: "general_search", 
-            keywords: [query],
-            semanticQuery: query
-        };
-    } catch (error) {
-        console.error("Error processing conversational query:", error);
-        // Return fallback response
-        return {
-            intent: "general_search",
-            keywords: [query],
-            semanticQuery: query
-        };
-    }
-}
-
-export async function analyzeDocumentRelevance(documentContent: string, documentName: string, query: string): Promise<{
-    isRelevant: boolean;
-    confidenceScore: number;
-    relevanceReason: string;
-}> {
-    if (!process.env.GEMINI_API_KEY) {
-        return {
-            isRelevant: false,
-            confidenceScore: 0,
-            relevanceReason: "AI analysis unavailable - API key not configured"
-        };
-    }
-
-    if (!documentContent || documentContent.trim().length === 0) {
-        return {
-            isRelevant: false,
-            confidenceScore: 0,
-            relevanceReason: "Document has no content to analyze"
-        };
-    }
-
-    // Truncate content to prevent token limit issues (keep first 8000 characters)
-    const truncatedContent = documentContent.length > 8000 
-        ? documentContent.substring(0, 8000) + "\n[...content truncated for analysis...]"
-        : documentContent;
-
-    const prompt = `You are analyzing a document to determine if it is relevant to a user's search query.
-
-Document Name: "${documentName}"
-User Query: "${query}"
-
-Document Content (read this completely and carefully):
-${truncatedContent}
-
-Based on your complete reading of the document content above, answer:
-
-1. Is this document relevant to the user's query? (true/false)
-2. Confidence score (0-100) - how confident are you that this document matches what the user is looking for?
-3. Brief reason explaining why it is or isn't relevant
-
-Instructions:
-- Read the ENTIRE document content carefully
-- Consider the user's intent behind the query
-- Look for direct mentions, related concepts, or contextual relevance
-- Be accurate - don't give high confidence scores unless the document clearly relates to the query
-- For people names, look for exact name matches or clear references
-- For topics, consider both direct mentions and related concepts
-
-Respond with ONLY a JSON object in this format:
-{
-  "isRelevant": boolean,
-  "confidenceScore": number,
-  "relevanceReason": "brief explanation"
-}`;
-
-    try {
-        const model = genAI.getGenerativeModel({ 
+        const model = genAI.getGenerativeModel({
             model: "gemini-2.5-flash-lite",
             generationConfig: {
                 temperature: 0.1,
-                maxOutputTokens: 300,
+                maxOutputTokens: 2000,
                 responseMimeType: "application/json"
             }
         });
-        
+
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        const responseText = response.text();
+        const analysis = JSON.parse(response.text());
+
+        // Map document IDs back to actual documents
+        const relevantDocs = documents.filter(doc => 
+            analysis.relevantDocuments?.includes(doc.id)
+        );
         
-        // Parse the JSON response
-        try {
-            const parsed = JSON.parse(responseText);
-            return {
-                isRelevant: Boolean(parsed.isRelevant),
-                confidenceScore: Math.min(Math.max(Number(parsed.confidenceScore) || 0, 0), 100),
-                relevanceReason: String(parsed.relevanceReason || "No reason provided")
-            };
-        } catch (parseError) {
-            console.error("Error parsing AI relevance response:", parseError, "Response:", responseText);
-        }
-        
-        // Fallback if JSON parsing fails
+        const relatedDocs = documents.filter(doc => 
+            analysis.relatedDocuments?.includes(doc.id)
+        );
+
+        // Convert explanations object to Map
+        const explanations = new Map(Object.entries(analysis.explanations || {}));
+
         return {
-            isRelevant: false,
-            confidenceScore: 0,
-            relevanceReason: "Unable to parse AI analysis response"
+            relevantDocuments: relevantDocs,
+            relatedDocuments: relatedDocs,
+            explanations
         };
+
     } catch (error) {
-        console.error("Error analyzing document relevance:", error);
-        return {
-            isRelevant: false,
-            confidenceScore: 0,
-            relevanceReason: "Error during AI analysis"
-        };
-    }
-}
-
-export async function generateConversationalResponse(query: string, matchingDocuments: any[], intent: string): Promise<string> {
-    if (!process.env.GEMINI_API_KEY) {
-        if (matchingDocuments.length === 0) {
-            return `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`;
-        } else {
-            return `I found ${matchingDocuments.length} document${matchingDocuments.length === 1 ? '' : 's'} that might be relevant to your search.`;
-        }
-    }
-
-    // Enhanced document context with confidence scores and match explanations
-    const documentsContext = matchingDocuments.slice(0, 5).map(doc => {
-        const matchReasons = [];
+        console.error('Error analyzing document relevance:', error);
         
-        // Analyze what caused the match for better explanation
-        if (doc.name && query.toLowerCase().split(' ').some(word => 
-            doc.name.toLowerCase().includes(word.toLowerCase()))) {
-            matchReasons.push("title contains search terms");
-        }
-        
-        if (doc.aiKeyTopics && Array.isArray(doc.aiKeyTopics) && 
-            query.toLowerCase().split(' ').some(word => 
-                doc.aiKeyTopics.some((topic: string) => topic.toLowerCase().includes(word.toLowerCase())))) {
-            matchReasons.push("key topics match");
-        }
-        
-        if (doc.documentContent && query.toLowerCase().split(' ').some(word => 
-            doc.documentContent.toLowerCase().includes(word.toLowerCase()))) {
-            matchReasons.push("document content contains search terms");
-        }
-        
-        if (doc.aiSummary && query.toLowerCase().split(' ').some(word => 
-            doc.aiSummary.toLowerCase().includes(word.toLowerCase()))) {
-            matchReasons.push("summary contains search terms");
-        }
-        
-        return {
-            name: doc.name,
-            type: doc.aiDocumentType || doc.fileType,
-            category: doc.aiCategory,
-            summary: doc.aiSummary?.substring(0, 150) + (doc.aiSummary?.length > 150 ? "..." : ""),
-            keyTopics: doc.aiKeyTopics || [],
-            confidenceScore: doc.confidenceScore || 0,
-            matchReasons: matchReasons,
-            documentContent: doc.documentContent ? doc.documentContent.substring(0, 200) + "..." : null
-        };
-    });
-
-    const prompt = `User asked: "${query}"
-Search intent: ${intent}
-Found ${matchingDocuments.length} documents:
-
-${JSON.stringify(documentsContext, null, 2)}
-
-Generate a helpful, conversational response that:
-1. Acknowledges what the user is looking for
-2. Lists the most relevant documents
-3. Explains WHY each document matches (based on matchReasons)
-4. Uses natural, conversational language
-5. If multiple documents found, mention the top matches
-
-Format like: 
-For single document: "I found 1 document related to [topic]. Here's the top match: 
-• [Document Name] - matches because [reason]"
-
-For multiple documents: "I found [X] documents related to [topic]. Here are the matches:
-
-• Here's the top match: [Document Name] - matches because [reason]
-
-• Here's the second best match: [Document Name] - matches because [reason] 
-
-• Here's the third best match: [Document Name] - matches because [reason]"
-
-IMPORTANT: Use line breaks before and after each bullet point for better readability. Each match should be on its own line starting with "Here's the top match", "Here's the second best match", "Here's the third best match", etc.
-
-Keep response helpful and informative but concise.`;
-
-    try {
-        const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash-lite",
-            generationConfig: {
-                temperature: 0.3,
-                maxOutputTokens: 300
-            }
+        // Fallback to simple text matching if AI analysis fails
+        const relevantDocs = documents.filter(doc => {
+            const searchText = `${doc.name} ${doc.aiSummary || ''} ${doc.aiKeyTopics?.join(' ') || ''}`.toLowerCase();
+            return query.toLowerCase().split(' ').some(term => 
+                term.length > 2 && searchText.includes(term)
+            );
         });
-        
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const responseText = response.text();
-        if (responseText) {
-            return responseText;
-        } else {
-            return matchingDocuments.length === 0 
-                ? `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`
-                : `I found ${matchingDocuments.length} document${matchingDocuments.length === 1 ? '' : 's'} that might be relevant to your search.`;
-        }
-    } catch (error) {
-        console.error("Error generating conversational response:", error);
-        return matchingDocuments.length === 0 
-            ? `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`
-            : `I found ${matchingDocuments.length} document${matchingDocuments.length === 1 ? '' : 's'} that might be relevant to your search.`;
+
+        return {
+            relevantDocuments: relevantDocs,
+            relatedDocuments: documents.filter(doc => !relevantDocs.includes(doc)),
+            explanations: new Map()
+        };
     }
 }

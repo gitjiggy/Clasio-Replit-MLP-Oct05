@@ -1,11 +1,10 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, unique, index, uniqueIndex, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, unique, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const folders = pgTable("folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: text("user_id").notNull(), // Firebase UID - owner of the folder
   name: text("name").notNull(),
   color: text("color").default("#f59e0b"),
   parentId: varchar("parent_id"),
@@ -15,50 +14,35 @@ export const folders = pgTable("folders", {
   gcsPath: text("gcs_path"), // Path in Google Cloud Storage
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
 }, (table) => ({
-  // Multi-tenant indexes
-  userIdIndex: index("folders_user_id_idx").on(table.userId),
-  // Ensure unique main category folders per user (no parent, auto-created, by category)
+  // Ensure unique main category folders (no parent, auto-created, by category)
   uniqueMainCategoryFolder: uniqueIndex("folders_unique_main_category_idx")
-    .on(table.userId, table.category)
+    .on(table.category)
     .where(sql`parent_id IS NULL AND is_auto_created = true`),
-  // Ensure unique sub-folders under each parent per user
+  // Ensure unique sub-folders under each parent
   uniqueSubFolderUnderParent: uniqueIndex("folders_unique_subfolder_idx")
-    .on(table.userId, table.parentId, table.documentType)
+    .on(table.parentId, table.documentType)
     .where(sql`parent_id IS NOT NULL AND is_auto_created = true`),
 }));
 
 export const tags = pgTable("tags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: text("user_id").notNull(), // Firebase UID - owner of the tag
-  name: text("name").notNull(),
+  name: text("name").notNull().unique(),
   color: text("color").default("#3b82f6"),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
-}, (table) => ({
-  // Multi-tenant indexes
-  userIdIndex: index("tags_user_id_idx").on(table.userId),
-  // Ensure unique tag names per user (not globally unique)
-  uniqueTagPerUser: uniqueIndex("tags_unique_name_per_user_idx").on(table.userId, table.name),
-}));
+});
 
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: text("user_id").notNull(), // Firebase UID - owner of the document
   name: text("name").notNull(),
   originalName: text("original_name").notNull(),
   filePath: text("file_path"),
-  objectPath: text("object_path"), // GCS object path for deletion
   fileSize: integer("file_size"),
   fileType: text("file_type").notNull(),
   mimeType: text("mime_type").notNull(),
-  contentHash: text("content_hash"), // MD5/ETag for content-based deduplication (optional)
   folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
   uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
   isFavorite: boolean("is_favorite").default(false).notNull(),
-  isDeleted: boolean("is_deleted").default(false).notNull(), // Keep for backward compatibility
-  // Trash system with 7-day retention
-  status: text("status").default("active").notNull(), // 'active', 'trashed', 'purged'
-  deletedAt: timestamp("deleted_at"), // When moved to trash
-  deletedGeneration: bigint("deleted_generation", { mode: "bigint" }), // GCS object generation for restore
+  isDeleted: boolean("is_deleted").default(false).notNull(),
   // Google Drive integration fields
   driveFileId: text("drive_file_id"), // Google Drive file ID
   driveWebViewLink: text("drive_web_view_link"), // Google Drive web view URL
@@ -93,12 +77,7 @@ export const documents = pgTable("documents", {
   keyTopicsEmbedding: text("key_topics_embedding"), // JSON array of embedding for key topics
   embeddingsGenerated: boolean("embeddings_generated").default(false).notNull(),
   embeddingsGeneratedAt: timestamp("embeddings_generated_at"),
-}, (table) => ({
-  // Multi-tenant indexes
-  userIdIndex: index("documents_user_id_idx").on(table.userId),
-  userDuplicateCheckIndex: index("documents_user_duplicate_idx").on(table.userId, table.originalName, table.fileSize),
-  userContentHashIndex: index("documents_user_content_hash_idx").on(table.userId, table.contentHash),
-}));
+});
 
 export const documentVersions = pgTable("document_versions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -125,15 +104,9 @@ export const documentVersions = pgTable("document_versions", {
 
 export const documentTags = pgTable("document_tags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: text("user_id").notNull(), // Firebase UID for ownership validation
   documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
   tagId: varchar("tag_id").references(() => tags.id, { onDelete: "cascade" }).notNull(),
-}, (table) => ({
-  // Multi-tenant indexes
-  userIdIndex: index("document_tags_user_id_idx").on(table.userId),
-  // Ensure unique document-tag pairs per user
-  uniqueDocumentTag: uniqueIndex("document_tags_unique_per_user_idx").on(table.userId, table.documentId, table.tagId),
-}));
+});
 
 // Document access log for quality boost scoring
 export const documentAccessLog = pgTable("document_access_log", {
