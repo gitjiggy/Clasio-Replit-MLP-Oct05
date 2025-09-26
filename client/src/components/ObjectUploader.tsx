@@ -230,8 +230,11 @@ export function ObjectUploader({
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     
-    // Show modal as soon as files are selected
+    // Show modal and immediate feedback as soon as files are selected
     setShowModal(true);
+    setState("signing"); // Show immediate feedback before any processing
+    setSelectedFiles(files);
+    setErrors([]); // Clear any previous errors
     
     // Validate file count
     if (files.length > maxNumberOfFiles) {
@@ -250,7 +253,7 @@ export function ObjectUploader({
       return;
     }
     
-    setSelectedFiles(files);
+    // Start upload process immediately after validation
     if (files.length > 0) {
       handleUpload(files);
     }

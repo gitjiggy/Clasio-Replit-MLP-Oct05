@@ -3738,18 +3738,25 @@ export class DatabaseStorage implements IStorage {
     try {
       await this.ensureInitialized();
       
+      console.log(`🗂️ Starting Smart Organization: doc=${documentId}, category="${category}", type="${documentType}", user=${userId}`);
+      
       // Runtime guard: Fail fast if userId is missing
       if (!userId || userId.trim() === '') {
         throw new Error(`organizeDocumentIntoFolder: userId is required but was: ${userId}`);
       }
       
       // Find or create the main category folder
+      console.log(`🔍 Finding/creating category folder: "${category}"`);
       const categoryFolder = await this.findOrCreateCategoryFolder(category, userId);
+      console.log(`✅ Category folder ready: ${categoryFolder.id} - "${categoryFolder.name}"`);
       
       // Find or create the document type sub-folder
+      console.log(`🔍 Finding/creating sub-folder: "${documentType}" under ${categoryFolder.id}`);
       const subFolder = await this.findOrCreateSubFolder(categoryFolder.id, documentType, userId);
+      console.log(`✅ Sub-folder ready: ${subFolder.id} - "${subFolder.name}"`);
       
       // Update the document to assign it to the sub-folder
+      console.log(`📝 Assigning document ${documentId} to folder ${subFolder.id}`);
       const [updatedDoc] = await db
         .update(documents)
         .set({
@@ -3758,9 +3765,11 @@ export class DatabaseStorage implements IStorage {
         .where(eq(documents.id, documentId))
         .returning();
       
-      return !!updatedDoc;
+      const success = !!updatedDoc;
+      console.log(`🎯 Smart Organization result: ${success ? 'SUCCESS' : 'FAILED'} for document ${documentId}`);
+      return success;
     } catch (error) {
-      console.error("Error organizing document into folder:", error);
+      console.error(`❌ Smart Organization error for doc ${documentId}:`, error);
       return false;
     }
   }
