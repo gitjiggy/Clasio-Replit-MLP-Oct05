@@ -569,6 +569,14 @@ export default function Documents() {
     // Folders will be invalidated after Smart Organization completes
     queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
     queryClient.invalidateQueries({ queryKey: ["/api/queue/status"] });
+    
+    // Add delayed refresh for Smart Organization completion
+    // Smart Organization happens after AI analysis and updates folder assignments
+    setTimeout(() => {
+      console.log('🔄 Refreshing queries after Smart Organization delay...');
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
+    }, 25000); // 25 second delay to ensure Smart Organization completes
   }, [queryClient]);
 
   // Upload mutation
