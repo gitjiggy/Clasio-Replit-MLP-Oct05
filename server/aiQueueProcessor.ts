@@ -265,7 +265,8 @@ class AIQueueProcessor {
                   nextJob.documentId, 
                   analysisResult.category, 
                   analysisResult.documentType,
-                  nextJob.userId
+                  nextJob.userId,
+                  analysisResult // Pass the full analysis data for smart folder naming
                 );
                 if (organized) {
                   console.log(`✅ Smart Organization: "${document.name}" → ${analysisResult.category}/${analysisResult.documentType}`);
@@ -408,7 +409,8 @@ class AIQueueProcessor {
               documentId, 
               analysisResult.category, 
               analysisResult.documentType,
-              userId
+              userId,
+              analysisResult // Pass the full analysis data for smart folder naming
             );
             if (organized) {
               console.log(`✅ Smart Organization (immediate): "${document.name}" → ${analysisResult.category}/${analysisResult.documentType}`);

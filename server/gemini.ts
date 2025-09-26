@@ -63,6 +63,11 @@ export async function analyzeDocumentContent(text: string): Promise<{
     conciseTitle: string;
     categoryConfidence: number;
     documentTypeConfidence: number;
+    documentYear: string | null;
+    documentPurpose: string | null;
+    filingStatus: string | null;
+    bodyPart: string | null;
+    documentSubtype: string | null;
 }> {
     if (!text || text.trim().length === 0) {
         return {
@@ -72,7 +77,12 @@ export async function analyzeDocumentContent(text: string): Promise<{
             wordCount: 0,
             conciseTitle: "Empty Document",
             categoryConfidence: 50,
-            documentTypeConfidence: 50
+            documentTypeConfidence: 50,
+            documentYear: null,
+            documentPurpose: null,
+            filingStatus: null,
+            bodyPart: null,
+            documentSubtype: null
         };
     }
 
@@ -84,7 +94,12 @@ export async function analyzeDocumentContent(text: string): Promise<{
             wordCount: text.split(/\s+/).length,
             conciseTitle: "Untitled Document",
             categoryConfidence: 0,
-            documentTypeConfidence: 0
+            documentTypeConfidence: 0,
+            documentYear: null,
+            documentPurpose: null,
+            filingStatus: null,
+            bodyPart: null,
+            documentSubtype: null
         };
     }
 
@@ -135,12 +150,20 @@ STRICT REQUIREMENTS:
 
 5. Confidence scores: Provide confidence (0.0 to 1.0) for both category and document type classifications
 
+6. ENHANCED METADATA for Smart Organization:
+   - documentYear: Extract the primary year (YYYY format) if clearly identifiable, otherwise null
+   - documentPurpose: Brief descriptor of specific purpose (e.g., "donation-receipt", "completed-return", "knee-examination", "driver-license", "employment-contract")
+   - filingStatus: For tax documents only - "pre-filing" (receipts, prep documents) or "filed" (completed returns) or null
+   - bodyPart: For medical documents only - specific body part/area if mentioned (e.g., "knee", "heart", "dental") or null
+   - documentSubtype: Specific subtype (e.g., "1040-form", "w2-statement", "mri-report", "passport", "birth-certificate")
+
 IMPORTANT: If uncertain about classification, choose the CLOSEST matching option. NEVER use "Other" - always pick the best fit from the available options.
 
 EXAMPLES:
-- "2022 Fall Back to School Night" → {"conciseTitle": "School Event Notification", "documentType": "Event Notice", "category": "Education", "categoryConfidence": 0.95, "documentTypeConfidence": 0.90}
-- "John Smith Resume 2024" → {"conciseTitle": "Professional Resume Document", "documentType": "Resume", "category": "Employment", "categoryConfidence": 0.98, "documentTypeConfidence": 0.99}
-- "Stanford Personal Statement Draft" → {"conciseTitle": "College Application Essay", "documentType": "Personal Statement", "category": "Education", "categoryConfidence": 0.92, "documentTypeConfidence": 0.88}
+- "2023 Charity Donation Receipt" → {"conciseTitle": "Charity Donation Receipt", "documentType": "Tax Document", "category": "Taxes", "documentYear": "2023", "documentPurpose": "donation-receipt", "filingStatus": "pre-filing", "documentSubtype": "donation-receipt"}
+- "Completed 2022 Tax Return Form 1040" → {"conciseTitle": "Filed Tax Return", "documentType": "Tax Document", "category": "Taxes", "documentYear": "2022", "documentPurpose": "completed-return", "filingStatus": "filed", "documentSubtype": "1040-form"}
+- "MRI Knee Report Jan 2024" → {"conciseTitle": "Knee MRI Medical Report", "documentType": "Medical Record", "category": "Medical", "documentYear": "2024", "documentPurpose": "knee-examination", "bodyPart": "knee", "documentSubtype": "mri-report"}
+- "Driver License 2025" → {"conciseTitle": "Driver License Document", "documentType": "Immigration Document", "category": "Personal", "documentYear": "2025", "documentPurpose": "driver-license", "documentSubtype": "driver-license"}
 
 ${keywordCategory ? `HINT: Based on content analysis, this appears to be category "${keywordCategory}"` : ''}
 ${keywordDocumentType ? ` and type "${keywordDocumentType}"` : ''}
@@ -152,7 +175,12 @@ Format response as JSON only:
   "documentType": "Document Type",
   "category": "Category",
   "categoryConfidence": 0.95,
-  "documentTypeConfidence": 0.90
+  "documentTypeConfidence": 0.90,
+  "documentYear": "2023",
+  "documentPurpose": "specific-purpose",
+  "filingStatus": "pre-filing",
+  "bodyPart": "knee",
+  "documentSubtype": "specific-subtype"
 }
 
 Document content:
@@ -238,7 +266,12 @@ ${text}`;
                 wordCount,
                 conciseTitle,
                 categoryConfidence,
-                documentTypeConfidence
+                documentTypeConfidence,
+                documentYear: data.documentYear || null,
+                documentPurpose: data.documentPurpose || null,
+                filingStatus: data.filingStatus || null,
+                bodyPart: data.bodyPart || null,
+                documentSubtype: data.documentSubtype || null
             };
         } else {
             throw new Error("Empty response from model");
@@ -252,7 +285,12 @@ ${text}`;
             wordCount,
             conciseTitle: "Analysis Failed",
             categoryConfidence: 0,
-            documentTypeConfidence: 0
+            documentTypeConfidence: 0,
+            documentYear: null,
+            documentPurpose: null,
+            filingStatus: null,
+            bodyPart: null,
+            documentSubtype: null
         };
     }
 }

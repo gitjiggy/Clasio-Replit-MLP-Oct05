@@ -138,6 +138,21 @@ export interface DocumentFilters {
   includeContent?: boolean; // Flag to include document content
 }
 
+export interface AnalysisData {
+  keyTopics: string[];
+  documentType: string;
+  category: string;
+  wordCount: number;
+  conciseTitle: string;
+  categoryConfidence: number;
+  documentTypeConfidence: number;
+  documentYear: string | null;
+  documentPurpose: string | null;
+  filingStatus: string | null;
+  bodyPart: string | null;
+  documentSubtype: string | null;
+}
+
 export interface IStorage {
   // Documents
   createDocument(document: InsertDocument): Promise<Document>;
@@ -192,7 +207,7 @@ export interface IStorage {
   // Automatic Folder Organization
   findOrCreateCategoryFolder(category: string, userId: string): Promise<Folder>;
   findOrCreateSubFolder(parentId: string, documentType: string, userId: string): Promise<Folder>;
-  organizeDocumentIntoFolder(documentId: string, category: string, documentType: string, userId: string): Promise<boolean>;
+  organizeDocumentIntoFolder(documentId: string, category: string, documentType: string, userId: string, analysisData?: AnalysisData): Promise<boolean>;
   removeDocumentTags(documentId: string, userId: string): Promise<void>;
 
   // AI Analysis Queue Management
@@ -3734,7 +3749,175 @@ export class DatabaseStorage implements IStorage {
     throw new Error(`Failed to create or find sub-folder: ${normalizedType} under ${parentId}`);
   }
 
-  async organizeDocumentIntoFolder(documentId: string, category: string, documentType: string, userId: string): Promise<boolean> {
+  async findOrCreateSmartSubFolder(parentId: string, documentType: string, userId: string, analysisData?: any): Promise<Folder> {
+    await this.ensureInitialized();
+    
+    // Generate intelligent sub-folder name based on enhanced analysis
+    const smartFolderName = this.generateSmartFolderName(documentType, analysisData);
+    
+    console.log(`🧠 Smart folder name generated: "${smartFolderName}"`);
+    
+    // Get all existing sub-folders for similarity checking
+    const existingSubFolders = await db
+      .select()
+      .from(folders)
+      .where(
+        and(
+          eq(folders.parentId, parentId),
+          eq(folders.isAutoCreated, true),
+          eq(folders.userId, userId)
+        )
+      );
+    
+    // Check for 80%+ similarity with existing folders
+    const similarFolder = this.findSimilarFolder(smartFolderName, existingSubFolders);
+    if (similarFolder) {
+      console.log(`🎯 Found similar folder (${similarFolder.confidence}% match): "${similarFolder.folder.name}"`);
+      return similarFolder.folder;
+    }
+    
+    // Get parent folder to construct GCS path
+    const parentFolder = await db
+      .select()
+      .from(folders)
+      .where(eq(folders.id, parentId))
+      .limit(1);
+    
+    if (parentFolder.length === 0) {
+      throw new Error(`Parent folder ${parentId} not found`);
+    }
+    
+    // Create GCS path with proper sanitization
+    const gcsPath = `${parentFolder[0].gcsPath}/${this.slugify(smartFolderName)}`;
+    
+    // Try to insert the new smart sub-folder
+    const insertResult = await db
+      .insert(folders)
+      .values({
+        name: smartFolderName,
+        color: "#9ca3af", // Gray color for sub-folders
+        parentId: parentId,
+        isAutoCreated: true,
+        documentType: this.normalizeDocumentType(documentType),
+        gcsPath: gcsPath,
+        userId: userId,
+      })
+      .onConflictDoNothing()
+      .returning();
+    
+    if (insertResult.length > 0) {
+      console.log(`✨ Created new smart sub-folder: "${smartFolderName}"`);
+      return insertResult[0];
+    }
+    
+    // Fallback: if smart folder creation fails, use the original logic
+    console.log(`⚠️ Smart folder creation failed, falling back to standard logic`);
+    return this.findOrCreateSubFolder(parentId, documentType, userId);
+  }
+
+  private generateSmartFolderName(documentType: string, analysisData?: any): string {
+    if (!analysisData) {
+      return this.normalizeDocumentType(documentType);
+    }
+
+    const { documentYear, documentPurpose, filingStatus, bodyPart, documentSubtype, category } = analysisData;
+    
+    // Tax Documents - use year + filing status
+    if (category === 'Taxes' && documentYear && filingStatus) {
+      if (filingStatus === 'pre-filing') {
+        return `${documentYear}-pre-tax-filing`;
+      } else if (filingStatus === 'filed') {
+        return `${documentYear}-tax-filed`;
+      }
+    }
+    
+    // Medical Documents - use year + body part + type
+    if (category === 'Medical' && documentYear) {
+      if (bodyPart) {
+        return `${documentYear}-${bodyPart.toLowerCase()}-report`;
+      }
+      return `${documentYear}-medical-record`;
+    }
+    
+    // Personal/ID Documents - use year + document purpose
+    if (category === 'Personal' && documentYear && documentPurpose) {
+      if (documentPurpose.includes('license') || documentPurpose.includes('id')) {
+        return `${documentYear}-ID-documents`;
+      }
+      return `${documentYear}-${documentPurpose.replace(/-/g, '-')}`;
+    }
+    
+    // Business/Employment - use year + purpose if available
+    if ((category === 'Business' || category === 'Employment') && documentYear && documentPurpose) {
+      return `${documentYear}-${documentPurpose.replace(/-/g, '-')}`;
+    }
+    
+    // Insurance/Legal - use year if available, otherwise descriptive name
+    if ((category === 'Insurance' || category === 'Legal') && documentYear) {
+      if (documentSubtype) {
+        return `${documentYear}-${documentSubtype.replace(/-/g, '-')}`;
+      }
+      return `${documentYear}-${category.toLowerCase()}-docs`;
+    }
+    
+    // Fallback: Use normalized document type
+    return this.normalizeDocumentType(documentType);
+  }
+
+  private findSimilarFolder(targetName: string, existingFolders: any[]): { folder: any; confidence: number } | null {
+    if (!existingFolders.length) return null;
+    
+    let bestMatch = null;
+    let highestSimilarity = 0;
+    
+    for (const folder of existingFolders) {
+      const similarity = this.calculateStringSimilarity(targetName.toLowerCase(), folder.name.toLowerCase());
+      if (similarity > highestSimilarity) {
+        highestSimilarity = similarity;
+        bestMatch = folder;
+      }
+    }
+    
+    // Return match only if similarity is 80% or higher
+    if (highestSimilarity >= 0.8) {
+      return { folder: bestMatch, confidence: Math.round(highestSimilarity * 100) };
+    }
+    
+    return null;
+  }
+
+  private calculateStringSimilarity(str1: string, str2: string): number {
+    // Simple Levenshtein distance-based similarity
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) return 1.0;
+    
+    const editDistance = this.levenshteinDistance(longer, shorter);
+    return (longer.length - editDistance) / longer.length;
+  }
+
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+    
+    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+    
+    for (let j = 1; j <= str2.length; j++) {
+      for (let i = 1; i <= str1.length; i++) {
+        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1,     // deletion
+          matrix[j - 1][i] + 1,     // insertion
+          matrix[j - 1][i - 1] + indicator // substitution
+        );
+      }
+    }
+    
+    return matrix[str2.length][str1.length];
+  }
+
+  async organizeDocumentIntoFolder(documentId: string, category: string, documentType: string, userId: string, analysisData?: AnalysisData): Promise<boolean> {
     try {
       await this.ensureInitialized();
       
@@ -3750,9 +3933,9 @@ export class DatabaseStorage implements IStorage {
       const categoryFolder = await this.findOrCreateCategoryFolder(category, userId);
       console.log(`✅ Category folder ready: ${categoryFolder.id} - "${categoryFolder.name}"`);
       
-      // Find or create the document type sub-folder
-      console.log(`🔍 Finding/creating sub-folder: "${documentType}" under ${categoryFolder.id}`);
-      const subFolder = await this.findOrCreateSubFolder(categoryFolder.id, documentType, userId);
+      // Find or create the document type sub-folder with intelligent naming
+      console.log(`🔍 Finding/creating smart sub-folder under ${categoryFolder.id}`);
+      const subFolder = await this.findOrCreateSmartSubFolder(categoryFolder.id, documentType, userId, analysisData);
       console.log(`✅ Sub-folder ready: ${subFolder.id} - "${subFolder.name}"`);
       
       // Update the document to assign it to the sub-folder
