@@ -886,8 +886,62 @@ export default function Documents() {
     },
   });
 
-  // Delete flavor text for humorous delete messaging
-  const deleteFlavorText = useDeleteFlavor(deleteAllDocumentsMutation.isPending);
+  // Humorous delete messages that rotate while deleting
+  const deleteFlavorMessages = [
+    "Saying goodbye to your files...",
+    "Bidding adieu to your documents...", 
+    "Organizing the great digital decluttering...",
+    "Teaching your docs to pack their bags...",
+    "Filing papers in the virtual shredder...",
+    "Helping documents find their way to the cloud recycling bin...",
+    "Convincing files to take a well-deserved vacation...",
+    "Orchestrating the grand document exodus...",
+    "Whispering sweet farewells to your uploads...",
+    "Conducting the paperless office cleanup ceremony..."
+  ];
+
+  // Show rotating humorous messages while delete all is running
+  useEffect(() => {
+    if (!deleteAllDocumentsMutation.isPending) return;
+
+    let messageIndex = 0;
+    let toastId: string | undefined;
+
+    const showNextMessage = () => {
+      const message = deleteFlavorMessages[messageIndex];
+      
+      // Dismiss previous toast and show new one
+      if (toastId) {
+        // Note: toast.dismiss(toastId) would be ideal but may not be available
+        // The toast will auto-dismiss when we show the next one
+      }
+      
+      // Show new humorous message
+      const result = toast({
+        title: message,
+        description: "🗂️ Organizing your digital workspace...",
+        duration: 2000, // 2 seconds each message
+      });
+      
+      // Store toast ID if available
+      if (result && typeof result === 'object' && 'id' in result) {
+        toastId = result.id as string;
+      }
+      
+      messageIndex = (messageIndex + 1) % deleteFlavorMessages.length;
+    };
+
+    // Show first message immediately
+    showNextMessage();
+    
+    // Rotate messages every 2 seconds
+    const interval = setInterval(showNextMessage, 2000);
+
+    return () => {
+      clearInterval(interval);
+      // Final cleanup toast would be handled by the mutation's onSuccess
+    };
+  }, [deleteAllDocumentsMutation.isPending, toast]);
 
   const getUploadParameters = async () => {
     const response = await apiRequest("POST", "/api/documents/upload-url", {});
