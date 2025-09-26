@@ -1770,7 +1770,7 @@ export class DatabaseStorage implements IStorage {
         relatedDocuments: [],
         response: "No matches found", 
         intent: 'hybrid_search',
-        keywords: query.split(' '),
+        keywords: preprocessedQuery.split(' ').filter(word => word.trim().length > 0),
         timing: { total: totalTime, fts: ftsTime, semantic: 0 }
       };
     }
@@ -1805,7 +1805,7 @@ export class DatabaseStorage implements IStorage {
           relatedDocuments: [],
           response: `Found ${documents.length} documents using text search`,
           intent: 'fts_only',
-          keywords: query.split(' '),
+          keywords: preprocessedQuery.split(' ').filter(word => word.trim().length > 0),
           timing: { total: totalTime, fts: ftsTime, semantic: semanticTime }
         };
       }
@@ -1896,7 +1896,7 @@ export class DatabaseStorage implements IStorage {
       relatedDocuments,
       response: conversationalResponse,
       intent: 'hybrid_search',
-      keywords: query.split(' ').filter(word => word.trim().length > 0),
+      keywords: preprocessedQuery.split(' ').filter(word => word.trim().length > 0),
       timing: { total: totalTime, fts: ftsTime, semantic: semanticTime }
     };
   }
