@@ -1757,13 +1757,23 @@ export class DatabaseStorage implements IStorage {
         for (const keyword of keywords) {
           const searchTerm = `%${keyword}%`;
           
-          // Fast search: Only name and AI metadata (skip content and tags for speed)
+          // Comprehensive search: name, originalName, AI metadata, and content for maximum recall
           const nameCondition = ilike(documents.name, searchTerm);
+          const originalNameCondition = ilike(documents.originalName, searchTerm);
           const aiCategoryCondition = ilike(documents.aiCategory, searchTerm);
           const aiDocumentTypeCondition = ilike(documents.aiDocumentType, searchTerm);
+          const aiSummaryCondition = ilike(documents.aiSummary, searchTerm);
+          const documentContentCondition = ilike(documents.documentContent, searchTerm);
           
-          // Combine fast search conditions for this keyword
-          keywordConditions.push(or(nameCondition, aiCategoryCondition, aiDocumentTypeCondition)!);
+          // Combine comprehensive search conditions for this keyword
+          keywordConditions.push(or(
+            nameCondition, 
+            originalNameCondition,
+            aiCategoryCondition, 
+            aiDocumentTypeCondition,
+            aiSummaryCondition,
+            documentContentCondition
+          )!);
         }
         
         // Documents must match at least one keyword (OR logic)
