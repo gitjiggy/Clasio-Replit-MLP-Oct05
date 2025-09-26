@@ -3753,9 +3753,12 @@ export class DatabaseStorage implements IStorage {
     await this.ensureInitialized();
     
     // Generate intelligent sub-folder name based on enhanced analysis
-    const smartFolderName = this.generateSmartFolderName(documentType, analysisData);
+    const rawSmartFolderName = this.generateSmartFolderName(documentType, analysisData);
     
-    console.log(`🧠 Smart folder name generated: "${smartFolderName}"`);
+    // Normalize the smart folder name for consistency with regular folder naming
+    const smartFolderName = this.formatFolderName(rawSmartFolderName);
+    
+    console.log(`🧠 Smart folder name generated: "${smartFolderName}" (from "${rawSmartFolderName}")`);
     
     // Get all existing sub-folders for similarity checking
     const existingSubFolders = await db
@@ -4084,6 +4087,18 @@ export class DatabaseStorage implements IStorage {
     const normalized = typeMap[documentType.toLowerCase()] || documentType;
     // Capitalize first letter and ensure proper format
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+
+  private formatFolderName(text: string): string {
+    if (!text || typeof text !== 'string') {
+      return 'Uncategorized';
+    }
+    
+    // Convert kebab-case to title case (e.g., "cybersecurity-risk-analysis" → "Cybersecurity Risk Analysis")
+    return text
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
   }
 
   private slugify(text: string): string {
