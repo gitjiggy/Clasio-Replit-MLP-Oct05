@@ -144,8 +144,8 @@ class AIQueueProcessor {
       // Check if this document is in retry backoff
       const retryTime = this.geminiRetryDelays.get(nextJob.documentId);
       if (retryTime && Date.now() < retryTime) {
-        // Put job back and try another
-        await storage.updateQueueJobStatus(nextJob.id, 'pending', 'Waiting for retry backoff');
+        // Schedule retry and put job back with future scheduled time to prevent tight loops
+        await storage.rescheduleJob(nextJob.id, new Date(retryTime));
         continue;
       }
       
@@ -176,8 +176,8 @@ class AIQueueProcessor {
       // Check if this document is in retry backoff
       const retryTime = this.geminiRetryDelays.get(nextJob.documentId);
       if (retryTime && Date.now() < retryTime) {
-        // Put job back and try another
-        await storage.updateQueueJobStatus(nextJob.id, 'pending', 'Waiting for retry backoff');
+        // Schedule retry and put job back with future scheduled time to prevent tight loops
+        await storage.rescheduleJob(nextJob.id, new Date(retryTime));
         continue;
       }
       
