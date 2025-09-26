@@ -40,6 +40,10 @@ import {
   parseEmbeddingFromJSON, 
   serializeEmbeddingToJSON 
 } from "./gemini.js";
+import { QueryAnalyzer, PolicyRegistry, QueryAnalysis, SearchPolicy } from './queryAnalysis.js';
+import { FieldAwareLexicalScorer, FieldContent, LexicalAnalysisResult } from './fieldAwareLexical.js';
+import { TierRouter, TierClassification, QualitySignals } from './tierRouting.js';
+import { PolicyDrivenSearchEngine } from './policyDrivenSearch.js';
 
 // Utility function to get configurable trash retention period
 export function getTrashRetentionDays(): number {
@@ -250,6 +254,19 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   private isInitialized = false;
   private queryEmbeddingCache = new QueryEmbeddingCacheManager();
+  
+  // Policy-driven search system
+  private queryAnalyzer = new QueryAnalyzer();
+  private policyRegistry = new PolicyRegistry();
+  private fieldAwareLexicalScorer = new FieldAwareLexicalScorer();
+  private tierRouter = new TierRouter();
+  private policyDrivenSearchEngine = new PolicyDrivenSearchEngine(
+    this.queryAnalyzer,
+    this.policyRegistry, 
+    this.fieldAwareLexicalScorer,
+    this.tierRouter,
+    this.queryEmbeddingCache
+  );
 
   private async ensureInitialized() {
     if (!this.isInitialized) {
