@@ -47,10 +47,13 @@ const getFileTypeFromName = (filename: string): string => {
 // Rotating flavor text for each upload stage
 const FLAVOR = {
   signing: [
-    "Sharpening quills… generating upload scrolls.",
     "Filing the intergalactic paperwork for your files…",
     "Calculating the perfect trajectory for your documents…",
     "Asking the cloud politely to prepare some storage space…",
+    "Summoning digital carrier pigeons for your files…",
+    "Teaching your documents proper cloud etiquette…",
+    "Booking first-class tickets to the cloud…",
+    "Negotiating with the internet for safe passage…",
   ],
   uploading: [
     "Transmogrifying your files through quantum tubes…",
