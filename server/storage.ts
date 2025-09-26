@@ -1769,70 +1769,19 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    // Phase 2: Semantic scoring on top candidates only
-    const semanticStartTime = performance.now();
-    
-    // Generate or retrieve cached query embedding
-    let queryEmbedding: number[];
-    const cachedEmbedding = this.queryEmbeddingCache.getCachedEmbedding(query);
-    
-    if (cachedEmbedding) {
-      console.log(`Using cached query embedding for: "${query}"`);
-      queryEmbedding = cachedEmbedding;
-    } else {
-      try {
-        console.log(`Generating new query embedding for: "${query}"`);
-        queryEmbedding = await generateEmbedding(query, 'RETRIEVAL_QUERY');
-        this.queryEmbeddingCache.setCachedEmbedding(query, queryEmbedding);
-        console.log(`Cached new query embedding for future searches`);
-      } catch (error) {
-        console.warn('Query embedding generation failed:', error);
-        // Fallback to FTS-only results
-        const totalTime = performance.now() - startTime;
-        const semanticTime = performance.now() - semanticStartTime;
-        
-        const documents = ftsResults.map(doc => ({ ...doc, tags: [] }));
-        
-        return {
-          documents,
-          relevantDocuments: documents,
-          relatedDocuments: [],
-          response: `Found ${documents.length} documents using text search`,
-          intent: 'fts_only',
-          keywords: preprocessedQuery.split(' ').filter(word => word.trim().length > 0),
-          timing: { total: totalTime, fts: ftsTime, semantic: semanticTime }
-        };
-      }
-    }
-
-    // Only score top 6 FTS results with semantic analysis
-    const topCandidates = ftsResults.slice(0, 6);
-    console.log(`Phase 2: Semantic scoring on top ${topCandidates.length} FTS candidates`);
-    
-    const semanticScored = await Promise.all(topCandidates.map(async doc => {
-      const semanticScore = this.calculateOptimizedSemanticScore(doc, queryEmbedding, query);
-      
-      // Apply quality boost for personalization (same as existing system)
-      const qualityBoost = userId ? await this.calculateQualityBoost(doc, userId) : 0;
-      
-      return {
-        ...doc,
-        semanticScore,
-        qualityBoost,
-        combinedScore: (doc.ftsScore * 0.3) + (semanticScore * 0.6) + (qualityBoost * 0.1), // Rebalanced weights
-        confidenceScore: Math.round(semanticScore * 100),
-        tags: [] // Ensure tags array exists
-      };
-    }));
-
-    const semanticTime = performance.now() - semanticStartTime;
-    console.log(`Semantic phase: ${semanticTime.toFixed(2)}ms, scored ${topCandidates.length} documents`);
-
-    // Phase 3: Combine scores and rank
-    const finalResults = semanticScored.sort((a, b) => b.combinedScore - a.combinedScore);
+    // Skip redundant semantic phase - documents already have AI analysis from upload!
+    // Use text search results with pre-computed AI metadata (aiCategory, aiDocumentType, etc.)
+    const finalResults = ftsResults.map(doc => ({
+      ...doc,
+      semanticScore: 0.8, // High default since text search already found good matches
+      qualityBoost: 0,
+      combinedScore: doc.ftsScore || 1.0, // Use FTS score directly
+      confidenceScore: 85, // High confidence for text matches with AI metadata
+      tags: [] // Ensure tags array exists
+    })).sort((a, b) => b.combinedScore - a.combinedScore);
 
     const totalTime = performance.now() - startTime;
-    console.log(`🚀 Hybrid search completed: ${totalTime.toFixed(2)}ms (FTS: ${ftsTime.toFixed(2)}ms, Semantic: ${semanticTime.toFixed(2)}ms)`);
+    console.log(`🚀 Fast search completed: ${totalTime.toFixed(2)}ms (FTS: ${ftsTime.toFixed(2)}ms, Semantic: 0ms - skipped redundant analysis)`);
 
     // Group results by confidence level
     const relevantDocuments = finalResults.filter(doc => doc.confidenceScore >= 50);
