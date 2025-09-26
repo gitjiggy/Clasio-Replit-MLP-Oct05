@@ -532,7 +532,11 @@ export default function Documents() {
       // Small delay to ensure Smart Organization completes, then refresh all queries
       setTimeout(() => {
         console.log('🔄 Refreshing queries after Smart Organization completion...');
-        queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+        // Use proper query key patterns to match all documents queries
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/documents'],
+          exact: false // This will invalidate ALL queries starting with ['/api/documents']
+        });
         queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
       }, 3000); // 3 second delay for Smart Organization to complete
       
