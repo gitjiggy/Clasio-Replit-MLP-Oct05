@@ -1685,43 +1685,28 @@ export class DatabaseStorage implements IStorage {
       try {
         console.log(`Phase 1: Fast ILIKE pre-filtering for query: "${preprocessedQuery}"`);
         
-        // Split keywords and search each individually (AI search should be forgiving!)
-        const keywords = preprocessedQuery.split(/\s+/).filter(word => word.trim().length > 0);
+        // Optimize: limit to 3 keywords max and focus on fast fields only
+        const keywords = preprocessedQuery.split(/\s+/).filter(word => word.trim().length > 0).slice(0, 3);
         console.log(`Searching for individual keywords: ${keywords.join(', ')}`);
         
-        // Build search conditions (same as simple search) - exclude trashed documents
+        // Build search conditions - exclude trashed documents
         const conditions = [
           eq(documents.isDeleted, false),
           eq(documents.status, 'active')
         ];
         
-        // Build OR conditions for each keyword - find documents containing ANY keyword
+        // Optimized: Search only fast fields (name + AI metadata) for performance
         const keywordConditions = [];
         for (const keyword of keywords) {
           const searchTerm = `%${keyword}%`;
           
-          // Search in document name, content, and tag names for each keyword
+          // Fast search: Only name and AI metadata (skip content and tags for speed)
           const nameCondition = ilike(documents.name, searchTerm);
-          const contentCondition = and(
-            isNotNull(documents.documentContent),
-            ilike(documents.documentContent, searchTerm)
-          );
-          
-          // Search in tag names by finding documents that have tags matching this keyword
-          const tagSearchSubquery = db
-            .select({ documentId: documentTags.documentId })
-            .from(documentTags)
-            .innerJoin(tags, eq(documentTags.tagId, tags.id))
-            .where(ilike(tags.name, searchTerm));
-          
-          const tagCondition = inArray(documents.id, tagSearchSubquery);
-          
-          // Search in AI metadata fields for this keyword
           const aiCategoryCondition = ilike(documents.aiCategory, searchTerm);
           const aiDocumentTypeCondition = ilike(documents.aiDocumentType, searchTerm);
           
-          // Combine all search conditions for this keyword
-          keywordConditions.push(or(nameCondition, contentCondition, tagCondition, aiCategoryCondition, aiDocumentTypeCondition)!);
+          // Combine fast search conditions for this keyword
+          keywordConditions.push(or(nameCondition, aiCategoryCondition, aiDocumentTypeCondition)!);
         }
         
         // Documents must match at least one keyword (OR logic)
