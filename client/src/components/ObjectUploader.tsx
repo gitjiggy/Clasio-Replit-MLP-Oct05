@@ -206,6 +206,7 @@ export function ObjectUploader({
   const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState>({ isOpen: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const userCancelledRef = useRef<boolean>(false); // Track if user initiated cancellation
   const { toast } = useToast();
   
   const flavorText = useFlavor(state);
@@ -213,6 +214,7 @@ export function ObjectUploader({
   // Cancel upload function
   const cancelUpload = useCallback(() => {
     if (abortControllerRef.current) {
+      userCancelledRef.current = true; // Mark as user-initiated cancellation
       abortControllerRef.current.abort(new Error("Upload cancelled by user"));
       abortControllerRef.current = null;
       setState("idle");
@@ -255,18 +257,30 @@ export function ObjectUploader({
     
     // Start upload process immediately after validation
     if (files.length > 0) {
-      handleUpload(files);
+      // Use setTimeout to avoid race conditions with state updates
+      setTimeout(() => handleUpload(files), 0);
     }
   }, [maxNumberOfFiles, maxFileSize]);
 
   // Main upload function with state machine
   const handleUpload = useCallback(async (files: File[]) => {
-    setState("signing");
+    console.log('🎬 handleUpload started with', files.length, 'files');
     setErrors([]);
+
+    // Clean up any existing AbortController first
+    if (abortControllerRef.current) {
+      console.log('🧹 Cleaning up existing AbortController');
+      abortControllerRef.current = null;
+    }
+
+    // Reset user cancellation flag for new upload
+    userCancelledRef.current = false;
 
     // Create new AbortController for this upload
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
+    
+    console.log('✨ Created new AbortController, signal.aborted:', signal.aborted);
 
     try {
       // Step 1: Get signed URLs (batch sign) - use real MIME types  
@@ -276,13 +290,26 @@ export function ObjectUploader({
         size: f.size // Include size for server logging
       }));
       
+      console.log('🚀 Starting bulk upload with files:', fileData);
+      
+      // Check if signal is already aborted before making request
+      if (signal.aborted) {
+        console.error('❌ Signal was already aborted before bulk-upload-urls request');
+        setState("error");
+        setErrors(["Upload was cancelled before it could start"]);
+        return;
+      }
+      
       // Client: make batch failure non-blocking and don't show the red modal if fallback kicks in
+      console.log('📡 Making bulk-upload-urls request...');
       const r = await apiRequest('/api/documents/bulk-upload-urls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files: fileData }),
         signal: signal
       });
+      
+      console.log('📡 Bulk-upload-urls response:', r);
       
       let signed;
       let warningFiles: any[] = [];
@@ -381,6 +408,11 @@ export function ObjectUploader({
             
             return { success: true, docId: result.docId };
           } catch (error: any) {
+            // Handle abort errors gracefully in fallback path
+            if ((error.name === 'AbortError' || error?.code === 'ABORT_ERR') && userCancelledRef.current) {
+              console.log("🚫 User cancelled fallback upload for file:", file.name);
+              return { success: false, error: 'user_cancelled', skipErrorHandling: true };
+            }
             // Handle actual errors
             console.error("Upload error:", error);
             return { success: false, error: 'upload_failed' };
@@ -563,8 +595,17 @@ export function ObjectUploader({
     } catch (e: any) {
       // Handle abort operations gracefully
       if (e.name === 'AbortError' || e?.code === 'ABORT_ERR') {
-        console.log("Upload cancelled by user");
-        return; // Don't show error state for user-initiated cancellation
+        console.log("🚫 Upload was aborted:", e.message);
+        // Check if this was a user-initiated cancellation using our flag
+        if (userCancelledRef.current) {
+          console.log("👤 User cancelled upload - returning gracefully");
+          return; // Don't show error state for user-initiated cancellation
+        }
+        // Otherwise, treat as an unexpected error that should be shown
+        console.error("❌ Unexpected abort during upload:", e);
+        setErrors(["Upload was unexpectedly cancelled. Please try again."]);
+        setState("error");
+        return;
       }
       
       console.error("Upload failed:", e);
@@ -572,6 +613,7 @@ export function ObjectUploader({
       setState("error");
     } finally {
       // Clean up abort controller
+      console.log('🧹 Cleaning up AbortController in finally block');
       abortControllerRef.current = null;
     }
   }, [toast, onSuccess]);
