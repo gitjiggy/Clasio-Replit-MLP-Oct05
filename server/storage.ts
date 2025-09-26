@@ -1802,6 +1802,12 @@ export class DatabaseStorage implements IStorage {
     return cleanedQuery || query; // Fallback to original if everything was filtered
   }
 
+  // Policy-Driven Search with comprehensive instrumentation
+  async searchWithPolicyDrivenAnalysis(query: string, filters: any = {}, userId?: string) {
+    await this.ensureInitialized();
+    return this.policyDrivenSearchEngine.searchWithPolicyDrivenAnalysis(query, filters, userId);
+  }
+
   // Hybrid FTS + Limited Semantic Search for optimal performance
   async searchFTSPlusSemanticOptimized(query: string, filters: Partial<Omit<DocumentFilters, 'search'>> = {}, userId?: string): Promise<{
     documents: DocumentWithFolderAndTags[];

@@ -1455,6 +1455,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Policy-Driven Search endpoint with comprehensive instrumentation
+  app.post("/api/search/policy-driven", express.json({ limit: '10mb' }), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+
+      const { query, fileType, folderId, tagId, limit = 12 } = req.body;
+      
+      // Validate required query parameter
+      if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        return res.status(400).json({ 
+          error: "Query parameter is required for policy-driven search" 
+        });
+      }
+
+      // Validate query length
+      const wordCount = query.trim().split(/\s+/).length;
+      if (wordCount > 100) {
+        return res.status(400).json({
+          error: "Query too long",
+          message: `Search query contains ${wordCount} words but maximum allowed is 100 words.`
+        });
+      }
+      
+      // Validate and sanitize filters
+      const filters = {
+        fileType: typeof fileType === 'string' ? fileType : undefined,
+        folderId: typeof folderId === 'string' ? folderId : undefined,
+        tagId: typeof tagId === 'string' ? tagId : undefined,
+        limit: typeof limit === 'number' ? Math.min(limit, 50) : 12,
+      };
+      
+      console.log(`\n🎯 POLICY-DRIVEN SEARCH REQUEST: "${query}" (userId: ${userId})`);
+      
+      // Use the comprehensive policy-driven search engine
+      const searchResult = await storage.searchWithPolicyDrivenAnalysis(
+        query.trim(), 
+        filters, 
+        userId
+      );
+      
+      // Enhanced response with comprehensive instrumentation
+      res.json({
+        documents: searchResult.documents.map(doc => ({
+          ...doc,
+          finalScore: doc.classification?.finalScore || 0,
+          tier: doc.classification?.tier || 'unknown',
+          scoringBreakdown: {
+            semantic: doc.classification?.semanticScore || 0,
+            lexical: doc.classification?.lexicalScore || 0,
+            quality: doc.classification?.qualityScore || 0,
+            weights: doc.classification?.weights || {}
+          }
+        })),
+        relevantDocuments: searchResult.relevantDocuments,
+        relatedDocuments: searchResult.relatedDocuments,
+        response: searchResult.response,
+        intent: searchResult.intent,
+        keywords: searchResult.keywords,
+        query: query.trim(),
+        totalResults: searchResult.documents.length,
+        
+        // Comprehensive policy instrumentation
+        queryAnalysis: {
+          class: searchResult.queryAnalysis.class,
+          confidence: searchResult.queryAnalysis.confidence,
+          signals: searchResult.queryAnalysis.signals
+        },
+        policyUsed: {
+          name: searchResult.policyUsed.name,
+          description: searchResult.policyUsed.description,
+          thresholds: searchResult.policyUsed.thresholds
+        },
+        topDocumentTraces: searchResult.topDocumentTraces,
+        anomalies: searchResult.anomalies,
+        timing: searchResult.timing,
+        
+        // System information
+        scoringMethod: 'policy-driven',
+        version: '1.0.0'
+      });
+      
+    } catch (error) {
+      console.error("Error in policy-driven search:", error);
+      res.status(500).json({ 
+        error: "Failed to perform policy-driven search",
+        message: "Policy-driven search service encountered an error. Please try again."
+      });
+    }
+  });
+
   // Get document content on-demand
   app.get("/api/documents/:id/content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
