@@ -529,8 +529,12 @@ export default function Documents() {
       setIsPollingForAI(false);
       setRecentUploads({ timestamp: 0, documentIds: [] });
       
-      // NOW invalidate folders query after Smart Organization has completed
-      queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
+      // Small delay to ensure Smart Organization completes, then refresh all queries
+      setTimeout(() => {
+        console.log('🔄 Refreshing queries after Smart Organization completion...');
+        queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
+      }, 3000); // 3 second delay for Smart Organization to complete
       
       if (recentlyAnalyzed.length > 0) {
         toast({
@@ -566,17 +570,9 @@ export default function Documents() {
     setIsPollingForAI(true);
     
     // Invalidate documents and queue status immediately, but NOT folders
-    // Folders will be invalidated after Smart Organization completes
+    // Folders and documents will be invalidated after Smart Organization completes
     queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
     queryClient.invalidateQueries({ queryKey: ["/api/queue/status"] });
-    
-    // Add delayed refresh for Smart Organization completion
-    // Smart Organization happens after AI analysis and updates folder assignments
-    setTimeout(() => {
-      console.log('🔄 Refreshing queries after Smart Organization delay...');
-      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
-    }, 25000); // 25 second delay to ensure Smart Organization completes
   }, [queryClient]);
 
   // Upload mutation
