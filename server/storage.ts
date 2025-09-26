@@ -1829,7 +1829,7 @@ export class DatabaseStorage implements IStorage {
       response: conversationalResponse,
       intent: 'hybrid_search',
       keywords: preprocessedQuery.split(' ').filter(word => word.trim().length > 0),
-      timing: { total: totalTime, fts: ftsTime, semantic: semanticTime }
+      timing: { total: totalTime, fts: ftsTime, semantic: 0 }
     };
   }
 
