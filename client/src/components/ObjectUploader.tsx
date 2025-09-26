@@ -240,7 +240,7 @@ export function ObjectUploader({
   const cancelUpload = useCallback(() => {
     if (abortControllerRef.current) {
       userCancelledRef.current = true; // Mark as user-initiated cancellation
-      abortControllerRef.current.abort(new Error("Upload cancelled by user"));
+      abortControllerRef.current.abort("Upload cancelled by user");
       abortControllerRef.current = null;
       setState("idle");
       setShowModal(false);
