@@ -1683,10 +1683,10 @@ export class DatabaseStorage implements IStorage {
     
     if (useFTS) {
       try {
-        console.log(`Phase 1: Fast ILIKE pre-filtering for query: "${query}"`);
+        console.log(`Phase 1: Fast ILIKE pre-filtering for query: "${preprocessedQuery}"`);
         
         // Use ILIKE search (same as simple search) instead of FTS for consistency
-        const searchTerm = `%${query}%`;
+        const searchTerm = `%${preprocessedQuery}%`;
         
         // Build search conditions (same as simple search) - exclude trashed documents
         const conditions = [
