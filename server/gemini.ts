@@ -110,14 +110,62 @@ export async function analyzeDocumentContent(text: string): Promise<{
     let keywordCategory = null;
     let keywordDocumentType = null;
     
+    // Legal document patterns - prevent misclassification as Travel
+    if (/(vehicle transfer|title transfer|deed|notice to appear|traffic ticket|court notice|legal notice|lawsuit|settlement|power of attorney|will|trust|legal agreement|notarized|witness|affidavit|subpoena|summons|judgment|lien|foreclosure|eviction|custody|divorce|restraining order|probate)/i.test(text)) {
+        keywordCategory = "Legal";
+        if (/(vehicle transfer|title transfer|registration transfer|ownership transfer)/i.test(text)) {
+            keywordDocumentType = "Legal Document";
+        } else if (/(traffic ticket|notice to appear|court|lawsuit|legal notice)/i.test(text)) {
+            keywordDocumentType = "Legal Document";
+        } else if (/(deed|will|trust|power of attorney)/i.test(text)) {
+            keywordDocumentType = "Legal Document";
+        }
+    }
+    
+    // Medical patterns - specific body parts and procedures
+    else if (/(medical|diagnosis|prescription|doctor|physician|hospital|clinic|mri|x-ray|blood test|lab results|surgery|treatment|medication|therapy|examination|checkup|knee|hip|shoulder|back|heart|lung|brain|dental|vision|hearing|physical therapy|specialist|radiology)/i.test(text)) {
+        keywordCategory = "Medical";
+        keywordDocumentType = "Medical Record";
+    }
+    
+    // Financial patterns - avoid misclassification
+    else if (/(bank statement|financial statement|credit report|loan|mortgage|investment|portfolio|401k|retirement|pension|ira|savings|checking|account balance|transaction history|credit card statement|payment history)/i.test(text)) {
+        keywordCategory = "Financial";
+        keywordDocumentType = "Financial Statement";
+    }
+    
+    // Tax document patterns - very specific
+    else if (/(tax return|1040|w-2|w-4|1099|tax form|irs|tax preparation|tax receipt|deduction|tax refund|tax liability|tax payment|estimated tax|quarterly tax|tax extension)/i.test(text)) {
+        keywordCategory = "Taxes";
+        keywordDocumentType = "Tax Document";
+    }
+    
+    // Travel document patterns - actual travel docs only
+    else if (/(passport|visa|boarding pass|flight ticket|hotel reservation|travel itinerary|customs declaration|travel insurance|immigration stamp|entry permit|travel authorization|airline ticket|cruise ticket|rental car|travel voucher)/i.test(text)) {
+        keywordCategory = "Travel";
+        keywordDocumentType = "Travel Document";
+    }
+    
     // Education-specific patterns - made more specific to avoid false positives
-    if (/(back to school night|syllabus|homework assignment|pta meeting|pto meeting|school night|curriculum guide|parent teacher conference|class schedule|school event announcement|academic calendar|teacher communication|school enrollment|grade report)/i.test(text)) {
+    else if (/(back to school night|syllabus|homework assignment|pta meeting|pto meeting|school night|curriculum guide|parent teacher conference|class schedule|school event announcement|academic calendar|teacher communication|school enrollment|grade report)/i.test(text)) {
         keywordCategory = "Education";
         if (/(back to school|school night|pta|pto|school event|meeting|notice|announcement)/i.test(text)) {
             keywordDocumentType = "Event Notice";
         } else if (/(syllabus|curriculum|homework|academic)/i.test(text)) {
             keywordDocumentType = "Academic Document";
         }
+    }
+    
+    // Employment patterns
+    else if (/(employment|job offer|employment contract|salary|payroll|employee handbook|performance review|termination|resignation|hr|human resources|benefits|employment verification|reference letter)/i.test(text)) {
+        keywordCategory = "Employment";
+        keywordDocumentType = "Employment Document";
+    }
+    
+    // Insurance patterns
+    else if (/(insurance policy|insurance claim|coverage|premium|deductible|beneficiary|insurance card|policy number|claim number|adjuster|insurance company|liability|coverage limit)/i.test(text)) {
+        keywordCategory = "Insurance";
+        keywordDocumentType = "Insurance Document";
     }
 
     const prompt = `You are a document classification expert. Analyze the following document and provide a JSON response.

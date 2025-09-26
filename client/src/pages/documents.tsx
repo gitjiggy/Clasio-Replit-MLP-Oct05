@@ -110,6 +110,35 @@ function preprocessQuery(query: string): string {
     return filtered.join(' ');
 }
 
+// AI Analysis flavor text messages
+const AI_ANALYSIS_FLAVORS = [
+  "🧠 Clasio is analyzing your documents with AI magic...",
+  "📚 Our digital librarian is reading through your files...", 
+  "🎯 Smart Organization is finding the perfect folders...",
+  "✨ Teaching AI to understand your document types...",
+  "🔍 Extracting key topics and organizing everything...",
+  "🎨 Creating the perfect filing system for you...",
+  "⚡ Almost done! Your screen will refresh shortly...",
+  "🚀 Finalizing Smart Organization recommendations..."
+];
+
+// Custom hook for AI analysis flavor text rotation
+function useAIAnalysisFlavor(isActive: boolean) {
+  const [flavorIndex, setFlavorIndex] = useState(0);
+  
+  useEffect(() => {
+    if (!isActive) return;
+    
+    const timer = setInterval(() => {
+      setFlavorIndex(i => (i + 1) % AI_ANALYSIS_FLAVORS.length);
+    }, 3000); // Change message every 3 seconds
+    
+    return () => clearInterval(timer);
+  }, [isActive]);
+  
+  return AI_ANALYSIS_FLAVORS[flavorIndex];
+}
+
 // Cosine similarity calculation
 function cosineSimilarity(vectorA: number[], vectorB: number[]): number {
     if (!vectorA || !vectorB || vectorA.length !== vectorB.length) {
@@ -363,6 +392,21 @@ export default function Documents() {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // AI analysis flavor text for notifications
+  const currentAIFlavor = useAIAnalysisFlavor(isPollingForAI);
+  
+  // Show rotating AI analysis notifications during polling
+  useEffect(() => {
+    if (!isPollingForAI) return;
+    
+    // Show toast notification with current flavor text
+    toast({
+      title: "🤖 Smart Organization Active",
+      description: currentAIFlavor,
+      duration: 2800, // Show for slightly less than rotation time
+    });
+  }, [isPollingForAI, currentAIFlavor, toast]);
 
   // Handle search with debouncing
   const handleSearchChange = (query: string) => {
@@ -534,16 +578,35 @@ export default function Documents() {
       setIsPollingForAI(false);
       setRecentUploads({ timestamp: 0, documentIds: [] });
       
-      // Small delay to ensure Smart Organization completes, then refresh all queries
+      // Immediate cache invalidation to ensure document cards show updated folder names
+      console.log('🔄 Refreshing queries immediately after Smart Organization completion...');
+      
+      // Force complete cache refresh with stale data removal
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/documents'],
+        exact: false, // This will invalidate ALL queries starting with ['/api/documents']
+        refetchType: 'all' // Force refetch active, inactive, and paused queries
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/folders"],
+        refetchType: 'all'
+      });
+      
+      // Also do a second refresh after a short delay to catch any race conditions
       setTimeout(() => {
-        console.log('🔄 Refreshing queries after Smart Organization completion...');
-        // Use proper query key patterns to match all documents queries
+        console.log('🔄 Secondary refresh for Smart Organization folder sync...');
         queryClient.invalidateQueries({ 
           queryKey: ['/api/documents'],
-          exact: false // This will invalidate ALL queries starting with ['/api/documents']
+          exact: false
         });
         queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
-      }, 3000); // 3 second delay for Smart Organization to complete
+        
+        // Force refetch the current documents data to ensure folder names are updated
+        queryClient.refetchQueries({ 
+          queryKey: ['/api/documents'],
+          exact: false 
+        });
+      }, 2000); // Shorter delay for secondary refresh
       
       if (recentlyAnalyzed.length > 0) {
         toast({

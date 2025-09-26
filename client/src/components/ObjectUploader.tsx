@@ -481,21 +481,63 @@ export function ObjectUploader({
         
         // If any files require user decision for duplicates, handle them with modal
         if (duplicatesRequiringDecision.length > 0) {
-          // For bulk uploads with duplicates, we'll show individual modals
-          // TODO: Could be enhanced to show a bulk decision modal
-          for (const fileResult of duplicatesRequiringDecision) {
-            // For bulk uploads, we can't pause the promise chain like single uploads
-            // So we'll show toast messages for now
-            toast({
-              title: "Duplicate File Detected! ⚠️",
-              description: `${fileResult.message}\n\nFile "${fileResult.name}" was skipped due to duplicate detection.`,
-              variant: "default",
-              duration: 8000,
-            });
+          // Handle each duplicate file with the proper 3-option modal
+          for (let i = 0; i < duplicatesRequiringDecision.length; i++) {
+            const fileResult = duplicatesRequiringDecision[i];
+            const originalFile = files.find(f => f.name === fileResult.name);
+            
+            if (originalFile) {
+              // Show modal and wait for user decision
+              const userDecision = await new Promise<'view' | 'proceed' | 'cancel'>((resolve) => {
+                setDuplicateModal({
+                  isOpen: true,
+                  file: originalFile,
+                  duplicateInfo: {
+                    message: fileResult.message,
+                    duplicateCount: fileResult.duplicateCount,
+                    existingDocs: fileResult.existingDocs || []
+                  },
+                  onResolve: (decision) => {
+                    setDuplicateModal({ isOpen: false });
+                    resolve(decision);
+                  }
+                });
+              });
+              
+              // Handle user decision
+              if (userDecision === 'proceed') {
+                // User chose to upload anyway - retry this file individually with forceUpload
+                try {
+                  const formData = new FormData();
+                  formData.append('file', originalFile);
+                  formData.append('forceUpload', 'true');
+                  
+                  const retryResult = await apiRequest('/api/documents/upload-proxy', {
+                    method: 'POST',
+                    body: formData,
+                    signal: signal
+                  });
+                  
+                  console.log(`✅ Force uploaded duplicate file: ${originalFile.name}`);
+                  warningFiles.push(retryResult);
+                } catch (error) {
+                  console.error(`❌ Failed to force upload ${originalFile.name}:`, error);
+                }
+              } else if (userDecision === 'view') {
+                // User chose to view existing file - open document modal
+                if (fileResult.existingDocs && fileResult.existingDocs.length > 0) {
+                  const firstDoc = fileResult.existingDocs[0];
+                  // Trigger document modal opening (this will be handled by parent component)
+                  toast({
+                    title: "Opening existing document",
+                    description: `Viewing "${firstDoc.name}"`,
+                  });
+                  // Note: The actual document modal opening should be handled by the parent
+                }
+              }
+              // For 'cancel', we do nothing - file is skipped
+            }
           }
-          
-          // For now, bulk duplicates are simply skipped
-          // Individual files can use the modal, bulk files show warnings
         }
         
         // Use batch results for all files that got signed URLs (including those with warnings)
