@@ -690,6 +690,7 @@ export function ObjectUploader({
         return; // Don't show error state for user-initiated cancellation
       }
       
+      // Only log and show actual errors, not user cancellations
       console.error("Upload failed:", e);
       setErrors([e?.message || "Upload failed"]);
       setState("error");
