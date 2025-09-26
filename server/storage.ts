@@ -3809,7 +3809,7 @@ export class DatabaseStorage implements IStorage {
           color: "#9ca3af", // Gray color for sub-folders
           parentId: parentId,
           isAutoCreated: true,
-          documentType: this.normalizeDocumentType(documentType),
+          documentType: smartFolderName, // Use smart folder name as document type for consistency
           gcsPath: gcsPath,
           userId: userId,
         })
@@ -3831,7 +3831,8 @@ export class DatabaseStorage implements IStorage {
           and(
             eq(folders.parentId, parentId),
             eq(folders.name, smartFolderName),
-            eq(folders.userId, userId)
+            eq(folders.userId, userId),
+            eq(folders.isAutoCreated, true)
           )
         )
         .limit(1);
