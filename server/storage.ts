@@ -188,7 +188,7 @@ export interface IStorage {
   getDocumentsWithoutContent(userId: string): Promise<Document[]>;
 
   // Document Versions
-  createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
+  createDocumentVersion(version: InsertDocumentVersion, userId: string, reqId?: string, idempotencyKey?: string): Promise<DocumentVersion>;
   getDocumentVersions(documentId: string, userId: string): Promise<DocumentVersion[]>;
   setActiveVersion(documentId: string, versionId: string, userId: string, reqId?: string, idempotencyKey?: string): Promise<boolean>;
   deleteDocumentVersion(documentId: string, versionId: string, userId: string, reqId?: string, idempotencyKey?: string): Promise<boolean>;
@@ -3290,7 +3290,7 @@ export class DatabaseStorage implements IStorage {
       return undefined;
     }
 
-    const versions = await this.getDocumentVersions(id);
+    const versions = await this.getDocumentVersions(id, userId);
     const currentVersion = versions.find(v => v.isActive);
 
     return {
@@ -3301,37 +3301,100 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Document Versions
-  async createDocumentVersion(insertVersion: InsertDocumentVersion): Promise<DocumentVersion> {
+  async createDocumentVersion(
+    insertVersion: InsertDocumentVersion, 
+    userId: string, 
+    reqId?: string, 
+    idempotencyKey?: string
+  ): Promise<DocumentVersion> {
+    ensureTenantContext(userId);
+
     // Always force isActive=false for new versions - only document creation can set active=true
     const safeInsertVersion = { ...insertVersion, isActive: false };
+
+    // Generate deterministic idempotency key: userId:docId:contentHash or accept client key
+    const contentHash = safeInsertVersion.filePath ? 
+      Buffer.from(safeInsertVersion.filePath + (safeInsertVersion.fileSize || 0) + (safeInsertVersion.mimeType || '')).toString('base64').slice(0, 16) :
+      'no-content';
     
-    return await db.transaction(async (tx) => {
-      // Lock the parent document to prevent concurrent version creation
-      await tx
-        .select({ id: sql<string>`id` })
-        .from(documents)
-        .where(eq(documents.id, safeInsertVersion.documentId))
-        .for('update');
+    const context: TransactionContext = {
+      reqId: reqId || randomUUID(),
+      userId,
+      operationType: 'version_create',
+      idempotencyKey: idempotencyKey || `${userId}:${safeInsertVersion.documentId}:${contentHash}`,
+      resourceIds: {
+        documentId: safeInsertVersion.documentId
+      }
+    };
 
-      // Get next version number
-      const result = await tx
-        .select({ maxVersion: sql<number>`COALESCE(MAX(version), 0) + 1` })
-        .from(documentVersions)
-        .where(eq(documentVersions.documentId, safeInsertVersion.documentId));
-      
-      const nextVersion = result[0].maxVersion;
+    const result = await transactionManager.executeWithIdempotency(
+      context,
+      async (tx) => {
+        // Lock the parent document to prevent concurrent version creation
+        const parentDoc = await tx
+          .select({ id: documents.id, userId: documents.userId })
+          .from(documents)
+          .where(and(
+            eq(documents.id, safeInsertVersion.documentId),
+            eq(documents.userId, userId),
+            eq(documents.isDeleted, false)
+          ))
+          .for('update')
+          .limit(1);
 
-      // Insert the new version with computed version number
-      const [version] = await tx
-        .insert(documentVersions)
-        .values({ ...safeInsertVersion, version: nextVersion })
-        .returning();
+        if (parentDoc.length === 0) {
+          throw new Error(`Document not found or access denied: ${safeInsertVersion.documentId}`);
+        }
+
+        // Get next version number
+        const versionResult = await tx
+          .select({ maxVersion: sql<number>`COALESCE(MAX(version), 0) + 1` })
+          .from(documentVersions)
+          .where(eq(documentVersions.documentId, safeInsertVersion.documentId));
         
-      return version;
-    });
+        const nextVersion = versionResult[0].maxVersion;
+
+        // Insert the new version with computed version number
+        const [version] = await tx
+          .insert(documentVersions)
+          .values({ ...safeInsertVersion, version: nextVersion })
+          .returning();
+          
+        return version;
+      },
+      // Post-commit analytics hook
+      (result) => {
+        console.log(`📋 Analytics: document_version_created - Version ${result.version} created for document ${result.documentId} by user ${userId}`);
+        // Here you could send to analytics service, metrics, etc.
+      }
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to create document version');
+    }
+
+    return result.data;
   }
 
-  async getDocumentVersions(documentId: string): Promise<DocumentVersion[]> {
+  async getDocumentVersions(documentId: string, userId: string): Promise<DocumentVersion[]> {
+    ensureTenantContext(userId);
+    
+    // First verify the document belongs to this user before returning versions
+    const documentOwnership = await db
+      .select({ id: documents.id })
+      .from(documents)
+      .where(and(
+        eq(documents.id, documentId),
+        eq(documents.userId, userId),
+        eq(documents.isDeleted, false)
+      ))
+      .limit(1);
+      
+    if (documentOwnership.length === 0) {
+      // Return empty array if document doesn't exist or doesn't belong to user
+      return [];
+    }
+    
     return await db
       .select()
       .from(documentVersions)

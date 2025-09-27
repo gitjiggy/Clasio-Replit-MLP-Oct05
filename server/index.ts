@@ -170,9 +170,14 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Start AI Queue Processor for background document analysis
-  console.log('Starting AI Queue Processor for document analysis');
-  aiQueueProcessor.start();
+  // Start AI Queue Processor for background document analysis (can be disabled for standalone worker deployment)
+  const enableInProcessWorker = process.env.ENABLE_INPROCESS_WORKER === 'true';
+  if (enableInProcessWorker) {
+    console.log('Starting AI Queue Processor for document analysis');
+    aiQueueProcessor.start();
+  } else {
+    console.log('⚠️  In-process AI Queue Processor disabled. Use standalone worker (server/aiWorker.ts) for production.');
+  }
 
   // Start TTL cleanup job for expired idempotency keys (24-72h TTL)
   console.log('Starting TTL cleanup job for expired idempotency keys');

@@ -2288,9 +2288,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Document Versioning endpoints
   
   // Get document with all versions
-  app.get("/api/documents/:id/versions", async (req, res) => {
+  app.get("/api/documents/:id/versions", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const documentWithVersions = await storage.getDocumentWithVersions(req.params.id);
+      const documentWithVersions = await storage.getDocumentWithVersions(req.params.id, req.userId!);
       if (!documentWithVersions) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -2302,16 +2302,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new version
-  app.post("/api/documents/:id/versions", async (req, res) => {
+  app.post("/api/documents/:id/versions", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const { uploadURL, changeDescription, uploadedBy = "system" } = req.body;
+      const { uploadURL, changeDescription, uploadedBy = "system", idempotencyKey } = req.body;
       
       if (!uploadURL) {
         return res.status(400).json({ error: "Upload URL is required" });
       }
 
-      // Get existing document to get file info
-      const document = await storage.getDocumentById(req.params.id);
+      // Get existing document to get file info (with user verification)
+      const document = await storage.getDocumentById(req.params.id, req.userId!);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -2334,11 +2334,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const validatedData = insertDocumentVersionSchema.parse(versionData);
-      const version = await storage.createDocumentVersion(validatedData);
+      const version = await storage.createDocumentVersion(
+        validatedData, 
+        req.userId!, 
+        undefined, // reqId will be auto-generated
+        idempotencyKey // Optional client-provided idempotency key
+      );
       
       res.status(201).json(version);
     } catch (error) {
       console.error("Error creating document version:", error);
+      
+      // Handle idempotency conflicts (409)
+      if (error instanceof Error && error.message.includes('same idempotency key')) {
+        return res.status(409).json({ 
+          error: "Idempotency conflict: Operation with same key already processed",
+          code: "IDEMPOTENCY_CONFLICT"
+        });
+      }
       
       // Handle unique constraint violations (Postgres error code 23505)
       if (error instanceof Error && (error as any).code === '23505') {
@@ -2353,9 +2366,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Set active version
-  app.put("/api/documents/:id/versions/:versionId/activate", async (req, res) => {
+  app.put("/api/documents/:id/versions/:versionId/activate", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const activated = await storage.setActiveVersion(req.params.id, req.params.versionId);
+      const activated = await storage.setActiveVersion(req.params.id, req.params.versionId, req.userId!);
       if (!activated) {
         return res.status(404).json({ error: "Document or version not found" });
       }
@@ -2376,9 +2389,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete version
-  app.delete("/api/documents/:id/versions/:versionId", async (req, res) => {
+  app.delete("/api/documents/:id/versions/:versionId", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const deleted = await storage.deleteDocumentVersion(req.params.id, req.params.versionId);
+      const deleted = await storage.deleteDocumentVersion(req.params.id, req.params.versionId, req.userId!);
       if (!deleted) {
         return res.status(404).json({ error: "Version not found or doesn't belong to this document" });
       }
