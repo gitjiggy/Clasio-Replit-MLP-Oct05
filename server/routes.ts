@@ -2584,7 +2584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Google Drive Integration endpoints
   
   // OAuth callback endpoint - sets httpOnly cookie with Drive token
-  app.post("/api/drive/oauth-callback", verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/drive/oauth-callback", express.json(), verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
     try {
       const { accessToken } = req.body;
       
@@ -2639,7 +2639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Sign out endpoint - clears Drive token cookies
-  app.post("/api/drive/signout", verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/drive/signout", express.json(), verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
     try {
       clearDriveTokenCookies(res);
       
