@@ -191,15 +191,15 @@ export interface IStorage {
   deleteDocumentVersion(documentId: string, versionId: string, userId: string, reqId?: string, idempotencyKey?: string): Promise<boolean>;
 
   // Folders
-  createFolder(folder: InsertFolder, userId: string): Promise<Folder>;
+  createFolder(folder: InsertFolder, userId: string, reqId?: string, idempotencyKey?: string): Promise<Folder>;
   getFolders(userId: string): Promise<(Folder & { documentCount: number })[]>;
-  updateFolder(id: string, updates: Partial<InsertFolder>, userId: string): Promise<Folder | undefined>;
+  updateFolder(id: string, updates: Partial<InsertFolder>, userId: string, reqId?: string, idempotencyKey?: string): Promise<Folder | undefined>;
   deleteFolder(id: string, userId: string): Promise<boolean>;
 
   // Tags
   createTag(tag: InsertTag, userId: string, reqId?: string, idempotencyKey?: string): Promise<Tag>;
   getTags(userId: string): Promise<Tag[]>;
-  updateTag(id: string, updates: Partial<InsertTag>, userId: string): Promise<Tag | undefined>;
+  updateTag(id: string, updates: Partial<InsertTag>, userId: string, reqId?: string, idempotencyKey?: string): Promise<Tag | undefined>;
   deleteTag(id: string, userId: string): Promise<boolean>;
 
   // Document Tags
@@ -3568,16 +3568,55 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Folders
-  async createFolder(insertFolder: InsertFolder, userId: string): Promise<Folder> {
-    const [folder] = await db
-      .insert(folders)
-      .values({
-        ...insertFolder,
-        userId, // Ensure folder is owned by the user
-        color: insertFolder.color ?? "#f59e0b",
-      })
-      .returning();
-    return folder;
+  async createFolder(insertFolder: InsertFolder, userId: string, reqId?: string, idempotencyKey?: string): Promise<Folder> {
+    ensureTenantContext(userId);
+
+    const context: TransactionContext = {
+      reqId: reqId || randomUUID(),
+      userId,
+      operationType: 'folder_create',
+      idempotencyKey: idempotencyKey || transactionManager.generateIdempotencyKey(
+        'folder_create',
+        userId,
+        insertFolder.name,
+        insertFolder.parentId || 'root'
+      )
+    };
+
+    const result = await transactionManager.executeWithIdempotency(
+      context,
+      async (tx) => {
+        const [folder] = await tx
+          .insert(folders)
+          .values({
+            ...insertFolder,
+            userId, // Ensure folder is owned by the user
+            color: insertFolder.color ?? "#f59e0b",
+          })
+          .returning();
+
+        // Add analytics hook for post-commit execution
+        transactionManager.addPostCommitHook({
+          type: 'analytics',
+          action: 'folder_created',
+          data: {
+            folderId: folder.id,
+            folderName: folder.name,
+            isAutoCreated: folder.isAutoCreated,
+            userId
+          }
+        });
+
+        return folder;
+      },
+      insertFolder
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to create folder');
+    }
+
+    return result.data;
   }
 
   async getFolders(userId: string): Promise<(Folder & { documentCount: number })[]> {
@@ -3654,14 +3693,56 @@ export class DatabaseStorage implements IStorage {
     return foldersWithCounts;
   }
 
-  async updateFolder(id: string, updates: Partial<InsertFolder>, userId: string): Promise<Folder | undefined> {
-    const [updatedFolder] = await db
-      .update(folders)
-      .set(updates)
-      .where(and(eq(folders.id, id), eq(folders.userId, userId)))
-      .returning();
+  async updateFolder(id: string, updates: Partial<InsertFolder>, userId: string, reqId?: string, idempotencyKey?: string): Promise<Folder | undefined> {
+    ensureTenantContext(userId);
 
-    return updatedFolder;
+    const context: TransactionContext = {
+      reqId: reqId || randomUUID(),
+      userId,
+      operationType: 'folder_update',
+      idempotencyKey: idempotencyKey || transactionManager.generateIdempotencyKey(
+        'folder_update',
+        userId,
+        id,
+        JSON.stringify(updates)
+      )
+    };
+
+    const result = await transactionManager.executeWithIdempotency(
+      context,
+      async (tx) => {
+        const [updatedFolder] = await tx
+          .update(folders)
+          .set(updates)
+          .where(and(
+            eq(folders.id, id), 
+            eq(folders.userId, userId)
+          ))
+          .returning();
+
+        if (updatedFolder) {
+          // Add analytics hook for post-commit execution
+          transactionManager.addPostCommitHook({
+            type: 'analytics',
+            action: 'folder_updated',
+            data: {
+              folderId: id,
+              updateFields: Object.keys(updates),
+              userId
+            }
+          });
+        }
+
+        return updatedFolder;
+      },
+      { id, updates }
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to update folder');
+    }
+
+    return result.data;
   }
 
   async deleteFolder(id: string, userId: string): Promise<boolean> {
@@ -3732,14 +3813,56 @@ export class DatabaseStorage implements IStorage {
       .orderBy(tags.name);
   }
 
-  async updateTag(id: string, updates: Partial<InsertTag>, userId: string): Promise<Tag | undefined> {
-    const [updatedTag] = await db
-      .update(tags)
-      .set(updates)
-      .where(and(eq(tags.id, id), eq(tags.userId, userId)))
-      .returning();
+  async updateTag(id: string, updates: Partial<InsertTag>, userId: string, reqId?: string, idempotencyKey?: string): Promise<Tag | undefined> {
+    ensureTenantContext(userId);
 
-    return updatedTag;
+    const context: TransactionContext = {
+      reqId: reqId || randomUUID(),
+      userId,
+      operationType: 'tag_update',
+      idempotencyKey: idempotencyKey || transactionManager.generateIdempotencyKey(
+        'tag_update',
+        userId,
+        id,
+        JSON.stringify(updates)
+      )
+    };
+
+    const result = await transactionManager.executeWithIdempotency(
+      context,
+      async (tx) => {
+        const [updatedTag] = await tx
+          .update(tags)
+          .set(updates)
+          .where(and(
+            eq(tags.id, id), 
+            eq(tags.userId, userId)
+          ))
+          .returning();
+
+        if (updatedTag) {
+          // Add analytics hook for post-commit execution
+          transactionManager.addPostCommitHook({
+            type: 'analytics',
+            action: 'tag_updated',
+            data: {
+              tagId: id,
+              updateFields: Object.keys(updates),
+              userId
+            }
+          });
+        }
+
+        return updatedTag;
+      },
+      { id, updates }
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to update tag');
+    }
+
+    return result.data;
   }
 
   async deleteTag(id: string, userId: string): Promise<boolean> {

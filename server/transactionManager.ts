@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { AsyncLocalStorage } from "async_hooks";
 import { db } from "./db";
 import { 
   idempotencyKeys, 
@@ -32,9 +33,14 @@ export interface PostCommitHook {
   data: any;
 }
 
+// Context for post-commit hooks using AsyncLocalStorage for proper request isolation
+interface TransactionLocalContext {
+  hooks: PostCommitHook[];
+}
+
+const asyncLocalStorage = new AsyncLocalStorage<TransactionLocalContext>();
+
 export class TransactionManager {
-  private postCommitHooks: PostCommitHook[] = [];
-  
   /**
    * Execute operation within a database transaction with idempotency support
    */
@@ -52,108 +58,118 @@ export class TransactionManager {
       hasIdempotencyKey: !!idempotencyKey
     });
 
-    try {
-      // If idempotency key provided, check for existing operation
-      if (idempotencyKey) {
-        const existingOperation = await this.checkIdempotencyKey(
-          userId, 
-          operationType, 
-          idempotencyKey,
-          requestPayload
-        );
-        
-        if (existingOperation) {
-          console.log(`[Transaction] Replaying operation`, {
-            reqId,
-            operationType,
-            isRetry: existingOperation.isRetry,
-            success: existingOperation.success
-          });
-          return existingOperation;
-        }
-      }
+    // Create isolated context for this transaction execution
+    const localContext: TransactionLocalContext = {
+      hooks: []
+    };
 
-      // Execute operation within transaction
-      const result = await db.transaction(async (tx) => {
-        // Create idempotency record if key provided
-        let idempotencyRecord: IdempotencyKey | null = null;
+    return asyncLocalStorage.run(localContext, async () => {
+      try {
+        // If idempotency key provided, check for existing operation
         if (idempotencyKey) {
-          idempotencyRecord = await this.createIdempotencyRecord(
-            tx,
-            userId,
-            operationType,
+          const existingOperation = await this.checkIdempotencyKey(
+            userId, 
+            operationType, 
             idempotencyKey,
             requestPayload
           );
-        }
-
-        try {
-          // Execute the actual operation
-          const operationResult = await operation(tx);
           
-          // Update idempotency record with success
-          if (idempotencyRecord) {
-            await this.updateIdempotencyRecord(
-              tx,
-              idempotencyRecord.id,
-              'completed',
-              operationResult
-            );
+          if (existingOperation) {
+            console.log(`[Transaction] Replaying operation`, {
+              reqId,
+              operationType,
+              isRetry: existingOperation.isRetry,
+              success: existingOperation.success
+            });
+            return existingOperation;
           }
-
-          console.log(`[Transaction] Operation completed successfully`, {
-            reqId,
-            operationType,
-            hasResult: !!operationResult
-          });
-
-          return operationResult;
-        } catch (error) {
-          // Update idempotency record with failure
-          if (idempotencyRecord) {
-            await this.updateIdempotencyRecord(
-              tx,
-              idempotencyRecord.id,
-              'failed',
-              null,
-              error instanceof Error ? error.message : 'Unknown error'
-            );
-          }
-          throw error;
         }
-      });
 
-      // Execute post-commit hooks only after successful commit
-      await this.executePostCommitHooks(context, result);
-      this.clearPostCommitHooks();
+        // Execute operation within transaction
+        const result = await db.transaction(async (tx) => {
+          // Create idempotency record if key provided
+          let idempotencyRecord: IdempotencyKey | null = null;
+          if (idempotencyKey) {
+            idempotencyRecord = await this.createIdempotencyRecord(
+              tx,
+              userId,
+              operationType,
+              idempotencyKey,
+              requestPayload
+            );
+          }
 
-      return {
-        success: true,
-        data: result,
-        isRetry: false
-      };
+          try {
+            // Execute the actual operation - hooks will be added to our isolated context
+            const operationResult = await operation(tx);
+            
+            // Update idempotency record with success
+            if (idempotencyRecord) {
+              await this.updateIdempotencyRecord(
+                tx,
+                idempotencyRecord.id,
+                'completed',
+                operationResult
+              );
+            }
 
-    } catch (error) {
-      console.error(`[Transaction] Operation failed`, {
-        reqId,
-        operationType,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+            console.log(`[Transaction] Operation completed successfully`, {
+              reqId,
+              operationType,
+              hasResult: !!operationResult
+            });
 
-      this.clearPostCommitHooks(); // Clear hooks on failure
+            return operationResult;
+          } catch (error) {
+            // Update idempotency record with failure
+            if (idempotencyRecord) {
+              await this.updateIdempotencyRecord(
+                tx,
+                idempotencyRecord.id,
+                'failed',
+                null,
+                error instanceof Error ? error.message : 'Unknown error'
+              );
+            }
+            throw error;
+          }
+        });
 
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
+        // Execute post-commit hooks only after successful commit (using isolated context hooks)
+        await this.executePostCommitHooks(context, result, localContext.hooks);
+
+        return {
+          success: true,
+          data: result,
+          isRetry: false
+        };
+
+      } catch (error) {
+        console.error(`[Transaction] Operation failed`, {
+          reqId,
+          operationType,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+    });
   }
 
   /**
    * Add a post-commit hook to be executed after transaction success
    */
   addPostCommitHook(hook: PostCommitHook): void {
-    this.postCommitHooks.push(hook);
+    // Get the current transaction's context from AsyncLocalStorage
+    const store = asyncLocalStorage.getStore();
+    if (store) {
+      store.hooks.push(hook);
+    } else {
+      console.warn('[TransactionManager] addPostCommitHook called outside of transaction context');
+    }
   }
 
   /**
@@ -285,8 +301,8 @@ export class TransactionManager {
   /**
    * Execute all post-commit hooks after successful transaction
    */
-  private async executePostCommitHooks(context: TransactionContext, result: any): Promise<void> {
-    for (const hook of this.postCommitHooks) {
+  private async executePostCommitHooks(context: TransactionContext, result: any, hooks: PostCommitHook[]): Promise<void> {
+    for (const hook of hooks) {
       try {
         await this.executeHook(hook, context, result);
       } catch (error) {
@@ -336,12 +352,6 @@ export class TransactionManager {
     }
   }
 
-  /**
-   * Clear all post-commit hooks
-   */
-  private clearPostCommitHooks(): void {
-    this.postCommitHooks = [];
-  }
 
   /**
    * Clean up expired idempotency keys (TTL cleanup)
