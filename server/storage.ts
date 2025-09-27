@@ -48,6 +48,8 @@ import { QueryAnalyzer, PolicyRegistry, QueryAnalysis, SearchPolicy } from './qu
 import { FieldAwareLexicalScorer, FieldContent, LexicalAnalysisResult } from './fieldAwareLexical.js';
 import { TierRouter, TierClassification, QualitySignals } from './tierRouting.js';
 import { PolicyDrivenSearchEngine } from './policyDrivenSearch.js';
+import { logger, logWorkerOperation } from './logger.js';
+import { queueMetrics } from './middleware/queueMetrics.js';
 
 // Utility function to get configurable trash retention period
 export function getTrashRetentionDays(): number {
@@ -5245,6 +5247,31 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("❌ Failed to get queue status:", error);
       return { pending: 0, processing: 0, completed: 0, failed: 0 };
+    }
+  }
+
+  /**
+   * Get the oldest pending job for queue lag measurement (Token 5/8)
+   */
+  async getOldestPendingJob(): Promise<{jobId: string; createdAt: string; jobType: string} | null> {
+    await this.ensureInitialized();
+    
+    try {
+      const oldestJob = await db
+        .select({
+          jobId: aiAnalysisQueue.id,
+          createdAt: aiAnalysisQueue.requestedAt,
+          jobType: aiAnalysisQueue.jobType
+        })
+        .from(aiAnalysisQueue)
+        .where(eq(aiAnalysisQueue.status, 'pending'))
+        .orderBy(aiAnalysisQueue.requestedAt)
+        .limit(1);
+
+      return oldestJob[0] || null;
+    } catch (error) {
+      logger.error('Failed to get oldest pending job', error instanceof Error ? error : new Error(String(error)));
+      return null;
     }
   }
 

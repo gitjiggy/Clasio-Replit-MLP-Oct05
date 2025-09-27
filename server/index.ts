@@ -9,6 +9,10 @@ import * as cron from "node-cron";
 import { DatabaseStorage } from "./storage";
 import { getSecurityConfig, getHelmetConfig, logSecurityStatus } from "./security";
 import { transactionManager } from "./transactionManager";
+import { requestTrackingMiddleware, getRequestMetrics, getSystemMetricsSummary } from './middleware/requestTracking.js';
+import { healthCheck, readinessCheck, getSystemStatus } from './middleware/healthChecks.js';
+import { queueMetrics } from './middleware/queueMetrics.js';
+import { logger } from './logger.js';
 
 // Environment variable validation
 function validateEnvironment() {
@@ -98,34 +102,178 @@ app.use((req, res, next) => {
   express.urlencoded({ extended: false })(req, res, next);
 });
 
+// Token 5/8: Structured logging and request tracking middleware
+app.use(requestTrackingMiddleware);
+
+// Legacy logging for non-API routes (keep for Vite dev server compatibility)
 app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
+  if (!req.path.startsWith("/api")) {
+    const start = Date.now();
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      log(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`);
+    });
+  }
   next();
+});
+
+// Token 5/8: Health and monitoring endpoints (before main routes)
+app.get('/health', healthCheck);
+app.get('/ready', readinessCheck);
+
+// Monitoring and metrics endpoints
+app.get('/metrics', async (req, res) => {
+  try {
+    const requestMetrics = getRequestMetrics();
+    const systemSummary = getSystemMetricsSummary();
+    const queueMetrics_ = queueMetrics.getMetrics();
+    const queueByJobType = queueMetrics.getMetricsByJobType();
+    const systemStatus = await getSystemStatus();
+
+    const metricsData = {
+      timestamp: new Date().toISOString(),
+      system: {
+        ...systemStatus,
+        summary: systemSummary
+      },
+      requests: requestMetrics,
+      queue: {
+        overall: queueMetrics_,
+        byJobType: queueByJobType
+      }
+    };
+
+    res.json(metricsData);
+  } catch (error) {
+    logger.error('Failed to collect metrics', error instanceof Error ? error : new Error(String(error)));
+    res.status(500).json({ error: 'Failed to collect metrics' });
+  }
+});
+
+// Monitoring dashboard endpoint
+app.get('/dashboard', (req, res) => {
+  const dashboardHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clasio Monitoring Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .metric-card { background: white; padding: 20px; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .metric-value { font-size: 2em; font-weight: bold; color: #2196F3; }
+        .metric-label { color: #666; margin-top: 5px; }
+        .status-good { color: #4CAF50; }
+        .status-warning { color: #FF9800; }
+        .status-error { color: #F44336; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .alert { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .alert-warning { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; }
+        .alert-error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        h1, h2 { color: #333; }
+        .refresh-btn { background: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+    </style>
+    <script>
+        async function loadMetrics() {
+            try {
+                const response = await fetch('/metrics');
+                const data = await response.json();
+                updateDashboard(data);
+            } catch (error) {
+                console.error('Failed to load metrics:', error);
+            }
+        }
+        
+        function updateDashboard(data) {
+            document.getElementById('uptime').textContent = Math.floor(data.system.uptime / 3600) + 'h';
+            document.getElementById('memory').textContent = Math.round(data.system.memory.heapUsed / 1024 / 1024) + 'MB';
+            document.getElementById('error-rate').textContent = data.system.summary.systemErrorRate.toFixed(2) + '%';
+            document.getElementById('avg-latency').textContent = data.system.summary.avgSystemLatency.toFixed(0) + 'ms';
+            document.getElementById('queue-depth').textContent = data.queue.overall.currentDepth;
+            document.getElementById('dlq-depth').textContent = data.queue.overall.dlqDepth;
+            document.getElementById('success-rate').textContent = ((data.queue.overall.totalSuccess / Math.max(data.queue.overall.totalProcessed, 1)) * 100).toFixed(1) + '%';
+            document.getElementById('p95-latency').textContent = data.queue.overall.p95ProcessingLatencyMs.toFixed(0) + 'ms';
+            
+            // Update alerts
+            const alertsDiv = document.getElementById('alerts');
+            let alerts = [];
+            
+            if (data.system.summary.systemErrorRate > 2) {
+                alerts.push('<div class="alert alert-error">🚨 Error rate > 2%: ' + data.system.summary.systemErrorRate.toFixed(2) + '%</div>');
+            }
+            if (data.queue.overall.currentDepth > 50) {
+                alerts.push('<div class="alert alert-warning">⚠️ Queue depth high: ' + data.queue.overall.currentDepth + ' jobs</div>');
+            }
+            if (data.queue.overall.dlqDepth > 0) {
+                alerts.push('<div class="alert alert-warning">⚠️ DLQ has ' + data.queue.overall.dlqDepth + ' jobs</div>');
+            }
+            
+            alertsDiv.innerHTML = alerts.length > 0 ? alerts.join('') : '<div class="alert" style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724;">✅ All systems normal</div>';
+            
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+        }
+        
+        setInterval(loadMetrics, 30000); // Refresh every 30 seconds
+        window.onload = loadMetrics;
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Clasio Enterprise Monitoring Dashboard</h1>
+        <p>Last updated: <span id="last-updated">Loading...</span> | <button class="refresh-btn" onclick="loadMetrics()">Refresh Now</button></p>
+        
+        <div id="alerts"></div>
+        
+        <h2>System Overview</h2>
+        <div class="grid">
+            <div class="metric-card">
+                <div class="metric-value" id="uptime">-</div>
+                <div class="metric-label">System Uptime</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="memory">-</div>
+                <div class="metric-label">Memory Usage</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="error-rate">-</div>
+                <div class="metric-label">Error Rate</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="avg-latency">-</div>
+                <div class="metric-label">Avg Response Time</div>
+            </div>
+        </div>
+        
+        <h2>Queue Metrics</h2>
+        <div class="grid">
+            <div class="metric-card">
+                <div class="metric-value" id="queue-depth">-</div>
+                <div class="metric-label">Current Queue Depth</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="dlq-depth">-</div>
+                <div class="metric-label">Dead Letter Queue</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="success-rate">-</div>
+                <div class="metric-label">Success Rate</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="p95-latency">-</div>
+                <div class="metric-label">P95 Processing Time</div>
+            </div>
+        </div>
+        
+        <h2>Quick Actions</h2>
+        <div style="margin: 20px 0;">
+            <a href="/health" target="_blank" style="margin-right: 10px; color: #2196F3;">Health Check</a>
+            <a href="/ready" target="_blank" style="margin-right: 10px; color: #2196F3;">Readiness Check</a>
+            <a href="/metrics" target="_blank" style="margin-right: 10px; color: #2196F3;">Raw Metrics</a>
+        </div>
+    </div>
+</body>
+</html>`;
+  res.send(dashboardHtml);
 });
 
 (async () => {

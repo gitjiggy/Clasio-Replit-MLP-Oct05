@@ -19,6 +19,8 @@ import { storage } from './storage.js';
 import { analyzeDocumentContent, generateEmbedding, serializeEmbeddingToJSON } from './gemini.js';
 import type { AiAnalysisQueue, InsertAiQueueMetrics } from '../shared/schema.js';
 import process from 'process';
+import { logger, logWorkerOperation } from './logger.js';
+import { queueMetrics } from './middleware/queueMetrics.js';
 
 // Enhanced configuration for Token 4/8
 interface WorkerConfig {
@@ -174,16 +176,16 @@ class StandaloneAIWorker {
    */
   public start(): void {
     if (!process.env.GEMINI_API_KEY) {
-      console.error('❌ Cannot start AI Worker - GEMINI_API_KEY not configured');
+      logger.error('Cannot start AI Worker - GEMINI_API_KEY not configured', undefined, { workerId: this.workerId });
       process.exit(1);
     }
 
     if (this.processingInterval) {
-      console.log('⚠️ AI Worker is already running');
+      logger.warn('AI Worker is already running', { workerId: this.workerId });
       return;
     }
 
-    console.log(`🎯 Starting AI Worker with configuration:`, {
+    logger.info('Starting AI Worker with configuration', {
       workerId: this.workerId,
       requestsPerMinute: this.config.requestsPerMinute,
       maxAttempts: this.config.maxAttempts,
@@ -198,7 +200,9 @@ class StandaloneAIWorker {
     this.processingInterval = setInterval(() => {
       if (!this.config.pauseProcessing && !this.isShuttingDown) {
         this.processQueue().catch(error => {
-          console.error('💥 Queue processing error:', error);
+          logger.error('Queue processing error', error instanceof Error ? error : new Error(String(error)), {
+            workerId: this.workerId
+          });
         });
       }
     }, this.config.processingIntervalMs);
@@ -206,11 +210,13 @@ class StandaloneAIWorker {
     // Start metrics collection
     this.metricsInterval = setInterval(() => {
       this.collectAndSubmitMetrics().catch(error => {
-        console.error('📊 Metrics collection error:', error);
+        logger.error('Metrics collection error', error instanceof Error ? error : new Error(String(error)), {
+          workerId: this.workerId
+        });
       });
     }, this.config.metricsCollectionIntervalMs);
 
-    console.log(`✅ AI Worker started successfully: ${this.workerId}`);
+    logger.info('AI Worker started successfully', { workerId: this.workerId });
   }
 
   /**
@@ -218,7 +224,7 @@ class StandaloneAIWorker {
    */
   public pause(): void {
     this.config.pauseProcessing = true;
-    console.log(`⏸️ AI Worker paused: ${this.workerId}`);
+    logger.info('AI Worker paused', { workerId: this.workerId, operation: 'pause' });
   }
 
   /**
@@ -226,7 +232,7 @@ class StandaloneAIWorker {
    */
   public resume(): void {
     this.config.pauseProcessing = false;
-    console.log(`▶️ AI Worker resumed: ${this.workerId}`);
+    logger.info('AI Worker resumed', { workerId: this.workerId, operation: 'resume' });
   }
 
   /**
@@ -243,7 +249,7 @@ class StandaloneAIWorker {
       this.metricsInterval = null;
     }
     
-    console.log(`🛑 AI Worker stopped: ${this.workerId}`);
+    logger.info('AI Worker stopped', { workerId: this.workerId, operation: 'stop' });
   }
 
   /**
