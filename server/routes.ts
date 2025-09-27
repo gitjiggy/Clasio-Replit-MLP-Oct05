@@ -2893,10 +2893,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         documentId: document.id
       }));
 
-      // Run AI analysis if requested
+      // Queue for AI analysis if requested (matching Upload functionality)
       if (runAiAnalysis) {
         console.info(JSON.stringify({
-          evt: "drive_sync.ai_analysis_start",
+          evt: "drive_sync.ai_analysis_queued",
           reqId,
           uid: userId,
           driveFileId,
@@ -2904,60 +2904,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
         
         try {
-          // Determine if this file type supports direct text export
-          const textExportableMimeTypes = [
-            'application/vnd.google-apps.document',
-            'text/plain', 
-            'text/csv', 
-            'text/html'
-          ];
-          
-          const isTextExportable = textExportableMimeTypes.includes(driveFile.mimeType);
-          const { token: driveAccessToken } = getDriveToken(req);
-          
-          if (isTextExportable && driveFile.content && !driveFile.content.startsWith('[Binary file:')) {
-            console.info(JSON.stringify({
-              evt: "drive_sync.ai_analysis_text",
-              reqId,
-              uid: userId,
-              driveFileId,
-              documentId: document.id,
-              mimeType: driveFile.mimeType
-            }));
-            
-            // For Google Docs and text files, use the exported content directly
-            await storage.analyzeDocumentWithAI(document.id, driveFile.content, driveAccessToken);
-          } else {
-            console.info(JSON.stringify({
-              evt: "drive_sync.ai_analysis_binary",
-              reqId,
-              uid: userId,
-              driveFileId,
-              documentId: document.id,
-              mimeType: driveFile.mimeType
-            }));
-            
-            // For binary files (PDFs, Word docs, etc.), let storage handle binary download and extraction
-            await storage.analyzeDocumentWithAI(document.id, undefined, driveAccessToken);
-          }
+          // Use same queue system as Upload for consistent Smart Organization
+          await storage.enqueueDocumentForAnalysis(document.id, userId, 1); // High priority for user-requested
           
           console.info(JSON.stringify({
-            evt: "drive_sync.ai_analysis_completed",
+            evt: "drive_sync.ai_analysis_enqueued_success",
             reqId,
             uid: userId,
             driveFileId,
-            documentId: document.id
+            documentId: document.id,
+            priority: 1
           }));
         } catch (aiError) {
           console.error(JSON.stringify({
-            evt: "drive_sync.ai_analysis_failed",
+            evt: "drive_sync.ai_analysis_enqueue_failed",
             reqId,
             uid: userId,
             driveFileId,
             documentId: document.id,
             error: aiError instanceof Error ? aiError.message : String(aiError)
           }));
-          // Don't let AI analysis errors crash the document sync
+          // Don't let AI analysis queue errors crash the document sync
         }
       }
 
