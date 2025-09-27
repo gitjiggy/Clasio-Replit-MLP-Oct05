@@ -3064,23 +3064,6 @@ export class DatabaseStorage implements IStorage {
           }
         });
 
-        // Token 8/8: Trigger reindex after document update (especially for renames)
-        // Check if this update affects searchable fields (name changes require reindexing)
-        const affectsSearch = 'name' in updates || 'description' in updates || 'tags' in updates;
-        if (affectsSearch) {
-          transactionManager.addPostCommitHook({
-            type: 'reindex',
-            action: 'document_reindex_after_update',
-            data: {
-              documentId: id,
-              userId,
-              tenantId: userId,
-              versionId: updatedDocument.versionId,
-              updateFields: Object.keys(updates),
-              reason: 'searchable_field_update'
-            }
-          });
-        }
 
         return updatedDocument;
       },
@@ -3089,6 +3072,17 @@ export class DatabaseStorage implements IStorage {
 
     if (!result.success) {
       throw new Error(result.error || 'Failed to update document');
+    }
+
+    // Token 8/8: Trigger reindex after document update (especially for renames)
+    // Check if this update affects searchable fields (name changes require reindexing)
+    const affectsSearch = 'name' in updates || 'description' in updates || 'tags' in updates;
+    if (affectsSearch && result.data) {
+      await this.enqueueDocumentForReindex(id, userId, {
+        versionId: result.data.versionId,
+        reason: 'searchable_field_update',
+        priority: 'normal'
+      });
     }
 
     return result.data;
