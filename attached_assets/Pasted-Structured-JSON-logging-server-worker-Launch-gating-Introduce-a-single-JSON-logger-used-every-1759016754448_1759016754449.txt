@@ -1,0 +1,91 @@
+Structured JSON logging (server & worker) — Launch-gating
+
+Introduce a single JSON logger used everywhere (server, routes, worker).
+
+Emit for every request completion: {timestamp, level, reqId, tenantId, userId, method, route, status, latencyMs, msg}.
+
+Keep transaction boundary logs you already have; they’re good.
+
+Add a request logging middleware that:
+
+Captures start time, computes latencyMs on finish.
+
+Extracts tenantId/userId from the authenticated request (or null) and includes them in the log.
+
+Uses JSON output (not string concatenation).
+
+Sanitize logs: strip/omit tokens, cookies, OAuth headers, and any PII.
+
+If you must log payload fragments, gate under a debug flag and redact sensitive keys.
+
+Acceptance: In logs you can filter by reqId and reconstruct an API request end-to-end with tenant/user, route, status, latency.
+
+B) Correlation across server → worker → DB — Launch-gating
+
+Persist a correlation id on enqueued jobs (e.g., job.reqId), set when the API enqueues the job.
+
+Worker must log using job.reqId on start, retries, success, failure, DLQ.
+
+Include tenantId/userId in worker logs and all job updates.
+
+Acceptance: A single reqId ties together request logs, transaction logs, queue logs, and worker logs.
+
+C) Health (/health) and Readiness (/ready) — Launch-gating
+
+/health: always 200 unless the process is unhealthy.
+
+/ready: returns 200 only if:
+
+DB connection is healthy (simple ping/select succeeds within a short timeout).
+
+Queue “lag” is under threshold (e.g., oldest pending/processing job age < 5 minutes). Otherwise return 503.
+
+Wire these endpoints into your deploy checks (K8s, Replit checks, etc.).
+
+Acceptance: Bringing down the DB or purposely inflating queue lag flips /ready to unready; /health remains up unless the process is fatally unhealthy.
+
+D) Metrics (minimal set) — Launch-gating
+
+HTTP metrics:
+
+Counter: http_requests_total{route,method,status}
+
+Counter: http_requests_errors_total{route,method,status} (status ≥ 400)
+
+Histogram: http_request_duration_ms{route,method} (p50/p90/p95/p99)
+
+Queue metrics:
+
+Gauge: queue_depth (pending)
+
+Counter: jobs_enqueued_total{type}
+
+Counter: jobs_processed_total{type, outcome=success|fail|retry|dlq}
+
+Histogram: job_processing_latency_ms{type}
+
+Gauge: queue_lag_seconds (now − oldest pending enqueue time)
+
+Expose metrics endpoint (e.g., /metrics for Prometheus).
+
+Ensure no impact to Tokens 1–2 (CORS/headers remain unchanged; metrics endpoint should be protected or limited to internal/admin as appropriate).
+
+Acceptance: You can view request rate, error rate, p95 latency, queue depth/lag, and job outcomes in real time.
+
+E) Dashboards & alerts — Launch-gating (lightweight)
+
+Create two tiny dashboards:
+
+API: requests/sec, error rate, p95 latency.
+
+Queue: depth, lag, processed/sec, success/fail/retry, DLQ count.
+
+Alerts:
+
+Error rate > 2% for 10 minutes.
+
+Queue lag > 5 minutes for 10 minutes.
+
+DB connection errors > X/min (pick a small X like 5/min to start).
+
+Acceptance: You can trigger and clear each alert in staging.
