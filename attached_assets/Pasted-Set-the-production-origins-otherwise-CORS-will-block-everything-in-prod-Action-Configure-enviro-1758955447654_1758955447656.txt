@@ -1,0 +1,53 @@
+Set the production origins (otherwise CORS will block everything in prod):
+
+Action: Configure environment variables
+- CORS_PRODUCTION_ORIGINS = https://your-prod-domain.com,https://staging.your-prod-domain.com
+- ENABLE_SECURITY_HEADERS = true
+- NODE_ENV = production
+
+
+Acceptance: Requests from only those domains succeed; others fail CORS.
+
+Roll CSP in “report-only” first, then enforce:
+
+Action: Stage CSP
+- CSP_REPORT_ONLY = true
+- (Optional) CSP_REPORT_URI = https://your-report-collector.example.com/csp
+
+
+Let it run 24–48h, fix any violations, then:
+
+Action: Enforce CSP
+- Set CSP_REPORT_ONLY = false
+
+
+Acceptance: No CSP violations on core flows (login, upload, view, search, Drive import).
+
+If Drive/GCS previews break under COEP, disable COEP only (don’t touch CSP):
+
+Action: COEP compatibility
+- DISABLE_COEP = true
+
+
+Acceptance: Previews work; other headers remain enforced.
+
+Keep allowed headers in sync (they’re currently: Content-Type, Authorization, x-drive-access-token).
+If your client sends anything else (e.g., X-Requested-With after Token 2), add it to allowedHeaders only if needed.
+
+Quick verification checklist (you can run in browser DevTools → Network)
+
+Response headers include: content-security-policy, x-content-type-options: nosniff, x-frame-options: DENY, strict-transport-security (on HTTPS), cross-origin-opener-policy: same-origin-allow-popups.
+
+CSP (report-only first): No red errors for blocked scripts/styles during: sign-in → upload → preview → search → delete/restore → Drive import.
+
+CORS: From an allowed origin, preflight returns 204 and the main request succeeds; from a non-allowed origin, you see a CORS failure.
+
+Small nits (optional refinements)
+
+Production origins list: right now it’s env-driven and defaults to empty. That’s safe-but-blocking. Make sure you really set CORS_PRODUCTION_ORIGINS before flipping NODE_ENV=production.
+
+Third-party origins for FlutterFlow/Firebase are commented out (good). Only add exact domains you use—avoid broad regexes in prod.
+
+COEP: Only keep enabled if you’ve validated previews; otherwise set DISABLE_COEP=true.
+
+Helmet xssFilter: If you’re on Helmet v7+, this option is no-op/removed. Not a blocker—just be aware it may be ignored.
