@@ -2880,6 +2880,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         driveSyncedAt: new Date(),
         isFavorite: false,
         isDeleted: false,
+        // Store Drive content directly in database for AI analysis
+        documentContent: driveFile.content || null,
+        contentExtracted: driveFile.content ? true : false,
+        contentExtractedAt: driveFile.content ? new Date() : null,
       };
 
       const validatedData = insertDocumentSchema.parse(documentData);
