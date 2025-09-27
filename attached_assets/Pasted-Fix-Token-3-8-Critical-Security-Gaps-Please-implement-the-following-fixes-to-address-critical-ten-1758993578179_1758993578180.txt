@@ -1,0 +1,70 @@
+Fix Token 3/8 Critical Security Gaps
+
+  Please implement the following fixes to address critical tenant isolation vulnerabilities and complete the transaction logging requirements:
+
+  CRITICAL SECURITY FIX 1: Tenant Context in Final WHERE Clauses
+
+  Fix the restoreDocument method in storage.ts around line 3140. Currently it queries documents without checking the userId, which allows users to restore documents belonging to other tenants. Change the WHERE clause from:
+  - Current: WHERE documents.id = ? AND documents.status = 'trashed'
+  - Fixed: WHERE documents.id = ? AND documents.status = 'trashed' AND documents.userId = ?
+
+  Also audit and fix these other operations that are missing tenant context in their final WHERE clauses:
+  - Document content extraction updates around line 4126
+  - Document folder organization updates around line 4565
+  - Any other UPDATE or DELETE operations that only check by ID without including userId
+
+  The rule is: Every final database UPDATE or DELETE operation must include the tenant's userId in the WHERE clause, even if there was pre-validation, to prevent ID collision attacks.
+
+  CRITICAL SECURITY FIX 2: Complete Tenant Validation
+
+  Review all methods in storage.ts that accept both an ID parameter and a userId parameter. Ensure that every database operation within those methods includes the userId in the WHERE clause. Look specifically for patterns like:
+  - WHERE table.id = ? (missing tenant context)
+  - Should be: WHERE table.id = ? AND table.userId = ? (proper tenant isolation)
+
+  ENHANCEMENT 1: Transaction Boundary Logging
+
+  Enhance the transaction logging in transactionManager.ts to include explicit transaction boundary events. Add structured logging at these points:
+
+  1. Before calling db.transaction() - log "Transaction BEGIN" with reqId, tenantId, operationType, and any relevant document/resource IDs
+  2. After successful transaction commit - log "Transaction COMMIT" with the same context plus execution time
+  3. In the catch block - log "Transaction ROLLBACK" with error details and context
+
+  The log format should be JSON with these fields:
+  - event: "TRANSACTION_BEGIN" | "TRANSACTION_COMMIT" | "TRANSACTION_ROLLBACK"
+  - reqId: correlation ID
+  - tenantId: userId (truncated for privacy)
+  - operationType: the operation being performed
+  - resourceIds: any document, folder, tag, or version IDs involved
+  - timestamp: ISO timestamp
+  - executionTimeMs: duration (for commit/rollback events)
+  - error: error message (for rollback events)
+
+  ENHANCEMENT 2: Resource ID Logging
+
+  Modify the transaction context to capture and log the primary resource IDs being operated on. For example:
+  - Document operations should log the documentId
+  - Version operations should log both documentId and versionId
+  - Folder operations should log the folderId
+  - Tag operations should log the tagId
+
+  This helps with debugging and audit trails by making it clear which specific resources were affected by each transaction.
+
+  TESTING REQUIREMENT
+
+  After making these changes, use the existing failpoint testing system to verify the fixes work correctly:
+
+  1. Test that the tenant isolation fixes prevent cross-tenant access by trying to restore a document with a different user's ID
+  2. Test that transaction rollbacks are properly logged when failpoints are triggered
+  3. Verify that all transaction boundary logs include the correct resource IDs and tenant context
+
+  VALIDATION CHECKLIST
+
+  After implementation, verify:
+  - No UPDATE or DELETE statements exist without tenant context in WHERE clauses
+  - All transaction operations log BEGIN/COMMIT/ROLLBACK with full context
+  - Cross-tenant access attempts are blocked at the database level
+  - Transaction logs include resource IDs for debugging
+  - Failpoint tests demonstrate proper rollback behavior
+  - All security-sensitive operations maintain proper tenant isolation
+
+  Focus on the tenant context fixes first as these represent immediate security vulnerabilities that could allow data leakage between users.

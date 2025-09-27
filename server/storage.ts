@@ -3008,7 +3008,10 @@ export class DatabaseStorage implements IStorage {
         userId,
         id,
         JSON.stringify(updates)
-      )
+      ),
+      resourceIds: {
+        documentId: id
+      }
     };
 
     const result = await transactionManager.executeWithIdempotency(
@@ -3082,7 +3085,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // Mark as trashed in database (soft delete with 7-day retention)
+      // Mark as trashed in database (soft delete with 7-day retention, with tenant isolation)
       const result = await db
         .update(documents)
         .set({ 
@@ -3091,7 +3094,7 @@ export class DatabaseStorage implements IStorage {
           deletedGeneration, // Store generation for GCS restore
           isDeleted: true // Keep for backward compatibility
         })
-        .where(eq(documents.id, id))
+        .where(and(eq(documents.id, id), eq(documents.userId, document.userId)))
         .returning();
 
       if (result.length === 0) {
@@ -3201,7 +3204,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // Update database to restore the document
+      // Update database to restore the document (with tenant isolation)
       const result = await db
         .update(documents)
         .set({
@@ -3210,7 +3213,7 @@ export class DatabaseStorage implements IStorage {
           deletedGeneration: null, // Clear generation after successful restore
           isDeleted: false, // Reset the legacy deleted flag
         })
-        .where(eq(documents.id, id))
+        .where(and(eq(documents.id, id), eq(documents.userId, document.userId)))
         .returning();
 
       if (result.length === 0) {
@@ -3334,7 +3337,11 @@ export class DatabaseStorage implements IStorage {
         userId,
         documentId,
         versionId
-      )
+      ),
+      resourceIds: {
+        documentId,
+        versionId
+      }
     };
 
     const result = await transactionManager.executeWithIdempotency(
@@ -3444,7 +3451,11 @@ export class DatabaseStorage implements IStorage {
         userId,
         documentId,
         versionId
-      )
+      ),
+      resourceIds: {
+        documentId,
+        versionId
+      }
     };
 
     const result = await transactionManager.executeWithIdempotency(
@@ -3705,7 +3716,10 @@ export class DatabaseStorage implements IStorage {
         userId,
         id,
         JSON.stringify(updates)
-      )
+      ),
+      resourceIds: {
+        folderId: id
+      }
     };
 
     const result = await transactionManager.executeWithIdempotency(
@@ -3766,7 +3780,10 @@ export class DatabaseStorage implements IStorage {
         'tag_create',
         userId,
         insertTag.name
-      )
+      ),
+      resourceIds: {
+        tagName: insertTag.name
+      }
     };
 
     const result = await transactionManager.executeWithIdempotency(
@@ -3825,7 +3842,10 @@ export class DatabaseStorage implements IStorage {
         userId,
         id,
         JSON.stringify(updates)
-      )
+      ),
+      resourceIds: {
+        tagId: id
+      }
     };
 
     const result = await transactionManager.executeWithIdempotency(
@@ -4042,7 +4062,7 @@ export class DatabaseStorage implements IStorage {
         analyzeDocumentContent(documentText)
       ]);
 
-      // Update the document with AI analysis AND save content for search
+      // Update the document with AI analysis AND save content for search (with tenant isolation)
       const [updatedDoc] = await db
         .update(documents)
         .set({
@@ -4062,7 +4082,7 @@ export class DatabaseStorage implements IStorage {
           contentExtracted: true,
           contentExtractedAt: new Date()
         })
-        .where(eq(documents.id, documentId))
+        .where(and(eq(documents.id, documentId), eq(documents.userId, userId)))
         .returning();
 
       // Automatically organize the document into folders based on AI classification
@@ -4115,7 +4135,7 @@ export class DatabaseStorage implements IStorage {
         return false;
       }
       
-      // Update the document with extracted content
+      // Update the document with extracted content (with tenant isolation)
       const [updatedDoc] = await db
         .update(documents)
         .set({
@@ -4123,7 +4143,7 @@ export class DatabaseStorage implements IStorage {
           contentExtracted: true,
           contentExtractedAt: new Date()
         })
-        .where(eq(documents.id, documentId))
+        .where(and(eq(documents.id, documentId), eq(documents.userId, userId)))
         .returning();
 
       const success = !!updatedDoc;
@@ -4555,14 +4575,14 @@ export class DatabaseStorage implements IStorage {
       const subFolder = await this.findOrCreateSmartSubFolder(categoryFolder.id, documentType, userId, analysisData);
       console.log(`✅ Sub-folder ready: ${subFolder.id} - "${subFolder.name}"`);
       
-      // Update the document to assign it to the sub-folder
+      // Update the document to assign it to the sub-folder (with tenant isolation)
       console.log(`📝 Assigning document ${documentId} to folder ${subFolder.id}`);
       const [updatedDoc] = await db
         .update(documents)
         .set({
           folderId: subFolder.id
         })
-        .where(eq(documents.id, documentId))
+        .where(and(eq(documents.id, documentId), eq(documents.userId, userId)))
         .returning();
       
       const success = !!updatedDoc;

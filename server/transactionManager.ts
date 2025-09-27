@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { AsyncLocalStorage } from "async_hooks";
 import { db } from "./db";
 import { 
@@ -18,6 +18,13 @@ export interface TransactionContext {
   userId: string;
   operationType: string;
   idempotencyKey?: string;
+  resourceIds?: {
+    documentId?: string;
+    versionId?: string;
+    folderId?: string;
+    tagId?: string;
+    [key: string]: string | undefined;
+  };
 }
 
 export interface TransactionResult<T = any> {
@@ -49,6 +56,22 @@ interface FailpointConfig {
 
 let activeFailpoints: FailpointConfig[] = [];
 
+// Transaction boundary logging
+interface TransactionBoundaryLog {
+  event: 'TRANSACTION_BEGIN' | 'TRANSACTION_COMMIT' | 'TRANSACTION_ROLLBACK';
+  reqId: string;
+  tenantId: string; // Truncated userId for privacy
+  operationType: string;
+  resourceIds?: Record<string, string | undefined>;
+  timestamp: string;
+  executionTimeMs?: number;
+  error?: string;
+}
+
+function logTransactionBoundary(log: TransactionBoundaryLog): void {
+  console.log(JSON.stringify(log));
+}
+
 export class TransactionManager {
   /**
    * Execute operation within a database transaction with idempotency support
@@ -73,6 +96,9 @@ export class TransactionManager {
     };
 
     return asyncLocalStorage.run(localContext, async () => {
+      // Initialize startTime before any operations that could throw
+      const startTime = Date.now();
+      
       try {
         // If idempotency key provided, check for existing operation
         if (idempotencyKey) {
@@ -93,6 +119,16 @@ export class TransactionManager {
             return existingOperation;
           }
         }
+
+        // Log transaction begin
+        logTransactionBoundary({
+          event: 'TRANSACTION_BEGIN',
+          reqId,
+          tenantId: userId.substring(0, 8) + '...',
+          operationType,
+          resourceIds: context.resourceIds,
+          timestamp: new Date().toISOString()
+        });
 
         // Execute operation within transaction
         const result = await db.transaction(async (tx) => {
@@ -153,6 +189,18 @@ export class TransactionManager {
           }
         });
 
+        // Log successful transaction commit
+        const endTime = Date.now();
+        logTransactionBoundary({
+          event: 'TRANSACTION_COMMIT',
+          reqId,
+          tenantId: userId.substring(0, 8) + '...',
+          operationType,
+          resourceIds: context.resourceIds,
+          timestamp: new Date().toISOString(),
+          executionTimeMs: endTime - startTime
+        });
+
         // Execute post-commit hooks only after successful commit (using isolated context hooks)
         await this.executePostCommitHooks(context, result, localContext.hooks);
 
@@ -163,15 +211,29 @@ export class TransactionManager {
         };
 
       } catch (error) {
+        // Log transaction rollback
+        const endTime = Date.now();
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logTransactionBoundary({
+          event: 'TRANSACTION_ROLLBACK',
+          reqId,
+          tenantId: userId.substring(0, 8) + '...',
+          operationType,
+          resourceIds: context.resourceIds,
+          timestamp: new Date().toISOString(),
+          executionTimeMs: endTime - startTime,
+          error: errorMessage
+        });
+
         console.error(`[Transaction] Operation failed`, {
           reqId,
           operationType,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: errorMessage
         });
 
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: errorMessage
         };
       }
     });
@@ -196,8 +258,7 @@ export class TransactionManager {
   generateIdempotencyKey(operationType: string, ...identifiers: string[]): string {
     const combined = [operationType, ...identifiers].join(':');
     // Use a hash for consistent key generation
-    const crypto = require('crypto');
-    return crypto.createHash('sha256').update(combined).digest('hex').substring(0, 32);
+    return createHash('sha256').update(combined).digest('hex').substring(0, 32);
   }
 
   /**
