@@ -40,9 +40,8 @@ export const clearDriveTokenCookies = (res: Response) => {
   res.clearCookie(DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME, options);
 };
 
-// Get Drive token from cookie or header (dual path support)
-export const getDriveToken = (req: Request): { token: string | null; source: 'cookie' | 'header' | null } => {
-  // First try cookie (preferred method)
+// Get Drive token from httpOnly cookie only (legacy header path removed)
+export const getDriveToken = (req: Request): { token: string | null; source: 'cookie' | null } => {
   const cookieToken = req.cookies?.[DRIVE_TOKEN_COOKIE_NAME];
   const cookieTimestamp = req.cookies?.[DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME];
   
@@ -52,18 +51,11 @@ export const getDriveToken = (req: Request): { token: string | null; source: 'co
     const fiftyMinutes = 50 * 60 * 1000;
     
     if (tokenAge <= fiftyMinutes) {
-      // Log telemetry for cookie usage
-      console.log('[Telemetry] Drive auth via cookie');
+      console.log('[Auth] Drive authentication via httpOnly cookie');
       return { token: cookieToken, source: 'cookie' };
+    } else {
+      console.log('[Auth] Drive cookie expired, requiring re-authentication');
     }
-  }
-  
-  // Fallback to header (legacy method for dual path)
-  const headerToken = req.headers['x-drive-access-token'] as string;
-  if (headerToken) {
-    // Log telemetry for header usage (should decrease over time)
-    console.log('[Telemetry] Drive auth via header (legacy)');
-    return { token: headerToken, source: 'header' };
   }
   
   return { token: null, source: null };
@@ -90,7 +82,23 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
   next();
 };
 
-// Enhanced Drive access middleware with cookie support
+// Middleware to explicitly reject legacy x-drive-access-token header
+export const rejectLegacyDriveHeader = (req: Request, res: Response, next: NextFunction) => {
+  const legacyHeader = req.headers['x-drive-access-token'];
+  
+  if (legacyHeader) {
+    console.warn('[Security] Rejected request with legacy x-drive-access-token header');
+    return res.status(400).json({
+      error: 'Legacy authentication method not supported',
+      message: 'Drive authentication now uses secure httpOnly cookies. Please refresh and re-authenticate.',
+      code: 'LEGACY_AUTH_REJECTED'
+    });
+  }
+  
+  next();
+};
+
+// Drive access middleware - cookie only
 export async function requireDriveAccessWithCookie(
   req: AuthenticatedRequest, 
   res: Response, 
@@ -102,18 +110,17 @@ export async function requireDriveAccessWithCookie(
     if (!token) {
       return res.status(401).json({ 
         error: "Google Drive access token required",
-        message: "Please authenticate with Google Drive first"
+        message: "Please authenticate with Google Drive using the secure cookie method"
       });
     }
     
-    // Add telemetry metadata to request
+    // Add metadata to request
     (req as any).driveAuthSource = source;
     (req as any).driveAccessToken = token;
     
-    // The existing Drive verification logic will be handled by the original middleware
     next();
   } catch (error) {
-    console.error("Drive cookie access failed:", error);
+    console.error("Drive cookie authentication failed:", error);
     return res.status(401).json({ 
       error: "Invalid Drive authentication",
       message: "Please re-authenticate with Google Drive"

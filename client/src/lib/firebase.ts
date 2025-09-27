@@ -163,20 +163,7 @@ export const handleAuthRedirect = async () => {
   }
 };
 
-// Token storage functions are deprecated - tokens are now stored in httpOnly cookies
-// These are kept temporarily for backward compatibility during migration
-export const getGoogleAccessToken = (): string | null => {
-  console.warn('[Deprecated] getGoogleAccessToken: Tokens are now stored in httpOnly cookies');
-  return null;
-};
-
-export const storeGoogleAccessToken = (token: string) => {
-  console.warn('[Deprecated] storeGoogleAccessToken: Tokens are now stored in httpOnly cookies');
-};
-
-export const clearGoogleAccessToken = () => {
-  console.warn('[Deprecated] clearGoogleAccessToken: Tokens are now cleared via server endpoint');
-};
+// Legacy token storage functions removed - all authentication is now via httpOnly cookies
 
 // Auth state observer
 export const onAuthStateChange = (callback: (user: User | null) => void) => {

@@ -70,7 +70,7 @@ app.use(cors({
   origin: securityConfig.corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-drive-access-token']
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Security middleware with staged rollout capabilities

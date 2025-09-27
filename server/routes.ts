@@ -19,20 +19,21 @@ import {
   clearDriveTokenCookies, 
   getDriveToken, 
   csrfProtection,
-  requireDriveAccessWithCookie 
+  requireDriveAccessWithCookie,
+  rejectLegacyDriveHeader
 } from "./cookieAuth";
 
 // Middleware to verify Drive access token belongs to the authenticated Firebase user
-// Enhanced with dual path support (cookie preferred, header fallback)
+// Cookie-only authentication (legacy header path removed)
 async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any) {
   try {
-    // Get token from cookie (preferred) or header (fallback)
+    // Get token from httpOnly cookie only
     const { token: driveAccessToken, source } = getDriveToken(req);
     
     if (!driveAccessToken) {
       return res.status(401).json({ 
         error: "Google Drive access token required",
-        message: "Please authenticate with Google Drive first"
+        message: "Please authenticate with Google Drive using secure cookies"
       });
     }
 
@@ -57,9 +58,9 @@ async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any
       });
     }
 
-    // Store Drive service and telemetry in request for reuse
+    // Store Drive service in request for reuse
     (req as any).driveService = new DriveService(driveAccessToken);
-    (req as any).driveAuthSource = source; // Track whether auth came from cookie or header
+    (req as any).driveAuthSource = source; // Should always be 'cookie' now
     (req as any).driveAccessToken = driveAccessToken;
     
     next();
@@ -2658,7 +2659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Verify Drive connection and get status
-  app.get("/api/drive/connect", verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/drive/connect", verifyFirebaseToken, rejectLegacyDriveHeader, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const driveService = (req as any).driveService as DriveService;
       
@@ -2687,7 +2688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // List documents from Google Drive
-  app.get("/api/drive/documents", moderateLimiter, verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/drive/documents", moderateLimiter, verifyFirebaseToken, rejectLegacyDriveHeader, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const driveService = (req as any).driveService as DriveService;
       
@@ -2720,7 +2721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sync Drive document to local system (with CSRF protection for state-changing operation)
-  app.post("/api/drive/sync", strictLimiter, verifyFirebaseToken, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/drive/sync", strictLimiter, verifyFirebaseToken, rejectLegacyDriveHeader, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
       // Validate request body
       const validatedBody = driveSyncSchema.parse(req.body);
