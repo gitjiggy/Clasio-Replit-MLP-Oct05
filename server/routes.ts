@@ -2747,11 +2747,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.uid;
       
       console.info(JSON.stringify({
-        evt: "drive_sync.started",
+        evt: "drive_sync.debug_request",
         reqId,
         uid: userId,
-        driveFileId: req.body.driveFileId,
-        runAiAnalysis: req.body.runAiAnalysis || false
+        bodyKeys: Object.keys(req.body || {}),
+        body: req.body,
+        headers: req.headers['content-type']
       }));
       
       // Validate request body
