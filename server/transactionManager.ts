@@ -40,6 +40,15 @@ interface TransactionLocalContext {
 
 const asyncLocalStorage = new AsyncLocalStorage<TransactionLocalContext>();
 
+// Rollback testing configuration
+interface FailpointConfig {
+  operationType: string;
+  failurePoint: 'before_operation' | 'after_operation' | 'before_idempotency_update';
+  errorMessage?: string;
+}
+
+let activeFailpoints: FailpointConfig[] = [];
+
 export class TransactionManager {
   /**
    * Execute operation within a database transaction with idempotency support
@@ -100,8 +109,17 @@ export class TransactionManager {
           }
 
           try {
+            // Check for before_operation failpoints
+            this.checkFailpoint(operationType, 'before_operation');
+            
             // Execute the actual operation - hooks will be added to our isolated context
             const operationResult = await operation(tx);
+            
+            // Check for after_operation failpoints
+            this.checkFailpoint(operationType, 'after_operation');
+            
+            // Check for before_idempotency_update failpoints
+            this.checkFailpoint(operationType, 'before_idempotency_update');
             
             // Update idempotency record with success
             if (idempotencyRecord) {
@@ -367,6 +385,56 @@ export class TransactionManager {
     console.log(`[Cleanup] Removed ${deletedCount} expired idempotency keys`);
     
     return deletedCount;
+  }
+
+  /**
+   * Check if a failpoint should trigger and throw error if so
+   */
+  private checkFailpoint(operationType: string, failurePoint: string): void {
+    const matchingFailpoint = activeFailpoints.find(
+      fp => fp.operationType === operationType && fp.failurePoint === failurePoint
+    );
+    
+    if (matchingFailpoint) {
+      const errorMessage = matchingFailpoint.errorMessage || 
+        `[Failpoint] Injected failure at ${failurePoint} for ${operationType}`;
+      console.log(`[Failpoint] Triggering failpoint: ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Add a temporary failpoint for rollback testing (TESTING ONLY)
+   */
+  static addFailpoint(config: FailpointConfig): void {
+    console.warn(`[Failpoint] Adding test failpoint: ${config.operationType} at ${config.failurePoint}`);
+    activeFailpoints.push(config);
+  }
+
+  /**
+   * Remove a specific failpoint (TESTING ONLY)
+   */
+  static removeFailpoint(operationType: string, failurePoint: string): void {
+    activeFailpoints = activeFailpoints.filter(
+      fp => !(fp.operationType === operationType && fp.failurePoint === failurePoint)
+    );
+    console.warn(`[Failpoint] Removed failpoint: ${operationType} at ${failurePoint}`);
+  }
+
+  /**
+   * Clear all failpoints (TESTING ONLY)
+   */
+  static clearAllFailpoints(): void {
+    const count = activeFailpoints.length;
+    activeFailpoints = [];
+    console.warn(`[Failpoint] Cleared ${count} failpoints`);
+  }
+
+  /**
+   * Get active failpoints for debugging (TESTING ONLY)
+   */
+  static getActiveFailpoints(): FailpointConfig[] {
+    return [...activeFailpoints];
   }
 }
 
