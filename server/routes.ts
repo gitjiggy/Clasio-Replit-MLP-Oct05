@@ -2743,26 +2743,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync Drive document to local system (with CSRF protection for state-changing operation)
   app.post("/api/drive/sync", strictLimiter, verifyFirebaseToken, rejectLegacyDriveHeader, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
+      const reqId = (req as any).reqId;
+      const userId = req.user?.uid;
+      
+      console.info(JSON.stringify({
+        evt: "drive_sync.started",
+        reqId,
+        uid: userId,
+        driveFileId: req.body.driveFileId,
+        runAiAnalysis: req.body.runAiAnalysis || false
+      }));
+      
       // Validate request body
       const validatedBody = driveSyncSchema.parse(req.body);
       const { driveFileId, folderId, runAiAnalysis } = validatedBody;
 
       const driveService = (req as any).driveService as DriveService;
       
+      console.info(JSON.stringify({
+        evt: "drive_sync.fetch_file",
+        reqId,
+        uid: userId,
+        driveFileId
+      }));
+      
       // Get file content from Drive
       const driveFile = await driveService.getFileContent(driveFileId);
       if (!driveFile) {
+        console.error(JSON.stringify({
+          evt: "drive_sync.file_not_found",
+          reqId,
+          uid: userId,
+          driveFileId
+        }));
         return res.status(404).json({ error: "Drive file not found or cannot be accessed" });
       }
+      
+      console.info(JSON.stringify({
+        evt: "drive_sync.file_retrieved",
+        reqId,
+        uid: userId,
+        driveFileId,
+        fileName: driveFile.name,
+        mimeType: driveFile.mimeType,
+        contentSize: driveFile.content?.length || 0
+      }));
 
       // Check if document already exists in our system
+      console.info(JSON.stringify({
+        evt: "drive_sync.check_existing",
+        reqId,
+        uid: userId,
+        driveFileId
+      }));
+      
       const existingDocument = await storage.getDocumentByDriveFileId(driveFileId);
       if (existingDocument) {
+        console.info(JSON.stringify({
+          evt: "drive_sync.update_existing",
+          reqId,
+          uid: userId,
+          driveFileId,
+          documentId: existingDocument.id
+        }));
+        
         // Update existing document sync status
         const updatedDocument = await storage.updateDocument(existingDocument.id, {
           driveSyncStatus: "synced",
           driveSyncedAt: new Date(),
         });
+        
+        console.info(JSON.stringify({
+          evt: "drive_sync.completed_existing",
+          reqId,
+          uid: userId,
+          driveFileId,
+          documentId: existingDocument.id
+        }));
         
         return res.json({
           message: "Document already synced",
@@ -2772,6 +2829,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create new document from Drive file
+      console.info(JSON.stringify({
+        evt: "drive_sync.create_document",
+        reqId,
+        uid: userId,
+        driveFileId,
+        fileName: driveFile.name,
+        fileType: getFileTypeFromMimeType(driveFile.mimeType, driveFile.name)
+      }));
+      
       const documentData = {
         name: driveFile.name,
         originalName: driveFile.name,
@@ -2792,9 +2858,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertDocumentSchema.parse(documentData);
       const document = await storage.createDocument(validatedData);
+      
+      console.info(JSON.stringify({
+        evt: "drive_sync.document_created",
+        reqId,
+        uid: userId,
+        driveFileId,
+        documentId: document.id
+      }));
 
       // Run AI analysis if requested
       if (runAiAnalysis) {
+        console.info(JSON.stringify({
+          evt: "drive_sync.ai_analysis_start",
+          reqId,
+          uid: userId,
+          driveFileId,
+          documentId: document.id
+        }));
+        
         try {
           // Determine if this file type supports direct text export
           const textExportableMimeTypes = [
@@ -2808,14 +2890,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { token: driveAccessToken } = getDriveToken(req);
           
           if (isTextExportable && driveFile.content && !driveFile.content.startsWith('[Binary file:')) {
+            console.info(JSON.stringify({
+              evt: "drive_sync.ai_analysis_text",
+              reqId,
+              uid: userId,
+              driveFileId,
+              documentId: document.id,
+              mimeType: driveFile.mimeType
+            }));
+            
             // For Google Docs and text files, use the exported content directly
             await storage.analyzeDocumentWithAI(document.id, driveFile.content, driveAccessToken);
           } else {
+            console.info(JSON.stringify({
+              evt: "drive_sync.ai_analysis_binary",
+              reqId,
+              uid: userId,
+              driveFileId,
+              documentId: document.id,
+              mimeType: driveFile.mimeType
+            }));
+            
             // For binary files (PDFs, Word docs, etc.), let storage handle binary download and extraction
             await storage.analyzeDocumentWithAI(document.id, undefined, driveAccessToken);
           }
+          
+          console.info(JSON.stringify({
+            evt: "drive_sync.ai_analysis_completed",
+            reqId,
+            uid: userId,
+            driveFileId,
+            documentId: document.id
+          }));
         } catch (aiError) {
-          console.error("AI analysis failed, but continuing without analysis:", aiError);
+          console.error(JSON.stringify({
+            evt: "drive_sync.ai_analysis_failed",
+            reqId,
+            uid: userId,
+            driveFileId,
+            documentId: document.id,
+            error: aiError instanceof Error ? aiError.message : String(aiError)
+          }));
           // Don't let AI analysis errors crash the document sync
         }
       }
@@ -2823,13 +2938,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get document with details
       const documentWithDetails = await storage.getDocumentById(document.id);
       
+      console.info(JSON.stringify({
+        evt: "drive_sync.completed_success",
+        reqId,
+        uid: userId,
+        driveFileId,
+        documentId: document.id,
+        runAiAnalysis
+      }));
+      
       res.status(201).json({
         message: "Document synced from Drive successfully",
         document: documentWithDetails,
         isNew: true
       });
     } catch (error) {
-      console.error("Error syncing Drive document:", error);
+      const reqId = (req as any).reqId;
+      const userId = req.user?.uid;
+      
+      console.error(JSON.stringify({
+        evt: "drive_sync.failed",
+        reqId,
+        uid: userId,
+        driveFileId: req.body?.driveFileId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }));
+      
       res.status(500).json({ error: "Failed to sync Drive document" });
     }
   });
