@@ -1,0 +1,133 @@
+Verdict on Token 3/8 (Launch Gate: YES)
+What’s already implemented (✅)
+
+Transactional writes for multi-step document/version flows
+
+createDocument(...) in server/storage.ts wraps the document insert and the initial version (v1) insert in a single db.transaction, so creating a doc and its first version is atomic.
+
+createDocumentVersion(...) uses a transaction that locks the parent document (FOR UPDATE), calculates the next version, inserts the version, and (later) updates state atomically.
+
+setActiveVersion(...) and deleteDocumentVersion(...) each use a transaction with document lock + coordinated updates across document_versions and documents. This avoids races and “two active versions” bugs.
+
+Long operations are not inside transactions: expensive GCS calls (delete/restore) are done outside DB transactions (good).
+
+Multi-tenant scoping is broadly respected
+
+Many list/read/update queries include userId conditions (or call helpers that already filtered by user) to keep tenant data isolated.
+
+So your core multi-write versioning flows are correctly transactional and fairly safe under concurrency. 👍
+
+What’s not implemented (❌) or incomplete for Token 3
+
+No idempotency for write operations
+
+I searched the entire server and schema; there’s no idempotency table or unique key (no “idempotency”, “request_key”, “client_operation_id”, “version_hash unique” etc.).
+
+Re-trying the same create/update call today can create duplicate rows (e.g., two identical versions) if the client retries on a network hiccup.
+
+Analytics/events aren’t gated to “post-commit only”
+
+Analytics (e.g., dailyApiUsage) are written independently, not coordinated with the surrounding transaction. If a multi-step write fails after analytics increment, you can get “ghost” analytics.
+
+Some updates don’t include tenantId in the final WHERE
+
+E.g., setActiveVersion and deleteDocumentVersion validate the version belongs to the document, but subsequent updates are scoped just by IDs, not by userId/tenantId. If a bad docId leaks across contexts, you could mutate a doc outside the current tenant. (Safer pattern: include userId in every update WHERE.)
+
+No explicit logs around transaction boundaries
+
+There’s no structured log with reqId/tenantId/docId indicating BEGIN / COMMIT / ROLLBACK. Tracing failures will be harder under load.
+
+No rollback tests / failpoints
+
+There are no temporary failpoints to simulate a mid-flow crash and verify that no partial rows survive.
+
+Exactly what to tell Replit to do (step-by-step, no code)
+A) Add idempotency for write flows (this is launch-gating)
+
+Define the contract: every create/update that can be retried must accept a client idempotency key (or deterministically derive one, e.g., docId + versionContentHash).
+
+Persist keys with a unique constraint and a TTL (so the table doesn’t grow forever). Store: key, tenantId, operationType, payloadHash, resultId, createdAt, expiresAt.
+
+Enforce once-only semantics:
+
+On first execution, write normally, store the key → resultId in the same transaction as the main write.
+
+On retry with the same key (and same payload), return the cached result and do not write again.
+
+If the same key arrives with different payload, reject clearly (409 Conflict with explanation).
+
+Use deterministic keys for version writes when practical:
+
+Example: use a content hash of the version body + docId to dedupe accidental double-uploads.
+
+Safeguards
+
+Scope idempotency by tenantId to prevent cross-tenant reuse.
+
+Add a short TTL (e.g., 24–72h) to clean old keys.
+
+Add a unique index on (tenantId, key).
+
+Acceptance
+
+Retrying a create/update with the same key returns the same result and does not create a duplicate version/document.
+
+Changing the payload under the same key is cleanly rejected (no partial writes).
+
+B) Move analytics/events after commit
+
+For each transaction that writes DB state, move analytics emission to a post-commit step (after the transaction promise resolves).
+
+If a transaction rolls back, no analytics should be emitted.
+
+Safeguards
+
+Keep analytics out of the transaction to avoid slow commits.
+
+If analytics fails after a commit, log and retry later; never roll back the main data because analytics failed.
+
+Acceptance
+
+Induced mid-transaction failure produces no analytics.
+
+Successful commit → analytics emitted exactly once.
+
+C) Strengthen tenant scoping on updates (defense-in-depth)
+
+On any UPDATE/DELETE that changes document state, include tenantId/userId in the final WHERE even if you already checked earlier (belt-and-suspenders).
+
+On setActiveVersion / deleteDocumentVersion, ensure the final updates also include userId = <current>.
+
+Safeguards
+
+Keep existing pre-checks; this just narrows the blast radius if an ID is ever mis-scoped upstream.
+
+Acceptance
+
+Contract test: a user from Tenant B cannot flip versions or delete a version for Tenant A by guessing IDs.
+
+D) Add transaction boundary logging
+
+On entry to the high-risk flows (create doc, create version, set active, delete version), log a structured BEGIN with reqId, tenantId, userId, docId, operation.
+
+On success, log COMMIT; on failure, log ROLLBACK plus a short error code.
+
+Safeguards
+
+No PII or secret content in logs; just identifiers and codes.
+
+Acceptance
+
+In logs, you can trace any write end-to-end using reqId and see where it failed.
+
+E) Add temporary failpoints to verify rollback
+
+Add a feature-flagged fault mid-flow (e.g., throw between document insert and version insert).
+
+Run the flow and confirm the transaction rolls back cleanly.
+
+Remove or disable the failpoint after the test.
+
+Acceptance
+
+After the forced fault, the DB contains no partial document or version rows.
