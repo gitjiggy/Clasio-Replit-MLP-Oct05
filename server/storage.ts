@@ -187,8 +187,8 @@ export interface IStorage {
   // Document Versions
   createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
   getDocumentVersions(documentId: string, userId: string): Promise<DocumentVersion[]>;
-  setActiveVersion(documentId: string, versionId: string, userId: string): Promise<boolean>;
-  deleteDocumentVersion(documentId: string, versionId: string, userId: string): Promise<boolean>;
+  setActiveVersion(documentId: string, versionId: string, userId: string, reqId?: string, idempotencyKey?: string): Promise<boolean>;
+  deleteDocumentVersion(documentId: string, versionId: string, userId: string, reqId?: string, idempotencyKey?: string): Promise<boolean>;
 
   // Folders
   createFolder(folder: InsertFolder, userId: string): Promise<Folder>;
@@ -3322,127 +3322,249 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(documentVersions.version));
   }
 
-  async setActiveVersion(documentId: string, versionId: string): Promise<boolean> {
-    // Get the version we want to activate to ensure it exists and belongs to this document
-    const targetVersion = await db
-      .select()
-      .from(documentVersions)
-      .where(and(
-        eq(documentVersions.id, versionId),
-        eq(documentVersions.documentId, documentId)
-      ))
-      .limit(1);
+  async setActiveVersion(documentId: string, versionId: string, userId: string, reqId?: string, idempotencyKey?: string): Promise<boolean> {
+    ensureTenantContext(userId);
 
-    if (targetVersion.length === 0) {
-      return false; // Version not found or doesn't belong to this document
+    const context: TransactionContext = {
+      reqId: reqId || randomUUID(),
+      userId,
+      operationType: 'version_set_active',
+      idempotencyKey: idempotencyKey || transactionManager.generateIdempotencyKey(
+        'version_set_active',
+        userId,
+        documentId,
+        versionId
+      )
+    };
+
+    const result = await transactionManager.executeWithIdempotency(
+      context,
+      async (tx) => {
+        // First, verify the document belongs to the user and get its info
+        const document = await tx
+          .select()
+          .from(documents)
+          .where(and(
+            eq(documents.id, documentId),
+            eq(documents.userId, userId),
+            eq(documents.isDeleted, false)
+          ))
+          .for('update') // Lock the parent document
+          .limit(1);
+
+        if (document.length === 0) {
+          return false; // Document not found or doesn't belong to user
+        }
+
+        // Get the version we want to activate to ensure it exists and belongs to this document
+        const targetVersion = await tx
+          .select()
+          .from(documentVersions)
+          .where(and(
+            eq(documentVersions.id, versionId),
+            eq(documentVersions.documentId, documentId)
+          ))
+          .limit(1);
+
+        if (targetVersion.length === 0) {
+          return false; // Version not found or doesn't belong to this document
+        }
+
+        const version = targetVersion[0];
+
+        // First, deactivate all versions for this document (with user scoping)
+        await tx
+          .update(documentVersions)
+          .set({ isActive: false })
+          .where(and(
+            eq(documentVersions.documentId, documentId),
+            sql`${documentVersions.documentId} IN (
+              SELECT id FROM documents WHERE user_id = ${userId}
+            )`
+          ));
+
+        // Then activate the specified version
+        await tx
+          .update(documentVersions)
+          .set({ isActive: true })
+          .where(and(
+            eq(documentVersions.id, versionId),
+            sql`${documentVersions.documentId} IN (
+              SELECT id FROM documents WHERE user_id = ${userId}
+            )`
+          ));
+
+        // Update the document's metadata to match the active version (with user scoping)
+        await tx
+          .update(documents)
+          .set({
+            filePath: version.filePath,
+            fileSize: version.fileSize,
+            fileType: version.fileType,
+            mimeType: version.mimeType,
+          })
+          .where(and(
+            eq(documents.id, documentId),
+            eq(documents.userId, userId)
+          ));
+
+        // Add analytics hook for post-commit execution
+        transactionManager.addPostCommitHook({
+          type: 'analytics',
+          action: 'document_version_activated',
+          data: {
+            documentId,
+            versionId,
+            version: version.version,
+            userId
+          }
+        });
+
+        return true;
+      },
+      { documentId, versionId }
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to set active version');
     }
 
-    const version = targetVersion[0];
-
-    // Use a transaction to ensure atomicity with parent document locking
-    return await db.transaction(async (tx) => {
-      // Lock the parent document to serialize concurrent activations
-      await tx
-        .select({ id: sql<string>`id` })
-        .from(documents)
-        .where(eq(documents.id, documentId))
-        .for('update');
-      // First, deactivate all versions for this document
-      await tx
-        .update(documentVersions)
-        .set({ isActive: false })
-        .where(eq(documentVersions.documentId, documentId));
-
-      // Then activate the specified version
-      await tx
-        .update(documentVersions)
-        .set({ isActive: true })
-        .where(eq(documentVersions.id, versionId));
-
-      // Update the document's metadata to match the active version
-      await tx
-        .update(documents)
-        .set({
-          filePath: version.filePath,
-          fileSize: version.fileSize,
-          fileType: version.fileType,
-          mimeType: version.mimeType,
-        })
-        .where(eq(documents.id, documentId));
-
-      return true;
-    });
+    return result.data;
   }
 
-  async deleteDocumentVersion(documentId: string, versionId: string): Promise<boolean> {
-    // Use a transaction to ensure atomicity and lock parent for consistency
-    return await db.transaction(async (tx) => {
-      // Lock the parent document to prevent concurrent operations
-      await tx
-        .select({ id: sql<string>`id` })
-        .from(documents)
-        .where(eq(documents.id, documentId))
-        .for('update');
+  async deleteDocumentVersion(documentId: string, versionId: string, userId: string, reqId?: string, idempotencyKey?: string): Promise<boolean> {
+    ensureTenantContext(userId);
 
-      // Get the version to be deleted, ensuring it belongs to the specified document
-      const versionToDelete = await tx
-        .select()
-        .from(documentVersions)
-        .where(and(
-          eq(documentVersions.id, versionId),
-          eq(documentVersions.documentId, documentId)
-        ))
-        .limit(1);
+    const context: TransactionContext = {
+      reqId: reqId || randomUUID(),
+      userId,
+      operationType: 'version_delete',
+      idempotencyKey: idempotencyKey || transactionManager.generateIdempotencyKey(
+        'version_delete',
+        userId,
+        documentId,
+        versionId
+      )
+    };
 
-      if (versionToDelete.length === 0) {
-        return false; // Version not found
-      }
+    const result = await transactionManager.executeWithIdempotency(
+      context,
+      async (tx) => {
+        // First, verify the document belongs to the user and lock it
+        const document = await tx
+          .select()
+          .from(documents)
+          .where(and(
+            eq(documents.id, documentId),
+            eq(documents.userId, userId),
+            eq(documents.isDeleted, false)
+          ))
+          .for('update') // Lock the parent document
+          .limit(1);
 
-      const version = versionToDelete[0];
-
-      // Get all versions for this document within the transaction
-      const allVersions = await tx
-        .select()
-        .from(documentVersions)
-        .where(eq(documentVersions.documentId, documentId))
-        .orderBy(desc(documentVersions.version));
-
-      // Prevent deleting the only version
-      if (allVersions.length === 1) {
-        return false; // Cannot delete the only version
-      }
-      // Delete the version
-      await tx
-        .delete(documentVersions)
-        .where(eq(documentVersions.id, versionId));
-
-      // If we deleted the active version, activate the latest remaining version
-      if (version.isActive) {
-        const remainingVersions = allVersions.filter(v => v.id !== versionId);
-        const latestVersion = remainingVersions[0]; // Already sorted by version desc
-
-        if (latestVersion) {
-          // Activate the latest remaining version
-          await tx
-            .update(documentVersions)
-            .set({ isActive: true })
-            .where(eq(documentVersions.id, latestVersion.id));
-
-          // Update document metadata to match the new active version
-          await tx
-            .update(documents)
-            .set({
-              filePath: latestVersion.filePath,
-              fileSize: latestVersion.fileSize,
-              fileType: latestVersion.fileType,
-              mimeType: latestVersion.mimeType,
-            })
-            .where(eq(documents.id, documentId));
+        if (document.length === 0) {
+          return false; // Document not found or doesn't belong to user
         }
-      }
 
-      return true;
-    });
+        // Get the version to be deleted, ensuring it belongs to the specified document
+        const versionToDelete = await tx
+          .select()
+          .from(documentVersions)
+          .where(and(
+            eq(documentVersions.id, versionId),
+            eq(documentVersions.documentId, documentId)
+          ))
+          .limit(1);
+
+        if (versionToDelete.length === 0) {
+          return false; // Version not found
+        }
+
+        const version = versionToDelete[0];
+
+        // Get all versions for this document within the transaction (with user scoping)
+        const allVersions = await tx
+          .select()
+          .from(documentVersions)
+          .where(and(
+            eq(documentVersions.documentId, documentId),
+            sql`${documentVersions.documentId} IN (
+              SELECT id FROM documents WHERE user_id = ${userId}
+            )`
+          ))
+          .orderBy(desc(documentVersions.version));
+
+        // Prevent deleting the only version
+        if (allVersions.length === 1) {
+          return false; // Cannot delete the only version
+        }
+
+        // Delete the version (with user scoping)
+        await tx
+          .delete(documentVersions)
+          .where(and(
+            eq(documentVersions.id, versionId),
+            sql`${documentVersions.documentId} IN (
+              SELECT id FROM documents WHERE user_id = ${userId}
+            )`
+          ));
+
+        // If we deleted the active version, activate the latest remaining version
+        if (version.isActive) {
+          const remainingVersions = allVersions.filter(v => v.id !== versionId);
+          const latestVersion = remainingVersions[0]; // Already sorted by version desc
+
+          if (latestVersion) {
+            // Activate the latest remaining version (with user scoping)
+            await tx
+              .update(documentVersions)
+              .set({ isActive: true })
+              .where(and(
+                eq(documentVersions.id, latestVersion.id),
+                sql`${documentVersions.documentId} IN (
+                  SELECT id FROM documents WHERE user_id = ${userId}
+                )`
+              ));
+
+            // Update document metadata to match the new active version (with user scoping)
+            await tx
+              .update(documents)
+              .set({
+                filePath: latestVersion.filePath,
+                fileSize: latestVersion.fileSize,
+                fileType: latestVersion.fileType,
+                mimeType: latestVersion.mimeType,
+              })
+              .where(and(
+                eq(documents.id, documentId),
+                eq(documents.userId, userId)
+              ));
+          }
+        }
+
+        // Add analytics hook for post-commit execution
+        transactionManager.addPostCommitHook({
+          type: 'analytics',
+          action: 'document_version_deleted',
+          data: {
+            documentId,
+            versionId,
+            version: version.version,
+            wasActive: version.isActive,
+            userId
+          }
+        });
+
+        return true;
+      },
+      { documentId, versionId }
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to delete document version');
+    }
+
+    return result.data;
   }
 
   // Folders
