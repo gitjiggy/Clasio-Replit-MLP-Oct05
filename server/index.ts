@@ -6,6 +6,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { aiQueueProcessor } from "./aiQueueProcessor";
 import * as cron from "node-cron";
 import { DatabaseStorage } from "./storage";
+import { getSecurityConfig, getHelmetConfig, logSecurityStatus } from "./security";
 
 // Environment variable validation
 function validateEnvironment() {
@@ -61,35 +62,22 @@ const app = express();
 // Configure trust proxy for rate limiting (Replit uses proxies)
 app.set('trust proxy', 1);
 
-// Configure CORS for FlutterFlow and other frontends
+// Security configuration based on environment
+const securityConfig = getSecurityConfig();
+
+// Configure CORS with environment-based origins
 app.use(cors({
-  origin: [
-    // Allow localhost for development
-    "http://localhost:3000",
-    "http://localhost:5000",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5000",
-    // Allow Replit preview domains
-    /.*\.replit\.app$/,
-    /.*\.replit\.dev$/,
-    // Allow FlutterFlow domains
-    /.*\.flutterflow\.app$/,
-    /.*\.web\.app$/,
-    /.*\.firebaseapp\.com$/,
-    // Allow custom domains (add your FlutterFlow domain here when you get it)
-    // "https://your-custom-domain.com"
-  ],
+  origin: securityConfig.corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-drive-access-token']
 }));
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: false, // Allow inline styles/scripts for development
-  crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' } // Allow OAuth popup flows
-}));
+// Security middleware with staged rollout capabilities
+app.use(helmet(getHelmetConfig()));
+
+// Log security status on startup
+logSecurityStatus();
 
 // Rate limiters are now in separate module to avoid circular dependencies
 

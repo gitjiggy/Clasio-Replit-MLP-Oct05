@@ -234,7 +234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for upload-proxy (BEFORE any JSON parser)
   const uploadProxy = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 100 * 1024 * 1024 } // 100MB cap
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB cap - matches schema validation
   });
 
   // Upload proxy MUST consume the body before any JSON middleware
