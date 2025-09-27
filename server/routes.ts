@@ -2864,6 +2864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
       
       const documentData = {
+        userId, // Required field for multi-tenant document ownership
         name: driveFile.name,
         originalName: driveFile.name,
         filePath: `drive:${driveFile.id}`, // Use Drive file ID as path identifier
