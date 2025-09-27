@@ -2740,18 +2740,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Debug middleware to capture raw body
+  const captureRawBody = (req: any, res: any, next: any) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      req.rawBody = Buffer.concat(chunks).toString('utf8');
+      next();
+    });
+  };
+
   // Sync Drive document to local system (with CSRF protection for state-changing operation)
-  app.post("/api/drive/sync", express.json(), strictLimiter, verifyFirebaseToken, rejectLegacyDriveHeader, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/drive/sync", captureRawBody, express.json(), strictLimiter, verifyFirebaseToken, rejectLegacyDriveHeader, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const reqId = (req as any).reqId;
       const userId = req.user?.uid;
       
       console.info(JSON.stringify({
-        evt: "drive_sync.started",
+        evt: "drive_sync.debug_full",
         reqId,
         uid: userId,
-        driveFileId: req.body.driveFileId,
-        runAiAnalysis: req.body.runAiAnalysis || false
+        rawBody: (req as any).rawBody,
+        parsedBody: req.body,
+        bodyKeys: Object.keys(req.body || {}),
+        contentLength: req.headers['content-length'],
+        contentType: req.headers['content-type'],
+        hasXRequestedWith: !!req.headers['x-requested-with']
       }));
       
       // Validate request body
