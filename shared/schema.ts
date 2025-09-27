@@ -149,29 +149,52 @@ export const documentAccessLog = pgTable("document_access_log", {
   documentAccessIndex: index("document_access_doc_idx").on(table.documentId, table.accessedAt),
 }));
 
-// AI Analysis Queue for cost-controlled batch processing
+// AI Analysis Queue for cost-controlled batch processing - Enhanced for Token 4/8 durability
 export const aiAnalysisQueue = pgTable("ai_analysis_queue", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
   userId: text("user_id").notNull(), // Firebase UID for tracking per-user queue
+  tenantId: text("tenant_id"), // Tenant isolation (maps to userId for Firebase) - nullable during migration
+  versionId: varchar("version_id").references(() => documentVersions.id), // Document version for analysis
   jobType: text("job_type").default("analysis").notNull(), // analysis, embedding_generation
   priority: integer("priority").default(5).notNull(), // 1=highest (user-requested), 5=bulk upload, 8=background
+  idempotencyKey: text("idempotency_key").default(sql`gen_random_uuid()`).notNull(), // Prevent duplicate processing
   requestedAt: timestamp("requested_at").default(sql`now()`).notNull(),
   scheduledAt: timestamp("scheduled_at"), // When it should be processed
   processedAt: timestamp("processed_at"), // When it was actually processed
-  status: text("status").default("pending").notNull(), // pending, processing, completed, failed
-  retryCount: integer("retry_count").default(0).notNull(),
-  failureReason: text("failure_reason"), // Why it failed (for debugging)
+  status: text("status").default("pending").notNull(), // pending, processing, completed, failed, dlq
+  // Enhanced retry and failure handling
+  attemptCount: integer("attempt_count").default(0).notNull(), // Current attempt number
+  maxAttempts: integer("max_attempts").default(3).notNull(), // Maximum retry attempts
+  retryCount: integer("retry_count").default(0).notNull(), // Legacy field for compatibility
+  lastError: text("last_error"), // Detailed error message from last attempt
+  failureReason: text("failure_reason"), // Why it failed (for debugging) - legacy field
+  // Dead Letter Queue (DLQ) fields
+  dlqStatus: text("dlq_status"), // 'active', 'replaying' when moved to DLQ
+  dlqReason: text("dlq_reason"), // Why it was moved to DLQ
+  dlqAt: timestamp("dlq_at"), // When moved to DLQ
+  // Metadata and tracking
   estimatedTokens: integer("estimated_tokens"), // Estimated token usage for cost tracking
+  workerInstance: text("worker_instance"), // Which worker instance processed this
+  nextRetryAt: timestamp("next_retry_at") // Scheduled retry time for exponential backoff
 }, (table) => ({
-  // Index for efficient queue processing
-  queueProcessingIndex: index("ai_queue_processing_idx").on(table.status, table.priority, table.scheduledAt),
-  // Index for user queue status queries
+  // Index for efficient queue processing with retry scheduling
+  queueProcessingIndex: index("ai_queue_processing_idx").on(table.status, table.priority, table.nextRetryAt),
+  // Index for tenant-scoped queue queries (Token 4/8 requirement)
+  tenantQueueIndex: index("ai_queue_tenant_idx").on(table.tenantId, table.status),
+  // Index for user queue status queries (legacy)
   userQueueIndex: index("ai_queue_user_idx").on(table.userId, table.status),
+  // Index for DLQ operations and management
+  dlqIndex: index("ai_queue_dlq_idx").on(table.status, table.dlqAt).where(sql`status = 'dlq'`),
+  // Index for retry processing (exponential backoff scheduling)
+  retryIndex: index("ai_queue_retry_idx").on(table.nextRetryAt, table.status).where(sql`next_retry_at IS NOT NULL`),
   // Prevent duplicate queue entries for same document and job type
   uniqueDocumentJobInQueue: uniqueIndex("ai_queue_unique_document_job_idx")
     .on(table.documentId, table.jobType)
     .where(sql`status IN ('pending', 'processing')`),
+  // Ensure idempotency keys are unique within tenant for same job type
+  uniqueIdempotencyKey: uniqueIndex("ai_queue_unique_idempotency_idx")
+    .on(table.tenantId, table.idempotencyKey, table.jobType),
 }));
 
 // Daily API usage tracking for cost control
@@ -186,6 +209,24 @@ export const dailyApiUsage = pgTable("daily_api_usage", {
 }, (table) => ({
   // Ensure one record per date
   uniqueDateIndex: uniqueIndex("daily_usage_unique_date_idx").on(table.date),
+}));
+
+// AI Queue Metrics for Token 4/8 operational monitoring
+export const aiQueueMetrics = pgTable("ai_queue_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  timestamp: timestamp("timestamp").default(sql`now()`).notNull(),
+  queueDepth: integer("queue_depth").default(0).notNull(), // Total pending jobs
+  dlqDepth: integer("dlq_depth").default(0).notNull(), // Total DLQ jobs
+  processingRate: integer("processing_rate").default(0).notNull(), // Jobs processed per minute
+  successRate: integer("success_rate").default(0).notNull(), // Successful jobs per minute
+  failureRate: integer("failure_rate").default(0).notNull(), // Failed jobs per minute
+  retryRate: integer("retry_rate").default(0).notNull(), // Retried jobs per minute
+  avgProcessingTimeMs: integer("avg_processing_time_ms"), // Average processing time
+  activeWorkers: integer("active_workers").default(0).notNull(), // Number of active worker instances
+  poisonPillCount: integer("poison_pill_count").default(0).notNull(), // Jobs fast-tracked to DLQ
+}, (table) => ({
+  // Index for time-series queries
+  timestampIndex: index("ai_queue_metrics_timestamp_idx").on(table.timestamp),
 }));
 
 // Idempotency keys for operation deduplication and safe retries
@@ -257,6 +298,11 @@ export const insertDailyApiUsageSchema = createInsertSchema(dailyApiUsage).omit(
   lastUpdated: true,
 });
 
+export const insertAiQueueMetricsSchema = createInsertSchema(aiQueueMetrics).omit({
+  id: true,
+  timestamp: true,
+});
+
 export const insertIdempotencyKeySchema = createInsertSchema(idempotencyKeys).omit({
   id: true,
   createdAt: true,
@@ -271,6 +317,7 @@ export type InsertDocumentTag = z.infer<typeof insertDocumentTagSchema>;
 export type InsertDocumentAccessLog = z.infer<typeof insertDocumentAccessLogSchema>;
 export type InsertAiAnalysisQueue = z.infer<typeof insertAiAnalysisQueueSchema>;
 export type InsertDailyApiUsage = z.infer<typeof insertDailyApiUsageSchema>;
+export type InsertAiQueueMetrics = z.infer<typeof insertAiQueueMetricsSchema>;
 export type InsertIdempotencyKey = z.infer<typeof insertIdempotencyKeySchema>;
 
 export type Folder = typeof folders.$inferSelect;
@@ -281,6 +328,7 @@ export type DocumentTag = typeof documentTags.$inferSelect;
 export type DocumentAccessLog = typeof documentAccessLog.$inferSelect;
 export type AiAnalysisQueue = typeof aiAnalysisQueue.$inferSelect;
 export type DailyApiUsage = typeof dailyApiUsage.$inferSelect;
+export type AiQueueMetrics = typeof aiQueueMetrics.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
 
 export type DocumentWithFolderAndTags = Document & {
