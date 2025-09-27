@@ -14,13 +14,26 @@ import { db } from "./db.js";
 import { z } from "zod";
 import { google } from 'googleapis';
 import { lookup as mimeLookup } from "mime-types";
+import { 
+  setDriveTokenCookie, 
+  clearDriveTokenCookies, 
+  getDriveToken, 
+  csrfProtection,
+  requireDriveAccessWithCookie 
+} from "./cookieAuth";
 
 // Middleware to verify Drive access token belongs to the authenticated Firebase user
+// Enhanced with dual path support (cookie preferred, header fallback)
 async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any) {
   try {
-    const driveAccessToken = req.headers['x-drive-access-token'] as string;
+    // Get token from cookie (preferred) or header (fallback)
+    const { token: driveAccessToken, source } = getDriveToken(req);
+    
     if (!driveAccessToken) {
-      return res.status(401).json({ error: "Google Drive access token required in x-drive-access-token header" });
+      return res.status(401).json({ 
+        error: "Google Drive access token required",
+        message: "Please authenticate with Google Drive first"
+      });
     }
 
     // Get Firebase user email from the verified token
@@ -44,8 +57,11 @@ async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any
       });
     }
 
-    // Store Drive service in request for reuse
+    // Store Drive service and telemetry in request for reuse
     (req as any).driveService = new DriveService(driveAccessToken);
+    (req as any).driveAuthSource = source; // Track whether auth came from cookie or header
+    (req as any).driveAccessToken = driveAccessToken;
+    
     next();
   } catch (error) {
     console.error("Drive access verification failed:", error);
@@ -1915,11 +1931,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (document.driveFileId) {
         // For Drive documents, try to get the Drive access token but don't require it
-        const driveAccessToken = req.headers['x-drive-access-token'] as string;
+        const { token: driveAccessToken } = getDriveToken(req);
         
         try {
           // Pass the Drive access token if available, otherwise try without it
-          success = await storage.analyzeDocumentWithAI(documentId, userId, undefined, driveAccessToken);
+          success = await storage.analyzeDocumentWithAI(documentId, userId, undefined, driveAccessToken || undefined);
         } catch (error) {
           console.error("AI analysis failed for Drive document:", error);
           success = false;
@@ -1969,12 +1985,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (document.driveFileId) {
         
         // For Drive documents, we need the user's Google access token
-        const driveAccessToken = req.headers['x-drive-access-token'] as string;
+        const { token: driveAccessToken, source } = getDriveToken(req);
         
         if (!driveAccessToken) {
           return res.status(403).json({ 
             error: "Google Drive access token required",
-            message: "Please provide Drive access token in x-drive-access-token header",
+            message: "Please authenticate with Google Drive first",
             code: "DRIVE_TOKEN_REQUIRED"
           });
         }
@@ -2566,6 +2582,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Google Drive Integration endpoints
   
+  // OAuth callback endpoint - sets httpOnly cookie with Drive token
+  app.post("/api/drive/oauth-callback", verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { accessToken } = req.body;
+      
+      if (!accessToken) {
+        return res.status(400).json({ 
+          error: "Access token required",
+          message: "No access token provided in callback"
+        });
+      }
+      
+      // Verify the token belongs to the authenticated user
+      const firebaseUserEmail = req.user?.email;
+      if (!firebaseUserEmail) {
+        return res.status(401).json({ error: "Firebase user email not available" });
+      }
+      
+      // Verify token with Google
+      const oauth2Client = new google.auth.OAuth2();
+      oauth2Client.setCredentials({ access_token: accessToken });
+      
+      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+      const userInfo = await oauth2.userinfo.get();
+      
+      const googleUserEmail = userInfo.data.email;
+      if (!googleUserEmail || googleUserEmail !== firebaseUserEmail) {
+        return res.status(403).json({ 
+          error: "Token mismatch",
+          message: "Drive token does not belong to the authenticated user"
+        });
+      }
+      
+      // Set the token in httpOnly cookie
+      setDriveTokenCookie(res, accessToken);
+      
+      // Log telemetry for new cookie auth
+      console.log('[Telemetry] OAuth callback: Token stored in httpOnly cookie for user:', firebaseUserEmail);
+      
+      res.json({
+        success: true,
+        message: "Drive authentication successful",
+        email: googleUserEmail,
+        authMethod: "cookie"
+      });
+      
+    } catch (error) {
+      console.error("OAuth callback error:", error);
+      res.status(500).json({ 
+        error: "OAuth callback failed",
+        message: "Failed to process OAuth callback"
+      });
+    }
+  });
+  
+  // Sign out endpoint - clears Drive token cookies
+  app.post("/api/drive/signout", verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
+    try {
+      clearDriveTokenCookies(res);
+      
+      console.log('[Telemetry] Drive sign-out: Cookies cleared for user:', req.user?.email);
+      
+      res.json({
+        success: true,
+        message: "Drive sign-out successful"
+      });
+    } catch (error) {
+      console.error("Sign-out error:", error);
+      res.status(500).json({ 
+        error: "Sign-out failed",
+        message: "Failed to clear Drive authentication"
+      });
+    }
+  });
+  
   // Verify Drive connection and get status
   app.get("/api/drive/connect", verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
@@ -2628,8 +2719,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sync Drive document to local system
-  app.post("/api/drive/sync", strictLimiter, verifyFirebaseToken, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  // Sync Drive document to local system (with CSRF protection for state-changing operation)
+  app.post("/api/drive/sync", strictLimiter, verifyFirebaseToken, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
       // Validate request body
       const validatedBody = driveSyncSchema.parse(req.body);
@@ -2693,7 +2784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ];
           
           const isTextExportable = textExportableMimeTypes.includes(driveFile.mimeType);
-          const driveAccessToken = req.headers['x-drive-access-token'] as string;
+          const { token: driveAccessToken } = getDriveToken(req);
           
           if (isTextExportable && driveFile.content && !driveFile.content.startsWith('[Binary file:')) {
             // For Google Docs and text files, use the exported content directly

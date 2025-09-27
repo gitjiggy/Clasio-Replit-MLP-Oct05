@@ -11,6 +11,9 @@ async function throwIfResNotOk(res: Response) {
 async function getAuthHeaders(): Promise<{ [key: string]: string }> {
   const headers: { [key: string]: string } = {};
   
+  // Add CSRF protection header for all requests
+  headers['X-Requested-With'] = 'XMLHttpRequest';
+  
   if (auth.currentUser) {
     try {
       // Force refresh if token is near expiry to prevent failures

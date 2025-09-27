@@ -57,7 +57,8 @@ export const signInWithGoogle = async () => {
 };
 
 // NEW TAB WORKAROUND: Drive consent flow - Opens in new tab to avoid iframe issues
-export const connectGoogleDrive = async (): Promise<string> => {
+// Now returns boolean success instead of token (token is stored in httpOnly cookie)
+export const connectGoogleDrive = async (): Promise<boolean> => {
   
   return new Promise((resolve, reject) => {
     // Open auth page in new tab/window
@@ -82,16 +83,12 @@ export const connectGoogleDrive = async (): Promise<string> => {
       
       if (event.data.type === 'DRIVE_AUTH_SUCCESS') {
         
-        // Store the token with timestamp in the main window
-        if (event.data.token) {
-          storeGoogleAccessToken(event.data.token);
-        }
-        
+        // Authentication successful - token is now stored in httpOnly cookie
         // Clean up
         window.removeEventListener('message', messageListener);
         authWindow.close();
         
-        resolve(event.data.token);
+        resolve(true);
         
       } else if (event.data.type === 'DRIVE_AUTH_ERROR') {
         console.error("Drive auth failed:", event.data.error);
@@ -120,8 +117,23 @@ export const connectGoogleDrive = async (): Promise<string> => {
 };
 
 export const signOutUser = async () => {
-  // Clear stored Google access token
-  clearGoogleAccessToken();
+  // Sign out from Drive (clears httpOnly cookie on server)
+  try {
+    const response = await fetch('/api/drive/signout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest' // CSRF protection
+      }
+    });
+    if (!response.ok) {
+      console.error('Failed to sign out from Drive');
+    }
+  } catch (error) {
+    console.error('Drive sign-out error:', error);
+  }
+  
   return signOut(auth);
 };
 
@@ -139,10 +151,8 @@ export const handleAuthRedirect = async () => {
       // The signed-in user info.
       const user = result.user;
       
-      // Store the Google access token for Drive API calls
-      if (googleAccessToken) {
-        storeGoogleAccessToken(googleAccessToken);
-      }
+      // Token is now handled by server-side cookie authentication
+      // No need to store locally
       
       return { user, googleAccessToken };
     }
@@ -153,35 +163,19 @@ export const handleAuthRedirect = async () => {
   }
 };
 
-// Get stored Google access token for Drive API calls
+// Token storage functions are deprecated - tokens are now stored in httpOnly cookies
+// These are kept temporarily for backward compatibility during migration
 export const getGoogleAccessToken = (): string | null => {
-  const token = localStorage.getItem('google_access_token');
-  const tokenTime = localStorage.getItem('google_access_token_time');
-  
-  // Check if token is older than 50 minutes (tokens expire in 60 minutes)
-  if (token && tokenTime) {
-    const tokenAge = Date.now() - parseInt(tokenTime);
-    const fiftyMinutes = 50 * 60 * 1000; // 50 minutes in milliseconds
-    
-    if (tokenAge > fiftyMinutes) {
-      clearGoogleAccessToken();
-      return null;
-    }
-  }
-  
-  return token;
+  console.warn('[Deprecated] getGoogleAccessToken: Tokens are now stored in httpOnly cookies');
+  return null;
 };
 
-// Store Google access token with timestamp
 export const storeGoogleAccessToken = (token: string) => {
-  localStorage.setItem('google_access_token', token);
-  localStorage.setItem('google_access_token_time', Date.now().toString());
+  console.warn('[Deprecated] storeGoogleAccessToken: Tokens are now stored in httpOnly cookies');
 };
 
-// Clear stored Google access token on sign out
 export const clearGoogleAccessToken = () => {
-  localStorage.removeItem('google_access_token');
-  localStorage.removeItem('google_access_token_time');
+  console.warn('[Deprecated] clearGoogleAccessToken: Tokens are now cleared via server endpoint');
 };
 
 // Auth state observer

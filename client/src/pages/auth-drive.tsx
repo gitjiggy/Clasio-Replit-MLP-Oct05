@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { auth, storeGoogleAccessToken } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
 
 // Drive Provider for new tab authentication
 const driveGoogleProvider = new GoogleAuthProvider();
@@ -32,22 +33,34 @@ export default function AuthDrive() {
       
       
       if (googleAccessToken) {
-        // Store the token with timestamp
-        storeGoogleAccessToken(googleAccessToken);
-        
-        // Send token back to parent window if opened as popup
-        if (window.opener) {
-          window.opener.postMessage({
-            type: 'DRIVE_AUTH_SUCCESS',
-            token: googleAccessToken,
-            user: {
-              email: result.user.email,
-              displayName: result.user.displayName
-            }
-          }, '*');
+        // Send token to server to set httpOnly cookie
+        try {
+          const response = await apiRequest('POST', '/api/drive/oauth-callback', { 
+            accessToken: googleAccessToken 
+          });
+          
+          if (!response.success) {
+            throw new Error('Failed to store authentication');
+          }
+          
+          // Send success message back to parent window if opened as popup
+          if (window.opener) {
+            window.opener.postMessage({
+              type: 'DRIVE_AUTH_SUCCESS',
+              // Don't send the actual token, just success signal
+              authenticated: true,
+              user: {
+                email: result.user.email,
+                displayName: result.user.displayName
+              }
+            }, '*');
+          }
+          
+          setStatus('success');
+        } catch (serverError: any) {
+          console.error('Failed to set server cookie:', serverError);
+          throw new Error('Failed to store authentication on server');
         }
-        
-        setStatus('success');
       } else {
         throw new Error('No access token received from Google');
       }

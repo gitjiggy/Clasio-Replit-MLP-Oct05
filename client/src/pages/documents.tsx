@@ -761,25 +761,11 @@ export default function Documents() {
       // Track AI analysis initiation
       trackEvent('ai_analysis_start', { document_id: documentId, analysis_type: 'gemini' });
       
-      // Find the document to check if it's from Drive
-      const document = documentsData?.documents?.find((doc: DocumentWithFolderAndTags) => doc.id === documentId);
-      const googleAccessToken = getGoogleAccessToken();
+      // Drive authentication is now handled via httpOnly cookies
+      // No need to check for tokens or send in headers
       
-      // Handle Drive documents that need authentication
-      if (document?.driveFileId && !googleAccessToken) {
-        throw new Error("Drive access token has expired. Please re-authenticate with Google Drive to analyze this document.");
-      }
-      
-      // Prepare headers for Drive documents
-      const headers: HeadersInit = {};
-      if (document?.driveFileId && googleAccessToken) {
-        headers['x-drive-access-token'] = googleAccessToken;
-      }
-      
-      // Use the correct apiRequest pattern to include headers
       const response = await apiRequest(`/api/documents/${documentId}/analyze`, {
         method: "POST",
-        headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
       return response;
     },

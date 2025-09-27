@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { getGoogleAccessToken, connectGoogleDrive } from "@/lib/firebase";
+import { connectGoogleDrive } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { 
   HardDrive, 
@@ -74,8 +74,8 @@ export default function Drive() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Get Google access token
-  const googleAccessToken = getGoogleAccessToken();
+  // Drive authentication is now handled via httpOnly cookies
+  const [isDriveAuthenticated, setIsDriveAuthenticated] = useState(true); // Assume authenticated initially
 
   // Handle search with debouncing
   const handleSearchChange = (query: string) => {
@@ -100,16 +100,9 @@ export default function Drive() {
   const { data: connectionStatus, isLoading: connectionLoading, error: connectionError, refetch: refetchConnection } = useQuery<DriveConnectionStatus>({
     queryKey: ['drive-connection'],
     queryFn: async () => {
-      if (!googleAccessToken) {
-        return { connected: false, hasAccess: false, message: 'No Drive authorization' };
-      }
-      
       try {
         return await apiRequest('/api/drive/connect', {
           method: 'GET',
-          headers: {
-            'x-drive-access-token': googleAccessToken,
-          },
         });
       } catch (error: any) {
         // Handle token expiry - automatically prompt re-authentication
@@ -135,7 +128,7 @@ export default function Drive() {
         };
       }
     },
-    enabled: !!googleAccessToken, // Only run if we have a token
+    enabled: isDriveAuthenticated, // Only run if we believe we're authenticated
     retry: false,
     refetchInterval: 15000, // Auto-retry every 15 seconds to check connection status
   });
@@ -144,10 +137,6 @@ export default function Drive() {
   const { data: driveData, isLoading: documentsLoading, error: documentsError, refetch } = useQuery<DriveDocumentsResponse>({
     queryKey: ['drive-documents', searchQuery, selectedFolderId, pageToken],
     queryFn: async () => {
-      if (!googleAccessToken) {
-        return { files: [], folders: [], pagination: { pageSize: 0, hasNext: false } };
-      }
-      
       const params = new URLSearchParams();
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
       if (selectedFolderId) params.append('folderId', selectedFolderId);
@@ -155,27 +144,17 @@ export default function Drive() {
       
       return apiRequest(`/api/drive/documents?${params.toString()}`, {
         method: 'GET',
-        headers: {
-          'x-drive-access-token': googleAccessToken,
-        },
       });
     },
-    enabled: !!googleAccessToken && !!connectionStatus?.connected,
+    enabled: isDriveAuthenticated && !!connectionStatus?.connected,
     retry: false,
   });
 
   // Sync Drive document mutation
   const syncDocumentMutation = useMutation({
     mutationFn: async (data: { driveFileId: string; folderId?: string; runAiAnalysis?: boolean }) => {
-      if (!googleAccessToken) {
-        throw new Error('No Google access token available');
-      }
-      
       return apiRequest('/api/drive/sync', {
         method: 'POST',
-        headers: {
-          'x-drive-access-token': googleAccessToken,
-        },
         body: JSON.stringify(data),
       });
     },
@@ -264,7 +243,7 @@ export default function Drive() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {!googleAccessToken ? (
+          {!connectionStatus?.connected ? (
             <div className="space-y-3">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
@@ -280,16 +259,20 @@ export default function Drive() {
                       description: "A new window will open for Google Drive authorization...",
                     });
                     
-                    const token = await connectGoogleDrive();
+                    const success = await connectGoogleDrive();
                     
-                    // Token is already stored in localStorage by the auth window
-                    // Refresh the page data to reflect new connection
-                    queryClient.invalidateQueries({ queryKey: ['drive-connection'] });
-                    
-                    toast({
-                      title: "Drive Connected!",
-                      description: "Successfully connected to Google Drive. You can now sync your documents.",
-                    });
+                    if (success) {
+                      // Authentication successful - cookie has been set
+                      // Refresh the page data to reflect new connection
+                      setIsDriveAuthenticated(true);
+                      queryClient.invalidateQueries({ queryKey: ['drive-connection'] });
+                      queryClient.invalidateQueries({ queryKey: ['drive-documents'] });
+                      
+                      toast({
+                        title: "Drive Connected!",
+                        description: "Successfully connected to Google Drive. You can now sync your documents.",
+                      });
+                    }
                   } catch (error: any) {
                     console.error('Drive connection error:', error);
                     
