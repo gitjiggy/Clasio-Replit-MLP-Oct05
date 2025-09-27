@@ -3162,49 +3162,47 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Check if we have generation data for GCS restore
-      let gcsRestoreResult = null;
-      let partialRestore = false;
-      
       if (!document.deletedGeneration) {
-        console.warn(`No generation data for restore: ${id} - cannot restore GCS object, will restore record only`);
-        partialRestore = true;
-      } else {
-        // Restore GCS object using stored generation
-        if (document.objectPath || document.filePath) {
-          try {
-            const objectPath = document.objectPath || document.filePath;
-            if (objectPath) {
-              const objectStorageService = new ObjectStorageService();
-              gcsRestoreResult = await objectStorageService.restoreObject(objectPath, document.deletedGeneration);
-              
-              if (!gcsRestoreResult.success) {
-                console.error(`GCS restore failed for ${objectPath}: ${gcsRestoreResult.error}`);
-                return { success: false, error: gcsRestoreResult.error };
-              }
-            }
-          } catch (gcsError: any) {
-            console.error(`Error during GCS restore for ${document.objectPath || document.filePath}:`, gcsError);
-            return { success: false, error: `Failed to restore file from cloud storage: ${gcsError.message}` };
-          }
-        }
+        console.warn(`No generation data for restore: ${id} - cannot restore GCS object`);
+        return { success: false, error: "Cannot restore: missing generation data (deleted before restore feature was implemented)" };
+      }
 
-        // Verify object is actually live after restore (unless it was already live)
-        if (gcsRestoreResult && !gcsRestoreResult.alreadyLive) {
-          try {
-            const objectPath = document.objectPath || document.filePath;
-            if (objectPath) {
-              const objectStorageService = new ObjectStorageService();
-              const metadata = await objectStorageService.getObjectMetadata(objectPath);
-              
-              if (!metadata.exists) {
-                console.error(`Verification failed: Object not live after restore: ${objectPath}`);
-                return { success: false, error: "Restore verification failed - file is not accessible" };
-              }
+      // Restore GCS object using stored generation
+      let gcsRestoreResult = null;
+      if (document.objectPath || document.filePath) {
+        try {
+          const objectPath = document.objectPath || document.filePath;
+          if (objectPath) {
+            const objectStorageService = new ObjectStorageService();
+            gcsRestoreResult = await objectStorageService.restoreObject(objectPath, document.deletedGeneration);
+            
+            if (!gcsRestoreResult.success) {
+              console.error(`GCS restore failed for ${objectPath}: ${gcsRestoreResult.error}`);
+              return { success: false, error: gcsRestoreResult.error };
             }
-          } catch (verifyError: any) {
-            console.error(`Verification error after restore:`, verifyError);
-            return { success: false, error: "Failed to verify restore success" };
           }
+        } catch (gcsError: any) {
+          console.error(`Error during GCS restore for ${document.objectPath || document.filePath}:`, gcsError);
+          return { success: false, error: `Failed to restore file from cloud storage: ${gcsError.message}` };
+        }
+      }
+
+      // Verify object is actually live after restore (unless it was already live)
+      if (gcsRestoreResult && !gcsRestoreResult.alreadyLive) {
+        try {
+          const objectPath = document.objectPath || document.filePath;
+          if (objectPath) {
+            const objectStorageService = new ObjectStorageService();
+            const metadata = await objectStorageService.getObjectMetadata(objectPath);
+            
+            if (!metadata.exists) {
+              console.error(`Verification failed: Object not live after restore: ${objectPath}`);
+              return { success: false, error: "Restore verification failed - file is not accessible" };
+            }
+          }
+        } catch (verifyError: any) {
+          console.error(`Verification error after restore:`, verifyError);
+          return { success: false, error: "Failed to verify restore success" };
         }
       }
 
