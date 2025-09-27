@@ -33,6 +33,7 @@ interface WorkerConfig {
   maxContentExtractionWorkers: number;
   maxAnalysisWorkers: number;
   maxEmbeddingWorkers: number;
+  maxReindexWorkers: number;
   
   // Retry and backoff configuration
   initialBackoffMs: number;
@@ -61,6 +62,7 @@ class StandaloneAIWorker {
   private contentExtractionWorkers: Set<Promise<void>> = new Set();
   private analysisWorkers: Set<Promise<void>> = new Set();
   private embeddingWorkers: Set<Promise<void>> = new Set();
+  private reindexWorkers: Set<Promise<void>> = new Set();
   private processingInterval: NodeJS.Timeout | null = null;
   private metricsInterval: NodeJS.Timeout | null = null;
   
@@ -100,6 +102,7 @@ class StandaloneAIWorker {
       maxContentExtractionWorkers: 2,
       maxAnalysisWorkers: 3,
       maxEmbeddingWorkers: 2,
+      maxReindexWorkers: 2, // Token 8/8: Background reindex workers
       
       // Enhanced retry logic
       initialBackoffMs: 5000,       // 5 seconds
@@ -278,7 +281,8 @@ class StandaloneAIWorker {
       await Promise.all([
         this.processContentExtractionJobs(),
         this.processAnalysisJobs(), 
-        this.processEmbeddingJobs()
+        this.processEmbeddingJobs(),
+        this.processReindexJobs() // Token 8/8: Background reindex processing
       ]);
 
     } catch (error) {
@@ -344,6 +348,26 @@ class StandaloneAIWorker {
   }
 
   /**
+   * Token 8/8: Process reindex jobs with rate limiting (for embedding regeneration)
+   */
+  private async processReindexJobs(): Promise<void> {
+    while (this.reindexWorkers.size < this.config.maxReindexWorkers && this.tokenBucket > 0) {
+      const job = await this.dequeueNextJob('reindex');
+      if (!job) break;
+
+      // Consume token for API calls (reindexing regenerates embeddings)
+      this.tokenBucket--;
+
+      const worker = this.processJob(job, 'reindex');
+      this.reindexWorkers.add(worker);
+      
+      worker.finally(() => {
+        this.reindexWorkers.delete(worker);
+      });
+    }
+  }
+
+  /**
    * Enhanced job dequeue with retry scheduling and DLQ support
    */
   private async dequeueNextJob(jobType: string): Promise<AiAnalysisQueue | null> {
@@ -377,6 +401,9 @@ class StandaloneAIWorker {
           break;
         case 'embedding_generation':
           success = await this.processEmbedding(job);
+          break;
+        case 'reindex':
+          success = await this.processReindex(job);
           break;
         default:
           throw new Error(`Unknown job type: ${jobType}`);
@@ -500,12 +527,86 @@ class StandaloneAIWorker {
   }
 
   /**
+   * Token 8/8: Process reindex job (regenerate embeddings for rename/delete/restore)
+   */
+  private async processReindex(job: AiAnalysisQueue): Promise<boolean> {
+    logWorkerOperation(
+      this.workerId,
+      job.id,
+      'reindex',
+      'reindex_started',
+      job.tenantId || undefined,
+      job.userId,
+      {
+        documentId: job.documentId,
+        versionId: job.versionId,
+        reqId: job.idempotencyKey // Use idempotency key as correlation ID
+      }
+    );
+
+    try {
+      // Reindexing means regenerating embeddings after document changes
+      const success = await storage.regenerateDocumentEmbeddings(job.documentId, job.userId, job.versionId);
+      
+      if (success) {
+        logWorkerOperation(
+          this.workerId,
+          job.id,
+          'reindex',
+          'reindex_completed',
+          job.tenantId || undefined,
+          job.userId,
+          {
+            documentId: job.documentId,
+            versionId: job.versionId,
+            reqId: job.idempotencyKey
+          }
+        );
+      } else {
+        logWorkerOperation(
+          this.workerId,
+          job.id,
+          'reindex',
+          'reindex_failed',
+          job.tenantId || undefined,
+          job.userId,
+          {
+            documentId: job.documentId,
+            versionId: job.versionId,
+            reqId: job.idempotencyKey,
+            error: 'Regeneration failed'
+          }
+        );
+      }
+      
+      return success;
+    } catch (error: any) {
+      logWorkerOperation(
+        this.workerId,
+        job.id,
+        'reindex',
+        'reindex_error',
+        job.tenantId || undefined,
+        job.userId,
+        {
+          documentId: job.documentId,
+          versionId: job.versionId,
+          reqId: job.idempotencyKey,
+          error: error.message || String(error)
+        }
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Get total active workers for shutdown coordination
    */
   private getTotalActiveWorkers(): number {
     return this.contentExtractionWorkers.size + 
            this.analysisWorkers.size + 
-           this.embeddingWorkers.size;
+           this.embeddingWorkers.size +
+           this.reindexWorkers.size; // Include reindex workers
   }
 
   /**
