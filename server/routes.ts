@@ -2741,18 +2741,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sync Drive document to local system (with CSRF protection for state-changing operation)
-  app.post("/api/drive/sync", strictLimiter, verifyFirebaseToken, rejectLegacyDriveHeader, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/drive/sync", express.json(), strictLimiter, verifyFirebaseToken, rejectLegacyDriveHeader, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const reqId = (req as any).reqId;
       const userId = req.user?.uid;
       
       console.info(JSON.stringify({
-        evt: "drive_sync.debug_request",
+        evt: "drive_sync.started",
         reqId,
         uid: userId,
-        bodyKeys: Object.keys(req.body || {}),
-        body: req.body,
-        headers: req.headers['content-type']
+        driveFileId: req.body.driveFileId,
+        runAiAnalysis: req.body.runAiAnalysis || false
       }));
       
       // Validate request body
