@@ -158,17 +158,47 @@ export default function Drive() {
         body: JSON.stringify(data),
       });
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, variables: any) => {
+      // Show initial sync success toast (matching Upload functionality)
+      const baseMessage = data.isNew ? "Document imported from Drive successfully" : "Document sync updated";
+      const description = variables.runAiAnalysis 
+        ? `${baseMessage}. We'll analyze it in the background.`
+        : baseMessage;
+      
       toast({
-        title: "Document Synced",
-        description: data.isNew ? "Document imported from Drive successfully" : "Document sync updated",
+        title: "Sync successful!",
+        description,
       });
       
       // Track successful sync
       trackEvent('file_sync', { source: 'drive', is_new: data.isNew });
       
-      // Invalidate documents cache to refresh local documents list
+      // Invalidate documents cache to refresh local documents list immediately
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      
+      // If AI analysis was requested, show AI analysis progress like Upload does
+      if (variables.runAiAnalysis) {
+        // Show AI analysis starting toast
+        setTimeout(() => {
+          toast({
+            title: "AI Analysis started",
+            description: "Analyzing document content and organizing with Smart Organization...",
+          });
+        }, 1000);
+        
+        // After analysis time, show completion and refresh screen (matching Upload pattern)
+        setTimeout(() => {
+          toast({
+            title: "Smart Organization complete!",
+            description: "Document has been analyzed and organized with AI insights.",
+          });
+          
+          // Refresh all relevant data to show updated analysis results
+          queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/tags'] });
+        }, 6000); // 6 seconds total to allow for AI analysis processing
+      }
     },
     onError: (error: any) => {
       console.error('Sync error:', error);
