@@ -50,6 +50,22 @@ Preferred communication style: Simple, everyday language.
   - Word count statistics
 - **Processing**: Asynchronous AI analysis with database storage of results
 
+## Policy-Driven Search Architecture
+- **Search Engine**: Comprehensive policy-driven search system replacing hardcoded logic
+- **Query Classification**: Lightweight analyzer with 7 query classes:
+  - `entity.proper` (people, organizations, places)
+  - `id/code` (identifiers like "1099-INT")
+  - `date/range` (date queries)
+  - `short.keyword` (1-3 common tokens)
+  - `phrase` (quoted or long exact phrase)
+  - `question` (question-like queries) 
+  - `topic.freeform` (≥4 tokens, mixed case)
+- **Field-Aware Scoring**: Per-field lexical signals with max-field logic, policy caps, proximity bonuses
+- **Tier Routing**: Policy-driven tier selection with absolute ceilings (T1: 0.99, T2: 0.70, T3: 0.45)
+- **Instrumentation**: Comprehensive logging with QueryAnalysis traces, PolicyDump, Top-5 document traces, anomaly detection
+- **API Endpoint**: `/api/search/policy-driven` with full instrumentation exposure
+- **Exact Phrase Detection**: High-signal field matching for proper noun routing to Tier-1
+
 ## Authentication & Security
 - **File Access**: Custom object ACL system with group-based permissions
 - **File Validation**: Server-side MIME type and file size validation
