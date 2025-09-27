@@ -1,0 +1,53 @@
+1) Add idempotency (launch-gating)
+
+Create an idempotency_keys store with: tenantId, key, operationType, payloadHash, resultId, createdAt, expiresAt; unique index on (tenantId, key).
+
+Every create/update endpoint must accept an idempotency key (or derive one deterministically, e.g., docId + versionContentHash).
+
+Enforce once-only inside the same transaction as the main write:
+
+First execution: perform writes, insert idempotency record with resultId.
+
+Retry same key + same payload: return original resultId, no new writes.
+
+Retry same key + different payload: 409 Conflict, no writes.
+
+Add TTL (24–72h) to prune keys.
+
+Acceptance: same key → same result, no duplicates. Same key + different payload → 409, no writes.
+
+2) Gate analytics/events after commit
+
+For all DB transactions in server/storage.ts, ensure no analytics is emitted until the transaction resolves successfully.
+
+If a transaction fails/rolls back, emit nothing.
+
+If a post-commit analytics call fails, log & retry later; never roll back data for analytics.
+
+Acceptance: induced mid-transaction failure yields no analytics; success yields analytics exactly once.
+
+3) Harden tenant scoping in final UPDATE/DELETEs
+
+In setActiveVersion(...) and deleteDocumentVersion(...), add userId/tenantId to the final WHERE clauses (belt-and-suspenders, even if validated earlier).
+
+Apply the same principle to any other mutating statements that currently filter by IDs only.
+
+Acceptance: a user from Tenant B cannot affect Tenant A’s docs by guessing IDs.
+
+4) Add transaction boundary logs
+
+On entry to each write flow: log BEGIN with {reqId, tenantId, userId, docId, operation}.
+
+On success: COMMIT; on failure: ROLLBACK + short error code.
+
+JSON logs; no secrets/PII.
+
+Acceptance: ops can reconstruct any write end-to-end from logs.
+
+5) Add a temporary failpoint to prove rollback
+
+Behind a feature flag, throw between document and version insert in createDocument(...).
+
+Run once to confirm no partial rows, then disable/remove.
+
+Acceptance: after forced failure, DB has zero new doc/version rows.

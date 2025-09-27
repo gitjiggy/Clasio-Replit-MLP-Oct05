@@ -3132,15 +3132,15 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async restoreDocument(id: string): Promise<{ success: boolean; error?: string }> {
+  async restoreDocument(id: string, userId: string): Promise<{ success: boolean; error?: string; alreadyLive?: boolean; message?: string }> {
     try {
       await this.ensureInitialized();
 
-      // First, fetch the trashed document
+      // First, fetch the trashed document WITH TENANT VALIDATION
       const trashedDoc = await db
         .select()
         .from(documents)
-        .where(and(eq(documents.id, id), eq(documents.status, 'trashed')))
+        .where(and(eq(documents.id, id), eq(documents.status, 'trashed'), eq(documents.userId, userId)))
         .limit(1);
 
       if (trashedDoc.length === 0) {
