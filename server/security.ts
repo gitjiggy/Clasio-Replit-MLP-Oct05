@@ -19,11 +19,13 @@ export function getSecurityConfig(): SecurityConfig {
   const enableSecurityHeaders = process.env.ENABLE_SECURITY_HEADERS === 'true' || isProduction;
   const cspReportOnly = process.env.CSP_REPORT_ONLY === 'true';
   
-  // Production domain allowlist - replace with your actual domains
+  // Production domain allowlist - from environment or defaults
   const productionOrigins: (string | RegExp)[] = [
-    // Add your production domains here when ready
+    // Load from environment variable (comma-separated)
+    ...(process.env.CORS_PRODUCTION_ORIGINS?.split(',').map(origin => origin.trim()) || []),
+    // Fallback defaults (replace with your actual domains when ready)
     // 'https://your-app.com',
-    // 'https://www.your-app.com',
+    // 'https://www.your-app.com', 
     // 'https://staging.your-app.com'
   ];
   
@@ -45,6 +47,11 @@ export function getSecurityConfig(): SecurityConfig {
     // /^https:\/\/[a-z0-9-]+\.firebaseapp\.com$/,
   ];
   
+  // Warning for empty production CORS allowlist
+  if (isProduction && productionOrigins.length === 0) {
+    console.warn('⚠️  SECURITY WARNING: No production CORS origins configured. Set CORS_PRODUCTION_ORIGINS environment variable.');
+  }
+
   return {
     // CORS Origins: Strict in production, permissive in development
     corsOrigins: isProduction 
@@ -64,13 +71,15 @@ export function getSecurityConfig(): SecurityConfig {
       'default-src': ["'self'"],
       'script-src': [
         "'self'",
-        "'unsafe-eval'", // Needed for Vite dev mode, remove in production
+        // Allow unsafe-eval only in development for Vite HMR
+        ...(isDevelopment ? ["'unsafe-eval'"] : []),
         "https://replit.com", // Replit dev banner
         "https://www.googletagmanager.com", // Google Analytics
       ],
       'style-src': [
         "'self'",
-        "'unsafe-inline'", // Temporary - will replace with hashes
+        // Allow unsafe-inline only in development - production requires CSP hashes
+        ...(isDevelopment ? ["'unsafe-inline'"] : []),
         "https://fonts.googleapis.com",
       ],
       'font-src': [
