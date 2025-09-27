@@ -37,6 +37,9 @@ export default function AuthDrive() {
         try {
           const response = await apiRequest('/api/drive/oauth-callback', {
             method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({ accessToken: googleAccessToken })
           });
           
