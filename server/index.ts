@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { aiQueueProcessor } from "./aiQueueProcessor";
@@ -80,6 +81,9 @@ app.use(helmet(getHelmetConfig()));
 logSecurityStatus();
 
 // Rate limiters are now in separate module to avoid circular dependencies
+
+// Cookie parser middleware for reading httpOnly cookies
+app.use(cookieParser());
 
 // JSON middleware moved to routes.ts to prevent parsing multipart uploads
 // app.use(express.json()); // REMOVED - now scoped to specific routes
