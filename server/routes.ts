@@ -2583,9 +2583,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Google Drive Integration endpoints
   
+  // Content-Type validation middleware for OAuth callback
+  const validateJsonContentType = (req: any, res: any, next: any) => {
+    const contentType = req.headers['content-type'];
+    if (!contentType || !contentType.includes('application/json')) {
+      return res.status(415).json({ 
+        error: "Unsupported Media Type",
+        message: "Content-Type must be application/json"
+      });
+    }
+    next();
+  };
+
   // OAuth callback endpoint - sets httpOnly cookie with Drive token
-  app.post("/api/drive/oauth-callback", express.json(), verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/drive/oauth-callback", validateJsonContentType, express.json(), verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
     try {
+      // Temporary debug logging
+      console.log('[DEBUG] OAuth callback:', {
+        origin: req.headers.origin,
+        contentType: req.headers['content-type'],
+        hasBody: !!req.body,
+        hasAccessToken: !!req.body?.accessToken
+      });
+
       const { accessToken } = req.body;
       
       if (!accessToken) {

@@ -35,15 +35,25 @@ export default function AuthDrive() {
       if (googleAccessToken) {
         // Send token to server to set httpOnly cookie
         try {
-          const response = await apiRequest('/api/drive/oauth-callback', {
+          const response = await fetch('/api/drive/oauth-callback', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',  // CSRF header
+              'Authorization': `Bearer ${await auth.currentUser?.getIdToken()}`
             },
+            credentials: 'include',
             body: JSON.stringify({ accessToken: googleAccessToken })
           });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+          }
+
+          const responseData = await response.json();
           
-          if (!response.success) {
+          if (!responseData.success) {
             throw new Error('Failed to store authentication');
           }
           
