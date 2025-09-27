@@ -811,6 +811,7 @@ export default function Documents() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] }); // Keep folder counts fresh
+      queryClient.invalidateQueries({ queryKey: ['/api/documents/trash'] }); // Refresh trash tab
       toast({
         title: "Document deleted",
         description: "Document has been deleted successfully.",
@@ -858,6 +859,7 @@ export default function Documents() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents/trash'] }); // Refresh trash tab
       toast({
         title: "All documents deleted",
         description: data.message || `Successfully moved ${data.deletedCount} documents to trash`,
