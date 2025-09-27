@@ -87,7 +87,15 @@ app.use(cookieParser());
 
 // JSON middleware moved to routes.ts to prevent parsing multipart uploads
 // app.use(express.json()); // REMOVED - now scoped to specific routes
-app.use(express.urlencoded({ extended: false }));
+
+// Apply urlencoded middleware but exclude Drive sync routes
+app.use((req, res, next) => {
+  // Skip urlencoded parsing for Drive sync routes to prevent stream consumption
+  if (req.path.startsWith('/api/drive/sync')) {
+    return next();
+  }
+  express.urlencoded({ extended: false })(req, res, next);
+});
 
 app.use((req, res, next) => {
   const start = Date.now();

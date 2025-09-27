@@ -2740,18 +2740,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sync Drive document to local system (with CSRF protection for state-changing operation)
-  app.post("/api/drive/sync", (req: any, res: any, next: any) => {
-    // Debug log before parsing - check stream state
-    console.info(JSON.stringify({
-      evt: "drive_sync.before_parse",
-      contentType: req.headers['content-type'],
-      readableEnded: req.readableEnded,
-      contentLength: req.headers['content-length'],
-      hasXRequestedWith: !!req.headers['x-requested-with']
-    }));
+  // Token 6 - Content-Type guard for sync route (logs but allows missing headers)
+  const contentTypeGuard = (req: any, res: any, next: any) => {
+    const contentType = req.headers['content-type'] || '';
+    if (!contentType) {
+      console.warn(JSON.stringify({
+        evt: "drive_sync.missing_content_type",
+        reqId: (req as any).reqId,
+        uid: req.user?.uid,
+        userAgent: req.headers['user-agent']
+      }));
+    } else if (!contentType.startsWith('application/json')) {
+      console.warn(JSON.stringify({
+        evt: "drive_sync.invalid_content_type", 
+        reqId: (req as any).reqId,
+        uid: req.user?.uid,
+        contentType
+      }));
+      return res.status(415).json({
+        error: 'Expected application/json for this endpoint.'
+      });
+    }
     next();
-  }, express.json(), strictLimiter, verifyFirebaseToken, rejectLegacyDriveHeader, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  };
+
+  // Sync Drive document to local system (with CSRF protection for state-changing operation)
+  // Token 1 - exactly one parser at route level
+  app.post("/api/drive/sync", contentTypeGuard, express.json(), strictLimiter, verifyFirebaseToken, rejectLegacyDriveHeader, csrfProtection, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const reqId = (req as any).reqId;
       const userId = req.user?.uid;

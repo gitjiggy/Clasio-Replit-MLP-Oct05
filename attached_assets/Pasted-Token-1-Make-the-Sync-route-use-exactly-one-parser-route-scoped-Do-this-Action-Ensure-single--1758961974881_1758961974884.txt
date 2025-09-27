@@ -1,0 +1,120 @@
+Token 1 — Make the Sync route use exactly one parser (route-scoped)
+
+Do this
+
+Action: Ensure single body parser on Drive Sync route
+- On POST /api/drive/sync (and /api/drive/sync-ai if separate), attach express.json() ONCE at the route level.
+- Remove express.json() from any parent router for /api/drive (no router-level json()).
+- Do NOT apply multer(), multer().none(), express.raw(), or express.urlencoded() on these routes.
+
+
+Acceptance
+
+Server no longer throws “stream is not readable” when Sync is clicked.
+
+Token 2 — Remove any other code that can read the body early
+
+Do this
+
+Action: Eliminate early body readers before Sync handler
+- Search the codebase for: getRawBody(, req.on('data'), req.pipe(, raw-body, captureRawBody, 'verify:' in bodyParser/json config.
+- Delete/disable any of these that can run for /api/drive/sync (global or router middlewares).
+- Ensure logging middleware does NOT read req body on Sync routes.
+
+
+Acceptance
+
+A log right before json() shows: content-type: application/json and readableEnded === false.
+
+Token 3 — Add a tiny “pre-parse” probe (temporary)
+
+Do this
+
+Action: Add pre-parse probe for Sync route
+- Add middleware BEFORE any parser:
+  if (req.path.startsWith('/api/drive/sync')) {
+    console.log('SYNC preparse:', req.headers['content-type'], 'readableEnded=', req.readableEnded);
+  }
+  next();
+- Remove after verifying.
+
+
+Acceptance
+
+Log prints: application/json, readableEnded=false BEFORE the route’s json() runs.
+
+If it prints readableEnded=true, something is still consuming the stream—go back to Token 2 and keep removing candidates until it’s false.
+
+Token 4 — Confirm the client request is truly JSON (one place, not reused)
+
+Do this
+
+Action: Ensure client sends proper JSON (no stream reuse)
+- The fetch for Sync MUST be:
+  fetch('/api/drive/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    credentials: 'include',
+    body: JSON.stringify({ fileId, ... })
+  })
+- Ensure this call isn't wrapped in something that tries to clone/re-read the body stream.
+- In DevTools Network, verify Content-Type: application/json and a non-empty Request Payload.
+
+
+Acceptance
+
+Network tab shows JSON payload & correct headers; no 415/unsupported media type.
+
+Token 5 — Verify middleware order on the server
+
+Do this
+
+Action: Fix middleware order (global)
+Order should be:
+1) request-id/correlation
+2) CORS (with credentials: true)
+3) helmet/security headers
+4) cookies/session (if any)
+5) *** NO global express.json() ***
+6) Routers:
+   - /api/uploads -> multer.single(...) (only here)
+   - /api/drive/sync -> [express.json()] then handler
+   - other JSON routes -> [express.json()] then handler
+7) error handler
+
+
+Acceptance
+
+Uploads still work (multer only on upload routes).
+
+Sync works (json only on sync routes).
+
+Token 6 — Fail fast if Content-Type is wrong (defensive)
+
+Do this
+
+Action: Guard Sync endpoint with Content-Type check
+- Before json(), if req.headers['content-type'] !== 'application/json', return 415 with message:
+  'Expected application/json for this endpoint.'
+
+
+Acceptance
+
+Misconfigured clients get a clean 415 with guidance instead of a 500.
+
+Token 7 — One-shot curl test (isolates client issues)
+
+Do this
+
+Action: Run a manual Sync call to rule out client issues
+- From the server shell, hit the route with:
+  curl -i -X POST http://localhost:<PORT>/api/drive/sync \
+    -H "Content-Type: application/json" \
+    -H "X-Requested-With: XMLHttpRequest" \
+    --data '{"fileId":"TEST"}'
+- It should not 500. You can short-circuit handler to just return 204 during this test.
+
+
+Acceptance
+
+curl returns 200/204. If curl succeeds but the browser still 500s, the client request or proxy is wrong.
