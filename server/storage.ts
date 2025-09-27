@@ -30,6 +30,7 @@ import { ObjectStorageService } from "./objectStorage";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
+import { transactionManager, ensureTenantContext, type TransactionContext } from "./transactionManager";
 import { 
   processConversationalQuery, 
   generateConversationalResponse, 
@@ -159,7 +160,7 @@ export interface AnalysisData {
 
 export interface IStorage {
   // Documents
-  createDocument(document: InsertDocument): Promise<Document>;
+  createDocument(document: InsertDocument, reqId?: string, idempotencyKey?: string): Promise<Document>;
   getDocuments(filters: DocumentFilters, userId: string): Promise<DocumentWithFolderAndTags[]>;
   getAllActiveDocuments(userId: string): Promise<DocumentWithFolderAndTags[]>;
   getTrashedDocuments(userId: string): Promise<DocumentWithFolderAndTags[]>;
@@ -176,7 +177,7 @@ export interface IStorage {
   getDocumentContent(id: string, userId: string): Promise<string | null>; // Get just the content for a document
   getDocumentByDriveFileId(driveFileId: string, userId: string): Promise<DocumentWithFolderAndTags | undefined>;
   getDocumentWithVersions(id: string, userId: string): Promise<DocumentWithVersions | undefined>;
-  updateDocument(id: string, updates: Partial<InsertDocument>, userId: string): Promise<Document | undefined>;
+  updateDocument(id: string, updates: Partial<InsertDocument>, userId: string, reqId?: string, idempotencyKey?: string): Promise<Document | undefined>;
   deleteDocument(id: string, userId: string): Promise<boolean>;
   restoreDocument(id: string, userId: string): Promise<{ success: boolean; error?: string; alreadyLive?: boolean; message?: string }>;
   analyzeDocumentWithAI(id: string, userId: string, driveContent?: string, driveAccessToken?: string): Promise<boolean>;
@@ -196,7 +197,7 @@ export interface IStorage {
   deleteFolder(id: string, userId: string): Promise<boolean>;
 
   // Tags
-  createTag(tag: InsertTag, userId: string): Promise<Tag>;
+  createTag(tag: InsertTag, userId: string, reqId?: string, idempotencyKey?: string): Promise<Tag>;
   getTags(userId: string): Promise<Tag[]>;
   updateTag(id: string, updates: Partial<InsertTag>, userId: string): Promise<Tag | undefined>;
   deleteTag(id: string, userId: string): Promise<boolean>;
@@ -316,39 +317,76 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Documents
-  async createDocument(insertDocument: InsertDocument): Promise<Document> {
+  async createDocument(insertDocument: InsertDocument, reqId?: string, idempotencyKey?: string): Promise<Document> {
     await this.ensureInitialized();
-    return await db.transaction(async (tx) => {
-      const [document] = await tx
-        .insert(documents)
-        .values({
-          ...insertDocument,
-          folderId: insertDocument.folderId || null,
-          isFavorite: insertDocument.isFavorite ?? false,
-          isDeleted: insertDocument.isDeleted ?? false,
-        })
-        .returning();
+    ensureTenantContext(insertDocument.userId);
 
-      // Create initial version (version 1) as active within the same transaction
-      // Ensure required fields are not null for documentVersions table
-      if (!document.filePath || document.fileSize === null || document.fileSize === undefined) {
-        throw new Error("Document must have filePath and fileSize to create initial version");
-      }
-      
-      await tx.insert(documentVersions).values({
-        documentId: document.id,
-        version: 1,
-        filePath: document.filePath,
-        fileSize: document.fileSize,
-        fileType: document.fileType,
-        mimeType: document.mimeType,
-        uploadedBy: "system",
-        changeDescription: "Initial version",
-        isActive: true,
-      });
+    const context: TransactionContext = {
+      reqId: reqId || randomUUID(),
+      userId: insertDocument.userId,
+      operationType: 'document_create',
+      idempotencyKey: idempotencyKey || transactionManager.generateIdempotencyKey(
+        'document_create',
+        insertDocument.userId,
+        insertDocument.originalName,
+        insertDocument.fileSize?.toString() || '',
+        insertDocument.contentHash || ''
+      )
+    };
 
-      return document;
-    });
+    const result = await transactionManager.executeWithIdempotency(
+      context,
+      async (tx) => {
+        const [document] = await tx
+          .insert(documents)
+          .values({
+            ...insertDocument,
+            folderId: insertDocument.folderId || null,
+            isFavorite: insertDocument.isFavorite ?? false,
+            isDeleted: insertDocument.isDeleted ?? false,
+          })
+          .returning();
+
+        // Create initial version (version 1) as active within the same transaction
+        // Ensure required fields are not null for documentVersions table
+        if (!document.filePath || document.fileSize === null || document.fileSize === undefined) {
+          throw new Error("Document must have filePath and fileSize to create initial version");
+        }
+        
+        await tx.insert(documentVersions).values({
+          documentId: document.id,
+          version: 1,
+          filePath: document.filePath,
+          fileSize: document.fileSize,
+          fileType: document.fileType,
+          mimeType: document.mimeType,
+          uploadedBy: "system",
+          changeDescription: "Initial version",
+          isActive: true,
+        });
+
+        // Add analytics hook for post-commit execution
+        transactionManager.addPostCommitHook({
+          type: 'analytics',
+          action: 'document_created',
+          data: {
+            documentId: document.id,
+            fileType: document.fileType,
+            fileSize: document.fileSize,
+            userId: document.userId
+          }
+        });
+
+        return document;
+      },
+      insertDocument
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to create document');
+    }
+
+    return result.data;
   }
 
   async getDocuments(filters: DocumentFilters, userId: string): Promise<DocumentWithFolderAndTags[]> {
@@ -2958,19 +2996,58 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0 ? result[0].documentContent : null;
   }
 
-  async updateDocument(id: string, updates: Partial<InsertDocument>, userId: string): Promise<Document | undefined> {
-    const [updatedDocument] = await db
-      .update(documents)
-      .set(updates)
-      .where(and(
-        eq(documents.id, id), 
-        eq(documents.isDeleted, false),
-        eq(documents.status, 'active'),
-        eq(documents.userId, userId)
-      ))
-      .returning();
+  async updateDocument(id: string, updates: Partial<InsertDocument>, userId: string, reqId?: string, idempotencyKey?: string): Promise<Document | undefined> {
+    ensureTenantContext(userId);
 
-    return updatedDocument;
+    const context: TransactionContext = {
+      reqId: reqId || randomUUID(),
+      userId,
+      operationType: 'document_update',
+      idempotencyKey: idempotencyKey || transactionManager.generateIdempotencyKey(
+        'document_update',
+        userId,
+        id,
+        JSON.stringify(updates)
+      )
+    };
+
+    const result = await transactionManager.executeWithIdempotency(
+      context,
+      async (tx) => {
+        const [updatedDocument] = await tx
+          .update(documents)
+          .set(updates)
+          .where(and(
+            eq(documents.id, id), 
+            eq(documents.isDeleted, false),
+            eq(documents.status, 'active'),
+            eq(documents.userId, userId)
+          ))
+          .returning();
+
+        if (updatedDocument) {
+          // Add analytics hook for post-commit execution
+          transactionManager.addPostCommitHook({
+            type: 'analytics',
+            action: 'document_updated',
+            data: {
+              documentId: id,
+              updateFields: Object.keys(updates),
+              userId
+            }
+          });
+        }
+
+        return updatedDocument;
+      },
+      { id, updates }
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to update document');
+    }
+
+    return result.data;
   }
 
   async deleteDocument(id: string, userId: string): Promise<boolean> {
@@ -3475,16 +3552,53 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Tags
-  async createTag(insertTag: InsertTag, userId: string): Promise<Tag> {
-    const [tag] = await db
-      .insert(tags)
-      .values({
-        ...insertTag,
-        userId, // Ensure tag is owned by the user
-        color: insertTag.color ?? "#3b82f6",
-      })
-      .returning();
-    return tag;
+  async createTag(insertTag: InsertTag, userId: string, reqId?: string, idempotencyKey?: string): Promise<Tag> {
+    ensureTenantContext(userId);
+
+    const context: TransactionContext = {
+      reqId: reqId || randomUUID(),
+      userId,
+      operationType: 'tag_create',
+      idempotencyKey: idempotencyKey || transactionManager.generateIdempotencyKey(
+        'tag_create',
+        userId,
+        insertTag.name
+      )
+    };
+
+    const result = await transactionManager.executeWithIdempotency(
+      context,
+      async (tx) => {
+        const [tag] = await tx
+          .insert(tags)
+          .values({
+            ...insertTag,
+            userId, // Ensure tag is owned by the user
+            color: insertTag.color ?? "#3b82f6",
+          })
+          .returning();
+
+        // Add analytics hook for post-commit execution
+        transactionManager.addPostCommitHook({
+          type: 'analytics',
+          action: 'tag_created',
+          data: {
+            tagId: tag.id,
+            tagName: tag.name,
+            userId
+          }
+        });
+
+        return tag;
+      },
+      insertTag
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to create tag');
+    }
+
+    return result.data;
   }
 
   async getTags(userId: string): Promise<Tag[]> {
