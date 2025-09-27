@@ -73,6 +73,58 @@ function logTransactionBoundary(log: TransactionBoundaryLog): void {
 }
 
 export class TransactionManager {
+  private cleanupInterval: NodeJS.Timeout | null = null;
+
+  /**
+   * Start the TTL cleanup job for expired idempotency keys
+   */
+  startTTLCleanup(): void {
+    // Run cleanup every hour
+    this.cleanupInterval = setInterval(async () => {
+      await this.cleanupExpiredKeys();
+    }, 60 * 60 * 1000); // 1 hour
+
+    console.log('[IdempotencyTTL] Started TTL cleanup job (runs hourly)');
+    
+    // Run initial cleanup
+    this.cleanupExpiredKeys().catch(error => {
+      console.error('[IdempotencyTTL] Initial cleanup failed:', error);
+    });
+  }
+
+  /**
+   * Stop the TTL cleanup job
+   */
+  stopTTLCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+      console.log('[IdempotencyTTL] Stopped TTL cleanup job');
+    }
+  }
+
+  /**
+   * Clean up expired idempotency keys (TTL enforcement)
+   */
+  async cleanupExpiredKeys(): Promise<number> {
+    try {
+      const deleted = await db
+        .delete(idempotencyKeys)
+        .where(lt(idempotencyKeys.expiresAt, sql`now()`))
+        .returning({ id: idempotencyKeys.id });
+
+      const deletedCount = deleted.length;
+      if (deletedCount > 0) {
+        console.log(`[IdempotencyTTL] Cleaned up ${deletedCount} expired idempotency keys`);
+      }
+
+      return deletedCount;
+    } catch (error) {
+      console.error('[IdempotencyTTL] Cleanup failed:', error);
+      return 0;
+    }
+  }
+
   /**
    * Execute operation within a database transaction with idempotency support
    */

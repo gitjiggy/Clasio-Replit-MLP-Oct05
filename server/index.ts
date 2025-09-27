@@ -8,6 +8,7 @@ import { aiQueueProcessor } from "./aiQueueProcessor";
 import * as cron from "node-cron";
 import { DatabaseStorage } from "./storage";
 import { getSecurityConfig, getHelmetConfig, logSecurityStatus } from "./security";
+import { transactionManager } from "./transactionManager";
 
 // Environment variable validation
 function validateEnvironment() {
@@ -172,6 +173,10 @@ app.use((req, res, next) => {
   // Start AI Queue Processor for background document analysis
   console.log('Starting AI Queue Processor for document analysis');
   aiQueueProcessor.start();
+
+  // Start TTL cleanup job for expired idempotency keys (24-72h TTL)
+  console.log('Starting TTL cleanup job for expired idempotency keys');
+  transactionManager.startTTLCleanup();
 
   // Start daily auto-cleanup job for expired trashed documents
   console.log('Starting daily auto-cleanup job for trashed documents');

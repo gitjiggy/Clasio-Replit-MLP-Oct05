@@ -3028,18 +3028,20 @@ export class DatabaseStorage implements IStorage {
           ))
           .returning();
 
-        if (updatedDocument) {
-          // Add analytics hook for post-commit execution
-          transactionManager.addPostCommitHook({
-            type: 'analytics',
-            action: 'document_updated',
-            data: {
-              documentId: id,
-              updateFields: Object.keys(updates),
-              userId
-            }
-          });
+        if (!updatedDocument) {
+          throw new Error('Document not found or access denied');
         }
+
+        // Add analytics hook for post-commit execution
+        transactionManager.addPostCommitHook({
+          type: 'analytics',
+          action: 'document_updated',
+          data: {
+            documentId: id,
+            updateFields: Object.keys(updates),
+            userId
+          }
+        });
 
         return updatedDocument;
       },
