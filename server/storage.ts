@@ -167,7 +167,7 @@ export interface IStorage {
   getDocuments(filters: DocumentFilters, userId: string): Promise<DocumentWithFolderAndTags[]>;
   getAllActiveDocuments(userId: string): Promise<DocumentWithFolderAndTags[]>;
   getTrashedDocuments(userId: string): Promise<DocumentWithFolderAndTags[]>;
-  emptyTrash(): Promise<{ deletedCount: number }>;
+  emptyTrash(userId: string): Promise<{ deletedCount: number }>;
   purgeExpiredTrashedDocuments(): Promise<{ deletedCount: number }>;
   reconcileGCSPaths(dryRun?: boolean): Promise<{
     fixed: number;
@@ -666,10 +666,11 @@ export class DatabaseStorage implements IStorage {
     return docsWithTags;
   }
 
-  async emptyTrash(): Promise<{ deletedCount: number }> {
+  async emptyTrash(userId: string): Promise<{ deletedCount: number }> {
     await this.ensureInitialized();
+    ensureTenantContext(userId);
     
-    // Get all trashed documents with their file paths for deletion
+    // Get all trashed documents with their file paths for deletion (scoped to user)
     const trashedDocs = await db
       .select({ 
         id: documents.id,
@@ -677,7 +678,10 @@ export class DatabaseStorage implements IStorage {
         filePath: documents.filePath // Fallback for older documents
       })
       .from(documents)
-      .where(eq(documents.status, 'trashed'));
+      .where(and(
+        eq(documents.status, 'trashed'),
+        eq(documents.userId, userId)
+      ));
     
     const deletedCount = trashedDocs.length;
     
@@ -736,10 +740,13 @@ export class DatabaseStorage implements IStorage {
         .delete(documentVersions)
         .where(inArray(documentVersions.documentId, trashedDocs.map(d => d.id)));
       
-      // Delete the documents themselves
+      // Delete the documents themselves (scoped to user)
       await tx
         .delete(documents)
-        .where(eq(documents.status, 'trashed'));
+        .where(and(
+          eq(documents.status, 'trashed'),
+          eq(documents.userId, userId)
+        ));
     });
     
     if (fileDeletionErrors.length > 0) {

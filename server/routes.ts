@@ -1283,7 +1283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Empty trash - permanently delete all trashed documents
   app.delete("/api/documents/trash", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const result = await storage.emptyTrash();
+      const result = await storage.emptyTrash(req.userId!);
       res.json({ 
         success: true,
         message: `Successfully deleted ${result.deletedCount} documents permanently`,
