@@ -1,0 +1,112 @@
+Token 3/8 Implementation Status in This Version
+✅ Implemented
+
+Transactions around multi-step writes
+
+Document create + initial version insert → wrapped in a single transaction.
+
+Document version create → wrapped in a transaction with FOR UPDATE lock.
+
+Set active version → wrapped in a transaction, deactivates all then activates one.
+
+Delete version → wrapped in a transaction, prevents deleting last version.
+
+Long operations (GCS deletes/restores) are correctly outside the transaction.
+
+Result: Transaction boundaries are in place for core document/version paths.
+
+Short transactions only
+
+No AI calls or network operations occur inside DB transactions.
+
+DB writes are short and atomic.
+
+❌ Not Implemented
+
+Idempotency keys / enforcement
+
+No schema/table for idempotency keys.
+
+No unique constraints on (tenantId, key).
+
+No logic to detect duplicate requests and return cached result.
+
+Duplicate retries will still create extra rows.
+
+Post-commit analytics/events
+
+Analytics (usage counters, event logs) are called independently of tx commit.
+
+If a transaction rolls back, analytics may already have been emitted → “ghost events.”
+
+Tenant context in all final WHERE clauses
+
+Pre-checks usually validate user/tenant.
+
+Final UPDATE/DELETE often scoped only by IDs (e.g., WHERE docId = ?) without asserting tenant/user.
+
+Risk: ID collision could let an operation leak across tenants.
+
+Transaction boundary logging
+
+No structured logs with reqId, tenantId, docId showing BEGIN/COMMIT/ROLLBACK.
+
+Failures are logged, but not at transaction boundaries.
+
+Rollback/failpoint testing
+
+No simulated fault injection to prove rollback safety.
+
+No automated tests ensuring “no partial writes.”
+
+✅ / ❌ Summary
+
+Transactions: ✅ implemented.
+
+Idempotency: ❌ missing.
+
+Post-commit analytics only: ❌ missing.
+
+Tenant scoping in final WHERE: ⚠️ partial, needs tightening.
+
+Structured tx logs: ❌ missing.
+
+Rollback failpoints/tests: ❌ missing.
+
+Therefore: Token 3/8 is not fully implemented. It is partially there (transactions), but idempotency, analytics correctness, tenant scoping, and observability are not.
+
+What to Tell Replit
+
+Add idempotency enforcement (launch-gating):
+
+Create an idempotency_keys table (tenantId, key, opType, payloadHash, resultId, createdAt, expiresAt).
+
+Enforce uniqueness on (tenantId, key).
+
+Wrap key insert + writes in same transaction.
+
+On retry with same key/payload: return same result.
+
+On retry with different payload: reject with 409.
+
+Move analytics/events to post-commit:
+
+Ensure no analytics emitted until after successful commit.
+
+On rollback, no emission.
+
+Harden tenant scoping in final updates:
+
+Add tenantId/userId to all UPDATE/DELETE WHEREs, even if validated earlier.
+
+Add structured tx logging:
+
+BEGIN / COMMIT / ROLLBACK logs with reqId, tenantId, docId.
+
+Add rollback failpoint:
+
+Feature-flag throw between doc insert and version insert.
+
+Confirm DB is clean (no partial doc/version).
+
+Remove flag after test.
