@@ -188,6 +188,34 @@ export const dailyApiUsage = pgTable("daily_api_usage", {
   uniqueDateIndex: uniqueIndex("daily_usage_unique_date_idx").on(table.date),
 }));
 
+// Idempotency keys for operation deduplication and safe retries
+export const idempotencyKeys = pgTable("idempotency_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull(), // Firebase UID - owner of the operation
+  operationType: text("operation_type").notNull(), // document_create, document_update, tag_create, etc.
+  idempotencyKey: text("idempotency_key").notNull(), // Client-provided or generated key
+  requestPayload: text("request_payload"), // JSON of the original request for replay validation
+  responsePayload: text("response_payload"), // JSON of the response for replay
+  status: text("status").default("pending").notNull(), // pending, completed, failed
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  expiresAt: timestamp("expires_at").default(sql`now() + INTERVAL '24 hours'`).notNull(), // TTL cleanup
+  // Results for completed operations
+  resultDocumentId: varchar("result_document_id"), // For document operations
+  resultVersionId: varchar("result_version_id"), // For version operations  
+  resultTagId: varchar("result_tag_id"), // For tag operations
+  resultFolderId: varchar("result_folder_id"), // For folder operations
+}, (table) => ({
+  // Multi-tenant indexes
+  userIdIndex: index("idempotency_user_id_idx").on(table.userId),
+  // Ensure unique idempotency key per user and operation type
+  uniqueUserOperationKey: uniqueIndex("idempotency_unique_user_operation_idx")
+    .on(table.userId, table.operationType, table.idempotencyKey),
+  // Index for TTL cleanup
+  expirationIndex: index("idempotency_expiration_idx").on(table.expiresAt),
+  // Index for fast status lookups
+  statusIndex: index("idempotency_status_idx").on(table.status, table.createdAt),
+}));
+
 export const insertFolderSchema = createInsertSchema(folders).omit({
   id: true,
   createdAt: true,
@@ -229,6 +257,12 @@ export const insertDailyApiUsageSchema = createInsertSchema(dailyApiUsage).omit(
   lastUpdated: true,
 });
 
+export const insertIdempotencyKeySchema = createInsertSchema(idempotencyKeys).omit({
+  id: true,
+  createdAt: true,
+  expiresAt: true,
+});
+
 export type InsertFolder = z.infer<typeof insertFolderSchema>;
 export type InsertTag = z.infer<typeof insertTagSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
@@ -237,6 +271,7 @@ export type InsertDocumentTag = z.infer<typeof insertDocumentTagSchema>;
 export type InsertDocumentAccessLog = z.infer<typeof insertDocumentAccessLogSchema>;
 export type InsertAiAnalysisQueue = z.infer<typeof insertAiAnalysisQueueSchema>;
 export type InsertDailyApiUsage = z.infer<typeof insertDailyApiUsageSchema>;
+export type InsertIdempotencyKey = z.infer<typeof insertIdempotencyKeySchema>;
 
 export type Folder = typeof folders.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
@@ -246,6 +281,7 @@ export type DocumentTag = typeof documentTags.$inferSelect;
 export type DocumentAccessLog = typeof documentAccessLog.$inferSelect;
 export type AiAnalysisQueue = typeof aiAnalysisQueue.$inferSelect;
 export type DailyApiUsage = typeof dailyApiUsage.$inferSelect;
+export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
 
 export type DocumentWithFolderAndTags = Document & {
   folder?: Folder;
