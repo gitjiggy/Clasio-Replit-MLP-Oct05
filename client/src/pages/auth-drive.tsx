@@ -35,8 +35,9 @@ export default function AuthDrive() {
       if (googleAccessToken) {
         // Send token to server to set httpOnly cookie
         try {
-          const response = await apiRequest('POST', '/api/drive/oauth-callback', { 
-            accessToken: googleAccessToken 
+          const response = await apiRequest('/api/drive/oauth-callback', {
+            method: 'POST',
+            body: JSON.stringify({ accessToken: googleAccessToken })
           });
           
           if (!response.success) {
