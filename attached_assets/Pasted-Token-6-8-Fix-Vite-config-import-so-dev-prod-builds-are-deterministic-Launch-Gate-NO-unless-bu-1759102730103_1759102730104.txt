@@ -1,0 +1,49 @@
+Token 6/8 — Fix Vite config/import so dev & prod builds are deterministic
+Launch Gate: NO (unless builds are failing)
+
+Goal & key tasks (step-by-step)
+Single source of truth: ensure there’s one Vite config the app uses for both dev and prod. Remove any broken imports/indirections.
+
+Deterministic artifacts: verify client builds produce hashed filenames and the server serves from the correct output path.
+
+Static serving in prod: server should serve the built client reliably; confirm deep links/refresh work (history fallback if needed).
+
+Environment hygiene: ensure build-time envs are read correctly and don’t leak secrets into the client.
+
+Watchouts & safeguards
+Don’t touch runtime security headers (Tokens 1–2).
+
+Confirm CSP still allows your built asset patterns (hashed filenames).
+
+Notes & acceptance criteria
+Dev and prod builds complete without “missing config” warnings.
+
+Static assets load (no 404s); client-side routing works on refresh/deep links.
+
+Staging UI smoke passes: login → upload → preview → search → delete/restore.
+
+Token 7/8 — Enforce hard upload limits at ingress (Multer) with clear UX
+Launch Gate: NO (strongly recommended)
+
+Goal & key tasks (step-by-step)
+Route-level limits: apply a hard file-size limit at the upload routes (same numeric cap as your schema).
+
+Friendly errors: map over-limit to HTTP 413 with a clear, user-readable message.
+
+UI alignment: show the same limit in the uploader UI; prevent selection of oversize files where possible.
+
+Resource protection: reject oversize files before buffering to avoid memory spikes.
+
+Watchouts & safeguards
+Server-side MIME enforcement: do not trust client hints; validate MIME/extension on the server.
+
+Multi-tenant quotas: do not change per-tenant quota logic; this is only a per-file limit.
+
+CORS with 413: ensure the client correctly handles 413 (no infinite retries).
+
+Notes & acceptance criteria
+Files above the cap are rejected immediately with a clear message.
+
+Memory/CPU remain stable during oversize attempts.
+
+UI communicates the limit consistently.
