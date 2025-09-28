@@ -78,11 +78,12 @@ async function testReindexSystem() {
 
     // Step 5: Test direct reindex enqueueing
     console.log('\n📥 Step 5: Testing direct reindex enqueueing');
-    await storage.enqueueDocumentForReindex(testDocumentId, TEST_USER_ID, {
-      versionId: updatedDoc.versionId,
-      reason: 'test_verification',
-      priority: 'high'
-    });
+    await storage.enqueueDocumentForReindex(
+      testDocumentId, 
+      TEST_USER_ID, 
+      updatedDoc.versionId, // Pass versionId as string parameter
+      'test_verification' // Pass reqId for correlation
+    );
 
     const statsAfterDirect = await storage.getQueueStats();
     const totalIncrease = statsAfterDirect.pendingJobs - initialQueueDepth;
@@ -138,6 +139,22 @@ async function testReindexSystem() {
       console.log(`✅ Meets <5 minute SLA requirement (${(processingTime / 1000).toFixed(2)}s)`);
     } else {
       console.log(`❌ Exceeds 5 minute SLA requirement`);
+      throw new Error(`SLA_VIOLATION: Reindex processing took ${(processingTime / 1000).toFixed(2)}s, exceeds 5 minute SLA`);
+    }
+
+    // Step 10: Validate queue behavior expectations
+    console.log('\n🔍 Step 10: Queue Behavior Validation');
+    
+    // Check if rename operation properly enqueued job
+    if (queueIncrease === 0 && statsAfterRename.pendingJobs === initialQueueDepth) {
+      console.log('❌ QUEUE_MISMATCH: Document rename did not trigger reindex job');
+      throw new Error('QUEUE_MISMATCH: Document operations must trigger reindex jobs for search invalidation');
+    }
+    
+    // Check if we got expected total queue increase (rename + direct enqueue = 2)
+    if (totalIncrease < 1) {
+      console.log(`❌ QUEUE_MISMATCH: Expected at least 1 job enqueued, got ${totalIncrease}`);
+      throw new Error(`QUEUE_MISMATCH: Expected queue increase, but got ${totalIncrease}`);
     }
 
     console.log('\n🎉 Reindex System Verification Complete!');
@@ -147,6 +164,7 @@ async function testReindexSystem() {
     console.log('✅ Reindex jobs are queued with proper tenant isolation');
     console.log('✅ Reindex processing works correctly');
     console.log('✅ System meets performance SLA requirements');
+    console.log('✅ Queue behavior matches expectations');
     console.log('\n🚀 Token 8/8 Search Invalidation System is operational!');
 
   } catch (error) {

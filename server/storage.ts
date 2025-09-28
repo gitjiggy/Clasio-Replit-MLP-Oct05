@@ -6020,9 +6020,34 @@ export class DatabaseStorage implements IStorage {
       const { userId: tenantId } = ensureTenantContext(ctx);
       
       // Generate idempotency key based on document, job type, and version
-      const idempotencyKey = versionId ? 
-        `${documentId}-${jobType}-${versionId}` : 
-        `${documentId}-${jobType}-current`;
+      let idempotencyKey: string;
+      
+      if (jobType === 'reindex') {
+        // For reindex jobs, include change token (updatedAt) to ensure new renames trigger new jobs
+        // but retries of the same rename are deduped
+        const document = await db
+          .select({
+            updatedAt: documents.updatedAt
+          })
+          .from(documents)
+          .where(
+            and(
+              eq(documents.id, documentId),
+              eq(documents.userId, userId)
+            )
+          )
+          .limit(1);
+        
+        const changeToken = document[0]?.updatedAt?.getTime() || 'unknown';
+        idempotencyKey = versionId ? 
+          `${documentId}-${jobType}-${versionId}-${changeToken}` : 
+          `${documentId}-${jobType}-current-${changeToken}`;
+      } else {
+        // For other job types, use original idempotency key generation
+        idempotencyKey = versionId ? 
+          `${documentId}-${jobType}-${versionId}` : 
+          `${documentId}-${jobType}-current`;
+      }
 
       try {
         // Attempt to insert with idempotency constraints
