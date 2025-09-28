@@ -340,11 +340,56 @@ export class TransactionManager {
 
     const record = existing[0];
 
-    // Validate request payload matches (prevent replay attacks with different data)
+    // Drive-aware idempotency: Allow payload differences for legitimate Drive document updates
     if (requestPayload && record.requestPayload) {
       const existingPayload = JSON.parse(record.requestPayload);
-      if (JSON.stringify(requestPayload) !== JSON.stringify(existingPayload)) {
+      const payloadMatch = JSON.stringify(requestPayload) === JSON.stringify(existingPayload);
+      
+      if (!payloadMatch) {
+        // Check if this is a Drive operation with legitimate document update
+        const isDriveOperation = this.isDriveOperation(operationType, requestPayload, existingPayload);
+        
+        if (isDriveOperation) {
+          const isLegitimateUpdate = this.isLegitimateDriveUpdate(requestPayload, existingPayload, record);
+          
+          if (isLegitimateUpdate) {
+            console.log(`[IdempotencyDrive] Allowing Drive document update`, {
+              operationType,
+              driveFileId: requestPayload.driveFileId || requestPayload.documentData?.driveFileId,
+              reason: 'legitimate_document_update'
+            });
+            
+            // Delete the old idempotency record to allow the new operation
+            await db
+              .delete(idempotencyKeys)
+              .where(eq(idempotencyKeys.id, record.id));
+            
+            return null; // Allow the operation to proceed as new
+          }
+        }
+        
+        // For non-Drive operations or invalid Drive updates, maintain strict checking
         throw new Error('Idempotency key conflict: different request payload');
+      }
+    }
+
+    // Check for expired Drive operations (1 hour TTL)
+    if (this.isDriveOperation(operationType, requestPayload)) {
+      const createdAt = new Date(record.createdAt);
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      
+      if (createdAt < oneHourAgo) {
+        console.log(`[IdempotencyDrive] Expired Drive operation, allowing retry`, {
+          operationType,
+          recordAge: Date.now() - createdAt.getTime()
+        });
+        
+        // Delete expired record and allow operation
+        await db
+          .delete(idempotencyKeys)
+          .where(eq(idempotencyKeys.id, record.id));
+        
+        return null;
       }
     }
 
@@ -427,6 +472,107 @@ export class TransactionManager {
       .update(idempotencyKeys)
       .set(updates)
       .where(eq(idempotencyKeys.id, id));
+  }
+
+  /**
+   * Check if operation is Drive-related based on operation type or payload
+   */
+  private isDriveOperation(operationType: string, requestPayload?: any, existingPayload?: any): boolean {
+    // Check operation type patterns
+    if (operationType.includes('drive') || operationType.includes('sync')) {
+      return true;
+    }
+    
+    // Check if payload contains Drive-specific fields
+    const payloads = [requestPayload, existingPayload].filter(Boolean);
+    for (const payload of payloads) {
+      if (payload && (
+        payload.driveFileId ||
+        payload.isFromDrive ||
+        payload.driveSyncStatus ||
+        (payload.documentData && payload.documentData.driveFileId) ||
+        (payload.filePath && payload.filePath.startsWith('drive:'))
+      )) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Determine if Drive payload differences represent legitimate document updates
+   */
+  private isLegitimateDriveUpdate(requestPayload: any, existingPayload: any, record: any): boolean {
+    try {
+      // Get Drive file IDs from both payloads
+      const currentDriveId = requestPayload.driveFileId || requestPayload.documentData?.driveFileId;
+      const existingDriveId = existingPayload.driveFileId || existingPayload.documentData?.driveFileId;
+      
+      // Must be the same Drive file to be a legitimate update
+      if (!currentDriveId || currentDriveId !== existingDriveId) {
+        return false;
+      }
+      
+      // Check for content differences that suggest document was updated on Drive
+      const currentContent = requestPayload.documentContent || requestPayload.documentData?.documentContent;
+      const existingContent = existingPayload.documentContent || existingPayload.documentData?.documentContent;
+      
+      // If content has changed, it's likely a legitimate Drive document update
+      if (currentContent !== existingContent) {
+        console.log(`[IdempotencyDrive] Content change detected for Drive file ${currentDriveId}`, {
+          currentContentLength: currentContent?.length || 0,
+          existingContentLength: existingContent?.length || 0,
+          contentChanged: true
+        });
+        return true;
+      }
+      
+      // Check for timestamp differences (Drive's modifiedTime changed)
+      const currentModified = requestPayload.driveLastModified || requestPayload.documentData?.driveLastModified;
+      const existingModified = existingPayload.driveLastModified || existingPayload.documentData?.driveLastModified;
+      
+      if (currentModified && existingModified && currentModified !== existingModified) {
+        console.log(`[IdempotencyDrive] Timestamp change detected for Drive file ${currentDriveId}`, {
+          currentModified,
+          existingModified,
+          timestampChanged: true
+        });
+        return true;
+      }
+      
+      // Check for file size differences
+      const currentSize = requestPayload.fileSize || requestPayload.documentData?.fileSize;
+      const existingSize = existingPayload.fileSize || existingPayload.documentData?.fileSize;
+      
+      if (currentSize !== existingSize && (currentSize || existingSize)) {
+        console.log(`[IdempotencyDrive] File size change detected for Drive file ${currentDriveId}`, {
+          currentSize,
+          existingSize,
+          sizeChanged: true
+        });
+        return true;
+      }
+      
+      // If we get here, it's either the same content or we can't determine differences
+      // Allow the update if the record is more than 5 minutes old (stale sync)
+      const recordAge = Date.now() - new Date(record.createdAt).getTime();
+      const fiveMinutes = 5 * 60 * 1000;
+      
+      if (recordAge > fiveMinutes) {
+        console.log(`[IdempotencyDrive] Allowing stale Drive operation retry for ${currentDriveId}`, {
+          recordAge,
+          staleSyncAllowed: true
+        });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`[IdempotencyDrive] Error checking Drive update legitimacy:`, error);
+      // On error, be conservative and allow the update
+      return true;
+    }
   }
 
   /**

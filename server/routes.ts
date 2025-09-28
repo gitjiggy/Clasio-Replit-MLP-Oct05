@@ -2970,17 +2970,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       const reqId = (req as any).reqId;
       const userId = req.user?.uid;
+      const driveFileId = req.body?.driveFileId;
+      const errorMessage = error instanceof Error ? error.message : String(error);
       
       console.error(JSON.stringify({
         evt: "drive_sync.failed",
         reqId,
         uid: userId,
-        driveFileId: req.body?.driveFileId,
-        error: error instanceof Error ? error.message : String(error),
+        driveFileId,
+        error: errorMessage,
         stack: error instanceof Error ? error.stack : undefined
       }));
       
-      res.status(500).json({ error: "Failed to sync Drive document" });
+      // Provide specific, user-friendly error messages based on error type
+      let statusCode = 500;
+      let userMessage = "Failed to sync Drive document";
+      let userFriendlyMessage = "Something went wrong while syncing your document from Google Drive. Please try again.";
+      
+      if (errorMessage.includes("Idempotency key conflict")) {
+        // This should now be rare with our new Drive-aware idempotency system
+        statusCode = 409;
+        userMessage = "Document update in progress";
+        userFriendlyMessage = "This document is being updated from Google Drive. If you recently modified it, please wait a moment and try syncing again.";
+      } else if (errorMessage.includes("access") || errorMessage.includes("permission") || errorMessage.includes("forbidden")) {
+        statusCode = 403;
+        userMessage = "Access denied";
+        userFriendlyMessage = "Unable to access this Google Drive document. Please make sure you have permission to view the file and try reconnecting your Google Drive.";
+      } else if (errorMessage.includes("not found") || errorMessage.includes("404")) {
+        statusCode = 404;
+        userMessage = "Document not found";
+        userFriendlyMessage = "This document could not be found in your Google Drive. It may have been moved, deleted, or you may not have access to it.";
+      } else if (errorMessage.includes("authentication") || errorMessage.includes("invalid token") || errorMessage.includes("401")) {
+        statusCode = 401;
+        userMessage = "Authentication required";
+        userFriendlyMessage = "Your Google Drive connection has expired. Please reconnect your Google Drive account and try again.";
+      } else if (errorMessage.includes("quota") || errorMessage.includes("limit") || errorMessage.includes("429")) {
+        statusCode = 429;
+        userMessage = "Rate limit exceeded";
+        userFriendlyMessage = "Too many requests to Google Drive. Please wait a few minutes before trying to sync again.";
+      } else if (errorMessage.includes("network") || errorMessage.includes("timeout") || errorMessage.includes("ECONNRESET")) {
+        statusCode = 503;
+        userMessage = "Network error";
+        userFriendlyMessage = "Unable to connect to Google Drive right now. Please check your internet connection and try again.";
+      } else if (errorMessage.includes("file too large") || errorMessage.includes("size")) {
+        statusCode = 413;
+        userMessage = "File too large";
+        userFriendlyMessage = "This document is too large to sync. Please try with a smaller file.";
+      }
+      
+      // Log the friendly error for support purposes
+      console.info(JSON.stringify({
+        evt: "drive_sync.user_error_mapped",
+        reqId,
+        uid: userId,
+        driveFileId,
+        originalError: errorMessage,
+        statusCode,
+        userMessage,
+        userFriendlyMessage
+      }));
+      
+      res.status(statusCode).json({ 
+        error: userMessage,
+        message: userFriendlyMessage,
+        code: "DRIVE_SYNC_ERROR",
+        retryable: statusCode === 503 || statusCode === 429 || statusCode === 409
+      });
     }
   });
 
