@@ -415,7 +415,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         const validatedData = insertDocumentSchema.parse(documentData);
-        const document = await storage.createDocument(validatedData);
+        // Generate unique idempotency key that includes objectPath to prevent conflicts
+        const customIdempotencyKey = `upload-proxy:${uid}:${objectPath}:${size}`;
+        const document = await storage.createDocument(validatedData, (req as any).reqId, customIdempotencyKey);
 
         console.info(JSON.stringify({
           evt: "upload-proxy.db_created",
