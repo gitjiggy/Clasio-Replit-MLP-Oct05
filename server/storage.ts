@@ -1912,10 +1912,11 @@ export class DatabaseStorage implements IStorage {
         const keywords = preprocessedQuery.split(/\s+/).filter(word => word.trim().length > 0).slice(0, 3);
         console.log(`Searching for individual keywords: ${keywords.join(', ')}`);
         
-        // Build search conditions - exclude trashed documents
+        // Build search conditions - exclude trashed documents and enforce tenant scoping
         const conditions = [
           eq(documents.isDeleted, false),
-          eq(documents.status, 'active')
+          eq(documents.status, 'active'),
+          eq(documents.userId, userId) // CRITICAL: Prevent cross-tenant data leakage
         ];
         
         // Optimized: Search only fast fields (name + AI metadata) for performance
@@ -3078,11 +3079,7 @@ export class DatabaseStorage implements IStorage {
     // Check if this update affects searchable fields (name changes require reindexing)
     const affectsSearch = 'name' in updates || 'description' in updates || 'tags' in updates;
     if (affectsSearch && result.data) {
-      await this.enqueueDocumentForReindex(id, userId, {
-        versionId: result.data.versionId,
-        reason: 'searchable_field_update',
-        priority: 'normal'
-      });
+      await this.enqueueDocumentForReindex(id, userId, result.data.versionId);
     }
 
     return result.data;
@@ -3158,11 +3155,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Token 8/8: Trigger reindex after document deletion (invalidate search embeddings)
-      await this.enqueueDocumentForReindex(id, userId, {
-        versionId: document.versionId,
-        reason: 'document_deleted',
-        priority: 'normal'
-      });
+      await this.enqueueDocumentForReindex(id, userId, document.versionId);
 
       console.log(`🗑️ Document "${document.name}" moved to trash (auto-deletes in 7 days)`);
       
@@ -3263,11 +3256,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Token 8/8: Trigger reindex after document restore (restore search embeddings)
-      await this.enqueueDocumentForReindex(id, userId, {
-        versionId: document.versionId,
-        reason: 'document_restored',
-        priority: 'high' // Higher priority since user is actively waiting
-      });
+      await this.enqueueDocumentForReindex(id, userId, document.versionId);
 
       const restoreMessage = gcsRestoreResult?.alreadyLive 
         ? `🔄 Document "${document.name}" restored from trash (file was already live)`
@@ -5346,6 +5335,36 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  /**
+   * Get the oldest pending reindex job for SLA monitoring (< 5 minutes requirement)
+   */
+  async getOldestPendingReindexJob(): Promise<{jobId: string; createdAt: string; jobType: string} | null> {
+    await this.ensureInitialized();
+    
+    try {
+      const oldestReindexJob = await db
+        .select({
+          jobId: aiAnalysisQueue.id,
+          createdAt: aiAnalysisQueue.requestedAt,
+          jobType: aiAnalysisQueue.jobType
+        })
+        .from(aiAnalysisQueue)
+        .where(
+          and(
+            or(eq(aiAnalysisQueue.status, 'pending'), eq(aiAnalysisQueue.status, 'processing')),
+            eq(aiAnalysisQueue.jobType, 'reindex')
+          )
+        )
+        .orderBy(aiAnalysisQueue.requestedAt)
+        .limit(1);
+
+      return oldestReindexJob[0] || null;
+    } catch (error) {
+      logger.error('Failed to get oldest pending reindex job', error instanceof Error ? error : new Error(String(error)));
+      return null;
+    }
+  }
+
   async getQueueJobsByUser(userId: string): Promise<AiAnalysisQueue[]> {
     await this.ensureInitialized();
     
@@ -5890,37 +5909,80 @@ export class DatabaseStorage implements IStorage {
         previouslyGenerated: doc.embeddingsGenerated
       });
 
-      // For now, just reset and regenerate the embeddings flag
-      // In a full implementation, this would:
-      // 1. Generate new title embeddings using doc.name
-      // 2. Generate new content embeddings using doc.documentContent
-      // 3. Generate new summary embeddings using doc.aiSummary
-      // 4. Generate new key topics embeddings using doc.aiKeyTopics
-      // 5. Store all embeddings in their respective fields
+      // Get document content for embedding regeneration
+      const content = await this.getDocumentContent(documentId, userId);
+      if (!content || content.trim().length === 0) {
+        logger.warn('No content available for embedding regeneration', { documentId, userId });
+        return false;
+      }
 
-      // Update document with fresh embeddings timestamp
-      await db
-        .update(documents)
-        .set({
+      // Generate embeddings for different text components (same as initial generation)
+      const titleText = doc.name || '';
+      const summaryText = doc.aiSummary || '';
+      const keyTopicsText = (doc.aiKeyTopics || []).join(' ');
+      
+      // Generate fresh embeddings with retry logic
+      let titleEmbedding: number[] | null = null;
+      let contentEmbedding: number[] | null = null;
+      let summaryEmbedding: number[] | null = null;
+      let keyTopicsEmbedding: number[] | null = null;
+      let apiCalls = 0;
+
+      try {
+        // Title embedding (always regenerate)
+        if (titleText.trim().length > 0) {
+          titleEmbedding = await generateEmbedding(titleText, 'RETRIEVAL_DOCUMENT');
+          apiCalls++;
+        }
+
+        // Content embedding (truncate if too long to avoid token limits)
+        const truncatedContent = content.length > 8000 ? content.substring(0, 8000) + '...' : content;
+        contentEmbedding = await generateEmbedding(truncatedContent, 'RETRIEVAL_DOCUMENT');
+        apiCalls++;
+
+        // Summary embedding (if available)
+        if (summaryText.trim().length > 0) {
+          summaryEmbedding = await generateEmbedding(summaryText, 'RETRIEVAL_DOCUMENT');
+          apiCalls++;
+        }
+
+        // Key topics embedding (if available)
+        if (keyTopicsText.trim().length > 0) {
+          keyTopicsEmbedding = await generateEmbedding(keyTopicsText, 'RETRIEVAL_DOCUMENT');
+          apiCalls++;
+        }
+
+        // Update document with fresh embeddings
+        await this.updateDocument(documentId, {
+          titleEmbedding: titleEmbedding ? serializeEmbeddingToJSON(titleEmbedding) : null,
+          contentEmbedding: contentEmbedding ? serializeEmbeddingToJSON(contentEmbedding) : null,
+          summaryEmbedding: summaryEmbedding ? serializeEmbeddingToJSON(summaryEmbedding) : null,
+          keyTopicsEmbedding: keyTopicsEmbedding ? serializeEmbeddingToJSON(keyTopicsEmbedding) : null,
           embeddingsGenerated: true,
-          embeddingsGeneratedAt: sql`NOW()` // Fresh timestamp indicates reindex
-        })
-        .where(
-          and(
-            eq(documents.id, documentId),
-            eq(documents.userId, userId)
-          )
-        );
+          embeddingsGeneratedAt: new Date()
+        }, userId);
 
-      logger.info('Embeddings regenerated for reindex', {
-        documentId,
-        documentName: doc.name,
-        userId,
-        tenantId: userId,
-        versionId
-      });
+        logger.info('Embeddings regenerated for reindex', {
+          documentId,
+          documentName: doc.name,
+          userId,
+          tenantId: userId,
+          versionId,
+          apiCalls
+        });
 
-      return true;
+        return true;
+
+      } catch (embeddingError) {
+        logger.error('Failed to regenerate embeddings', {
+          documentId,
+          documentName: doc.name,
+          userId,
+          versionId,
+          error: embeddingError instanceof Error ? embeddingError.message : String(embeddingError)
+        });
+        throw embeddingError;
+      }
       
     } catch (error) {
       logger.error('Failed to regenerate embeddings for reindex', {

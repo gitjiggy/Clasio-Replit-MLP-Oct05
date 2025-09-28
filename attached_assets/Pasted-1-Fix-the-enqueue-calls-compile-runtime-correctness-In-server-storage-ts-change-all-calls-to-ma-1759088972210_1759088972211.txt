@@ -1,0 +1,65 @@
+1) Fix the enqueue calls (compile/runtime correctness)
+
+In server/storage.ts, change all calls to match the function signature, passing only the versionId (and optionally reqId), not an object:
+
+In update/rename trigger:
+
+From:
+
+await this.enqueueDocumentForReindex(id, userId, { versionId: result.data.versionId, reason: 'searchable_field_update', priority: 'normal' });
+
+
+To:
+
+await this.enqueueDocumentForReindex(id, userId, result.data.versionId, reqId);
+
+
+In delete trigger: pass document.versionId (string), not an object.
+
+In restore trigger: pass document.versionId (string), not an object.
+
+If you want to retain reason/priority, add explicit parameters to enqueueDocumentForReindex(...) and to enqueueJobIdempotent(...), persist them on the job row, and thread them through the worker logs. Right now they are silently ignored/broken.
+
+Acceptance: jobs show jobType='reindex', a clean idempotency key like docId-reindex-versionId (not [object Object]), and the triggers compile without type errors.
+
+2) Actually regenerate embeddings
+
+In storage.regenerateDocumentEmbeddings(...), generate fresh vectors and persist them:
+
+Recompute title, summary, content, and keyTopics embeddings (you already have generateEmbedding(...) utilities and JSON fields in shared/schema.ts: titleEmbedding, summaryEmbedding, contentEmbedding, keyTopicsEmbedding).
+
+Update the corresponding columns alongside embeddingsGenerated = true and embeddingsGeneratedAt = NOW().
+
+Keep this work in the worker (already true) and out of transactions (already true).
+
+Acceptance: After rename/restore, the new embedding vectors are present in DB and used by policyDrivenSearch.ts; semantic scores reflect the change.
+
+3) Add a reindex SLA monitor (meets “< 5 minutes”)
+
+Add a simple SLA check that computes queue lag (now − requestedAt of the oldest pending/processing reindex job).
+
+Expose it via:
+
+a metric (queue_lag_seconds), and
+
+return unready on /ready if lag > 300s (5m).
+
+Add a basic alert: queue lag > 5 minutes for 10 minutes.
+
+Acceptance: Holding the worker paused for >5m flips readiness to unready and raises an alert; resuming clears it.
+
+4) CI “search correctness” test
+
+In CI, seed a tiny dataset (two tenants), then:
+
+Rename a doc → assert search returns new title within SLA and no longer ranks old title.
+
+Delete a doc → assert it disappears from results (your search already filters isDeleted=false, so this should pass).
+
+Restore a doc → assert it reappears within SLA.
+
+Assert no cross-tenant leakage (same names in A and B never co-mingle).
+
+You already have test-reindex-system.ts — integrate it into your CI and make it fail the build on regressions.
+
+Acceptance: CI fails if rename/delete/restore don’t meet expectations.

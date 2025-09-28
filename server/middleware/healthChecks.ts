@@ -180,6 +180,48 @@ export async function readinessCheck(req: Request, res: Response): Promise<void>
       };
     }
 
+    // Reindex SLA monitor - specific check for reindex job lag (<5 minutes requirement)
+    const reindexSlaStart = Date.now();
+    try {
+      const oldestReindexJob = await storage.getOldestPendingReindexJob();
+      const currentTime = Date.now();
+      const reindexSlaMs = 5 * 60 * 1000; // 5 minutes SLA threshold
+      
+      if (!oldestReindexJob) {
+        // No pending reindex jobs - SLA is met
+        readinessStatus.checks.reindex_sla = {
+          status: 'pass',
+          message: 'No pending reindex jobs',
+          duration_ms: Date.now() - reindexSlaStart,
+          threshold: '<5 minutes SLA'
+        };
+      } else {
+        const jobAge = currentTime - new Date(oldestReindexJob.createdAt).getTime();
+        const lagSeconds = Math.round(jobAge / 1000);
+        const lagMinutes = jobAge / (60 * 1000);
+        
+        const slaOk = jobAge < reindexSlaMs;
+        
+        readinessStatus.checks.reindex_sla = {
+          status: slaOk ? 'pass' : 'fail',
+          message: slaOk ? 
+            `Reindex job in queue: ${lagSeconds}s old (within SLA)` :
+            `⚠️ REINDEX SLA VIOLATED: ${lagMinutes.toFixed(1)} minutes (job: ${oldestReindexJob.jobId})`,
+          duration_ms: Date.now() - reindexSlaStart,
+          threshold: '<5 minutes SLA',
+          queue_lag_seconds: lagSeconds,
+          oldest_reindex_job_id: oldestReindexJob.jobId
+        };
+      }
+    } catch (reindexError) {
+      readinessStatus.checks.reindex_sla = {
+        status: 'fail',
+        message: reindexError instanceof Error ? reindexError.message : 'Reindex SLA check failed',
+        duration_ms: Date.now() - reindexSlaStart,
+        threshold: '<5 minutes SLA'
+      };
+    }
+
     // File storage accessibility check (GCS)
     const storageStart = Date.now();
     try {
