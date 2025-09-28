@@ -130,7 +130,8 @@ export default function Drive() {
     },
     enabled: isDriveAuthenticated, // Only run if we believe we're authenticated
     retry: false,
-    refetchInterval: 15000, // Auto-retry every 15 seconds to check connection status
+    refetchInterval: 5000, // Auto-refresh every 5 seconds for more responsive connection status
+    staleTime: 2000, // Consider data stale after 2 seconds
   });
 
   // Fetch Drive documents - only when connected
@@ -148,6 +149,8 @@ export default function Drive() {
     },
     enabled: isDriveAuthenticated && !!connectionStatus?.connected,
     retry: false,
+    refetchInterval: 10000, // Auto-refresh drive documents every 10 seconds
+    staleTime: 5000, // Consider data stale after 5 seconds
   });
 
   // Sync Drive document mutation
@@ -258,8 +261,17 @@ export default function Drive() {
             <p className="text-muted-foreground">Import and organize your Drive documents with AI</p>
           </div>
         </div>
-        <Button onClick={() => refetch()} variant="outline" size="sm" data-testid="button-refresh-drive">
-          <RefreshCw className="h-4 w-4 mr-2" />
+        <Button 
+          onClick={() => {
+            refetchConnection();
+            refetch();
+          }} 
+          variant="outline" 
+          size="sm" 
+          data-testid="button-refresh-drive"
+          disabled={connectionLoading || documentsLoading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${(connectionLoading || documentsLoading) ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
