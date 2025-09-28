@@ -3032,6 +3032,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return "txt";
   }
 
+  // Admin: Clean up orphaned GCS files (development only)
+  if (process.env.NODE_ENV === 'development') {
+    app.post('/api/admin/cleanup-gcs', verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+      try {
+        const { DatabaseStorage } = await import('./storage');
+        const storage = new DatabaseStorage();
+        
+        const { dryRun = true } = req.body;
+        console.log(`🧹 Starting GCS cleanup (${dryRun ? 'DRY RUN' : 'LIVE RUN'})...`);
+        
+        const result = await storage.reconcileGCSPaths(dryRun);
+        
+        res.json({
+          success: true,
+          ...result,
+          dryRun
+        });
+      } catch (error) {
+        console.error('Error during GCS cleanup:', error);
+        res.status(500).json({ error: 'Failed to cleanup GCS files' });
+      }
+    });
+  }
+
   const httpServer = createServer(app);
   return httpServer;
 }
