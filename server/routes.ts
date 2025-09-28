@@ -2881,11 +2881,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileType: getFileTypeFromMimeType(driveFile.mimeType, driveFile.name)
       }));
       
+      const docId = randomUUID();
+      const objectPath = `users/${userId}/docs/${docId}/${driveFile.name}`;
+      
+      // Upload Drive file content to GCS (same as regular uploads)
+      if (driveFile.content) {
+        console.info(JSON.stringify({
+          evt: "drive_sync.upload_to_gcs",
+          reqId,
+          uid: userId,
+          driveFileId,
+          objectPath: obfuscatePath(objectPath),
+          contentSize: driveFile.content.length
+        }));
+        
+        try {
+          const bucket = objectStorageService.getBucket();
+          await bucket.file(objectPath).save(Buffer.from(driveFile.content, 'utf8'), {
+            contentType: driveFile.mimeType || "application/octet-stream",
+            resumable: false,
+            validation: false,
+          });
+          
+          console.info(JSON.stringify({
+            evt: "drive_sync.gcs_upload_success",
+            reqId,
+            uid: userId,
+            driveFileId,
+            objectPath: obfuscatePath(objectPath)
+          }));
+        } catch (gcsError) {
+          console.error(JSON.stringify({
+            evt: "drive_sync.gcs_upload_failed",
+            reqId,
+            uid: userId,
+            driveFileId,
+            error: gcsError instanceof Error ? gcsError.message : String(gcsError),
+            stack: gcsError instanceof Error ? gcsError.stack : undefined
+          }));
+          // Don't fail the entire sync - fall back to database storage for now
+        }
+      }
+      
       const documentData = {
+        id: docId, // Use the same ID for consistency
         userId, // Required field for multi-tenant document ownership
         name: driveFile.name,
         originalName: driveFile.name,
-        filePath: `drive:${driveFile.id}`, // Use Drive file ID as path identifier
+        filePath: objectPath, // Use GCS path like regular uploads instead of drive: prefix
+        objectPath: driveFile.content ? objectPath : null, // Set objectPath for GCS-stored files
         fileSize: driveFile.content ? driveFile.content.length : 0,
         fileType: getFileTypeFromMimeType(driveFile.mimeType, driveFile.name),
         mimeType: driveFile.mimeType,
@@ -2898,7 +2942,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         driveSyncedAt: new Date(),
         isFavorite: false,
         isDeleted: false,
-        // Store Drive content directly in database for AI analysis
+        // Store content in database only as fallback if GCS upload fails
         documentContent: driveFile.content || null,
         contentExtracted: driveFile.content ? true : false,
         contentExtractedAt: driveFile.content ? new Date() : null,
