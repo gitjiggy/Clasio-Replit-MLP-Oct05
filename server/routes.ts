@@ -852,7 +852,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Verify userId is present first
       if (!userId) {
-        return res.status(200).json({ results: [] }); // Non-blocking response
+        return res.status(401).json({ 
+          error: "Authentication required", 
+          results: [] 
+        });
       }
       
       // Never 500 the entire batch. Return per-file results even if one fails.
