@@ -2185,7 +2185,8 @@ export class DatabaseStorage implements IStorage {
       // Apply base filters - exclude trashed documents
       const conditions = [
         eq(documents.isDeleted, false),
-        eq(documents.status, 'active')
+        eq(documents.status, 'active'),
+        eq(documents.userId, userId!) // Tenant isolation - ensure only user's documents
       ];
       
       // Add category filter from AI analysis or explicit filters
