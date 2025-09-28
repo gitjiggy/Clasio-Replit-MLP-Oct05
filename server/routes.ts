@@ -3155,6 +3155,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   }
 
+  // TESTING ONLY: Failpoint management endpoints for proving rollback behavior
+  if (process.env.NODE_ENV === 'development') {
+    // Add failpoint for testing rollback behavior
+    app.post('/api/test/failpoint/add', verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+      try {
+        const { operationType, failurePoint, errorMessage } = req.body;
+        
+        if (!operationType || !failurePoint) {
+          return res.status(400).json({ error: 'operationType and failurePoint are required' });
+        }
+
+        const { TransactionManager } = await import('./transactionManager');
+        TransactionManager.addFailpoint({
+          operationType,
+          failurePoint,
+          errorMessage: errorMessage || `Test rollback failure for ${operationType}`
+        });
+
+        res.json({
+          success: true,
+          message: `Failpoint added for ${operationType} at ${failurePoint}`,
+          activeFailpoints: TransactionManager.getActiveFailpoints()
+        });
+      } catch (error) {
+        console.error('Error adding failpoint:', error);
+        res.status(500).json({ error: 'Failed to add failpoint' });
+      }
+    });
+
+    // Remove specific failpoint
+    app.delete('/api/test/failpoint/remove', verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+      try {
+        const { operationType, failurePoint } = req.body;
+        
+        if (!operationType || !failurePoint) {
+          return res.status(400).json({ error: 'operationType and failurePoint are required' });
+        }
+
+        const { TransactionManager } = await import('./transactionManager');
+        TransactionManager.removeFailpoint(operationType, failurePoint);
+
+        res.json({
+          success: true,
+          message: `Failpoint removed for ${operationType} at ${failurePoint}`,
+          activeFailpoints: TransactionManager.getActiveFailpoints()
+        });
+      } catch (error) {
+        console.error('Error removing failpoint:', error);
+        res.status(500).json({ error: 'Failed to remove failpoint' });
+      }
+    });
+
+    // Clear all failpoints
+    app.delete('/api/test/failpoint/clear', verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+      try {
+        const { TransactionManager } = await import('./transactionManager');
+        TransactionManager.clearAllFailpoints();
+
+        res.json({
+          success: true,
+          message: 'All failpoints cleared'
+        });
+      } catch (error) {
+        console.error('Error clearing failpoints:', error);
+        res.status(500).json({ error: 'Failed to clear failpoints' });
+      }
+    });
+
+    // Get active failpoints
+    app.get('/api/test/failpoint/status', verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+      try {
+        const { TransactionManager } = await import('./transactionManager');
+        const activeFailpoints = TransactionManager.getActiveFailpoints();
+
+        res.json({
+          success: true,
+          activeFailpoints,
+          count: activeFailpoints.length
+        });
+      } catch (error) {
+        console.error('Error getting failpoint status:', error);
+        res.status(500).json({ error: 'Failed to get failpoint status' });
+      }
+    });
+
+    console.log('🧪 Development failpoint testing endpoints enabled');
+  }
+
   const httpServer = createServer(app);
   return httpServer;
 }

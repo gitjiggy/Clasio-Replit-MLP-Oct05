@@ -50,7 +50,7 @@ const asyncLocalStorage = new AsyncLocalStorage<TransactionLocalContext>();
 // Rollback testing configuration
 interface FailpointConfig {
   operationType: string;
-  failurePoint: 'before_operation' | 'after_operation' | 'before_idempotency_update';
+  failurePoint: 'before_operation' | 'after_operation' | 'before_idempotency_update' | 'between_doc_and_version';
   errorMessage?: string;
 }
 
@@ -658,6 +658,23 @@ export class TransactionManager {
       const errorMessage = matchingFailpoint.errorMessage || 
         `[Failpoint] Injected failure at ${failurePoint} for ${operationType}`;
       console.log(`[Failpoint] Triggering failpoint: ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Check for specific mid-operation failpoint between document and version insert
+   * This is used only for proving rollback behavior in createDocument operation
+   */
+  checkDocumentCreationFailpoint(): void {
+    const matchingFailpoint = activeFailpoints.find(
+      fp => fp.operationType === 'document_create' && fp.failurePoint === 'between_doc_and_version'
+    );
+    
+    if (matchingFailpoint) {
+      const errorMessage = matchingFailpoint.errorMessage || 
+        '[Failpoint] Rollback test failure between document and version insert';
+      console.log(`[Failpoint] Triggering document creation failpoint: ${errorMessage}`);
       throw new Error(errorMessage);
     }
   }
