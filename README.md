@@ -89,8 +89,8 @@ Clasio transforms how teams manage, search, and analyze documents. With cutting-
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/gitjiggy/Clasio-Replit-MLP-Sep26.git
-   cd Clasio-Replit-MLP-Sep26
+   git clone https://github.com/gitjiggy/Clasio-Replit-MLP-Sep27.git
+   cd Clasio-Replit-MLP-Sep27
    ```
 
 2. **Install dependencies**
@@ -136,7 +136,7 @@ Clasio transforms how teams manage, search, and analyze documents. With cutting-
 ## 📂 Project Architecture
 
 ```
-Clasio-Replit-MLP-Sep26/
+Clasio-Replit-MLP-Sep27/
 ├── client/                     # React frontend application
 │   ├── src/
 │   │   ├── components/         # Reusable UI components
@@ -212,88 +212,164 @@ Enterprise-grade integration featuring:
 - **Bulk Import**: Efficient mass document import from Drive
 - **Collaborative Access**: Support for shared drives and team folders
 
-## 🔥 What's New for Sep 26, 2025
+## 🔥 What's New for September 27, 2025
 
-### 🛡️ Major Security Enhancement: Google Drive Authentication Overhaul
+### 🏢 **Multi-Tenant Architecture Conversion**
 
-Today we completed a comprehensive security upgrade for Google Drive authentication, implementing enterprise-grade security practices that eliminate vulnerabilities and ensure production readiness.
+Today we completed the complete transformation from single-user to enterprise-grade multi-tenant architecture, making Clasio production-ready for enterprise deployment.
 
-#### **🔐 Secure httpOnly Cookie Implementation**
-**Problem Solved**: Previously, Google Drive access tokens were stored in browser localStorage, making them vulnerable to XSS attacks and client-side script access.
-
-**Solution Implemented**:
-- **Complete Migration**: Moved all Drive tokens from localStorage to secure httpOnly cookies
-- **Server-Side Storage**: Tokens now stored exclusively on the server, inaccessible to client JavaScript
-- **Automatic Expiry**: Implemented 50-minute token lifetime with automatic cleanup
-- **Environment Scoping**: Production cookies use `.clasio.ai` domain, development uses local host
-- **SameSite Protection**: Strict SameSite policies in production, Lax in development
-
-#### **🛡️ CSRF Protection Framework**
-**Security Enhancement**: Added comprehensive protection against Cross-Site Request Forgery attacks.
+#### **🔄 Complete Multi-Tenant Infrastructure**
+**Major Achievement**: Successfully converted entire application architecture from single-user to full multi-tenant system.
 
 **Implementation Details**:
-- **Mandatory Headers**: All Drive API requests must include `X-Requested-With: XMLHttpRequest`
-- **Server Validation**: Middleware validates CSRF headers on all state-changing operations
-- **Legacy Rejection**: Explicit 400 errors for deprecated `x-drive-access-token` headers
-- **Request Verification**: Enhanced OAuth callback validation with proper content-type enforcement
+- **Tenant Isolation**: Complete data isolation between tenants with secure user access controls
+- **User Context**: All operations now scoped to authenticated user context
+- **Database Architecture**: Updated all queries to include tenant/user filtering
+- **File Storage**: Multi-tenant file organization in Google Cloud Storage (`users/{userId}/docs/`)
+- **Security**: Enhanced authentication and authorization for multi-tenant access
 
-#### **🔧 Technical Implementation Improvements**
-**Authentication Flow Enhancements**:
-- **JSON Parsing**: Fixed OAuth callback with proper `express.json()` middleware scoping
-- **Content-Type Validation**: Strict enforcement of `application/json` for API requests
-- **Cookie Parser**: Added `cookie-parser` middleware for proper server-side cookie reading
-- **Direct Fetch**: Eliminated vulnerable API request patterns, implemented direct fetch with proper headers
+#### **🛠️ Enterprise-Grade Durability & Security**
+**System Reliability**: Implemented advanced transaction management and error handling for production stability.
 
-**Code Changes Made**:
-```typescript
-// Before: Vulnerable localStorage storage
-localStorage.setItem('drive_token', token);
+**Key Enhancements**:
+- **Drive-Aware Idempotency**: Time-based expiration system (1-hour for Drive operations vs permanent for regular operations)
+- **Transaction Management**: Robust transaction handling with rollback capabilities
+- **Enhanced Error Handling**: User-friendly error messages with actionable guidance
+- **Security Hardening**: Advanced authentication, authorization, and data protection measures
 
-// After: Secure httpOnly cookie
-res.cookie('drive_access_token', token, {
-  httpOnly: true,
-  secure: isProduction,
-  sameSite: isProduction ? 'strict' : 'lax',
-  domain: isProduction ? '.clasio.ai' : undefined,
-  maxAge: 50 * 60 * 1000 // 50 minutes
-});
-```
+#### **📊 Observability & Monitoring Infrastructure**
+**Production Monitoring**: Comprehensive monitoring and observability for enterprise operations.
 
-#### **📋 Security Benefits Achieved**
-1. **XSS Protection**: httpOnly cookies prevent JavaScript access to authentication tokens
-2. **CSRF Mitigation**: Header-based validation stops cross-site request forgery
-3. **Token Security**: Server-side token management with automatic expiration
-4. **Production Hardening**: Environment-specific security configurations
-5. **Standards Compliance**: Follows OAuth 2.0 and modern web security best practices
-6. **Audit Trail**: Comprehensive telemetry and logging for security monitoring
+**Monitoring Features**:
+- **Request Tracking**: Unique request IDs with latency monitoring and error correlation
+- **Health Check System**: Advanced health monitoring for all system components
+- **Queue Metrics**: Real-time AI processing queue monitoring and performance tracking
+- **Search Analytics**: Complete search instrumentation with query analysis and performance metrics
+- **Error Correlation**: Comprehensive logging with structured JSON and correlation tracking
 
-#### **🧪 Verification and Testing**
-**End-to-End Validation**:
-- ✅ OAuth callback processing with proper JSON parsing
-- ✅ Cookie setting and reading functionality confirmed
-- ✅ Drive API operations working with cookie authentication
-- ✅ Legacy authentication paths completely removed
-- ✅ CSRF protection active and functional
-- ✅ Production-ready cookie configuration tested
+### 🚀 **Google Drive Integration Overhaul**
 
-**Server Logs Confirmation**:
-```
-[Auth] Drive authentication via httpOnly cookie
-GET /api/drive/connect 200 - Drive connection successful
-GET /api/drive/documents 200 - Document list retrieved
-[Telemetry] OAuth callback: Token stored in httpOnly cookie
-```
+#### **🔧 Critical Storage Architecture Fix**
+**Problem Resolved**: Drive documents were previously stored only in database without proper file storage.
 
-#### **🎯 Production Readiness Impact**
-This security enhancement represents a major milestone in Clasio's production launch readiness:
+**Solution Implemented**:
+- **Unified Storage**: Drive documents now properly upload to Google Cloud Storage with consistent `objectPath` values
+- **File Consistency**: Both computer-based and Drive-based uploads use identical GCS storage pattern
+- **Storage Verification**: All upload methods confirmed working with proper file storage in GCS
+- **Data Integrity**: Fixed critical issue where Drive sync wasn't creating actual files in storage
 
-- **Enterprise Security**: Now meets enterprise security standards for authentication
-- **Zero Breaking Changes**: Seamless transition for existing users
-- **Developer Experience**: Enhanced debugging with comprehensive logging
-- **Compliance Ready**: Meets modern security audit requirements
-- **Scalability**: Secure foundation for multi-tenant production deployment
+#### **🔄 Enhanced Drive Sync System**
+**User Experience**: Dramatically improved Drive synchronization with better error handling and responsiveness.
 
-**Developer Notes**: External vendors working on the frontend can now rely on a secure, production-ready authentication system that follows industry best practices for OAuth token management and CSRF protection.
+**Key Improvements**:
+- **Fixed Refresh Functionality**: Refresh button now properly refreshes both connection status AND drive documents
+- **Auto-Refresh Enhancement**: 5-second connection status refresh and 10-second document refresh intervals
+- **Visual Feedback**: Enhanced refresh button with loading states and visual indicators
+- **Better Error Messages**: Specific user-friendly error messages with actionable guidance
+- **Sync Status**: Real-time sync status with comprehensive feedback
+
+#### **⚡ Bulk Upload System Restoration**
+**Critical Fix**: Resolved complete failure of bulk upload functionality that was preventing multi-document uploads.
+
+**Technical Resolution**:
+- **Root Cause**: Missing `express.json()` middleware on critical bulk upload routes
+- **Routes Fixed**: 
+  - `/api/upload/bulk-upload-urls` (presigned URL generation)
+  - `/api/documents/bulk` (bulk document creation)
+- **Verification**: Both computer-based and Drive-based bulk uploads now working correctly
+- **User Impact**: Users can now upload multiple documents simultaneously without failures
+
+### 🔍 **Advanced Search Engine Revolution**
+
+#### **🎯 Policy-Driven Search Implementation**
+**Search Evolution**: Complete replacement of hardcoded search logic with intelligent policy-based system.
+
+**Advanced Features**:
+- **7-Class Query Analyzer**: Intelligent classification of query types
+  - `entity.proper` (people, organizations, places)
+  - `id/code` (identifiers like "1099-INT")
+  - `date/range` (temporal queries)
+  - `short.keyword` (1-3 common tokens)
+  - `phrase` (quoted or exact phrases)
+  - `question` (question-like queries)
+  - `topic.freeform` (complex multi-concept searches)
+
+#### **⚡ Smart Performance Optimization**
+**Search Performance**: Multi-tier routing system with performance-based optimization.
+
+**Technical Implementation**:
+- **Field-Aware Scoring**: Per-field lexical signals with max-field logic and proximity bonuses
+- **Tier Routing**: Policy-driven tier selection with performance caps (T1: 0.99, T2: 0.70, T3: 0.45)
+- **Exact Phrase Detection**: High-signal field matching for proper noun routing
+- **Search Instrumentation**: Comprehensive logging with QueryAnalysis traces and anomaly detection
+
+### ⚡ **Performance & Reliability Enhancements**
+
+#### **🔄 Embedding/Search Invalidation System**
+**Search Consistency**: Sub-5-minute SLA for reindex operations ensuring consistent search results.
+
+**Key Features**:
+- **Fast Reindexing**: Automated reindex operations with <5 minute completion SLA
+- **Search Consistency**: Ensures all upload methods maintain consistent search index
+- **Background Processing**: Non-blocking reindex operations for better user experience
+- **Monitoring**: Real-time monitoring of reindex operations and performance metrics
+
+#### **📁 Unified File Storage Architecture**
+**Storage Consistency**: All upload methods now use consistent Google Cloud Storage patterns.
+
+**Architectural Improvements**:
+- **Computer Uploads**: `users/${uid}/docs/${docId}/${originalname}`
+- **Drive Uploads**: `users/${userId}/docs/${docId}/${driveFile.name}`
+- **Consistent Paths**: Identical folder structure for all upload sources
+- **Multi-Tenant Support**: Proper user isolation in storage hierarchy
+
+### 🛡️ **Production Security & Stability**
+
+#### **🔒 Enhanced Authentication System**
+**Security Foundation**: Building on Sep 26 security improvements with additional hardening.
+
+**Additional Security Measures**:
+- **Multi-Tenant Security**: Enhanced user context validation and data isolation
+- **Session Management**: Improved session handling for multi-user environments
+- **API Security**: Enhanced rate limiting and request validation
+- **Data Protection**: Additional layers of data protection for enterprise deployment
+
+#### **📈 Enterprise Monitoring**
+**Production Readiness**: Comprehensive monitoring and alerting for enterprise operations.
+
+**Monitoring Capabilities**:
+- **Performance Metrics**: Real-time performance tracking across all system components
+- **Error Tracking**: Comprehensive error tracking with correlation and alerting
+- **Usage Analytics**: Detailed usage analytics for capacity planning
+- **Health Dashboards**: Real-time health dashboards for system monitoring
+
+### 🎯 **Production Launch Readiness**
+
+#### **✅ Verification & Testing**
+**End-to-End Validation**: Comprehensive testing of all systems for production readiness.
+
+**Validated Systems**:
+- ✅ Multi-tenant data isolation and security
+- ✅ Google Drive integration with proper file storage
+- ✅ Bulk upload functionality for all upload methods
+- ✅ Advanced search with policy-driven routing
+- ✅ AI processing queue with monitoring
+- ✅ File storage consistency across all upload methods
+- ✅ Real-time monitoring and observability
+- ✅ Enterprise security and authentication
+
+#### **🚀 Enterprise Features Ready**
+**Production Capabilities**: Full enterprise feature set ready for deployment.
+
+**Ready for Production**:
+- **Multi-Tenant Architecture**: Complete tenant isolation and data security
+- **Scalable Infrastructure**: Google Cloud Storage and PostgreSQL with Neon
+- **AI Processing**: Background AI analysis with queue management
+- **Advanced Search**: Policy-driven search with performance optimization
+- **Monitoring**: Comprehensive observability and alerting
+- **Security**: Enterprise-grade authentication and authorization
+
+**Developer Impact**: External vendors now have access to a complete, production-ready multi-tenant document management system with enterprise-grade features, comprehensive monitoring, and robust security.
 
 ## 🚀 Production Deployment
 
