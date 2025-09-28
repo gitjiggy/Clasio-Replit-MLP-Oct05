@@ -848,7 +848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/documents/bulk-upload-urls", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/bulk-upload-urls", express.json({ limit: '10mb' }), verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
     const userId = req.user?.uid;
     
     try {
@@ -1021,7 +1021,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk document creation - the grand finale of your upload symphony! 🎼
-  app.post("/api/documents/bulk", verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/bulk", express.json({ limit: '10mb' }), verifyFirebaseToken, bulkUploadLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       // Validate bulk document creation request
       const validationResult = bulkDocumentCreationSchema.safeParse(req.body);
