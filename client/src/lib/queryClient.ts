@@ -3,8 +3,40 @@ import { auth } from "./firebase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text} (${res.url})`);
+    let errorMessage = res.statusText;
+    let errorData = null;
+    
+    try {
+      // Try to parse JSON error response from server
+      const responseText = await res.text();
+      if (responseText) {
+        try {
+          const errorJson = JSON.parse(responseText);
+          // Use server's user-friendly message if available
+          if (errorJson.message) {
+            errorMessage = errorJson.message;
+          } else if (errorJson.error) {
+            errorMessage = errorJson.error;
+          }
+          errorData = errorJson;
+        } catch {
+          // If not JSON, use the raw text
+          errorMessage = responseText;
+        }
+      }
+    } catch {
+      // If reading response fails, use status text
+      errorMessage = res.statusText;
+    }
+    
+    // Create enhanced error with status, data, and user-friendly message
+    const error = new Error(errorMessage) as any;
+    error.status = res.status;
+    error.statusText = res.statusText;
+    error.url = res.url;
+    error.data = errorData;
+    
+    throw error;
   }
 }
 

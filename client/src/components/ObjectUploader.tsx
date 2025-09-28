@@ -210,6 +210,15 @@ interface ObjectUploaderProps {
   onClose?: () => void;
 }
 
+// Helper function to format file size
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 /**
  * Modern file upload component with state machine pattern, flavor text, and auto-close.
  * 
@@ -220,6 +229,7 @@ interface ObjectUploaderProps {
  * - Concurrency-controlled parallel uploads
  * - Proper error handling with partial success scenarios
  * - Success toast notifications
+ * - Proactive file size limit display and validation
  */
 export function ObjectUploader({
   maxNumberOfFiles = 10,
@@ -275,11 +285,13 @@ export function ObjectUploader({
       return;
     }
     
-    // Validate file sizes
+    // Validate file sizes with better error messages
     const oversizedFiles = files.filter(file => file.size > maxFileSize);
     if (oversizedFiles.length > 0) {
+      const maxSizeFormatted = formatFileSize(maxFileSize);
+      const oversizedDetails = oversizedFiles.map(f => `${f.name} (${formatFileSize(f.size)})`).join(', ');
       setErrors([
-        `Files too large: ${oversizedFiles.map(f => f.name).join(', ')}. Max size: ${Math.round(maxFileSize / 1024 / 1024)}MB`
+        `File size limit exceeded: ${oversizedDetails}. Maximum allowed: ${maxSizeFormatted}. Please select smaller files.`
       ]);
       setState("error");
       return;
@@ -695,7 +707,22 @@ export function ObjectUploader({
       
       // Only log and show actual errors, not user cancellations
       console.error("Upload failed:", e);
-      setErrors([e?.message || "Upload failed"]);
+      
+      // Handle specific error types with user-friendly messages
+      let errorMessage = e?.message || "Upload failed";
+      
+      if (e?.status === 413) {
+        // File size error - use server message if available, otherwise provide clear guidance
+        errorMessage = e?.message || `File too large. Maximum allowed size is ${formatFileSize(maxFileSize)}. Please select a smaller file.`;
+      } else if (e?.status === 400 && e?.data?.code === 'INVALID_FILE_SIGNATURE') {
+        // MIME validation error
+        errorMessage = e?.message || "File type validation failed. The file content doesn't match its file extension.";
+      } else if (e?.status === 400 && e?.data?.code === 'FILE_SIZE_EXCEEDED') {
+        // Another file size error variant
+        errorMessage = e?.message || `File size limit exceeded. Maximum allowed: ${formatFileSize(maxFileSize)}`;
+      }
+      
+      setErrors([errorMessage]);
       setState("error");
     } finally {
       // Clean up abort controller
@@ -767,6 +794,15 @@ export function ObjectUploader({
                state === "done" ? "Done!" :
                state === "error" ? "Some files need attention" : "Upload Files"}
             </DialogTitle>
+            {/* Show upload limits proactively when idle */}
+            {state === "idle" && (
+              <div className="text-xs text-muted-foreground mt-2 space-y-1 bg-muted/50 p-3 rounded-md">
+                <div className="font-medium text-foreground">Upload Limits:</div>
+                <div>• Maximum file size: {formatFileSize(maxFileSize)}</div>
+                <div>• Maximum files per upload: {maxNumberOfFiles}</div>
+                <div>• Supported types: PDF, Word, Excel, PowerPoint, Images, Text, CSV</div>
+              </div>
+            )}
           </DialogHeader>
           
           <div className="space-y-4">
@@ -789,7 +825,7 @@ export function ObjectUploader({
                   {selectedFiles.map((file, index) => (
                     <li key={index} className="flex items-center justify-between">
                       <span className="truncate">{file.name}</span>
-                      <span className="text-xs">{Math.round(file.size / 1024)}KB</span>
+                      <span className="text-xs">{formatFileSize(file.size)}</span>
                     </li>
                   ))}
                 </ul>
