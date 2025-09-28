@@ -12,7 +12,51 @@ import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, 
 import { sql, eq } from "drizzle-orm";
 import { db } from "./db.js";
 import { z } from "zod";
+import type { Request, Response, NextFunction } from "express";
 import { google } from 'googleapis';
+
+// Multer error handler middleware - maps file size errors to HTTP 413
+function multerErrorHandler(err: any, req: Request, res: Response, next: NextFunction) {
+  if (err instanceof multer.MulterError) {
+    switch (err.code) {
+      case 'LIMIT_FILE_SIZE':
+        console.error('File size limit exceeded:', {
+          field: err.field,
+          limit: '50MB',
+          reqId: (req as any).reqId
+        });
+        return res.status(413).json({
+          error: 'File too large',
+          message: 'File size cannot exceed 50MB. Please select a smaller file.',
+          limit: '50MB',
+          code: 'FILE_SIZE_EXCEEDED'
+        });
+      case 'LIMIT_FILE_COUNT':
+        return res.status(413).json({
+          error: 'Too many files',
+          message: 'Cannot upload more than 50 files at once.',
+          limit: '50 files',
+          code: 'FILE_COUNT_EXCEEDED'
+        });
+      case 'LIMIT_UNEXPECTED_FILE':
+        return res.status(400).json({
+          error: 'Unexpected file',
+          message: 'Unexpected file field in upload request.',
+          code: 'UNEXPECTED_FILE'
+        });
+      default:
+        console.error('Multer error:', err.code, err.message, { reqId: (req as any).reqId });
+        return res.status(400).json({
+          error: 'Upload error',
+          message: 'An error occurred during file upload. Please try again.',
+          code: err.code || 'UPLOAD_ERROR'
+        });
+    }
+  }
+  // Pass other errors to next middleware
+  next(err);
+}
+
 import { lookup as mimeLookup } from "mime-types";
 import { 
   setDriveTokenCookie, 
@@ -258,6 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents/upload-proxy", 
     verifyFirebaseToken,
     uploadProxy.single("file"), // <<< this must run before any json parser
+    multerErrorHandler, // Handle multer errors and map to HTTP 413
     async (req: AuthenticatedRequest, res) => {
       // Set up abort detection
       let isAborted = false;
@@ -780,7 +825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // OLD upload-proxy route removed - now handled earlier before JSON parsing
 
   // Standard upload route - handles single file uploads with multipart data
-  app.post("/api/documents/upload", verifyFirebaseToken, upload.single('file'), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/upload", verifyFirebaseToken, upload.single('file'), multerErrorHandler, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?.uid;
       
