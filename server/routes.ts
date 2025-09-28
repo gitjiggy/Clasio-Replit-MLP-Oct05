@@ -15,6 +15,52 @@ import { z } from "zod";
 import type { Request, Response, NextFunction } from "express";
 import { google } from 'googleapis';
 
+// File signature validation - checks magic bytes to prevent MIME spoofing
+function validateFileSignature(buffer: Buffer, mimeType: string): boolean {
+  if (buffer.length < 4) return false; // Need at least 4 bytes for most signatures
+  
+  const bytes = Array.from(buffer.subarray(0, 16)).map(b => b.toString(16).padStart(2, '0'));
+  const signature = bytes.join('');
+  
+  // Define magic bytes for supported file types
+  const signatures: Record<string, string[]> = {
+    'application/pdf': ['25504446'], // %PDF
+    'image/jpeg': ['ffd8ff'],
+    'image/png': ['89504e47'],
+    'image/gif': ['474946383761', '474946383961'], // GIF87a, GIF89a
+    'image/webp': ['52494646'], // RIFF (WebP container)
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['504b0304'], // ZIP (Office files)
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['504b0304'], // ZIP
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['504b0304'], // ZIP
+    'application/vnd.ms-excel': ['d0cf11e0'], // OLE2 (legacy Office)
+    'application/msword': ['d0cf11e0'], // OLE2
+    'application/vnd.ms-powerpoint': ['d0cf11e0'], // OLE2
+    'text/plain': [], // No signature validation for text files
+    'text/csv': [] // No signature validation for CSV files
+  };
+  
+  const expectedSignatures = signatures[mimeType];
+  if (!expectedSignatures) {
+    console.warn(`No file signature validation available for MIME type: ${mimeType}`);
+    return true; // Allow unknown types to pass through
+  }
+  
+  if (expectedSignatures.length === 0) {
+    return true; // Skip validation for text files
+  }
+  
+  // Check if any expected signature matches
+  const isValid = expectedSignatures.some(expectedSig => 
+    signature.toLowerCase().startsWith(expectedSig.toLowerCase())
+  );
+  
+  if (!isValid) {
+    console.warn(`File signature mismatch: expected ${expectedSignatures} for ${mimeType}, got ${signature.slice(0, 16)}`);
+  }
+  
+  return isValid;
+}
+
 // Multer error handler middleware - maps file size errors to HTTP 413
 function multerErrorHandler(err: any, req: Request, res: Response, next: NextFunction) {
   if (err instanceof multer.MulterError) {
@@ -346,6 +392,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { originalname, mimetype, buffer, size } = req.file;
         const uid = req.user?.uid!;
         const forceUpload = req.body.forceUpload === 'true'; // Check if user decided to force upload
+        
+        // Validate file signature to prevent MIME spoofing
+        if (!validateFileSignature(buffer, mimetype)) {
+          console.error(JSON.stringify({
+            evt: "upload-proxy.mime_validation_failed",
+            reqId: (req as any).reqId,
+            uid,
+            fileName: originalname,
+            claimedMimeType: mimetype,
+            timestamp: new Date().toISOString()
+          }));
+          return res.status(400).json({
+            error: 'File type validation failed',
+            message: 'The file content does not match its claimed file type. This may be a security risk.',
+            code: 'INVALID_FILE_SIGNATURE'
+          });
+        }
         
         // Check for duplicate files unless user is forcing upload after decision
         console.info(JSON.stringify({
@@ -843,6 +906,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!req.file) {
         return res.status(400).json({ error: "No file provided" });
+      }
+
+      // Validate file signature to prevent MIME spoofing
+      if (!validateFileSignature(req.file.buffer, req.file.mimetype)) {
+        console.error(JSON.stringify({
+          evt: "standard_upload.mime_validation_failed",
+          reqId: (req as any).reqId,
+          uid: userId,
+          fileName: req.file.originalname,
+          claimedMimeType: req.file.mimetype,
+          timestamp: new Date().toISOString()
+        }));
+        return res.status(400).json({
+          error: 'File type validation failed',
+          message: 'The file content does not match its claimed file type. This may be a security risk.',
+          code: 'INVALID_FILE_SIGNATURE'
+        });
       }
 
       const originalFileName = req.file.originalname;
