@@ -1,6 +1,9 @@
 // Production Security Configuration
 // Implements staged rollout with environment-based controls
 
+import { randomBytes } from 'crypto';
+import type { Request, Response, NextFunction } from 'express';
+
 export interface SecurityConfig {
   corsOrigins: (string | RegExp)[];
   enableCSP: boolean;
@@ -11,74 +14,82 @@ export interface SecurityConfig {
 }
 
 /**
- * Get security configuration based on environment
+ * Get security configuration based on environment with dynamic API domain management
  */
 export function getSecurityConfig(): SecurityConfig {
   const isDevelopment = process.env.NODE_ENV === 'development';
   const isProduction = process.env.NODE_ENV === 'production';
   const enableSecurityHeaders = process.env.ENABLE_SECURITY_HEADERS === 'true' || isProduction;
   const cspReportOnly = process.env.CSP_REPORT_ONLY === 'true';
-  
-  // Production domain allowlist - from environment or defaults
-  const productionOrigins: (string | RegExp)[] = [
-    // Load from environment variable (comma-separated)
-    ...(process.env.CORS_PRODUCTION_ORIGINS?.split(',').map(origin => origin.trim()) || []),
-    // Fallback defaults (replace with your actual domains when ready)
-    // 'https://your-app.com',
-    // 'https://www.your-app.com', 
-    // 'https://staging.your-app.com'
+
+  // Core Google API domains (configurable via environment)
+  const coreApiDomains = [
+    process.env.GOOGLE_STORAGE_ENDPOINT || 'storage.googleapis.com',
+    process.env.GOOGLE_APIS_ENDPOINT || 'www.googleapis.com',
+    process.env.GOOGLE_ACCOUNTS_ENDPOINT || 'accounts.google.com',
+    process.env.GEMINI_API_ENDPOINT || 'generativelanguage.googleapis.com'
   ];
-  
+
+  // Additional allowed domains from environment
+  const additionalDomains = process.env.ALLOWED_API_DOMAINS?.split(',').map(d => d.trim()) || [];
+
+  // Combine and create HTTPS URLs
+  const allowedApiDomains = [...coreApiDomains, ...additionalDomains]
+    .filter(domain => domain && domain.length > 0)
+    .map(domain => domain.startsWith('https://') ? domain : `https://${domain}`);
+
+  // Production domain allowlist
+  const productionOrigins: (string | RegExp)[] = [
+    ...(process.env.CORS_PRODUCTION_ORIGINS?.split(',').map(origin => origin.trim()) || []),
+  ];
+
   // Development origins (broad for development)
   const developmentOrigins: (string | RegExp)[] = [
     'http://localhost:3000',
-    'http://localhost:5000', 
+    'http://localhost:5000',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:5000',
     /.*\.replit\.app$/,
     /.*\.replit\.dev$/,
   ];
-  
-  // FlutterFlow and Firebase origins (controlled list)
+
+  // Controlled third-party origins
   const controlledThirdPartyOrigins: (string | RegExp)[] = [
-    // Only add specific FlutterFlow app domains here
-    // /^https:\/\/[a-z0-9-]+\.flutterflow\.app$/,
-    // /^https:\/\/[a-z0-9-]+\.web\.app$/,
-    // /^https:\/\/[a-z0-9-]+\.firebaseapp\.com$/,
+    // Add specific approved domains here
+    ...(process.env.APPROVED_THIRD_PARTY_ORIGINS?.split(',').map(origin => origin.trim()) || [])
   ];
-  
-  // Warning for empty production CORS allowlist
+
+  // Security warnings
   if (isProduction && productionOrigins.length === 0) {
     console.warn('⚠️  SECURITY WARNING: No production CORS origins configured. Set CORS_PRODUCTION_ORIGINS environment variable.');
   }
 
+  if (additionalDomains.length > 0) {
+    console.log(`🔒 Additional API domains allowed: ${additionalDomains.join(', ')}`);
+  }
+
   return {
-    // CORS Origins: Strict in production, permissive in development
-    corsOrigins: isProduction 
+    corsOrigins: isProduction
       ? [...productionOrigins, ...controlledThirdPartyOrigins]
       : [...developmentOrigins, ...controlledThirdPartyOrigins],
-    
-    // CSP: Enable in production or when explicitly enabled
+
     enableCSP: enableSecurityHeaders,
     cspReportOnly: cspReportOnly || (!isProduction && enableSecurityHeaders),
-    
-    // Other security headers
-    enableCOEP: enableSecurityHeaders && !process.env.DISABLE_COEP, // Can disable for GCS/Drive previews
+    enableCOEP: enableSecurityHeaders && process.env.DISABLE_COEP !== 'true',
     enableSTSHeader: isProduction,
-    
-    // CSP Directives for production
+
     cspDirectives: {
       'default-src': ["'self'"],
       'script-src': [
         "'self'",
-        // Allow unsafe-eval only in development for Vite HMR
         ...(isDevelopment ? ["'unsafe-eval'"] : []),
-        "https://replit.com", // Replit dev banner
-        "https://www.googletagmanager.com", // Google Analytics
+        "https://replit.com",
+        "https://www.googletagmanager.com",
+        // Add nonce support for dynamic scripts
+        ...(process.env.CSP_SCRIPT_NONCE ? [`'nonce-${process.env.CSP_SCRIPT_NONCE}'`] : [])
       ],
       'style-src': [
         "'self'",
-        // Allow unsafe-inline only in development - production requires CSP hashes
         ...(isDevelopment ? ["'unsafe-inline'"] : []),
         "https://fonts.googleapis.com",
       ],
@@ -90,21 +101,18 @@ export function getSecurityConfig(): SecurityConfig {
         "'self'",
         "data:",
         "blob:",
-        "https://storage.googleapis.com", // GCS previews
-        "https://drive.google.com", // Google Drive previews
-        "https://lh3.googleusercontent.com", // Google user avatars
+        ...allowedApiDomains.filter(domain => domain.includes('storage.googleapis.com')),
+        "https://drive.google.com",
+        "https://lh3.googleusercontent.com",
       ],
       'connect-src': [
         "'self'",
-        "https://storage.googleapis.com", // GCS API
-        "https://www.googleapis.com", // Google APIs
-        "https://accounts.google.com", // OAuth
-        "https://generativelanguage.googleapis.com", // Gemini AI
-        ...(isDevelopment ? ["ws://localhost:*", "wss://localhost:*"] : []), // Vite HMR
+        ...allowedApiDomains, // Dynamic API domains
+        ...(isDevelopment ? ["ws://localhost:*", "wss://localhost:*"] : []),
       ],
       'frame-src': [
-        "https://accounts.google.com", // OAuth
-        "https://drive.google.com", // Drive previews
+        "https://accounts.google.com",
+        "https://drive.google.com",
       ],
       'object-src': ["'none'"],
       'base-uri': ["'self'"],
@@ -113,6 +121,16 @@ export function getSecurityConfig(): SecurityConfig {
       'upgrade-insecure-requests': [],
     }
   };
+}
+
+/**
+ * CSP Nonce middleware for dynamic script execution
+ */
+export function generateCSPNonce(req: Request, res: Response, next: NextFunction) {
+  const nonce = randomBytes(16).toString('base64');
+  res.locals.nonce = nonce;
+  res.setHeader('X-CSP-Nonce', nonce); // For client-side access if needed
+  next();
 }
 
 /**

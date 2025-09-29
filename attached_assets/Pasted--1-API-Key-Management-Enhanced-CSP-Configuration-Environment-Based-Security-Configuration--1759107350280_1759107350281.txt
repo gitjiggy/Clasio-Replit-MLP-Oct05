@@ -1,0 +1,1167 @@
+ 1. API Key Management & Enhanced CSP Configuration
+
+  ✅ Environment-Based Security Configuration
+
+  // server/security.ts - Complete updated implementation
+  export interface SecurityConfig {
+    corsOrigins: (string | RegExp)[];
+    enableCSP: boolean;
+    cspReportOnly: boolean;
+    enableCOEP: boolean;
+    enableSTSHeader: boolean;
+    cspDirectives: Record<string, string[]>;
+  }
+
+  /**
+   * Get security configuration based on environment with dynamic API domain management
+   */
+  export function getSecurityConfig(): SecurityConfig {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isProduction = process.env.NODE_ENV === 'production';
+    const enableSecurityHeaders = process.env.ENABLE_SECURITY_HEADERS === 'true' || isProduction;
+    const cspReportOnly = process.env.CSP_REPORT_ONLY === 'true';
+
+    // Core Google API domains (configurable via environment)
+    const coreApiDomains = [
+      process.env.GOOGLE_STORAGE_ENDPOINT || 'storage.googleapis.com',
+      process.env.GOOGLE_APIS_ENDPOINT || 'www.googleapis.com',
+      process.env.GOOGLE_ACCOUNTS_ENDPOINT || 'accounts.google.com',
+      process.env.GEMINI_API_ENDPOINT || 'generativelanguage.googleapis.com'
+    ];
+
+    // Additional allowed domains from environment
+    const additionalDomains = process.env.ALLOWED_API_DOMAINS?.split(',').map(d => d.trim()) || [];
+
+    // Combine and create HTTPS URLs
+    const allowedApiDomains = [...coreApiDomains, ...additionalDomains]
+      .filter(domain => domain && domain.length > 0)
+      .map(domain => domain.startsWith('https://') ? domain : `https://${domain}`);
+
+    // Production domain allowlist
+    const productionOrigins: (string | RegExp)[] = [
+      ...(process.env.CORS_PRODUCTION_ORIGINS?.split(',').map(origin => origin.trim()) || []),
+    ];
+
+    // Development origins (broad for development)
+    const developmentOrigins: (string | RegExp)[] = [
+      'http://localhost:3000',
+      'http://localhost:5000',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5000',
+      /.*\.replit\.app$/,
+      /.*\.replit\.dev$/,
+    ];
+
+    // Controlled third-party origins
+    const controlledThirdPartyOrigins: (string | RegExp)[] = [
+      // Add specific approved domains here
+      ...(process.env.APPROVED_THIRD_PARTY_ORIGINS?.split(',').map(origin => origin.trim()) || [])
+    ];
+
+    // Security warnings
+    if (isProduction && productionOrigins.length === 0) {
+      console.warn('⚠️  SECURITY WARNING: No production CORS origins configured. Set CORS_PRODUCTION_ORIGINS environment variable.');
+    }
+
+    if (additionalDomains.length > 0) {
+      console.log(`🔒 Additional API domains allowed: ${additionalDomains.join(', ')}`);
+    }
+
+    return {
+      corsOrigins: isProduction
+        ? [...productionOrigins, ...controlledThirdPartyOrigins]
+        : [...developmentOrigins, ...controlledThirdPartyOrigins],
+
+      enableCSP: enableSecurityHeaders,
+      cspReportOnly: cspReportOnly || (!isProduction && enableSecurityHeaders),
+      enableCOEP: enableSecurityHeaders && process.env.DISABLE_COEP !== 'true',
+      enableSTSHeader: isProduction,
+
+      cspDirectives: {
+        'default-src': ["'self'"],
+        'script-src': [
+          "'self'",
+          ...(isDevelopment ? ["'unsafe-eval'"] : []),
+          "https://replit.com",
+          "https://www.googletagmanager.com",
+          // Add nonce support for dynamic scripts
+          ...(process.env.CSP_SCRIPT_NONCE ? [`'nonce-${process.env.CSP_SCRIPT_NONCE}'`] : [])
+        ],
+        'style-src': [
+          "'self'",
+          ...(isDevelopment ? ["'unsafe-inline'"] : []),
+          "https://fonts.googleapis.com",
+        ],
+        'font-src': [
+          "'self'",
+          "https://fonts.gstatic.com",
+        ],
+        'img-src': [
+          "'self'",
+          "data:",
+          "blob:",
+          ...allowedApiDomains.filter(domain => domain.includes('storage.googleapis.com')),
+          "https://drive.google.com",
+          "https://lh3.googleusercontent.com",
+        ],
+        'connect-src': [
+          "'self'",
+          ...allowedApiDomains, // Dynamic API domains
+          ...(isDevelopment ? ["ws://localhost:*", "wss://localhost:*"] : []),
+        ],
+        'frame-src': [
+          "https://accounts.google.com",
+          "https://drive.google.com",
+        ],
+        'object-src': ["'none'"],
+        'base-uri': ["'self'"],
+        'form-action': ["'self'"],
+        'frame-ancestors': ["'none'"],
+        'upgrade-insecure-requests': [],
+      }
+    };
+  }
+
+  /**
+   * CSP Nonce middleware for dynamic script execution
+   */
+  export function generateCSPNonce(req: Request, res: Response, next: NextFunction) {
+    const nonce = randomBytes(16).toString('base64');
+    res.locals.nonce = nonce;
+    res.setHeader('X-CSP-Nonce', nonce); // For client-side access if needed
+    next();
+  }
+
+  Environment Variables Setup
+
+  # .env - Security configuration
+  # Core API endpoints (optional - will use defaults if not set)
+  GOOGLE_STORAGE_ENDPOINT=storage.googleapis.com
+  GOOGLE_APIS_ENDPOINT=www.googleapis.com
+  GOOGLE_ACCOUNTS_ENDPOINT=accounts.google.com
+  GEMINI_API_ENDPOINT=generativelanguage.googleapis.com
+
+  # Additional allowed API domains (comma-separated)
+  ALLOWED_API_DOMAINS=custom-api.example.com,another-api.example.com
+
+  # CORS configuration
+  CORS_PRODUCTION_ORIGINS=https://your-app.com,https://www.your-app.com
+  APPROVED_THIRD_PARTY_ORIGINS=https://approved-partner.com
+
+  # Security toggles
+  ENABLE_SECURITY_HEADERS=true
+  CSP_REPORT_ONLY=false
+  DISABLE_COEP=false
+  CSP_REPORT_URI=https://your-csp-report-endpoint.com/report
+
+  ---
+  2. Conservative File Size Limits (20MB Maximum)
+
+  ✅ Enhanced File Validation with Friendly Errors
+
+  // server/fileValidation.ts - Conservative 20MB limits with quirky messages
+  export const FILE_SIZE_LIMITS = {
+    // All file types capped at 20MB - no exceptions!
+    'application/pdf': 20 * 1024 * 1024,
+    'image/jpeg': 20 * 1024 * 1024,
+    'image/png': 20 * 1024 * 1024,
+    'image/gif': 20 * 1024 * 1024,
+    'image/webp': 20 * 1024 * 1024,
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 20 * 1024 * 1024,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 20 * 1024 * 1024,
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 20 * 1024 * 1024,
+    'application/vnd.ms-excel': 20 * 1024 * 1024,
+    'application/msword': 20 * 1024 * 1024,
+    'application/vnd.ms-powerpoint': 20 * 1024 * 1024,
+    'text/plain': 20 * 1024 * 1024,
+    'text/csv': 20 * 1024 * 1024,
+    'default': 20 * 1024 * 1024 // Universal 20MB limit
+  } as const;
+
+  // Quirky file size error messages
+  const FILE_SIZE_ERROR_MESSAGES = [
+    "Whoa there, speed racer! 🏎️ That file is larger than our servers can handle. Keep it under 20MB and we'll be best friends! 🤝",
+    "Houston, we have a problem! 🚀 Your file is too big for our digital filing cabinet. Try compressing it or splitting it into smaller chunks! 📁✂️",
+    "That file is chonkier than a well-fed cat! 🐱‍👤 Please slim it down to under 20MB so our servers don't get indigestion! 🤖💊",
+    "Your file is throwing our servers a surprise party they weren't ready for! 🎉 Keep it under 20MB and everyone stays happy! 😄",
+    "Plot twist: Your file is bigger than some movies! 🎬 Let's keep things snappy with files under 20MB, shall we? 🎭",
+    "Our servers are on a diet! 🥗 They can only digest files smaller than 20MB. Help them stay healthy! 💪",
+    "That file is like trying to fit an elephant through a mouse hole! 🐘🕳️ Compress it to under 20MB and watch the magic happen! ✨"
+  ];
+
+  export function getFileSizeLimit(mimeType: string): number {
+    return FILE_SIZE_LIMITS[mimeType as keyof typeof FILE_SIZE_LIMITS] || FILE_SIZE_LIMITS.default;
+  }
+
+  export function validateFileSize(fileSize: number, mimeType: string, fileName?: string): {
+    valid: boolean;
+    error?: string;
+    details?: any;
+  } {
+    const limit = getFileSizeLimit(mimeType);
+
+    if (fileSize > limit) {
+      const fileMB = Math.round(fileSize / (1024 * 1024) * 10) / 10;
+      const limitMB = Math.round(limit / (1024 * 1024));
+
+      // Pick a random quirky message
+      const quirkMessage = FILE_SIZE_ERROR_MESSAGES[Math.floor(Math.random() * FILE_SIZE_ERROR_MESSAGES.length)];
+
+      return {
+        valid: false,
+        error: `${quirkMessage}\n\n📊 File details:\n• Your file: ${fileName || 'Unknown'} (${fileMB}MB)\n• Our limit: ${limitMB}MB\n• Overage: ${(fileMB - 
+  limitMB).toFixed(1)}MB\n\n💡 Try compressing your file or splitting it into smaller parts!`,
+        details: {
+          fileName: fileName || 'Unknown',
+          fileSize: fileSize,
+          fileSizeMB: fileMB,
+          limit: limit,
+          limitMB: limitMB,
+          overageMB: fileMB - limitMB
+        }
+      };
+    }
+
+    return { valid: true };
+  }
+
+  // Enhanced Multer configuration
+  export function createUploadMiddleware() {
+    return multer({
+      storage: multer.memoryStorage(),
+      limits: {
+        fileSize: 20 * 1024 * 1024, // 20MB hard limit
+        files: 1,
+        fieldSize: 2 * 1024 * 1024, // 2MB for form fields
+        fieldNameSize: 100, // Field name length
+        fields: 10 // Max number of fields
+      },
+      fileFilter: (req, file, cb) => {
+        // Basic file type validation
+        const allowedMimeTypes = Object.keys(FILE_SIZE_LIMITS);
+
+        if (!allowedMimeTypes.includes(file.mimetype) && file.mimetype !== 'application/octet-stream') {
+          const error = new Error(`File type ${file.mimetype} is not supported! 📄❌ We support PDFs, Office docs, images, and text files. 📋✅`);
+          error.code = 'UNSUPPORTED_FILE_TYPE';
+          return cb(error as any, false);
+        }
+
+        console.log(`📁 Upload attempt: ${file.originalname}, MIME: ${file.mimetype}`);
+        cb(null, true);
+      }
+    });
+  }
+
+  ---
+  3. Conservative Storage Quotas (1GB Maximum)
+
+  ✅ Database Schema & Quota Management
+
+  -- migrations/0002_add_conservative_user_quotas.sql
+  -- Conservative user quotas with 1GB storage limit
+  CREATE TABLE user_quotas (
+    id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL UNIQUE, -- Firebase UID
+    storage_limit_bytes BIGINT NOT NULL DEFAULT 1073741824, -- 1GB for everyone
+    storage_used_bytes BIGINT NOT NULL DEFAULT 0,
+    document_limit INTEGER NOT NULL DEFAULT 500, -- 500 documents max
+    document_count INTEGER NOT NULL DEFAULT 0,
+    quota_tier TEXT NOT NULL DEFAULT 'standard', -- Single tier approach
+    created_at TIMESTAMP DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP DEFAULT now() NOT NULL
+  );
+
+  -- Indexes for efficient quota operations
+  CREATE INDEX user_quotas_user_id_idx ON user_quotas(user_id);
+  CREATE INDEX user_quotas_storage_usage_idx ON user_quotas(storage_used_bytes, storage_limit_bytes);
+
+  -- Trigger function to automatically update user storage usage
+  CREATE OR REPLACE FUNCTION update_user_storage_usage()
+  RETURNS TRIGGER AS $$
+  BEGIN
+    IF TG_OP = 'INSERT' THEN
+      -- Document added
+      INSERT INTO user_quotas (user_id, storage_used_bytes, document_count)
+      VALUES (NEW.user_id, COALESCE(NEW.file_size, 0), 1)
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        storage_used_bytes = user_quotas.storage_used_bytes + COALESCE(NEW.file_size, 0),
+        document_count = user_quotas.document_count + 1,
+        updated_at = now();
+      RETURN NEW;
+
+    ELSIF TG_OP = 'DELETE' THEN
+      -- Document removed
+      UPDATE user_quotas
+      SET
+        storage_used_bytes = GREATEST(0, storage_used_bytes - COALESCE(OLD.file_size, 0)),
+        document_count = GREATEST(0, document_count - 1),
+        updated_at = now()
+      WHERE user_id = OLD.user_id;
+      RETURN OLD;
+
+    ELSIF TG_OP = 'UPDATE' THEN
+      -- Document file size changed (rare but possible)
+      UPDATE user_quotas
+      SET
+        storage_used_bytes = storage_used_bytes - COALESCE(OLD.file_size, 0) + COALESCE(NEW.file_size, 0),
+        updated_at = now()
+      WHERE user_id = NEW.user_id;
+      RETURN NEW;
+    END IF;
+
+    RETURN NULL;
+  END;
+  $$ LANGUAGE plpgsql;
+
+  -- Apply trigger to documents table
+  CREATE TRIGGER documents_quota_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON documents
+    FOR EACH ROW EXECUTE FUNCTION update_user_storage_usage();
+
+  -- Index to optimize trigger performance
+  CREATE INDEX documents_user_file_size_idx ON documents(user_id, file_size) WHERE status = 'active';
+
+  // server/quotaManager.ts - Conservative quota management
+  import { db } from './db.js';
+  import { sql, eq, and, desc } from 'drizzle-orm';
+
+  export interface UserQuota {
+    userId: string;
+    storageLimit: bigint;
+    storageUsed: bigint;
+    documentLimit: number;
+    documentCount: number;
+    quotaTier: string;
+  }
+
+  export interface QuotaCheck {
+    allowed: boolean;
+    reason?: string;
+    usage?: QuotaUsageStats;
+    suggestions?: string[];
+  }
+
+  export interface QuotaUsageStats {
+    storage: {
+      used: bigint;
+      limit: bigint;
+      percentUsed: number;
+      usedMB: number;
+      limitMB: number;
+      availableMB: number;
+    };
+    documents: {
+      used: number;
+      limit: number;
+      percentUsed: number;
+      available: number;
+    };
+  }
+
+  export class QuotaManager {
+    // Conservative single-tier limits
+    private static readonly STORAGE_LIMIT = 1024 * 1024 * 1024; // 1GB for everyone
+    private static readonly DOCUMENT_LIMIT = 500; // 500 documents max
+
+    // Quirky storage quota error messages
+    private static readonly STORAGE_ERROR_MESSAGES = [
+      "Uh oh! Your digital attic is full! 🏠📦 You've hit your 1GB storage limit. Time for some spring cleaning! 🧹✨",
+      "Your cloud storage is fuller than a Black Friday shopping cart! 🛒💨 Clear out some old files to make room for new treasures! 💎",
+      "Looks like you're a digital hoarder! 🗃️😅 Your 1GB storage is packed tighter than a subway at rush hour! 🚇 Time to declutter! 🧽",
+      "Your storage is bursting at the seams like overstuffed luggage! 🧳💥 Delete some files and give your data room to breathe! 💨",
+      "Houston, we have a storage problem! 🚀📡 Your 1GB limit is maxed out. Time to Marie Kondo your files! ✨📚",
+      "Your storage is fuller than a chipmunk's cheeks in autumn! 🐿️🌰 Time to share some digital nuts with the delete button! 🗑️",
+      "Congratulations! You've achieved maximum storage density! 🎯📊 Now let's practice the ancient art of file deletion! 🥷🗂️"
+    ];
+
+    private static readonly DOCUMENT_LIMIT_MESSAGES = [
+      "Whoa there, document collector! 📚🤓 You've reached your 500 document limit. Time to organize or archive some files! 📋✅",
+      "Your document collection is more impressive than a library! 📖🏛️ But we need to cap it at 500. Which documents sparked joy? ✨",
+      "You've got more documents than a tax accountant! 📊💼 Let's keep it manageable at 500 documents max! 🎯",
+      "Your digital filing cabinet is officially full! 🗄️📁 Time to decide which documents deserve to stay in the VIP section! 👑",
+      "Document overload detected! 🚨📄 You've hit the 500 document limit. Channel your inner librarian and organize! 👩‍🏫📚"
+    ];
+
+    async checkUploadQuota(userId: string, fileSize: number): Promise<QuotaCheck> {
+      const quota = await this.getUserQuota(userId);
+
+      // Check storage limit (1GB)
+      const newStorageUsed = quota.storageUsed + BigInt(fileSize);
+      if (newStorageUsed > BigInt(QuotaManager.STORAGE_LIMIT)) {
+        const usageStats = this.calculateUsageStats(quota);
+        const fileMB = Math.round(fileSize / (1024 * 1024) * 10) / 10;
+        const overageMB = Math.round((Number(newStorageUsed) - QuotaManager.STORAGE_LIMIT) / (1024 * 1024) * 10) / 10;
+
+        // Pick a random quirky message
+        const quirkMessage = QuotaManager.STORAGE_ERROR_MESSAGES[Math.floor(Math.random() * QuotaManager.STORAGE_ERROR_MESSAGES.length)];
+
+        return {
+          allowed: false,
+          reason: `${quirkMessage}\n\n📊 Storage breakdown:\n• Currently used: ${usageStats.storage.usedMB}MB\n• Your limit: ${usageStats.storage.limitMB}MB\n• This file: 
+  ${fileMB}MB\n• Would exceed by: ${overageMB}MB\n• Available space: ${usageStats.storage.availableMB}MB\n\n💡 Tip: Delete some old files to make room!`,
+          usage: usageStats,
+          suggestions: await this.generateCleanupSuggestions(userId)
+        };
+      }
+
+      // Check document count limit
+      if (quota.documentCount >= QuotaManager.DOCUMENT_LIMIT) {
+        const usageStats = this.calculateUsageStats(quota);
+        const randomMessage = QuotaManager.DOCUMENT_LIMIT_MESSAGES[Math.floor(Math.random() * QuotaManager.DOCUMENT_LIMIT_MESSAGES.length)];
+
+        return {
+          allowed: false,
+          reason: `${randomMessage}\n\n📊 Document stats:\n• Current count: ${quota.documentCount}\n• Maximum allowed: ${QuotaManager.DOCUMENT_LIMIT}\n• Available slots: 
+  ${QuotaManager.DOCUMENT_LIMIT - quota.documentCount}\n\n💡 Tip: Delete or archive some documents to continue uploading!`,
+          usage: usageStats
+        };
+      }
+
+      return {
+        allowed: true,
+        usage: this.calculateUsageStats(quota)
+      };
+    }
+
+    async getUserQuota(userId: string): Promise<UserQuota> {
+      // Get or create user quota with conservative defaults
+      const result = await db.execute(
+        sql`
+          WITH upserted AS (
+            INSERT INTO user_quotas (user_id, storage_limit_bytes, document_limit, quota_tier) 
+            VALUES (${userId}, ${QuotaManager.STORAGE_LIMIT}, ${QuotaManager.DOCUMENT_LIMIT}, 'standard')
+            ON CONFLICT (user_id) DO UPDATE SET
+              -- Ensure limits are not higher than conservative limits
+              storage_limit_bytes = LEAST(user_quotas.storage_limit_bytes, ${QuotaManager.STORAGE_LIMIT}),
+              document_limit = LEAST(user_quotas.document_limit, ${QuotaManager.DOCUMENT_LIMIT})
+            RETURNING *
+          )
+          SELECT * FROM upserted
+          UNION ALL
+          SELECT * FROM user_quotas WHERE user_id = ${userId} AND NOT EXISTS (SELECT 1 FROM upserted);
+        `
+      );
+
+      const quota = result.rows[0];
+      return {
+        userId: quota.user_id,
+        storageLimit: BigInt(quota.storage_limit_bytes),
+        storageUsed: BigInt(quota.storage_used_bytes),
+        documentLimit: quota.document_limit,
+        documentCount: quota.document_count,
+        quotaTier: quota.quota_tier
+      };
+    }
+
+    private calculateUsageStats(quota: UserQuota): QuotaUsageStats {
+      const storageLimit = BigInt(QuotaManager.STORAGE_LIMIT);
+      const documentLimit = QuotaManager.DOCUMENT_LIMIT;
+
+      const usedMB = Math.round(Number(quota.storageUsed) / (1024 * 1024) * 10) / 10;
+      const limitMB = Math.round(Number(storageLimit) / (1024 * 1024));
+
+      return {
+        storage: {
+          used: quota.storageUsed,
+          limit: storageLimit,
+          percentUsed: Math.round(Number(quota.storageUsed * 100n / storageLimit)),
+          usedMB: usedMB,
+          limitMB: limitMB,
+          availableMB: Math.round((limitMB - usedMB) * 10) / 10
+        },
+        documents: {
+          used: quota.documentCount,
+          limit: documentLimit,
+          percentUsed: Math.round((quota.documentCount * 100) / documentLimit),
+          available: documentLimit - quota.documentCount
+        }
+      };
+    }
+
+    async generateCleanupSuggestions(userId: string): Promise<string[]> {
+      const suggestions: string[] = [];
+
+      try {
+        // Find largest files
+        const largeFiles = await db.execute(
+          sql`
+            SELECT name, file_size, uploaded_at 
+            FROM documents 
+            WHERE user_id = ${userId} AND status = 'active'
+            ORDER BY file_size DESC 
+            LIMIT 3
+          `
+        );
+
+        if (largeFiles.rows.length > 0) {
+          suggestions.push("🔍 Consider deleting your largest files:");
+          largeFiles.rows.forEach((file: any, index: number) => {
+            const sizeMB = Math.round(file.file_size / (1024 * 1024) * 10) / 10;
+            suggestions.push(`   ${index + 1}. ${file.name} (${sizeMB}MB)`);
+          });
+        }
+
+        // Find old files
+        const oldFiles = await db.execute(
+          sql`
+            SELECT COUNT(*) as count, COALESCE(SUM(file_size), 0) as total_size
+            FROM documents 
+            WHERE user_id = ${userId} 
+            AND status = 'active'
+            AND uploaded_at < NOW() - INTERVAL '6 months'
+          `
+        );
+
+        if (oldFiles.rows[0]?.count > 0) {
+          const oldSizeMB = Math.round(oldFiles.rows[0].total_size / (1024 * 1024) * 10) / 10;
+          suggestions.push(`📅 You have ${oldFiles.rows[0].count} files older than 6 months (${oldSizeMB}MB total) that could be archived!`);
+        }
+
+        // Find duplicate files by name
+        const duplicates = await db.execute(
+          sql`
+            SELECT original_name, COUNT(*) as count, SUM(file_size) as total_size
+            FROM documents 
+            WHERE user_id = ${userId} AND status = 'active'
+            GROUP BY original_name 
+            HAVING COUNT(*) > 1
+            ORDER BY total_size DESC
+            LIMIT 3
+          `
+        );
+
+        if (duplicates.rows.length > 0) {
+          suggestions.push("🔄 You might have duplicate files:");
+          duplicates.rows.forEach((dup: any) => {
+            const sizeMB = Math.round(dup.total_size / (1024 * 1024) * 10) / 10;
+            suggestions.push(`   • ${dup.original_name} (${dup.count} copies, ${sizeMB}MB total)`);
+          });
+        }
+
+      } catch (error) {
+        console.error('Error generating cleanup suggestions:', error);
+        suggestions.push("💡 Try deleting your largest or oldest files to free up space!");
+      }
+
+      return suggestions;
+    }
+
+    async getQuotaStats(userId: string): Promise<QuotaUsageStats> {
+      const quota = await this.getUserQuota(userId);
+      return this.calculateUsageStats(quota);
+    }
+  }
+
+  export const quotaManager = new QuotaManager();
+
+  ---
+  4. Integrated Upload Handler with All Validations
+
+  ✅ Complete Upload Route Implementation
+
+  // server/routes.ts - Complete upload handler with all validations
+  import { createUploadMiddleware, validateFileSize } from './fileValidation.js';
+  import { quotaManager } from './quotaManager.js';
+  import { generateCSPNonce } from './security.js';
+
+  const upload = createUploadMiddleware();
+
+  // Apply CSP nonce middleware globally
+  app.use(generateCSPNonce);
+
+  app.post('/api/documents', upload.single('file'), async (req, res) => {
+    try {
+      const file = req.file;
+      const userId = req.user?.uid;
+
+      // 1. Authentication check
+      if (!userId) {
+        return res.status(401).json({
+          error: "Looks like you're not signed in! 🔐 Please log in to upload files! 👤✨",
+          code: 'AUTHENTICATION_REQUIRED'
+        });
+      }
+
+      // 2. File presence check
+      if (!file) {
+        return res.status(400).json({
+          error: "No file detected! 📁❓ Did you forget to select a file? Try again! 🔄",
+          code: 'NO_FILE_PROVIDED'
+        });
+      }
+
+      // 3. File size validation (20MB limit)
+      const sizeValidation = validateFileSize(file.size, file.mimetype, file.originalname);
+      if (!sizeValidation.valid) {
+        return res.status(413).json({
+          error: sizeValidation.error,
+          code: 'FILE_TOO_LARGE',
+          details: sizeValidation.details
+        });
+      }
+
+      // 4. User quota validation (1GB storage, 500 documents)
+      const quotaCheck = await quotaManager.checkUploadQuota(userId, file.size);
+      if (!quotaCheck.allowed) {
+        return res.status(403).json({
+          error: quotaCheck.reason,
+          code: 'QUOTA_EXCEEDED',
+          usage: quotaCheck.usage,
+          suggestions: quotaCheck.suggestions || []
+        });
+      }
+
+      // 5. Additional file signature validation (security)
+      const signatureValid = await validateFileSignature(file.buffer, file.mimetype);
+      if (!signatureValid) {
+        return res.status(400).json({
+          error: "That file seems a bit suspicious! 🕵️‍♂️ Our security team says it doesn't match its file type. Try saving it again or use a different format! 🛡️✨",
+          code: 'INVALID_FILE_SIGNATURE'
+        });
+      }
+
+      // 6. Process the upload
+      console.log(`✅ Upload validation passed for user ${userId}: ${file.originalname} (${Math.round(file.size / (1024 * 1024) * 10) / 10}MB)`);
+
+      const result = await processFileUpload(file, userId);
+
+      // 7. Get updated quota information
+      const updatedUsage = await quotaManager.getQuotaStats(userId);
+
+      // 8. Success response with quota info
+      res.json({
+        success: true,
+        document: result.document,
+        quota: updatedUsage,
+        message: `File uploaded successfully! 🎉 ${file.originalname} is being processed! ⚡`
+      });
+
+    } catch (error) {
+      console.error('Upload error:', error);
+
+      // Handle specific multer errors
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({
+          error: "That file is way too big for our servers to handle! 🚀💥 Keep it under 20MB and try again! 📏✨",
+          code: 'FILE_TOO_LARGE'
+        });
+      }
+
+      if (error.code === 'LIMIT_FILE_COUNT') {
+        return res.status(400).json({
+          error: "One file at a time, please! 📁➡️📤 We're not quite ready for batch uploads yet! 🚧",
+          code: 'TOO_MANY_FILES'
+        });
+      }
+
+      if (error.code === 'UNSUPPORTED_FILE_TYPE') {
+        return res.status(400).json({
+          error: error.message,
+          code: 'UNSUPPORTED_FILE_TYPE'
+        });
+      }
+
+      // Generic error with friendly message
+      res.status(500).json({
+        error: "Something went wonky on our end! 🤖💫 Please try again, and if it keeps happening, let us know! 📧",
+        code: 'INTERNAL_ERROR',
+        ...(process.env.NODE_ENV === 'development' && {
+          debug: error.message,
+          stack: error.stack
+        })
+      });
+    }
+  });
+
+  // Enhanced file signature validation
+  async function validateFileSignature(buffer: Buffer, mimeType: string): Promise<boolean> {
+    try {
+      if (buffer.length < 4) return false;
+
+      const bytes = Array.from(buffer.subarray(0, 16)).map(b => b.toString(16).padStart(2, '0'));
+      const signature = bytes.join('');
+
+      const signatures: Record<string, string[]> = {
+        'application/pdf': ['25504446'], // %PDF
+        'image/jpeg': ['ffd8ff'],
+        'image/png': ['89504e47'],
+        'image/gif': ['474946383761', '474946383961'],
+        'image/webp': ['52494646'],
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['504b0304'],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['504b0304'],
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['504b0304'],
+        'application/vnd.ms-excel': ['d0cf11e0'],
+        'application/msword': ['d0cf11e0'],
+        'application/vnd.ms-powerpoint': ['d0cf11e0'],
+        'text/plain': [],
+        'text/csv': []
+      };
+
+      const expectedSignatures = signatures[mimeType];
+      if (!expectedSignatures) return true; // Allow unknown types
+      if (expectedSignatures.length === 0) return true; // Skip validation for text files
+
+      return expectedSignatures.some(expectedSig =>
+        signature.toLowerCase().startsWith(expectedSig.toLowerCase())
+      );
+    } catch (error) {
+      console.error('File signature validation error:', error);
+      return false;
+    }
+  }
+
+  ---
+  5. Quota Management API Endpoints
+
+  ✅ Complete Quota API
+
+  // server/routes.ts - Quota management endpoints
+  app.get('/api/user/quota', authenticateUser, async (req, res) => {
+    try {
+      const userId = req.user.uid;
+      const usage = await quotaManager.getQuotaStats(userId);
+
+      res.json({
+        tier: 'standard', // Conservative single tier
+        usage: usage,
+        limits: {
+          storage: usage.storage.limit,
+          documents: usage.documents.limit,
+          fileSize: 20 * 1024 * 1024 // 20MB per file
+        },
+        friendly: {
+          storageUsed: `${usage.storage.usedMB}MB of ${usage.storage.limitMB}MB`,
+          documentsUsed: `${usage.documents.used} of ${usage.documents.limit} documents`,
+          availableSpace: `${usage.storage.availableMB}MB available`,
+          availableSlots: `${usage.documents.available} document slots available`
+        }
+      });
+    } catch (error) {
+      console.error('Quota fetch error:', error);
+      res.status(500).json({
+        error: 'Failed to fetch your quota information! 📊❌ Please refresh and try again! 🔄'
+      });
+    }
+  });
+
+  // Get detailed storage breakdown
+  app.get('/api/user/storage-breakdown', authenticateUser, async (req, res) => {
+    try {
+      const userId = req.user.uid;
+
+      const breakdown = await db.execute(
+        sql`
+          SELECT 
+            file_type,
+            COUNT(*) as file_count,
+            SUM(file_size) as total_size,
+            ROUND(AVG(file_size)::numeric, 0) as avg_size
+          FROM documents 
+          WHERE user_id = ${userId} AND status = 'active'
+          GROUP BY file_type
+          ORDER BY total_size DESC
+        `
+      );
+
+      const formattedBreakdown = breakdown.rows.map((row: any) => ({
+        fileType: row.file_type,
+        fileCount: row.file_count,
+        totalSizeMB: Math.round(row.total_size / (1024 * 1024) * 10) / 10,
+        avgSizeMB: Math.round(row.avg_size / (1024 * 1024) * 10) / 10,
+        percentOfTotal: Math.round((row.total_size / (1024 * 1024 * 1024)) * 1000) / 10 // Percent of 1GB
+      }));
+
+      res.json({
+        breakdown: formattedBreakdown,
+        summary: {
+          totalTypes: breakdown.rows.length,
+          largestCategory: formattedBreakdown[0]?.fileType || 'None'
+        }
+      });
+    } catch (error) {
+      console.error('Storage breakdown error:', error);
+      res.status(500).json({
+        error: 'Failed to generate storage breakdown! 📊❌'
+      });
+    }
+  });
+
+  // Get cleanup suggestions
+  app.get('/api/user/cleanup-suggestions', authenticateUser, async (req, res) => {
+    try {
+      const userId = req.user.uid;
+      const suggestions = await quotaManager.generateCleanupSuggestions(userId);
+
+      res.json({
+        suggestions: suggestions,
+        hasContent: suggestions.length > 0,
+        message: suggestions.length > 0
+          ? "Here are some ways to free up space! 🧹✨"
+          : "Your storage looks pretty clean! 🎉 No immediate cleanup needed! ✅"
+      });
+    } catch (error) {
+      console.error('Cleanup suggestions error:', error);
+      res.status(500).json({
+        error: 'Failed to generate cleanup suggestions! 🧹❌'
+      });
+    }
+  });
+
+  ---
+  6. Enhanced Client-Side Implementation
+
+  ✅ Complete Client-Side Validation & UI
+
+  // client/src/lib/fileValidation.ts
+  export const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+  export const MAX_STORAGE_SIZE = 1024 * 1024 * 1024; // 1GB
+
+  const FRIENDLY_FILE_SIZE_ERRORS = [
+    "Oops! That file is too chunky for our servers! 🍔 Keep it under 20MB and we're golden! ✨",
+    "Your file is having a growth spurt! 📈 Let's trim it down to under 20MB, shall we? ✂️",
+    "That file is bigger than my appetite after Thanksgiving! 🦃 Compress it to under 20MB please! 🤏",
+    "File size alert! 🚨 Your document is flexing too hard. Keep it humble at under 20MB! 💪➡️🤏",
+    "Looks like your file hit the gym a bit too hard! 🏋️‍♂️ Let's get it back under 20MB! 📉"
+  ];
+
+  export function validateFileBeforeUpload(
+    file: File, 
+    currentQuota: { storageUsed: number; documentCount: number; storageLimit: number; documentLimit: number }
+  ): {
+    valid: boolean;
+    error?: string;
+    type?: 'size' | 'storage' | 'documents';
+    details?: any;
+  } {
+    // Check file size (20MB limit)
+    if (file.size > MAX_FILE_SIZE) {
+      const fileMB = Math.round(file.size / (1024 * 1024) * 10) / 10;
+      const randomError = FRIENDLY_FILE_SIZE_ERRORS[Math.floor(Math.random() * FRIENDLY_FILE_SIZE_ERRORS.length)];
+
+      return {
+        valid: false,
+        type: 'size',
+        error: `${randomError}\n\n📁 ${file.name}: ${fileMB}MB\n🎯 Limit: 20MB\n📊 Overage: ${(fileMB - 20).toFixed(1)}MB`,
+        details: { fileMB, limitMB: 20, overageMB: fileMB - 20 }
+      };
+    }
+
+    // Check document count limit
+    if (currentQuota.documentCount >= currentQuota.documentLimit) {
+      return {
+        valid: false,
+        type: 'documents',
+        error: `Your document collection is at capacity! 📚🏛️\n\n📊 Current: ${currentQuota.documentCount} documents\n🎯 Limit: ${currentQuota.documentLimit} documents\n\n💡 
+  Delete some documents to make room for new ones! 🗑️➡️📁`,
+        details: { current: currentQuota.documentCount, limit: currentQuota.documentLimit }
+      };
+    }
+
+    // Check storage quota
+    if (currentQuota.storageUsed + file.size > currentQuota.storageLimit) {
+      const usedMB = Math.round(currentQuota.storageUsed / (1024 * 1024) * 10) / 10;
+      const fileMB = Math.round(file.size / (1024 * 1024) * 10) / 10;
+      const limitMB = Math.round(currentQuota.storageLimit / (1024 * 1024));
+      const totalMB = Math.round((currentQuota.storageUsed + file.size) / (1024 * 1024) * 10) / 10;
+      const overageMB = Math.round((totalMB - limitMB) * 10) / 10;
+
+      return {
+        valid: false,
+        type: 'storage',
+        error: `Your storage space is fuller than a packed suitcase! 🧳💥\n\n📊 Current usage: ${usedMB}MB\n📁 This file: ${fileMB}MB\n🎯 Your limit: ${limitMB}MB\n📈 Would total:
+   ${totalMB}MB (${overageMB}MB over)\n\n💡 Delete some files first to make room! 🗑️✨`,
+        details: { usedMB, fileMB, limitMB, totalMB, overageMB }
+      };
+    }
+
+    return { valid: true };
+  }
+
+  // Supported file types with friendly names
+  export const SUPPORTED_FILE_TYPES = {
+    'application/pdf': 'PDF Documents',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word Documents',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel Spreadsheets',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint Presentations',
+    'application/msword': 'Legacy Word Documents',
+    'application/vnd.ms-excel': 'Legacy Excel Files',
+    'application/vnd.ms-powerpoint': 'Legacy PowerPoint Files',
+    'text/plain': 'Text Files',
+    'text/csv': 'CSV Files',
+    'image/jpeg': 'JPEG Images',
+    'image/png': 'PNG Images',
+    'image/gif': 'GIF Images',
+    'image/webp': 'WebP Images'
+  };
+
+  export function getFileTypeDisplay(mimeType: string): string {
+    return SUPPORTED_FILE_TYPES[mimeType as keyof typeof SUPPORTED_FILE_TYPES] || 'Unknown File Type';
+  }
+
+  // client/src/components/EnhancedFileUpload.tsx
+  import React, { useState, useEffect } from 'react';
+  import { validateFileBeforeUpload, getFileTypeDisplay } from '../lib/fileValidation';
+
+  interface QuotaInfo {
+    storageUsed: number;
+    storageLimit: number;
+    documentCount: number;
+    documentLimit: number;
+    usedMB: number;
+    limitMB: number;
+    availableMB: number;
+    percentUsed: number;
+    documentPercentUsed: number;
+  }
+
+  export function EnhancedFileUpload() {
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [quota, setQuota] = useState<QuotaInfo | null>(null);
+    const [dragOver, setDragOver] = useState(false);
+
+    // Load quota information on component mount
+    useEffect(() => {
+      loadQuotaInfo();
+    }, []);
+
+    const loadQuotaInfo = async () => {
+      try {
+        const response = await fetch('/api/user/quota');
+        if (response.ok) {
+          const data = await response.json();
+          setQuota({
+            storageUsed: Number(data.usage.storage.used),
+            storageLimit: Number(data.usage.storage.limit),
+            documentCount: data.usage.documents.used,
+            documentLimit: data.usage.documents.limit,
+            usedMB: data.usage.storage.usedMB,
+            limitMB: data.usage.storage.limitMB,
+            availableMB: data.usage.storage.availableMB,
+            percentUsed: data.usage.storage.percentUsed,
+            documentPercentUsed: data.usage.documents.percentUsed
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load quota info:', error);
+      }
+    };
+
+    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      await processFile(file);
+      // Reset input
+      event.target.value = '';
+    };
+
+    const handleDrop = async (event: React.DragEvent) => {
+      event.preventDefault();
+      setDragOver(false);
+
+      const file = event.dataTransfer.files[0];
+      if (file) {
+        await processFile(file);
+      }
+    };
+
+    const processFile = async (file: File) => {
+      setUploadError(null);
+      setUploadSuccess(null);
+
+      if (!quota) {
+        setUploadError("Unable to check quota limits. Please refresh the page! 🔄");
+        return;
+      }
+
+      // Pre-validate file
+      const validation = validateFileBeforeUpload(file, quota);
+
+      if (!validation.valid) {
+        setUploadError(validation.error!);
+        return;
+      }
+
+      // Proceed with upload
+      await uploadFile(file);
+    };
+
+    const uploadFile = async (file: File) => {
+      setUploading(true);
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await fetch('/api/documents', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          setUploadError(result.error || 'Upload failed. Please try again! 🔄');
+          return;
+        }
+
+        // Success!
+        setUploadSuccess(result.message || `Successfully uploaded ${file.name}! 🎉`);
+
+        // Update quota info
+        if (result.quota) {
+          setQuota({
+            storageUsed: Number(result.quota.storage.used),
+            storageLimit: Number(result.quota.storage.limit),
+            documentCount: result.quota.documents.used,
+            documentLimit: result.quota.documents.limit,
+            usedMB: result.quota.storage.usedMB,
+            limitMB: result.quota.storage.limitMB,
+            availableMB: result.quota.storage.availableMB,
+            percentUsed: result.quota.storage.percentUsed,
+            documentPercentUsed: result.quota.documents.percentUsed
+          });
+        }
+
+      } catch (error) {
+        setUploadError('Network error! Check your connection and try again. 📡❌');
+      } finally {
+        setUploading(false);
+      }
+    };
+
+    const getStorageColor = (percent: number) => {
+      if (percent >= 90) return 'bg-red-500';
+      if (percent >= 75) return 'bg-yellow-500';
+      return 'bg-green-500';
+    };
+
+    return (
+      <div className="max-w-2xl mx-auto p-6">
+        {/* Upload Area */}
+        <div
+          className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
+            dragOver 
+              ? 'border-blue-400 bg-blue-50' 
+              : 'border-gray-300 hover:border-gray-400'
+          } ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+        >
+          <input
+            type="file"
+            onChange={handleFileSelect}
+            disabled={uploading}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.gif,.webp"
+            className="hidden"
+            id="file-upload"
+          />
+
+          <label htmlFor="file-upload" className="cursor-pointer">
+            <div className="text-4xl mb-4">📁</div>
+            <div className="text-lg font-medium text-gray-700 mb-2">
+              {uploading ? 'Uploading...' : 'Choose a file or drag it here'}
+            </div>
+            <div className="text-sm text-gray-500">
+              Max 20MB • PDF, Office docs, images, text files
+            </div>
+            {uploading && (
+              <div className="mt-4">
+                <div className="animate-spin inline-block w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              </div>
+            )}
+          </label>
+        </div>
+
+        {/* Error Display */}
+        {uploadError && (
+          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <span className="text-2xl mr-3">😅</span>
+              <div>
+                <h3 className="font-semibold text-red-800 mb-2">Oopsie Daisy!</h3>
+                <pre className="text-red-700 text-sm whitespace-pre-wrap font-mono">
+                  {uploadError}
+                </pre>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Success Display */}
+        {uploadSuccess && (
+          <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <span className="text-2xl mr-3">🎉</span>
+              <div>
+                <h3 className="font-semibold text-green-800">Success!</h3>
+                <p className="text-green-700 text-sm">{uploadSuccess}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quota Display */}
+        {quota && (
+          <div className="mt-6 bg-gray-50 rounded-lg p-4">
+            <h3 className="font-semibold text-gray-800 mb-4">Your Storage Usage</h3>
+
+            {/* Storage Usage */}
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium">Storage</span>
+                <span className="text-sm text-gray-600">
+                  {quota.usedMB}MB / {quota.limitMB}MB
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div 
+                  className={`h-3 rounded-full transition-all ${getStorageColor(quota.percentUsed)}`}
+                  style={{ width: `${Math.min(quota.percentUsed, 100)}%` }}
+                />
+              </div>
+              <div className="text-xs text-gray-600 mt-1">
+                {quota.availableMB}MB available • {quota.percentUsed}% used
+              </div>
+            </div>
+
+            {/* Document Count */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium">Documents</span>
+              <span className="text-sm text-gray-600">
+                {quota.documentCount} / {quota.documentLimit}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+              <div 
+                className={`h-2 rounded-full transition-all ${getStorageColor(quota.documentPercentUsed)}`}
+                style={{ width: `${Math.min(quota.documentPercentUsed, 100)}%` }}
+              />
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              {quota.documentLimit - quota.documentCount} slots available
+            </div>
+          </div>
+        )}
+
+        {/* File Type Guide */}
+        <div className="mt-6 text-xs text-gray-500">
+          <details>
+            <summary className="cursor-pointer hover:text-gray-700">📋 Supported file types</summary>
+            <div className="mt-2 grid grid-cols-2 gap-1">
+              <div>• PDF Documents</div>
+              <div>• Word Documents</div>
+              <div>• Excel Spreadsheets</div>
+              <div>• PowerPoint Presentations</div>
+              <div>• Images (JPG, PNG, GIF, WebP)</div>
+              <div>• Text & CSV Files</div>
+            </div>
+          </details>
+        </div>
+      </div>
+    );
+  }
