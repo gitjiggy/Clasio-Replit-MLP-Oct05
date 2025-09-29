@@ -1,0 +1,95 @@
+Token 1 — Log the actual redirect URL bytes (prove or disprove &amp;)
+
+Goal: Confirm what we really send to the browser (no HTML escaping, no double encoding).
+
+Add debug logging to /api/auth/drive-redirect to print:
+1) fullUrl as a raw string
+2) whether it contains '&amp;'
+3) the hex bytes around the first '&' (to prove it's 0x26)
+
+Steps:
+- In server/routes.ts inside /api/auth/drive-redirect, right before res.redirect:
+  const fullUrl = buildGoogleDriveAuthUrl();
+  const slice = (s: string, i: number) => s.slice(Math.max(0,i-5), Math.min(s.length,i+5));
+  const ampIndex = fullUrl.indexOf('&');
+  console.info({
+    tag: 'oauth.redirect.debug',
+    hasAmpEscaped: fullUrl.includes('&amp;'),
+    firstAmpSlice: ampIndex >= 0 ? slice(fullUrl, ampIndex) : 'no-&-found',
+    byteCheck: ampIndex >= 0 ? Buffer.from(fullUrl.slice(ampIndex, ampIndex+1), 'utf8').toString('hex') : 'n/a',
+    fullUrl
+  });
+
+- Redeploy, click Connect Google Drive, and copy the log line here.
+
+
+Expected: hasAmpEscaped:false, byteCheck:"26", and the request in the browser’s Network tab shows a 302 to accounts.google.com/... (not 200 HTML).
+
+Token 2 — Build the URL with URLSearchParams (zero chance of HTML escaping)
+
+Goal: Eliminate any templating/escaping risk.
+
+Replace your auth-URL creation with this:
+
+function buildGoogleDriveAuthUrl(req: Request) {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID!;
+  const origin = `${req.protocol}://${req.get('host')}`;
+  const redirectUri = `${origin}/api/drive/oauth-callback`;
+  const scope = [
+    'https://www.googleapis.com/auth/drive.readonly'
+  ].join(' ');
+  const state = String(Date.now());
+
+  const p = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope,
+    access_type: 'offline',
+    include_granted_scopes: 'true',
+    prompt: 'consent',
+    state
+  });
+
+  return `https://accounts.google.com/o/oauth2/v2/auth?${p.toString()}`;
+}
+
+
+Note: Don’t put this URL into any HTML/template; just res.redirect(302, fullUrl).
+
+Token 3 — Prove the server route wins over the SPA and returns 302
+
+Goal: Ensure Vite/React doesn’t intercept.
+
+- Confirm registerRoutes(app) is called BEFORE setupVite(app, server).
+- From a shell:
+  curl -I https://<YOUR-REPLIT-HOST>/api/auth/drive-redirect
+Expected: "HTTP/1.1 302 Found" and a "Location: https://accounts.google.com/o/oauth2/v2/auth?..."
+If not 302, fix the middleware order.
+
+Token 4 — Copy the exact Google request and test with curl
+
+Goal: If the browser still gets 404, we reproduce it headlessly to see the real status.
+
+- In Chrome devtools → Network → click the 302 "accounts.google.com" request → right-click → Copy → Copy link address.
+- Paste into shell:
+  curl -I '<PASTED_URL>'
+Expected: 302 (never 404). If curl is 302 but browser shows 404, the URL you logged differs from the URL actually requested.
+
+Token 5 — Verify the client_id truly matches the Console client
+
+Goal: Eliminate “wrong client” confusion (Firebase often uses another client).
+
+- In the first "accounts.google.com/o/oauth2/v2/auth" request, copy the value of client_id=...
+- In Google Cloud Console → APIs & Services → Credentials → your Web client → verify the Client ID matches exactly.
+- If it doesn’t match, your app is using a different client (likely Firebase’s). Either switch to the intended client or edit THAT client’s redirect URIs.
+
+Token 6 — Final callback + cookie sanity (end-to-end)
+
+Goal: Once 302 works, ensure callback and cookie are set correctly (no more 401).
+
+- After consent, in Network tab click /api/drive/oauth-callback → check Response Headers has Set-Cookie: drive_access_token=...
+- Hit /api/drive/debug-cookie → expect { "has": true }.
+- Hit /api/drive/connect → expect 200. If 401, check cookie Domain/SameSite/Secure:
+  Replit: Domain=.janeway.replit.dev, SameSite=Lax, Secure=false
+  Prod:   Domain=.clasio.ai,         SameSite=Strict, Secure=true

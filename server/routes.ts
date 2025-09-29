@@ -3195,6 +3195,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ has, cookies: Object.keys(req.cookies || {}) });
   });
 
+  // Token 2: Build URL with URLSearchParams (zero chance of HTML escaping)
+  function buildGoogleDriveAuthUrl(req: Request) {
+    const clientId = process.env.GOOGLE_CLIENT_ID!;
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const redirectUri = `${origin}/api/drive/oauth-callback`;
+    const scope = [
+      'https://www.googleapis.com/auth/drive.readonly'
+    ].join(' ');
+    const state = String(Date.now());
+
+    const p = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope,
+      access_type: 'offline',
+      include_granted_scopes: 'true',
+      prompt: 'consent',
+      state
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${p.toString()}`;
+  }
+
   // OAuth initiation endpoint - redirects to Google OAuth
   app.get('/api/auth/drive-redirect', (req, res) => {
     const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -3209,38 +3233,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       clientSecretLength: clientSecret ? clientSecret.length : 0
     });
     
-    const oauth2Client = new google.auth.OAuth2(
-      clientId,
-      clientSecret,
-      `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`
-    );
-
-    const scopes = [
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/userinfo.email'
-    ];
-
-    const authUrl = oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      scope: scopes,
-      prompt: 'consent'
-    });
-
-    // Fix HTML entity encoding in OAuth URL and add cache-busting
-    let cleanAuthUrl = authUrl.replace(/&amp;/g, '&');
-    
-    // Add cache busting parameter and headers
-    cleanAuthUrl += '&state=' + Date.now();
+    // Build URL using URLSearchParams (Token 2)
+    const fullUrl = buildGoogleDriveAuthUrl(req);
 
     // Token 1: Debug logging for URL bytes
     const slice = (s: string, i: number) => s.slice(Math.max(0, i - 5), Math.min(s.length, i + 5));
-    const ampIndex = cleanAuthUrl.indexOf('&');
+    const ampIndex = fullUrl.indexOf('&');
     console.info({
       tag: 'oauth.redirect.debug',
-      hasAmpEscaped: cleanAuthUrl.includes('&amp;'),
-      firstAmpSlice: ampIndex >= 0 ? slice(cleanAuthUrl, ampIndex) : 'no-&-found',
-      byteCheck: ampIndex >= 0 ? Buffer.from(cleanAuthUrl.slice(ampIndex, ampIndex + 1), 'utf8').toString('hex') : 'n/a',
-      fullUrl: cleanAuthUrl
+      hasAmpEscaped: fullUrl.includes('&amp;'),
+      firstAmpSlice: ampIndex >= 0 ? slice(fullUrl, ampIndex) : 'no-&-found',
+      byteCheck: ampIndex >= 0 ? Buffer.from(fullUrl.slice(ampIndex, ampIndex + 1), 'utf8').toString('hex') : 'n/a',
+      fullUrl: fullUrl
     });
 
     // Add cache-busting headers
@@ -3250,7 +3254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       'Expires': '0'
     });
 
-    res.redirect(cleanAuthUrl);
+    res.redirect(302, fullUrl);
   });
 
   // OAuth callback endpoint - sets httpOnly cookie with Drive token
