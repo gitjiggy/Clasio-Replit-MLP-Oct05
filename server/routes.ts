@@ -3214,13 +3214,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       prompt: 'consent'
     });
 
+    // Fix HTML entity encoding in OAuth URL
+    const cleanAuthUrl = authUrl.replace(/&amp;/g, '&');
+
     console.log('[OAuth Init] Redirecting to Google OAuth:', {
       hostname: req.get('host'),
       redirectUri: `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`,
-      authUrl: authUrl.substring(0, 100) + '...'
+      originalUrl: authUrl.substring(0, 100) + '...',
+      cleanUrl: cleanAuthUrl.substring(0, 100) + '...'
     });
 
-    res.redirect(authUrl);
+    res.redirect(cleanAuthUrl);
   });
 
   // OAuth callback endpoint - sets httpOnly cookie with Drive token
