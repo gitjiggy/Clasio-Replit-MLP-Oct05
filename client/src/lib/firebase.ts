@@ -83,12 +83,34 @@ export const connectGoogleDrive = async (): Promise<boolean> => {
       
       if (event.data.type === 'DRIVE_AUTH_SUCCESS') {
         
-        // Authentication successful - token is now stored in httpOnly cookie
-        // Clean up
-        window.removeEventListener('message', messageListener);
-        authWindow.close();
-        
-        resolve(true);
+        // Send access token to backend for httpOnly cookie storage
+        fetch('/api/drive/callback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest' // CSRF protection
+          },
+          credentials: 'include', // Include cookies for Firebase auth
+          body: JSON.stringify({
+            access_token: event.data.accessToken,
+            id_token: event.data.idToken
+          })
+        }).then(response => {
+          if (response.ok) {
+            console.log('[Drive Auth] Token stored in httpOnly cookie successfully');
+            resolve(true);
+          } else {
+            console.error('[Drive Auth] Failed to store token in cookie:', response.status);
+            reject(new Error('Failed to store authentication token'));
+          }
+        }).catch(error => {
+          console.error('[Drive Auth] Error calling callback:', error);
+          reject(new Error('Failed to complete authentication'));
+        }).finally(() => {
+          // Clean up
+          window.removeEventListener('message', messageListener);
+          authWindow.close();
+        });
         
       } else if (event.data.type === 'DRIVE_AUTH_ERROR') {
         console.error("Drive auth failed:", event.data.error);
