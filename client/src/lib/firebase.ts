@@ -84,6 +84,12 @@ export const connectGoogleDrive = async (): Promise<boolean> => {
       if (event.data.type === 'DRIVE_AUTH_SUCCESS') {
         
         // Send access token to backend for httpOnly cookie storage
+        console.log('[Drive Auth] 🚀 Calling OAuth callback with token...', {
+          tokenLength: event.data.accessToken?.length || 0,
+          hasIdToken: !!event.data.idToken,
+          origin: window.location.origin
+        });
+        
         fetch('/api/drive/oauth-callback', {
           method: 'POST',
           headers: {
@@ -96,15 +102,31 @@ export const connectGoogleDrive = async (): Promise<boolean> => {
             id_token: event.data.idToken
           })
         }).then(response => {
+          console.log('[Drive Auth] OAuth callback response:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            headers: Object.fromEntries(response.headers.entries())
+          });
           if (response.ok) {
-            console.log('[Drive Auth] Token stored in httpOnly cookie successfully');
+            console.log('[Drive Auth] ✅ Token stored in httpOnly cookie successfully');
             resolve(true);
           } else {
-            console.error('[Drive Auth] Failed to store token in cookie:', response.status);
+            response.text().then(text => {
+              console.error('[Drive Auth] ❌ Failed to store token in cookie:', {
+                status: response.status,
+                statusText: response.statusText,
+                body: text
+              });
+            });
             reject(new Error('Failed to store authentication token'));
           }
         }).catch(error => {
-          console.error('[Drive Auth] Error calling callback:', error);
+          console.error('[Drive Auth] ❌ Error calling OAuth callback:', {
+            error: error.message,
+            stack: error.stack,
+            name: error.name
+          });
           reject(new Error('Failed to complete authentication'));
         }).finally(() => {
           // Clean up

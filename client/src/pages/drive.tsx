@@ -301,10 +301,20 @@ export default function Drive() {
                       description: "A new window will open for Google Drive authorization...",
                     });
                     
+                    console.log('[Drive Auth Flow] Starting Google Drive authentication...');
                     const success = await connectGoogleDrive();
+                    console.log('[Drive Auth Flow] Authentication result:', success);
                     
                     if (success) {
                       // Authentication successful - cookie has been set
+                      console.log('[Drive Auth Flow] ✅ Authentication successful, refreshing connection status...');
+                      
+                      // Verify cookies are set in browser
+                      console.log('[Drive Auth Flow] Browser cookies after auth:', {
+                        allCookies: document.cookie,
+                        hasDriveToken: document.cookie.includes('drive_access_token')
+                      });
+                      
                       // Refresh the page data to reflect new connection
                       setIsDriveAuthenticated(true);
                       queryClient.invalidateQueries({ queryKey: ['drive-connection'] });
@@ -316,7 +326,12 @@ export default function Drive() {
                       });
                     }
                   } catch (error: any) {
-                    console.error('Drive connection error:', error);
+                    console.error('[Drive Auth Flow] Drive connection error:', error);
+                    console.error('[Drive Auth Flow] Error details:', {
+                      message: error?.message,
+                      stack: error?.stack,
+                      name: error?.name
+                    });
                     
                     if (error.message.includes("Popup was blocked")) {
                       toast({
