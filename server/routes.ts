@@ -102,37 +102,102 @@ async function validateFileSignature(filePath: string, mimeType: string): Promis
   }
 }
 
-// Basic zip bomb detection for Office documents
+// Enhanced zip bomb detection for Office documents with central directory parsing
 async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolean> {
   try {
-    // Simple heuristics for zip bomb detection
     const maxCompressionRatio = 100; // Allow up to 100:1 compression
     const maxUncompressedSize = 500 * 1024 * 1024; // 500MB uncompressed max
     
     // Quick check: if file is suspiciously small for its claimed type
-    if (fileSize < 100) { // Less than 100 bytes - very suspicious
+    if (fileSize < 100) {
       console.warn('Suspiciously small Office document detected');
       return false;
     }
     
-    // Look for excessive central directory entries (basic ZIP analysis)
-    const centralDirSignature = Buffer.from([0x50, 0x4b, 0x01, 0x02]); // PK\x01\x02
-    let centralDirCount = 0;
-    let pos = 0;
+    // Find End of Central Directory Record (EOCD) - search from end
+    let eocdPos = -1;
+    for (let i = buffer.length - 22; i >= 0; i--) {
+      if (buffer[i] === 0x50 && buffer[i + 1] === 0x4b && 
+          buffer[i + 2] === 0x05 && buffer[i + 3] === 0x06) {
+        eocdPos = i;
+        break;
+      }
+    }
     
-    while (pos < buffer.length - 4) {
-      pos = buffer.indexOf(centralDirSignature, pos);
-      if (pos === -1) break;
-      centralDirCount++;
-      pos += 4;
+    if (eocdPos === -1) {
+      console.warn('Invalid ZIP: No End of Central Directory found');
+      return false;
+    }
+    
+    // Parse EOCD to get central directory info
+    const totalEntries = buffer.readUInt16LE(eocdPos + 10);
+    const centralDirSize = buffer.readUInt32LE(eocdPos + 12);
+    const centralDirOffset = buffer.readUInt32LE(eocdPos + 16);
+    
+    // Safety check for too many entries
+    if (totalEntries > 10000) {
+      console.warn(`ZIP bomb detected: excessive file count ${totalEntries}`);
+      return false;
+    }
+    
+    // Parse central directory entries for accurate size information
+    let totalUncompressedSize = 0;
+    let totalCompressedSize = 0;
+    let pos = centralDirOffset;
+    
+    for (let i = 0; i < totalEntries && pos < buffer.length - 46; i++) {
+      // Check central directory file header signature: PK\x01\x02
+      if (buffer[pos] !== 0x50 || buffer[pos + 1] !== 0x4b || 
+          buffer[pos + 2] !== 0x01 || buffer[pos + 3] !== 0x02) {
+        console.warn('Invalid ZIP: Bad central directory entry');
+        return false;
+      }
       
-      // If we find too many entries for file size, it's suspicious
-      if (centralDirCount > fileSize / 100) { // More than 1 entry per 100 bytes
-        console.warn(`Suspicious ZIP structure: ${centralDirCount} entries in ${fileSize} bytes`);
+      // Extract sizes from central directory (more reliable than local headers)
+      const compressedSize = buffer.readUInt32LE(pos + 20);
+      const uncompressedSize = buffer.readUInt32LE(pos + 24);
+      const fileNameLength = buffer.readUInt16LE(pos + 28);
+      const extraFieldLength = buffer.readUInt16LE(pos + 30);
+      const fileCommentLength = buffer.readUInt16LE(pos + 32);
+      
+      totalCompressedSize += compressedSize;
+      totalUncompressedSize += uncompressedSize;
+      
+      // Check individual file compression ratio (avoid division by zero)
+      if (compressedSize > 0 && uncompressedSize / compressedSize > maxCompressionRatio) {
+        console.warn(`ZIP bomb detected: file ${i + 1} has compression ratio ${Math.round(uncompressedSize / compressedSize)}:1`);
+        return false;
+      }
+      
+      // Move to next central directory entry
+      pos += 46 + fileNameLength + extraFieldLength + fileCommentLength;
+    }
+    
+    // Check total uncompressed size limit
+    if (totalUncompressedSize > maxUncompressedSize) {
+      console.warn(`ZIP bomb detected: total uncompressed size ${Math.round(totalUncompressedSize / 1024 / 1024)}MB exceeds limit`);
+      return false;
+    }
+    
+    // Check overall compression ratio
+    if (totalCompressedSize > 0) {
+      const overallRatio = totalUncompressedSize / totalCompressedSize;
+      if (overallRatio > maxCompressionRatio) {
+        console.warn(`ZIP bomb detected: overall compression ratio ${Math.round(overallRatio)}:1 exceeds limit`);
         return false;
       }
     }
     
+    // Additional heuristic: file size vs compressed content ratio
+    if (fileSize > 0 && totalUncompressedSize > 0) {
+      const expansionRatio = totalUncompressedSize / fileSize;
+      if (expansionRatio > maxCompressionRatio) {
+        console.warn(`ZIP bomb detected: expansion ratio ${Math.round(expansionRatio)}:1 exceeds limit`);
+        return false;
+      }
+    }
+    
+    console.info(`ZIP validation passed: ${totalEntries} files, ${Math.round(totalUncompressedSize / 1024)}KB uncompressed, ratio ${Math.round(totalUncompressedSize / (totalCompressedSize || 1))}:1`);
     return true;
   } catch (error) {
     console.error('Zip bomb validation failed:', error);
