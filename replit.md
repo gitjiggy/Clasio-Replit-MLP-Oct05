@@ -2,6 +2,48 @@
 
 This is a modern document management system built with React and Express, featuring AI-powered document analysis using Google's Gemini AI. The application allows users to upload, organize, and analyze documents with features like folders, tags, version control, and automatic AI summarization. It uses PostgreSQL for data persistence and Google Cloud Storage for file storage.
 
+# Recent Changes
+
+## September 28, 2025 - GitHub Repository for External Vendor Collaboration
+
+**Created Comprehensive GitHub Repository**:
+- **Repository**: https://github.com/gitjiggy/Clasio-Replit-MLP-Sep28
+- **Purpose**: Enable external vendor collaboration on frontend development
+- **Files Uploaded**: 111 essential project files including all client, server, and shared code
+
+**Documentation Updates**:
+- **Comprehensive README.md**: Complete feature documentation with September 28 updates
+- **OAuth Debugging Documentation**: Detailed Token 1-4 analysis and root cause identification
+- **Setup Instructions**: Complete environment configuration and deployment guide
+- **Architecture Overview**: Full technology stack and project structure documentation
+
+**Key Documentation Sections**:
+- Complete OAuth 2.0 implementation and debugging trail
+- Security enhancements (quotas, file size limits)
+- Production-ready infrastructure details
+- API endpoints and integration guides
+- Monitoring and observability features
+
+**Repository Contents**:
+- All frontend React components and pages
+- Complete backend Express API and services
+- Database schemas and migration files
+- Configuration files (tsconfig, vite, tailwind, drizzle)
+- Project documentation and setup guides
+
+**Vendor Onboarding Ready**:
+- Clear prerequisite requirements documented
+- Step-by-step installation instructions
+- Environment variable configuration guide
+- Development and deployment workflows
+- Architecture and feature deep dives
+
+**OAuth Status**:
+- Root cause confirmed: Google OAuth client configuration issue in Google Cloud Console
+- All code infrastructure production-ready
+- Requires Google Cloud Console OAuth client verification/recreation
+- Complete debugging trail documented for reference
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
