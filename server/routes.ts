@@ -74,9 +74,25 @@ async function validateFileSignature(filePath: string, mimeType: string): Promis
     
     console.info(`File signature validation passed for ${mimeType}: ${signature.slice(0, 16)}`);
     
-    // Basic bomb checks for ZIP-based files (Office docs)
+    // Enhanced bomb detection for different file types
     if (['504b0304'].some(sig => signature.toLowerCase().startsWith(sig))) {
       return await validateZipBomb(buffer, stats.size);
+    }
+    
+    // PDF bomb detection
+    if (mimeType === 'application/pdf') {
+      if (!(await validatePdfBomb(buffer, stats.size))) {
+        console.warn(`PDF bomb detected in file ${filePath}`);
+        return false;
+      }
+    }
+    
+    // Image bomb detection  
+    if (mimeType.startsWith('image/')) {
+      if (!(await validateImageBomb(buffer, stats.size))) {
+        console.warn(`Image bomb detected in file ${filePath}`);
+        return false;
+      }
     }
     
     return true;
@@ -120,6 +136,119 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
     return true;
   } catch (error) {
     console.error('Zip bomb validation failed:', error);
+    return false;
+  }
+}
+
+// PDF bomb detection - looks for decompression bombs and excessive objects
+async function validatePdfBomb(buffer: Buffer, fileSize: number): Promise<boolean> {
+  try {
+    // Basic PDF structure analysis
+    const pdfContent = buffer.toString('latin1');
+    
+    // Check for excessive object count relative to file size
+    const objectMatches = pdfContent.match(/\d+\s+\d+\s+obj/g);
+    const objectCount = objectMatches ? objectMatches.length : 0;
+    
+    // Heuristic: More than 1 object per 100 bytes is suspicious
+    if (objectCount > fileSize / 100) {
+      console.warn(`Suspicious PDF structure: ${objectCount} objects in ${fileSize} bytes`);
+      return false;
+    }
+    
+    // Check for excessive stream objects (potential decompression bombs)
+    const streamMatches = pdfContent.match(/stream\s*\n/g);
+    const streamCount = streamMatches ? streamMatches.length : 0;
+    
+    // Too many streams for file size
+    if (streamCount > fileSize / 500) {
+      console.warn(`Suspicious PDF streams: ${streamCount} streams in ${fileSize} bytes`);
+      return false;
+    }
+    
+    // Check for suspicious filter patterns that could indicate bombs
+    const suspiciousFilters = ['/FlateDecode', '/DCTDecode', '/CCITTFaxDecode'];
+    let filterCount = 0;
+    for (const filter of suspiciousFilters) {
+      const matches = pdfContent.match(new RegExp(filter, 'g'));
+      filterCount += matches ? matches.length : 0;
+    }
+    
+    // Excessive compression filters
+    if (filterCount > objectCount) {
+      console.warn(`Suspicious PDF compression: ${filterCount} filters for ${objectCount} objects`);
+      return false;
+    }
+    
+    console.info(`PDF bomb validation passed: ${objectCount} objects, ${streamCount} streams`);
+    return true;
+  } catch (error) {
+    console.error('PDF bomb validation failed:', error);
+    return false;
+  }
+}
+
+// Image bomb detection - looks for decompression bombs in images
+async function validateImageBomb(buffer: Buffer, fileSize: number): Promise<boolean> {
+  try {
+    const maxDimensions = 50000; // Max width/height in pixels
+    const maxPixels = 100 * 1024 * 1024; // 100MP max
+    
+    // Quick heuristic checks based on file type
+    const header = buffer.subarray(0, 32);
+    
+    // PNG bomb detection
+    if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4E && header[3] === 0x47) {
+      // Look for IHDR chunk to get dimensions
+      const ihdrIndex = buffer.indexOf('IHDR');
+      if (ihdrIndex >= 0 && ihdrIndex < buffer.length - 8) {
+        const width = buffer.readUInt32BE(ihdrIndex + 4);
+        const height = buffer.readUInt32BE(ihdrIndex + 8);
+        
+        if (width > maxDimensions || height > maxDimensions) {
+          console.warn(`PNG dimensions too large: ${width}x${height}`);
+          return false;
+        }
+        
+        if (width * height > maxPixels) {
+          console.warn(`PNG pixel count too large: ${width * height} pixels`);
+          return false;
+        }
+      }
+    }
+    
+    // JPEG bomb detection - look for suspicious compression ratios
+    if (header[0] === 0xFF && header[1] === 0xD8) {
+      // Basic heuristic: JPEG files should have reasonable size-to-compression ratio
+      // Very small file claiming to be large image is suspicious
+      if (fileSize < 1000 && buffer.length < 1000) {
+        // Look for SOF markers to get dimensions
+        let pos = 2;
+        while (pos < buffer.length - 10) {
+          if (buffer[pos] === 0xFF && (buffer[pos + 1] >= 0xC0 && buffer[pos + 1] <= 0xCF)) {
+            const length = buffer.readUInt16BE(pos + 2);
+            if (pos + length < buffer.length) {
+              const height = buffer.readUInt16BE(pos + 5);
+              const width = buffer.readUInt16BE(pos + 7);
+              
+              // Suspicious compression ratio check
+              const expectedMinSize = (width * height) / 10000; // Very rough estimate
+              if (fileSize < expectedMinSize) {
+                console.warn(`JPEG compression ratio suspicious: ${width}x${height} in ${fileSize} bytes`);
+                return false;
+              }
+            }
+            break;
+          }
+          pos++;
+        }
+      }
+    }
+    
+    console.info(`Image bomb validation passed for ${fileSize} bytes`);
+    return true;
+  } catch (error) {
+    console.error('Image bomb validation failed:', error);
     return false;
   }
 }
