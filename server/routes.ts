@@ -8,6 +8,8 @@ import { DriveService } from "./driveService";
 import { strictLimiter, moderateLimiter, standardLimiter, bulkUploadLimiter } from "./rateLimit";
 import multer from "multer";
 import path from "path";
+import fs from "fs/promises";
+import os from "os";
 import { insertDocumentSchema, insertDocumentVersionSchema, insertFolderSchema, insertTagSchema, insertDocumentTagSchema, documentVersions, documents, type DocumentWithFolderAndTags } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { db } from "./db.js";
@@ -15,50 +17,102 @@ import { z } from "zod";
 import type { Request, Response, NextFunction } from "express";
 import { google } from 'googleapis';
 
-// File signature validation - checks magic bytes to prevent MIME spoofing
-function validateFileSignature(buffer: Buffer, mimeType: string): boolean {
-  if (buffer.length < 4) return false; // Need at least 4 bytes for most signatures
-  
-  const bytes = Array.from(buffer.subarray(0, 16)).map(b => b.toString(16).padStart(2, '0'));
-  const signature = bytes.join('');
-  
-  // Define magic bytes for supported file types
-  const signatures: Record<string, string[]> = {
-    'application/pdf': ['25504446'], // %PDF
-    'image/jpeg': ['ffd8ff'],
-    'image/png': ['89504e47'],
-    'image/gif': ['474946383761', '474946383961'], // GIF87a, GIF89a
-    'image/webp': ['52494646'], // RIFF (WebP container)
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['504b0304'], // ZIP (Office files)
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['504b0304'], // ZIP
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['504b0304'], // ZIP
-    'application/vnd.ms-excel': ['d0cf11e0'], // OLE2 (legacy Office)
-    'application/msword': ['d0cf11e0'], // OLE2
-    'application/vnd.ms-powerpoint': ['d0cf11e0'], // OLE2
-    'text/plain': [], // No signature validation for text files
-    'text/csv': [] // No signature validation for CSV files
-  };
-  
-  const expectedSignatures = signatures[mimeType];
-  if (!expectedSignatures) {
-    console.warn(`No file signature validation available for MIME type: ${mimeType}`);
-    return true; // Allow unknown types to pass through
+// Enhanced file signature validation with bomb checks
+async function validateFileSignature(filePath: string, mimeType: string): Promise<boolean> {
+  try {
+    const stats = await fs.stat(filePath);
+    const buffer = await fs.readFile(filePath, { flag: 'r' });
+    
+    if (buffer.length < 4) return false; // Need at least 4 bytes for most signatures
+    
+    const bytes = Array.from(buffer.subarray(0, 16)).map(b => b.toString(16).padStart(2, '0'));
+    const signature = bytes.join('');
+    
+    // Define magic bytes for supported file types
+    const signatures: Record<string, string[]> = {
+      'application/pdf': ['25504446'], // %PDF
+      'image/jpeg': ['ffd8ff'],
+      'image/png': ['89504e47'],
+      'image/gif': ['474946383761', '474946383961'], // GIF87a, GIF89a
+      'image/webp': ['52494646'], // RIFF (WebP container)
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['504b0304'], // ZIP (Office files)
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['504b0304'], // ZIP
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['504b0304'], // ZIP
+      'application/vnd.ms-excel': ['d0cf11e0'], // OLE2 (legacy Office)
+      'application/msword': ['d0cf11e0'], // OLE2
+      'application/vnd.ms-powerpoint': ['d0cf11e0'], // OLE2
+      'text/plain': [], // No signature validation for text files
+      'text/csv': [] // No signature validation for CSV files
+    };
+    
+    const expectedSignatures = signatures[mimeType];
+    if (!expectedSignatures) {
+      console.warn(`No file signature validation available for MIME type: ${mimeType}`);
+      return true; // Allow unknown types to pass through
+    }
+    
+    if (expectedSignatures.length === 0) {
+      return true; // Skip validation for text files
+    }
+    
+    // Check if any expected signature matches
+    const isValid = expectedSignatures.some(expectedSig => 
+      signature.toLowerCase().startsWith(expectedSig.toLowerCase())
+    );
+    
+    if (!isValid) {
+      console.warn(`File signature mismatch: expected ${expectedSignatures} for ${mimeType}, got ${signature.slice(0, 16)}`);
+      return false;
+    }
+    
+    // Basic bomb checks for ZIP-based files (Office docs)
+    if (['504b0304'].some(sig => signature.toLowerCase().startsWith(sig))) {
+      return await validateZipBomb(buffer, stats.size);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('File signature validation failed:', error);
+    return false;
   }
-  
-  if (expectedSignatures.length === 0) {
-    return true; // Skip validation for text files
+}
+
+// Basic zip bomb detection for Office documents
+async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolean> {
+  try {
+    // Simple heuristics for zip bomb detection
+    const maxCompressionRatio = 100; // Allow up to 100:1 compression
+    const maxUncompressedSize = 500 * 1024 * 1024; // 500MB uncompressed max
+    
+    // Quick check: if file is suspiciously small for its claimed type
+    if (fileSize < 1024) { // Less than 1KB
+      console.warn('Suspiciously small Office document detected');
+      return false;
+    }
+    
+    // Look for excessive central directory entries (basic ZIP analysis)
+    const centralDirSignature = Buffer.from([0x50, 0x4b, 0x01, 0x02]); // PK\x01\x02
+    let centralDirCount = 0;
+    let pos = 0;
+    
+    while (pos < buffer.length - 4) {
+      pos = buffer.indexOf(centralDirSignature, pos);
+      if (pos === -1) break;
+      centralDirCount++;
+      pos += 4;
+      
+      // If we find too many entries for file size, it's suspicious
+      if (centralDirCount > fileSize / 100) { // More than 1 entry per 100 bytes
+        console.warn(`Suspicious ZIP structure: ${centralDirCount} entries in ${fileSize} bytes`);
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Zip bomb validation failed:', error);
+    return false;
   }
-  
-  // Check if any expected signature matches
-  const isValid = expectedSignatures.some(expectedSig => 
-    signature.toLowerCase().startsWith(expectedSig.toLowerCase())
-  );
-  
-  if (!isValid) {
-    console.warn(`File signature mismatch: expected ${expectedSignatures} for ${mimeType}, got ${signature.slice(0, 16)}`);
-  }
-  
-  return isValid;
 }
 
 // Multer error handler middleware - maps file size errors to HTTP 413
@@ -252,13 +306,73 @@ const bulkDocumentCreationSchema = z.object({
   analyzeImmediately: z.boolean().default(false),
 });
 
-// Configure multer for memory storage
+// Create tmp directory for uploads with cleanup
+const TMP_UPLOAD_DIR = path.join(os.tmpdir(), 'clasio-uploads');
+let concurrentUploads = 0;
+const MAX_CONCURRENT_UPLOADS = 10;
+
+// Ensure tmp directory exists
+async function ensureTmpDir() {
+  try {
+    await fs.access(TMP_UPLOAD_DIR);
+  } catch {
+    await fs.mkdir(TMP_UPLOAD_DIR, { recursive: true });
+    console.log(`Created upload tmp directory: ${TMP_UPLOAD_DIR}`);
+  }
+}
+
+// Cleanup old temp files (older than 1 hour)
+async function cleanupTmpFiles() {
+  try {
+    const files = await fs.readdir(TMP_UPLOAD_DIR);
+    const now = Date.now();
+    const maxAge = 60 * 60 * 1000; // 1 hour
+    
+    for (const file of files) {
+      const filePath = path.join(TMP_UPLOAD_DIR, file);
+      const stats = await fs.stat(filePath);
+      if (now - stats.mtime.getTime() > maxAge) {
+        await fs.unlink(filePath);
+        console.log(`Cleaned up old tmp file: ${file}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error cleaning up tmp files:', error);
+  }
+}
+
+// Initialize tmp directory and cleanup
+ensureTmpDir();
+setInterval(cleanupTmpFiles, 15 * 60 * 1000); // Clean every 15 minutes
+
+// Configure multer for disk storage with concurrency control
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, TMP_UPLOAD_DIR);
+    },
+    filename: (req, file, cb) => {
+      // Generate unique filename to prevent collisions
+      const uniqueId = randomUUID();
+      const ext = path.extname(file.originalname);
+      cb(null, `${uniqueId}-${Date.now()}${ext}`);
+    }
+  }),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (req, file, cb) => {
+    // Check concurrency limit
+    if (concurrentUploads >= MAX_CONCURRENT_UPLOADS) {
+      return cb(new Error('Server busy - too many concurrent uploads. Please try again in a moment.'), false);
+    }
+    concurrentUploads++;
+    
+    // Cleanup function to decrement counter (attached to request for later use)
+    (req as any).cleanup = () => {
+      concurrentUploads = Math.max(0, concurrentUploads - 1);
+    };
+    
     // Allow common document types
     const allowedTypes = [
       'application/pdf',
@@ -389,12 +503,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (!req.file) return res.status(400).json({ error: "file missing" });
 
-        const { originalname, mimetype, buffer, size } = req.file;
+        const { originalname, mimetype, path: filePath, size } = req.file;
         const uid = req.user?.uid!;
         const forceUpload = req.body.forceUpload === 'true'; // Check if user decided to force upload
         
         // Validate file signature to prevent MIME spoofing
-        if (!validateFileSignature(buffer, mimetype)) {
+        if (!(await validateFileSignature(filePath, mimetype))) {
+          // Cleanup concurrency counter and temp file
+          (req as any).cleanup?.();
+          await fs.unlink(filePath).catch(() => {}); // Ignore cleanup errors
+          
           console.error(JSON.stringify({
             evt: "upload-proxy.mime_validation_failed",
             reqId: (req as any).reqId,
@@ -424,6 +542,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Check if client aborted after duplicate check
         if (checkAborted("duplicate-check")) {
+          // Cleanup temp file and concurrency counter before aborting
+          await fs.unlink(filePath).catch(() => {});
+          (req as any).cleanup?.();
           return; // Request was aborted, stop processing
         }
         
@@ -481,16 +602,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Check if client aborted before GCS upload
         if (checkAborted("pre-gcs-upload")) {
+          // Cleanup temp file and concurrency counter before aborting
+          await fs.unlink(filePath).catch(() => {});
+          (req as any).cleanup?.();
           return; // Request was aborted, stop processing
         }
 
-        // Step 1: Upload to GCS
-        const bucket = objectStorageService.getBucket();
-        await bucket.file(objectPath).save(buffer, {
-          contentType: mimetype || "application/octet-stream",
-          resumable: false,
-          validation: false,
-        });
+        // Step 1: Upload to GCS using file path - read file and upload
+        const fileBuffer = await fs.readFile(filePath);
+        await objectStorageService.uploadFileBuffer(
+          fileBuffer, 
+          objectPath, 
+          mimetype || "application/octet-stream"
+        );
+        
+        // Cleanup temp file after upload
+        await fs.unlink(filePath).catch(() => {}); // Ignore cleanup errors
+        
+        // Cleanup concurrency counter
+        (req as any).cleanup?.();
 
         console.info(JSON.stringify({
           evt: "upload-proxy.gcs_saved",
@@ -909,7 +1039,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate file signature to prevent MIME spoofing
-      if (!validateFileSignature(req.file.buffer, req.file.mimetype)) {
+      if (!(await validateFileSignature(req.file.path, req.file.mimetype))) {
         console.error(JSON.stringify({
           evt: "standard_upload.mime_validation_failed",
           reqId: (req as any).reqId,
@@ -929,12 +1059,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const docId = randomUUID();
       const canonicalPath = generateDocumentPath(userId, docId, originalFileName);
       
-      // Upload to GCS via server
+      // Upload to GCS via server - read file and upload
+      const fileBuffer = await fs.readFile(req.file.path);
       await objectStorageService.uploadFileBuffer(
-        req.file.buffer, 
+        fileBuffer, 
         canonicalPath, 
         req.file.mimetype
       );
+      
+      // Cleanup temp file after upload
+      await fs.unlink(req.file.path).catch(() => {}); // Ignore cleanup errors
+      
+      // Cleanup concurrency counter
+      (req as any).cleanup?.();
       
       const determinedFileType = getFileTypeFromMimeType(req.file.mimetype, originalFileName);
       
