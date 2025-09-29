@@ -5,22 +5,44 @@ import { AuthenticatedRequest } from './auth';
 export const DRIVE_TOKEN_COOKIE_NAME = 'drive_access_token';
 export const DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME = 'drive_access_token_time';
 
-export const getCookieOptions = () => {
+export const getCookieOptions = (req?: Request) => {
   const isProduction = process.env.NODE_ENV === 'production';
+  
+  // Derive domain dynamically from request hostname
+  let domain = undefined;
+  if (isProduction && req) {
+    const hostname = req.get('host') || req.hostname;
+    if (hostname) {
+      // Extract the main domain (e.g., 'clasio.ai' from 'app.clasio.ai' or 'janeway.replit.dev' from 'abc-123.janeway.replit.dev')
+      const parts = hostname.split('.');
+      if (parts.length >= 2) {
+        // For replit.dev domains, use the full subdomain pattern
+        if (hostname.includes('replit.dev')) {
+          const replitParts = hostname.split('.');
+          if (replitParts.length >= 3) {
+            domain = '.' + replitParts.slice(-3).join('.'); // .janeway.replit.dev
+          }
+        } else {
+          // For custom domains like clasio.ai
+          domain = '.' + parts.slice(-2).join('.'); // .clasio.ai
+        }
+      }
+    }
+  }
   
   return {
     httpOnly: true,
     secure: isProduction, // HTTPS only in production
-    sameSite: isProduction ? 'strict' : 'lax' as const,
-    domain: isProduction ? '.clasio.ai' : undefined, // Support subdomains in production
+    sameSite: (isProduction ? 'strict' : 'lax') as 'strict' | 'lax',
+    domain,
     path: '/',
     maxAge: 50 * 60 * 1000 // 50 minutes (tokens expire at 60 minutes)
   };
 };
 
 // Set Drive access token in httpOnly cookie
-export const setDriveTokenCookie = (res: Response, token: string) => {
-  const options = getCookieOptions();
+export const setDriveTokenCookie = (res: Response, token: string, req?: Request) => {
+  const options = getCookieOptions(req);
   
   // Set the token
   res.cookie(DRIVE_TOKEN_COOKIE_NAME, token, options);
@@ -33,8 +55,8 @@ export const setDriveTokenCookie = (res: Response, token: string) => {
 };
 
 // Clear Drive token cookies on sign-out
-export const clearDriveTokenCookies = (res: Response) => {
-  const options = getCookieOptions();
+export const clearDriveTokenCookies = (res: Response, req?: Request) => {
+  const options = getCookieOptions(req);
   
   res.clearCookie(DRIVE_TOKEN_COOKIE_NAME, options);
   res.clearCookie(DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME, options);

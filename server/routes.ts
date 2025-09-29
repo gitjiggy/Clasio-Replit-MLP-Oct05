@@ -3231,7 +3231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Set the token in httpOnly cookie
-      setDriveTokenCookie(res, accessToken);
+      setDriveTokenCookie(res, accessToken, req);
       
       // Log telemetry for new cookie auth
       console.log('[Telemetry] OAuth callback: Token stored in httpOnly cookie for user:', firebaseUserEmail);
@@ -3255,7 +3255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sign out endpoint - clears Drive token cookies
   app.post("/api/drive/signout", express.json(), verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
     try {
-      clearDriveTokenCookies(res);
+      clearDriveTokenCookies(res, req);
       
       console.log('[Telemetry] Drive sign-out: Cookies cleared for user:', req.user?.email);
       
