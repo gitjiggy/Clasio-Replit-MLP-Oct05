@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,13 +29,41 @@ export default function AuthDrive() {
       console.log('[DEBUG] Starting Google Drive authentication...');
       console.log('[DEBUG] Auth object:', auth);
       console.log('[DEBUG] Provider scopes:', driveGoogleProvider);
+      console.log('[DEBUG] Current domain:', window.location.hostname);
       
-      const result = await signInWithPopup(auth, driveGoogleProvider);
-      console.log('[DEBUG] SignInWithPopup successful:', result);
+      let result;
+      let credential;
+      let googleAccessToken;
       
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const googleAccessToken = credential?.accessToken;
-      console.log('[DEBUG] Access token received:', !!googleAccessToken);
+      try {
+        console.log('[DEBUG] Attempting popup authentication...');
+        // Try Firebase popup authentication first
+        result = await signInWithPopup(auth, driveGoogleProvider);
+        console.log('[DEBUG] SignInWithPopup successful:', result);
+        
+        credential = GoogleAuthProvider.credentialFromResult(result);
+        googleAccessToken = credential?.accessToken;
+        console.log('[DEBUG] Access token received from popup:', !!googleAccessToken);
+      } catch (popupError: any) {
+        console.warn('[DEBUG] Popup authentication failed:', popupError);
+        console.log('[DEBUG] Attempting redirect authentication as fallback...');
+        
+        // Fallback to redirect-based authentication
+        if (popupError.code === 'auth/popup-blocked' || 
+            popupError.code === 'auth/cancelled-popup-request' ||
+            popupError.code === 'auth/popup-closed-by-user' ||
+            popupError.message?.includes('domain') ||
+            popupError.message?.includes('origin')) {
+          
+          // Use redirect instead
+          await signInWithRedirect(auth, driveGoogleProvider);
+          console.log('[DEBUG] Redirect authentication initiated...');
+          return; // Exit here - redirect will handle the rest
+        } else {
+          // Re-throw other errors
+          throw popupError;
+        }
+      }
       
       
       if (googleAccessToken) {
@@ -117,12 +145,61 @@ export default function AuthDrive() {
   };
 
   useEffect(() => {
-    // Small delay to show preparing state briefly, then auto-start authentication
-    const timer = setTimeout(() => {
-      handleDriveAuth();
-    }, 500);
-    
-    return () => clearTimeout(timer);
+    // Check for redirect result first
+    const checkRedirectResult = async () => {
+      try {
+        console.log('[DEBUG] Checking for redirect result...');
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log('[DEBUG] Redirect result found:', result);
+          const credential = GoogleAuthProvider.credentialFromResult(result);
+          const googleAccessToken = credential?.accessToken;
+          
+          if (googleAccessToken) {
+            setStatus('authenticating');
+            console.log('[DEBUG] Processing redirect token...');
+            
+            // Send token to server to set httpOnly cookie
+            const response = await fetch('/api/drive/oauth-callback', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Authorization': `Bearer ${await auth.currentUser?.getIdToken()}`
+              },
+              credentials: 'include',
+              body: JSON.stringify({ accessToken: googleAccessToken })
+            });
+
+            if (response.ok) {
+              setStatus('success');
+              if (window.opener) {
+                window.opener.postMessage({ type: 'DRIVE_AUTH_SUCCESS', authenticated: true }, '*');
+              }
+              setTimeout(() => window.opener ? window.close() : (window.location.href = '/drive'), 1500);
+            } else {
+              throw new Error('Failed to set Drive authentication');
+            }
+          }
+          return; // Exit early - we handled the redirect
+        }
+      } catch (error) {
+        console.error('[DEBUG] Redirect result error:', error);
+        setStatus('error');
+        setError('Failed to process redirect authentication');
+        return;
+      }
+      
+      // No redirect result, proceed with normal authentication
+      // Small delay to show preparing state briefly, then auto-start authentication
+      const timer = setTimeout(() => {
+        handleDriveAuth();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    };
+
+    checkRedirectResult();
   }, []);
 
   const closeWindow = () => {
