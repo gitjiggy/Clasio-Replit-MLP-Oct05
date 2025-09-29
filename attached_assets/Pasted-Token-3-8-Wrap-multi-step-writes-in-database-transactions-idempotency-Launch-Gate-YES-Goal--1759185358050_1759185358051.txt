@@ -1,0 +1,209 @@
+Token 3/8 — Wrap multi-step writes in database transactions + idempotency
+
+Launch Gate: YES
+
+Goal & key tasks (step-by-step)
+
+Inventory write flows: list every path that creates/updates data (Document, Version, Tags, any “AI Analysis” rows, and any Audit/Access log writes).
+
+Define transaction boundaries: for each flow above, perform all writes inside one DB transaction—begin → all writes → commit; on any error, rollback.
+
+Make writes idempotent: require an idempotency key per operation (e.g., docId + versionHash, or a client-supplied GUID persisted in a table). On retry with the same key, return the first result and do not write again.
+
+Emit analytics only after commit: move analytics/events/metrics emission to post-commit hooks so rolled-back attempts don’t produce “ghost” analytics.
+
+Propagate tenant context: include tenantId in every insert/update and in any WHERE clause used in the transaction.
+
+Watchouts & safeguards
+
+No long operations inside transactions (e.g., network calls, AI vendor calls). Do those before or after the DB transaction; the tx should be short.
+
+Nested transactions: avoid; if your driver simulates them, ensure inner failures bubble up and roll back the outer tx.
+
+Multi-tenant correctness: every SELECT … FOR UPDATE and every write must include tenantId to prevent cross-tenant contamination.
+
+Idempotency storage: persist keys with a TTL to avoid unbounded growth; reject replays with conflicting payloads.
+
+Notes & acceptance criteria
+
+Forcibly fail in the middle of a write flow → no partial rows remain.
+
+Retrying the exact same request (same idempotency key) → no duplicate Document/Version/Tag rows.
+
+Analytics/events are present only for successfully committed operations.
+
+Logs around each transaction include reqId, tenantId, docId (for traceability).
+
+Token 4/8 — Isolate the AI worker & add durability (retries, backoff, DLQ, idempotency)
+
+Launch Gate: YES
+
+Goal & key tasks (step-by-step)
+
+Separate process: run the AI analysis worker outside the web server process (its own service/process).
+
+Durable queue: persist job records; each job contains: tenantId, userId, docId, versionId, idempotencyKey, enqueue time, attempt count, last error.
+
+Retry with backoff: on failure, increment attempts and reschedule with exponential backoff and a maxAttempts cap.
+
+Dead-letter (DLQ): if attempts >= maxAttempts, mark job DLQ with the terminal error reason for review.
+
+Idempotent write-backs: when a job succeeds, use the idempotencyKey to ensure the same job never writes results twice (e.g., unique constraint or “upsert if absent”).
+
+Operational controls: provide commands/flags to pause/resume processing and to replay DLQ jobs after fixes.
+
+Watchouts & safeguards
+
+Tenant isolation: every data read/write during processing must include tenantId.
+
+Auth separation: worker should not depend on browser cookies; it should use server credentials/keys only.
+
+Rate limits: respect vendor quotas; add simple rate limiting in worker to avoid bursts.
+
+Poison pills: detect repeated deterministic failures (e.g., unsupported file type) and fast-DLQ them instead of hot-looping.
+
+Notes & acceptance criteria
+
+Killing/restarting the worker during an in-flight job → no duplicates and no lost work; job resumes or retries.
+
+A visible DLQ list exists with actionable error messages.
+
+Metrics show queue depth, processing rate, success/fail/retry counts; you can see spikes and backlogs.
+
+Token 5/8 — Add structured logging, basic metrics, and health/ready probes
+
+Launch Gate: YES
+
+Goal & key tasks (step-by-step)
+
+Structured logs: all logs in JSON with fields: timestamp, level, reqId, tenantId, userId, route, status, latencyMs, plus a short msg.
+
+Correlation ID: generate/propagate reqId across server → worker → DB logs; include it in worker job logs as job.reqId or equivalent.
+
+Health & readiness:
+
+/health (liveness): always true unless the process is unhealthy.
+
+/ready (readiness): returns unready if DB is down, or if queue lag exceeds a threshold (e.g., >5 minutes).
+
+Metrics (minimal set):
+
+Requests: count, error count, and latency histogram by route.
+
+Queue: depth, enqueued/sec, success/fail/retry counts, and processing latency.
+
+Dashboards & alerts: create a small dashboard and set these alerts:
+
+Error rate > 2% for 10 minutes.
+
+Queue lag > 5 minutes for 10 minutes.
+
+DB connection errors > X/min.
+
+Watchouts & safeguards
+
+No PII/tokens in logs (sanitize).
+
+Do not rename existing analytics events/fields in this step; keep analytics separate from logging/metrics.
+
+Ensure CORS/headers from Tokens 1–2 remain unchanged.
+
+Notes & acceptance criteria
+
+You can filter logs by reqId and tenantId and reconstruct a request path.
+
+Dashboard shows request rate, error rate, p95 latency, queue depth and outcomes.
+
+/health and /ready integrate with your deploy checks; they flip to unready when dependencies fail.
+
+Token 6/8 — Fix Vite config/import so dev & prod builds are deterministic
+
+Launch Gate: NO (unless builds are failing)
+
+Goal & key tasks (step-by-step)
+
+Single source of truth: ensure there’s one Vite config the app uses for both dev and prod. Remove any broken imports/indirections.
+
+Deterministic artifacts: verify client builds produce hashed filenames and the server serves from the correct output path.
+
+Static serving in prod: server should serve the built client reliably; confirm deep links/refresh work (history fallback if needed).
+
+Environment hygiene: ensure build-time envs are read correctly and don’t leak secrets into the client.
+
+Watchouts & safeguards
+
+Don’t touch runtime security headers (Tokens 1–2).
+
+Confirm CSP still allows your built asset patterns (hashed filenames).
+
+Notes & acceptance criteria
+
+Dev and prod builds complete without “missing config” warnings.
+
+Static assets load (no 404s); client-side routing works on refresh/deep links.
+
+Staging UI smoke passes: login → upload → preview → search → delete/restore.
+
+Token 7/8 — Enforce hard upload limits at ingress (Multer) with clear UX
+
+Launch Gate: NO (strongly recommended)
+
+Goal & key tasks (step-by-step)
+
+Route-level limits: apply a hard file-size limit at the upload routes (same numeric cap as your schema).
+
+Friendly errors: map over-limit to HTTP 413 with a clear, user-readable message.
+
+UI alignment: show the same limit in the uploader UI; prevent selection of oversize files where possible.
+
+Resource protection: reject oversize files before buffering to avoid memory spikes.
+
+Watchouts & safeguards
+
+Server-side MIME enforcement: do not trust client hints; validate MIME/extension on the server.
+
+Multi-tenant quotas: do not change per-tenant quota logic; this is only a per-file limit.
+
+CORS with 413: ensure the client correctly handles 413 (no infinite retries).
+
+Notes & acceptance criteria
+
+Files above the cap are rejected immediately with a clear message.
+
+Memory/CPU remain stable during oversize attempts.
+
+UI communicates the limit consistently.
+
+Token 8/8 — Implement embedding/search invalidation on rename/delete/restore
+
+Launch Gate: YES
+
+Goal & key tasks (step-by-step)
+
+Events that trigger invalidation: on rename, delete, and restore of a document/version, enqueue a reindex task for (tenantId, docId, versionId).
+
+Queue, don’t inline: perform the reindex via your background queue (not inline with the user request).
+
+SLA: define and meet an eventual consistency SLA (e.g., changes reflected in search in < 5 minutes).
+
+Tenant scoping: all index writes and reads include tenantId so results never leak across tenants.
+
+Watchouts & safeguards
+
+Deduplicate: debounce and dedupe rapid repeated updates using an idempotency key (e.g., tenantId:docId:versionId:lastUpdatedAt).
+
+Stampede control: if many docs update together, cap concurrent reindex jobs to protect the system.
+
+Failure visibility: failed reindexes appear in DLQ with clear reasons; they can be retried.
+
+Notes & acceptance criteria
+
+Rename: new title/terms become searchable within SLA; old title no longer ranks.
+
+Delete: disappears from search immediately (or ASAP based on SLA).
+
+Restore: reappears in search within SLA.
+
+Multi-tenant: same document names across tenants never co-mingle in results.
+
+CI “search correctness” check (seeded data) passes for rename/delete/restore.
