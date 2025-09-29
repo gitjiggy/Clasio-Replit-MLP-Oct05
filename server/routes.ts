@@ -20,13 +20,19 @@ import { google } from 'googleapis';
 // Enhanced file signature validation with bomb checks
 async function validateFileSignature(filePath: string, mimeType: string): Promise<boolean> {
   try {
+    console.info(`Starting file signature validation for ${mimeType}`);
+    
     const stats = await fs.stat(filePath);
     const buffer = await fs.readFile(filePath, { flag: 'r' });
     
-    if (buffer.length < 4) return false; // Need at least 4 bytes for most signatures
+    if (buffer.length < 4) {
+      console.warn(`File too small for signature validation: ${buffer.length} bytes`);
+      return false; // Need at least 4 bytes for most signatures
+    }
     
     const bytes = Array.from(buffer.subarray(0, 16)).map(b => b.toString(16).padStart(2, '0'));
     const signature = bytes.join('');
+    console.info(`File signature detected: ${signature.slice(0, 16)} (first 8 bytes)`);
     
     // Define magic bytes for supported file types
     const signatures: Record<string, string[]> = {
@@ -47,11 +53,12 @@ async function validateFileSignature(filePath: string, mimeType: string): Promis
     
     const expectedSignatures = signatures[mimeType];
     if (!expectedSignatures) {
-      console.warn(`No file signature validation available for MIME type: ${mimeType}`);
+      console.info(`No file signature validation available for MIME type: ${mimeType}, allowing through`);
       return true; // Allow unknown types to pass through
     }
     
     if (expectedSignatures.length === 0) {
+      console.info(`Text file detected (${mimeType}), skipping signature validation`);
       return true; // Skip validation for text files
     }
     
@@ -61,9 +68,11 @@ async function validateFileSignature(filePath: string, mimeType: string): Promis
     );
     
     if (!isValid) {
-      console.warn(`File signature mismatch: expected ${expectedSignatures} for ${mimeType}, got ${signature.slice(0, 16)}`);
+      console.error(`File signature mismatch: expected ${expectedSignatures} for ${mimeType}, got ${signature.slice(0, 16)}`);
       return false;
     }
+    
+    console.info(`File signature validation passed for ${mimeType}: ${signature.slice(0, 16)}`);
     
     // Basic bomb checks for ZIP-based files (Office docs)
     if (['504b0304'].some(sig => signature.toLowerCase().startsWith(sig))) {
@@ -85,7 +94,7 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
     const maxUncompressedSize = 500 * 1024 * 1024; // 500MB uncompressed max
     
     // Quick check: if file is suspiciously small for its claimed type
-    if (fileSize < 1024) { // Less than 1KB
+    if (fileSize < 100) { // Less than 100 bytes - very suspicious
       console.warn('Suspiciously small Office document detected');
       return false;
     }
