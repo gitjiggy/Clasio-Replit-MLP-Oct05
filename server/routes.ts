@@ -3232,14 +3232,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Add cache busting parameter and headers
     cleanAuthUrl += '&state=' + Date.now();
 
-    console.log('[OAuth Init] Redirecting to Google OAuth:', {
-      hostname: req.get('host'),
-      redirectUri: `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`,
-      originalUrl: authUrl.substring(0, 150) + '...',
-      cleanUrl: cleanAuthUrl.substring(0, 150) + '...',
-      fullUrl: cleanAuthUrl,
-      hasAmp: authUrl.includes('&amp;'),
-      fixedAmp: !cleanAuthUrl.includes('&amp;')
+    // Token 1: Debug logging for URL bytes
+    const slice = (s: string, i: number) => s.slice(Math.max(0, i - 5), Math.min(s.length, i + 5));
+    const ampIndex = cleanAuthUrl.indexOf('&');
+    console.info({
+      tag: 'oauth.redirect.debug',
+      hasAmpEscaped: cleanAuthUrl.includes('&amp;'),
+      firstAmpSlice: ampIndex >= 0 ? slice(cleanAuthUrl, ampIndex) : 'no-&-found',
+      byteCheck: ampIndex >= 0 ? Buffer.from(cleanAuthUrl.slice(ampIndex, ampIndex + 1), 'utf8').toString('hex') : 'n/a',
+      fullUrl: cleanAuthUrl
     });
 
     // Add cache-busting headers
