@@ -1,0 +1,148 @@
+Fix plan (do all 6)
+1) Add a server endpoint that ONLY issues a 302 redirect
+
+File: server/routes.ts (inside your route registration function)
+
+// --- Google Drive OAuth: server-side redirect entrypoint ---
+// Accept both GET and HEAD so curl checks work.
+app.get('/api/auth/drive-redirect', async (req, res) => {
+  try {
+    // Build the exact Google OAuth URL here (no HTML, no templating).
+    const url = buildGoogleDriveAuthUrl(); // your existing helper (client_id, scope, redirect_uri, state, etc.)
+    req.log?.info({ msg: 'drive.oauth.start', urlPreview: url.split('?')[0] });
+    return res.redirect(302, url); // 302 is correct for OAuth
+  } catch (err) {
+    req.log?.error({ msg: 'drive.oauth.build.error', err: String(err) });
+    return res.status(500).json({ error: 'oauth_url_build_failed' });
+  }
+});
+
+// Optional: HEAD for quick automation tests
+app.head('/api/auth/drive-redirect', (req, res) => res.redirect(302, '/api/auth/drive-redirect'));
+
+
+Important: Make sure this route is registered before the Vite/SPA catch-all. Your main server should call registerRoutes(app) before setupVite(app, server).
+
+2) Update the client to open the server route (not a React route)
+
+File: client/src/lib/firebase.ts (or wherever “Connect Google Drive” lives)
+
+export function connectGoogleDrivePopup() {
+  const w = window.open(
+    '/api/auth/drive-redirect', // <-- server path, NOT /auth/drive
+    'google_drive_auth',
+    'height=700,width=600,menubar=no,toolbar=no,location=no,status=no'
+  );
+  if (!w) throw new Error('Popup blocked');
+}
+
+
+Remove any code that mounted a React page at /auth/drive. The popup should never hit a client route for OAuth start.
+
+3) Keep the callback stable and JSON-only
+
+Server callback: POST /api/drive/oauth-callback
+Make sure:
+
+Route has express.json() (scoped) so body parses.
+
+It sets the httpOnly cookie using your dynamic domain options (we already added).
+
+It logs the final cookie options.
+
+app.post('/api/drive/oauth-callback', express.json(), async (req, res) => {
+  const { accessToken, refreshToken, expiresIn } = req.body || {};
+  if (!accessToken) return res.status(400).json({ error: 'access_token_missing' });
+
+  const opts = getCookieOptions(req); // returns { domain, sameSite, secure, httpOnly:true, path:'/' }
+  req.log?.info({ msg: 'drive.cookie.set', opts });
+  res.cookie('drive_access_token', accessToken, { ...opts, maxAge: (expiresIn ?? 3600) * 1000 });
+  if (refreshToken) res.cookie('drive_refresh_token', refreshToken, { ...opts });
+
+  return res.json({ ok: true });
+});
+
+
+Client (parent window): After postMessage from popup, call the callback with credentials: 'include':
+
+await fetch('/api/drive/oauth-callback', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ accessToken, refreshToken, expiresIn })
+});
+
+4) Verify middleware order
+
+In server/index.ts (or wherever you wire things):
+
+registerRoutes(app) first
+
+setupVite(app, server) (the SPA app.use('*', ...)) last
+
+If Vite is before your routes, the SPA will intercept /api/auth/drive-redirect.
+
+5) One-minute server tests (no Google needed)
+
+From your local shell (or Replit shell), replace HOST with your staging host.
+
+# (A) Should be 302 (proves server route wins over SPA)
+curl -I https://HOST/api/auth/drive-redirect
+
+# (B) Simulate callback & check Set-Cookie
+curl -i -X POST https://HOST/api/drive/oauth-callback \
+  -H 'Content-Type: application/json' \
+  --data '{"accessToken":"TEST"}'
+
+# (C) Server sees the cookie?
+curl -i https://HOST/api/drive/debug-cookie
+# expect: { "has": true, ... }
+
+# (D) Protected endpoint now receives cookie?
+# Grab the cookie value from (B) Set-Cookie and paste below:
+curl -i https://HOST/api/drive/connect \
+  -H 'Cookie: drive_access_token=TEST'
+
+
+Expected:
+
+(A) HTTP/1.1 302 Found
+
+(B) response contains Set-Cookie with Domain=.janeway.replit.dev, SameSite=Lax, HttpOnly, Path=/, and no Secure on Replit.
+
+(C) { "has": true }
+
+(D) 200 (no more 401)
+
+6) Google Console sanity (just confirm)
+
+Drive API enabled for project.
+
+OAuth client the popup uses is the one you edited (compare client_id in the first accounts.google.com request).
+
+Authorized redirect URIs include:
+
+https://<replit>.janeway.replit.dev/api/drive/oauth-callback
+
+https://clasio.ai/api/drive/oauth-callback
+
+Authorized JS origins include:
+
+https://<replit>.janeway.replit.dev
+
+https://clasio.ai
+
+Consent screen Test users include your Gmail.
+(You may still see “Unverified” while in Testing—click Advanced → Continue.)
+
+Acceptance criteria (what “done” means)
+
+Hitting GET /api/auth/drive-redirect returns 302 (and logs drive.oauth.start).
+
+After Google consent, the browser shows /api/drive/oauth-callback in the Network tab with Set-Cookie in the response.
+
+GET /api/drive/debug-cookie returns { has: true }.
+
+GET /api/drive/connect returns 200 and includes the cookie in the request headers.
+
+No React route at /auth/drive; popup only targets /api/auth/drive-redirect.
