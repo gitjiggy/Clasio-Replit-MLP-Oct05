@@ -1,9 +1,27 @@
 import { useEffect, useState } from 'react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+
+// Import Firebase directly 
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+
+// Firebase config for this popup (isolated)
+const firebaseConfig = {
+  apiKey: "AIzaSyBQ0QVw5r8YLsz4FZpYgMKLBSR8xI4NjEU",
+  authDomain: "documentorganizerclean-b629f.firebaseapp.com",
+  projectId: "documentorganizerclean-b629f",
+  storageBucket: "documentorganizerclean-b629f.firebasestorage.app",
+  messagingSenderId: "12971844848",
+  appId: "1:12971844848:web:9a2adf7c9b2d8b6e0f8b9b",
+  measurementId: "G-K4JXNXG1KY"
+};
+
+// Initialize Firebase for popup (avoid duplicate initialization)
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const popupAuth = getAuth(app);
 
 export default function AuthDrive() {
   const [status, setStatus] = useState<'preparing' | 'authenticating' | 'success' | 'error'>('preparing');
@@ -38,7 +56,7 @@ export default function AuthDrive() {
       console.log('[DRIVE AUTH] Configured provider with Drive scopes');
 
       // Sign in with popup
-      const result = await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(popupAuth, provider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       
       if (!credential) {
