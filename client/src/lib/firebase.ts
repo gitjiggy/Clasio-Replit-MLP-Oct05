@@ -63,7 +63,7 @@ export const connectGoogleDrive = async (): Promise<boolean> => {
   return new Promise((resolve, reject) => {
     // Open auth page in new tab/window with cache busting
     const authWindow = window.open(
-      `/auth/drive?t=${Date.now()}`, 
+      `/api/auth/drive-redirect?t=${Date.now()}`, 
       'driveAuth', 
       'width=500,height=600,scrollbars=yes,resizable=yes'
     );

@@ -3196,7 +3196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // OAuth initiation endpoint - redirects to Google OAuth
-  app.get('/auth/drive', (req, res) => {
+  app.get('/api/auth/drive-redirect', (req, res) => {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
