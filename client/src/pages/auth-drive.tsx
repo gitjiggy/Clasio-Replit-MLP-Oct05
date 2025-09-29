@@ -1,86 +1,70 @@
 import { useEffect, useState } from 'react';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
-// Direct Google OAuth configuration
-const GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const GOOGLE_CLIENT_ID = '132633576574-a7vcobrs9m4mhpb0bh8rlgnbhc1jn9le.apps.googleusercontent.com';
-const SCOPES = [
-  'https://www.googleapis.com/auth/drive.readonly',
-  'https://www.googleapis.com/auth/drive.file'
-].join(' ');
+// Drive Provider for new tab authentication (using existing Firebase config)
+const driveGoogleProvider = new GoogleAuthProvider();
+driveGoogleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
+driveGoogleProvider.addScope('https://www.googleapis.com/auth/drive.file');
+driveGoogleProvider.setCustomParameters({
+  'prompt': 'consent',
+  'include_granted_scopes': 'true',
+  'access_type': 'offline'
+});
 
 export default function AuthDrive() {
   const [status, setStatus] = useState<'preparing' | 'authenticating' | 'success' | 'error'>('preparing');
   const [error, setError] = useState<string>('');
 
-  const handleDriveAuth = () => {
-    console.log('[DEBUG] Starting Google Drive authentication...');
+  const handleDriveAuth = async () => {
+    console.log('[DEBUG] Starting Firebase Google Drive authentication...');
+    console.log('[DEBUG] Auth object:', auth);
+    console.log('[DEBUG] Provider:', driveGoogleProvider);
     console.log('[DEBUG] Current domain:', window.location.hostname);
-    console.log('[DEBUG] Redirect URI:', window.location.origin + '/auth/drive');
     
     setStatus('authenticating');
     setError('');
     
     try {
-      // Create OAuth URL parameters
-      const params = new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: window.location.origin + '/auth/drive',
-        scope: SCOPES,
-        response_type: 'code',
-        access_type: 'offline',
-        prompt: 'consent',
-        include_granted_scopes: 'true',
-        state: 'drive-auth'  // Security parameter
-      });
-
-      const authUrl = `${GOOGLE_OAUTH_URL}?${params.toString()}`;
-      console.log('[DEBUG] Redirecting to OAuth URL:', authUrl);
+      console.log('[DEBUG] Attempting Firebase signInWithPopup...');
       
-      // Redirect to Google OAuth
-      window.location.href = authUrl;
+      // Use Firebase authentication with Drive scopes
+      const result = await signInWithPopup(auth, driveGoogleProvider);
+      console.log('[DEBUG] Firebase signInWithPopup successful:', result);
       
-    } catch (error: any) {
-      console.error('[DEBUG] OAuth redirect failed:', error);
-      setStatus('error');
-      setError('Failed to start authentication');
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const googleAccessToken = credential?.accessToken;
+      console.log('[DEBUG] Access token received:', !!googleAccessToken);
       
-      if (window.opener) {
-        window.opener.postMessage({
-          type: 'DRIVE_AUTH_ERROR',
-          error: 'Failed to start authentication'
-        }, '*');
+      if (!googleAccessToken) {
+        throw new Error('No access token received from Google');
       }
-    }
-  };
-
-  const handleAuthCode = async (code: string) => {
-    console.log('[DEBUG] Processing authorization code...');
-    setStatus('authenticating');
-    
-    try {
-      // Send the authorization code to our backend
+      
+      console.log('[DEBUG] Sending token to server...');
+      
+      // Send token to server to set httpOnly cookie
       const response = await fetch('/api/drive/oauth-callback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
+          'X-Requested-With': 'XMLHttpRequest',
+          'Authorization': `Bearer ${await auth.currentUser?.getIdToken()}`
         },
         credentials: 'include',
-        body: JSON.stringify({ 
-          code,
-          redirectUri: window.location.origin + '/auth/drive'
-        })
+        body: JSON.stringify({ accessToken: googleAccessToken })
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[DEBUG] Server response error:', errorData);
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const responseData = await response.json();
+      console.log('[DEBUG] Server response:', responseData);
       
       if (!responseData.success) {
         throw new Error('Failed to store authentication');
@@ -92,19 +76,45 @@ export default function AuthDrive() {
       if (window.opener) {
         window.opener.postMessage({
           type: 'DRIVE_AUTH_SUCCESS',
-          authenticated: true
+          authenticated: true,
+          user: {
+            email: result.user.email,
+            displayName: result.user.displayName
+          }
         }, '*');
       }
       
     } catch (error: any) {
-      console.error('[DEBUG] Failed to process auth code:', error);
-      setStatus('error');
-      setError('Failed to complete authentication');
+      console.error('[DEBUG] Drive auth failed - Full error:', error);
+      console.error('[DEBUG] Error code:', error.code);
+      console.error('[DEBUG] Error message:', error.message);
+      console.error('[DEBUG] Error stack:', error.stack);
       
+      setStatus('error');
+      
+      // Provide detailed error messages
+      let userFriendlyError = 'Authentication failed';
+      if (error.code === 'auth/popup-closed-by-user') {
+        userFriendlyError = 'Authorization was cancelled. Please try again to connect Google Drive.';
+      } else if (error.code === 'auth/popup-blocked') {
+        userFriendlyError = 'Popup was blocked. Please allow popups and try again.';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        userFriendlyError = 'This domain is not authorized for Google authentication. Please contact support.';
+      } else if (error.message?.includes('cancelled')) {
+        userFriendlyError = 'Authorization was cancelled. Please try again to connect Google Drive.';
+      } else if (error.message?.includes('domain')) {
+        userFriendlyError = 'Domain authorization issue. Please contact support.';
+      } else {
+        userFriendlyError = `Authentication failed: ${error.message}`;
+      }
+      
+      setError(userFriendlyError);
+      
+      // Send error back to parent window
       if (window.opener) {
         window.opener.postMessage({
           type: 'DRIVE_AUTH_ERROR',
-          error: 'Failed to complete authentication'
+          error: userFriendlyError
         }, '*');
       }
     }
@@ -113,40 +123,63 @@ export default function AuthDrive() {
   useEffect(() => {
     console.log('[DEBUG] AuthDrive component mounted');
     
-    // Check for authorization code in URL (OAuth callback)
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-    const error = urlParams.get('error');
-    
-    console.log('[DEBUG] URL params:', { code: !!code, state, error });
-    
-    if (error) {
-      console.error('[DEBUG] OAuth error:', error);
-      setStatus('error');
-      setError('Authorization was denied or failed');
-      if (window.opener) {
-        window.opener.postMessage({
-          type: 'DRIVE_AUTH_ERROR',
-          error: 'Authorization was denied or failed'
-        }, '*');
+    // Check for any redirect results from Firebase
+    const checkRedirectResult = async () => {
+      try {
+        console.log('[DEBUG] Checking for Firebase redirect result...');
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log('[DEBUG] Firebase redirect result found:', result);
+          // Handle the redirect result same as popup result
+          const credential = GoogleAuthProvider.credentialFromResult(result);
+          const googleAccessToken = credential?.accessToken;
+          
+          if (googleAccessToken) {
+            // Process the token (same logic as in handleDriveAuth)
+            setStatus('authenticating');
+            
+            const response = await fetch('/api/drive/oauth-callback', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Authorization': `Bearer ${await auth.currentUser?.getIdToken()}`
+              },
+              credentials: 'include',
+              body: JSON.stringify({ accessToken: googleAccessToken })
+            });
+
+            if (response.ok) {
+              setStatus('success');
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'DRIVE_AUTH_SUCCESS',
+                  authenticated: true
+                }, '*');
+              }
+            } else {
+              throw new Error('Failed to store authentication');
+            }
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('[DEBUG] Firebase redirect error:', error);
+        setStatus('error');
+        setError('Authentication failed');
+        return;
       }
-      return;
-    }
-    
-    if (code && state === 'drive-auth') {
-      console.log('[DEBUG] Authorization code found, processing...');
-      handleAuthCode(code);
-      return;
-    }
-    
-    // No code, start authentication flow
-    console.log('[DEBUG] No authorization code, starting auth flow...');
-    const timer = setTimeout(() => {
-      handleDriveAuth();
-    }, 500);
-    
-    return () => clearTimeout(timer);
+      
+      // No redirect result, start normal authentication flow
+      console.log('[DEBUG] No redirect result, starting auth flow...');
+      const timer = setTimeout(() => {
+        handleDriveAuth();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    };
+
+    checkRedirectResult();
   }, []);
 
   const closeWindow = () => {
