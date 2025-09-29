@@ -3214,14 +3214,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       prompt: 'consent'
     });
 
-    // Fix HTML entity encoding in OAuth URL
-    const cleanAuthUrl = authUrl.replace(/&amp;/g, '&');
+    // Fix HTML entity encoding in OAuth URL and add cache-busting
+    let cleanAuthUrl = authUrl.replace(/&amp;/g, '&');
+    
+    // Add cache busting parameter and headers
+    cleanAuthUrl += '&state=' + Date.now();
 
     console.log('[OAuth Init] Redirecting to Google OAuth:', {
       hostname: req.get('host'),
       redirectUri: `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`,
-      originalUrl: authUrl.substring(0, 100) + '...',
-      cleanUrl: cleanAuthUrl.substring(0, 100) + '...'
+      originalUrl: authUrl.substring(0, 150) + '...',
+      cleanUrl: cleanAuthUrl.substring(0, 150) + '...',
+      hasAmp: authUrl.includes('&amp;'),
+      fixedAmp: !cleanAuthUrl.includes('&amp;')
+    });
+
+    // Add cache-busting headers
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
     });
 
     res.redirect(cleanAuthUrl);
