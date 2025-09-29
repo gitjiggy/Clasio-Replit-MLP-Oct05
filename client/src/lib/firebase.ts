@@ -84,7 +84,7 @@ export const connectGoogleDrive = async (): Promise<boolean> => {
       if (event.data.type === 'DRIVE_AUTH_SUCCESS') {
         
         // Send access token to backend for httpOnly cookie storage
-        fetch('/api/drive/callback', {
+        fetch('/api/drive/oauth-callback', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

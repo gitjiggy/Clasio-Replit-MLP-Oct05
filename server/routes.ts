@@ -3192,12 +3192,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // OAuth callback endpoint - sets httpOnly cookie with Drive token
   app.post("/api/drive/oauth-callback", validateJsonContentType, express.json(), verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
     try {
-      // Temporary debug logging
-      console.log('[DEBUG] OAuth callback:', {
+      const reqId = (req as any).reqId;
+      const userId = req.user?.uid;
+      const userEmail = req.user?.email;
+      
+      // Enhanced debug logging
+      console.log(`[OAuth Callback] 🚀 Drive OAuth callback initiated`, {
+        reqId,
+        userId,
+        userEmail,
         origin: req.headers.origin,
         contentType: req.headers['content-type'],
+        userAgent: req.headers['user-agent'],
+        hostname: req.get('host') || req.hostname,
         hasBody: !!req.body,
-        hasAccessToken: !!req.body?.accessToken
+        bodyKeys: req.body ? Object.keys(req.body) : [],
+        hasAccessToken: !!req.body?.accessToken,
+        accessTokenLength: req.body?.accessToken?.length || 0
       });
 
       const { accessToken } = req.body;
@@ -3233,8 +3244,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set the token in httpOnly cookie
       setDriveTokenCookie(res, accessToken, req);
       
-      // Log telemetry for new cookie auth
-      console.log('[Telemetry] OAuth callback: Token stored in httpOnly cookie for user:', firebaseUserEmail);
+      // Log successful completion
+      console.log(`[OAuth Callback] ✅ Drive authentication successful`, {
+        reqId,
+        userId,
+        userEmail: firebaseUserEmail,
+        googleEmail: googleUserEmail,
+        tokenStored: true,
+        authMethod: 'cookie'
+      });
       
       res.json({
         success: true,
@@ -3244,7 +3262,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
     } catch (error) {
-      console.error("OAuth callback error:", error);
+      const reqId = (req as any).reqId;
+      const userId = req.user?.uid;
+      
+      console.error(`[OAuth Callback] ❌ Drive authentication failed`, {
+        reqId,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        hostname: req.get('host') || req.hostname
+      });
+      
       res.status(500).json({ 
         error: "OAuth callback failed",
         message: "Failed to process OAuth callback"
