@@ -16,6 +16,16 @@ import { db } from "./db.js";
 import { z } from "zod";
 import type { Request, Response, NextFunction } from "express";
 import { google } from 'googleapis';
+// Enhanced file validation and quota management
+import { createUploadMiddleware, multerErrorHandler as newMulterErrorHandler, validateFileSize } from "./fileValidation.js";
+import { 
+  checkStorageQuota, 
+  checkDocumentQuota, 
+  updateStorageUsage, 
+  decreaseStorageUsage,
+  getUserQuota,
+  getQuotaUsageSummary
+} from "./quotaManager.js";
 
 // Enhanced file signature validation with bomb checks
 async function validateFileSignature(filePath: string, mimeType: string): Promise<boolean> {
@@ -548,58 +558,8 @@ async function cleanupTmpFiles() {
 ensureTmpDir();
 setInterval(cleanupTmpFiles, 15 * 60 * 1000); // Clean every 15 minutes
 
-// Configure multer for disk storage with concurrency control
-const uploadProxy = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, TMP_UPLOAD_DIR);
-    },
-    filename: (req, file, cb) => {
-      // Generate unique filename to prevent collisions
-      const uniqueId = randomUUID();
-      const ext = path.extname(file.originalname);
-      cb(null, `${uniqueId}-${Date.now()}${ext}`);
-    }
-  }),
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    // Check concurrency limit
-    if (concurrentUploads >= MAX_CONCURRENT_UPLOADS) {
-      return cb(new Error('Server busy - too many concurrent uploads. Please try again in a moment.'), false);
-    }
-    concurrentUploads++;
-    
-    // Cleanup function to decrement counter (attached to request for later use)
-    (req as any).cleanup = () => {
-      concurrentUploads = Math.max(0, concurrentUploads - 1);
-    };
-    
-    // Allow common document types
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'text/plain',
-      'text/csv'
-    ];
-    
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`File type ${file.mimetype} not allowed`));
-    }
-  }
-});
+// Use enhanced multer configuration from fileValidation with 20MB limits
+const uploadProxy = createUploadMiddleware();
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const objectStorageService = new ObjectStorageService();
@@ -662,7 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents/upload-proxy", 
     verifyFirebaseToken,
     uploadProxy.single("file"), // <<< this must run before any json parser
-    multerErrorHandler, // Handle multer errors and map to HTTP 413
+    newMulterErrorHandler, // Enhanced multer error handler with 20MB limits
     async (req: AuthenticatedRequest, res) => {
       // Set up abort detection
       let isAborted = false;
@@ -706,10 +666,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { originalname, mimetype, path: filePath, size } = req.file;
         const uid = req.user?.uid!;
         const forceUpload = req.body.forceUpload === 'true'; // Check if user decided to force upload
+        let quotaUpdated = false; // Track quota updates for potential rollback
         
         console.info(`Upload-proxy processing: ${originalname}, size: ${size}, path: ${filePath}, mimetype: ${mimetype}`);
         
-        // Validate file signature to prevent MIME spoofing
+        // 1. Enhanced file size validation with quirky messages
+        const fileSizeValidation = validateFileSize(size, mimetype, originalname);
+        if (!fileSizeValidation.valid) {
+          // Cleanup concurrency counter and temp file
+          (req as any).cleanup?.();
+          await fs.unlink(filePath).catch(() => {});
+          
+          console.error(JSON.stringify({
+            evt: "upload-proxy.file_size_exceeded",
+            reqId: (req as any).reqId,
+            uid,
+            fileName: originalname,
+            fileSize: size,
+            timestamp: new Date().toISOString()
+          }));
+          
+          return res.status(413).json({
+            error: 'File too large',
+            message: fileSizeValidation.error,
+            code: 'FILE_TOO_LARGE',
+            details: fileSizeValidation.details
+          });
+        }
+        
+        // 2. Check storage quota (1GB limit)
+        const storageQuotaCheck = await checkStorageQuota(uid, size);
+        if (!storageQuotaCheck.allowed) {
+          // Cleanup concurrency counter and temp file
+          (req as any).cleanup?.();
+          await fs.unlink(filePath).catch(() => {});
+          
+          console.error(JSON.stringify({
+            evt: "upload-proxy.storage_quota_exceeded",
+            reqId: (req as any).reqId,
+            uid,
+            fileName: originalname,
+            fileSize: size,
+            timestamp: new Date().toISOString()
+          }));
+          
+          return res.status(413).json({
+            error: 'Storage quota exceeded',
+            message: storageQuotaCheck.reason,
+            code: 'STORAGE_QUOTA_EXCEEDED',
+            details: storageQuotaCheck.details
+          });
+        }
+        
+        // 3. Check document count quota (500 documents max)
+        const documentQuotaCheck = await checkDocumentQuota(uid);
+        if (!documentQuotaCheck.allowed) {
+          // Cleanup concurrency counter and temp file
+          (req as any).cleanup?.();
+          await fs.unlink(filePath).catch(() => {});
+          
+          console.error(JSON.stringify({
+            evt: "upload-proxy.document_quota_exceeded",
+            reqId: (req as any).reqId,
+            uid,
+            fileName: originalname,
+            timestamp: new Date().toISOString()
+          }));
+          
+          return res.status(400).json({
+            error: 'Document limit exceeded',
+            message: documentQuotaCheck.reason,
+            code: 'DOCUMENT_QUOTA_EXCEEDED',
+            details: documentQuotaCheck.details
+          });
+        }
+        
+        // 4. Validate file signature to prevent MIME spoofing
         if (!(await validateFileSignature(filePath, mimetype))) {
           // Cleanup concurrency counter and temp file
           (req as any).cleanup?.();
@@ -858,6 +890,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Generate unique idempotency key that includes objectPath to prevent conflicts
         const customIdempotencyKey = `upload-proxy:${uid}:${objectPath}:${size}`;
         const document = await storage.createDocument(validatedData, (req as any).reqId, customIdempotencyKey);
+        
+        // Update user storage quota after successful upload
+        try {
+          const quotaUpdateSuccess = await updateStorageUsage(uid, size);
+          if (!quotaUpdateSuccess) {
+            throw new Error('Failed to update storage quota');
+          }
+          quotaUpdated = true;
+          
+          console.log(JSON.stringify({
+            evt: "upload-proxy.quota_updated",
+            reqId: (req as any).reqId,
+            uid,
+            fileSize: size,
+            documentId: document.id,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (quotaError) {
+          console.error(JSON.stringify({
+            evt: "upload-proxy.quota_update_failed",
+            reqId: (req as any).reqId,
+            uid,
+            fileSize: size,
+            documentId: document.id,
+            error: quotaError.message,
+            timestamp: new Date().toISOString()
+          }));
+          
+          // If quota update fails, we should cleanup the uploaded file and fail the request
+          // Note: Document creation succeeded, but quota tracking failed
+          // This is a data consistency issue that should be handled
+          throw new Error('Failed to track storage usage - upload aborted for data consistency');
+        }
 
         console.info(JSON.stringify({
           evt: "upload-proxy.db_created",
@@ -937,6 +1002,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           size
         });
       } catch (err: any) {
+        // Rollback quota update if it was performed
+        if (quotaUpdated) {
+          try {
+            const rollbackSuccess = await decreaseStorageUsage(uid, size);
+            console.log(JSON.stringify({
+              evt: "upload-proxy.quota_rollback",
+              reqId: (req as any).reqId,
+              uid,
+              fileSize: size,
+              success: rollbackSuccess,
+              timestamp: new Date().toISOString()
+            }));
+          } catch (rollbackError) {
+            console.error(JSON.stringify({
+              evt: "upload-proxy.quota_rollback_failed",
+              reqId: (req as any).reqId,
+              uid,
+              fileSize: size,
+              error: rollbackError.message,
+              timestamp: new Date().toISOString()
+            }));
+          }
+        }
+        
         // Error log with correlation ID
         console.error(JSON.stringify({
           evt: "upload-proxy.error",
@@ -1220,7 +1309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // OLD upload-proxy route removed - now handled earlier before JSON parsing
 
   // Standard upload route - handles single file uploads with multipart data
-  app.post("/api/documents/upload", verifyFirebaseToken, uploadProxy.single('file'), multerErrorHandler, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/upload", verifyFirebaseToken, uploadProxy.single('file'), newMulterErrorHandler, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?.uid;
       
@@ -2905,6 +2994,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Folders endpoints
+  // Get user quota usage summary
+  app.get("/api/user/quota", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+
+      const quotaSummary = await getQuotaUsageSummary(userId);
+      if (!quotaSummary) {
+        return res.status(500).json({ error: "Failed to retrieve quota information" });
+      }
+
+      res.json({
+        success: true,
+        quota: quotaSummary
+      });
+    } catch (error) {
+      console.error("Error fetching quota usage:", error);
+      res.status(500).json({ error: "Failed to retrieve quota usage" });
+    }
+  });
+
   app.get("/api/folders", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?.uid;

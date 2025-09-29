@@ -194,8 +194,8 @@ export async function updateStorageUsage(userId: string, fileSizeBytes: number):
     await db
       .update(userQuotas)
       .set({
-        storageUsed: sql`storage_used_bytes + ${BigInt(fileSizeBytes)}`,
-        documentCount: sql`document_count + 1`,
+        storageUsed: sql`${userQuotas.storageUsed} + ${BigInt(fileSizeBytes)}`,
+        documentCount: sql`${userQuotas.documentCount} + 1`,
         updatedAt: sql`now()`
       })
       .where(eq(userQuotas.userId, userId));
@@ -216,8 +216,8 @@ export async function decreaseStorageUsage(userId: string, fileSizeBytes: number
     await db
       .update(userQuotas)
       .set({
-        storageUsed: sql`GREATEST(0, storage_used_bytes - ${BigInt(fileSizeBytes)})`,
-        documentCount: sql`GREATEST(0, document_count - 1)`,
+        storageUsed: sql`GREATEST(0, ${userQuotas.storageUsed} - ${BigInt(fileSizeBytes)})`,
+        documentCount: sql`GREATEST(0, ${userQuotas.documentCount} - 1)`,
         updatedAt: sql`now()`
       })
       .where(eq(userQuotas.userId, userId));

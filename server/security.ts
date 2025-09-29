@@ -33,10 +33,15 @@ export function getSecurityConfig(): SecurityConfig {
   // Additional allowed domains from environment
   const additionalDomains = process.env.ALLOWED_API_DOMAINS?.split(',').map(d => d.trim()) || [];
 
-  // Combine and create HTTPS URLs
+  // Combine and create HTTPS URLs (avoid double prefixing)
   const allowedApiDomains = [...coreApiDomains, ...additionalDomains]
     .filter(domain => domain && domain.length > 0)
-    .map(domain => domain.startsWith('https://') ? domain : `https://${domain}`);
+    .map(domain => {
+      if (domain.startsWith('https://') || domain.startsWith('http://')) {
+        return domain;
+      }
+      return `https://${domain}`;
+    });
 
   // Production domain allowlist
   const productionOrigins: (string | RegExp)[] = [
@@ -85,8 +90,7 @@ export function getSecurityConfig(): SecurityConfig {
         ...(isDevelopment ? ["'unsafe-eval'"] : []),
         "https://replit.com",
         "https://www.googletagmanager.com",
-        // Add nonce support for dynamic scripts
-        ...(process.env.CSP_SCRIPT_NONCE ? [`'nonce-${process.env.CSP_SCRIPT_NONCE}'`] : [])
+        // Dynamic nonce will be injected per-request in getHelmetConfig
       ],
       'style-src': [
         "'self'",
@@ -136,14 +140,26 @@ export function generateCSPNonce(req: Request, res: Response, next: NextFunction
 /**
  * Get helmet configuration based on security settings
  */
-export function getHelmetConfig() {
+export function getHelmetConfig(req?: Request, res?: Response) {
   const config = getSecurityConfig();
   const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  // Clone CSP directives and inject per-request nonce if available
+  let cspDirectives = { ...config.cspDirectives };
+  if (res?.locals?.nonce) {
+    cspDirectives = {
+      ...cspDirectives,
+      'script-src': [
+        ...cspDirectives['script-src'],
+        `'nonce-${res.locals.nonce}'`
+      ]
+    };
+  }
   
   return {
     // Content Security Policy
     contentSecurityPolicy: config.enableCSP ? {
-      directives: config.cspDirectives,
+      directives: cspDirectives,
       reportOnly: config.cspReportOnly,
       // Add report URI in production
       ...(process.env.CSP_REPORT_URI && {

@@ -7,7 +7,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { aiQueueProcessor } from "./aiQueueProcessor";
 import * as cron from "node-cron";
 import { DatabaseStorage } from "./storage";
-import { getSecurityConfig, getHelmetConfig, logSecurityStatus } from "./security";
+import { getSecurityConfig, getHelmetConfig, logSecurityStatus, generateCSPNonce } from "./security";
 import { transactionManager } from "./transactionManager";
 import { requestTrackingMiddleware, getRequestMetrics, getSystemMetricsSummary } from './middleware/requestTracking.js';
 import { healthCheck, readinessCheck, getSystemStatus } from './middleware/healthChecks.js';
@@ -79,8 +79,44 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Security middleware with staged rollout capabilities
-app.use(helmet(getHelmetConfig()));
+// Generate CSP nonce for each request (must come before helmet)
+app.use(generateCSPNonce);
+
+// Security middleware with proper nonce integration
+app.use((req, res, next) => {
+  // Get base config and clone CSP directives
+  const config = getSecurityConfig();
+  let cspDirectives = { ...config.cspDirectives };
+  
+  // Inject per-request nonce into script-src if available
+  if (res.locals.nonce) {
+    cspDirectives = {
+      ...cspDirectives,
+      'script-src': [
+        ...cspDirectives['script-src'],
+        `'nonce-${res.locals.nonce}'`
+      ]
+    };
+  }
+  
+  // Apply helmet with the nonce-injected configuration
+  helmet({
+    contentSecurityPolicy: config.enableCSP ? {
+      directives: cspDirectives,
+      reportOnly: config.cspReportOnly,
+      ...(process.env.CSP_REPORT_URI && {
+        reportUri: process.env.CSP_REPORT_URI
+      })
+    } : false,
+    crossOriginEmbedderPolicy: config.enableCOEP,
+    hsts: config.enableSTSHeader ? {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true
+    } : false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+  })(req, res, next);
+});
 
 // Log security status on startup
 logSecurityStatus();
