@@ -3197,9 +3197,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // OAuth initiation endpoint - redirects to Google OAuth
   app.get('/api/auth/drive-redirect', (req, res) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    
+    // Enhanced logging to debug credential issues
+    console.log('[OAuth Init] Credentials check:', {
+      hasClientId: !!clientId,
+      clientIdPrefix: clientId ? clientId.substring(0, 25) + '...' : 'MISSING',
+      clientIdLength: clientId ? clientId.length : 0,
+      hasClientSecret: !!clientSecret,
+      clientSecretLength: clientSecret ? clientSecret.length : 0
+    });
+    
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
+      clientId,
+      clientSecret,
       `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`
     );
 
@@ -3225,6 +3237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       redirectUri: `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`,
       originalUrl: authUrl.substring(0, 150) + '...',
       cleanUrl: cleanAuthUrl.substring(0, 150) + '...',
+      fullUrl: cleanAuthUrl,
       hasAmp: authUrl.includes('&amp;'),
       fixedAmp: !cleanAuthUrl.includes('&amp;')
     });
