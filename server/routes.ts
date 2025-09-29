@@ -3195,8 +3195,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ has, cookies: Object.keys(req.cookies || {}) });
   });
 
+  // OAuth initiation endpoint - redirects to Google OAuth
+  app.get('/auth/drive', (req, res) => {
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`
+    );
+
+    const scopes = [
+      'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/userinfo.email'
+    ];
+
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+      prompt: 'consent'
+    });
+
+    console.log('[OAuth Init] Redirecting to Google OAuth:', {
+      hostname: req.get('host'),
+      redirectUri: `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`,
+      authUrl: authUrl.substring(0, 100) + '...'
+    });
+
+    res.redirect(authUrl);
+  });
+
   // OAuth callback endpoint - sets httpOnly cookie with Drive token
-  app.post("/api/drive/oauth-callback", validateJsonContentType, express.json(), verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/drive/oauth-callback", async (req, res) => {
     try {
       const reqId = (req as any).reqId;
       const userId = req.user?.uid;
@@ -3217,34 +3245,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         accessTokenLength: req.body?.accessToken?.length || 0
       });
 
-      const { accessToken } = req.body;
+      const { code, error } = req.query;
+      
+      if (error) {
+        return res.status(400).send(`
+          <script>
+            window.opener.postMessage({ success: false, error: '${error}' }, '*');
+            window.close();
+          </script>
+        `);
+      }
+      
+      if (!code) {
+        return res.status(400).send(`
+          <script>
+            window.opener.postMessage({ success: false, error: 'No authorization code received' }, '*');
+            window.close();
+          </script>
+        `);
+      }
+
+      // Exchange code for access token
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`
+      );
+
+      const { tokens } = await oauth2Client.getToken(code as string);
+      const accessToken = tokens.access_token;
       
       if (!accessToken) {
-        return res.status(400).json({ 
-          error: "Access token required",
-          message: "No access token provided in callback"
-        });
+        return res.status(400).send(`
+          <script>
+            window.opener.postMessage({ success: false, error: 'No access token received' }, '*');
+            window.close();
+          </script>
+        `);
       }
       
-      // Verify the token belongs to the authenticated user
-      const firebaseUserEmail = req.user?.email;
-      if (!firebaseUserEmail) {
-        return res.status(401).json({ error: "Firebase user email not available" });
-      }
-      
-      // Verify token with Google
-      const oauth2Client = new google.auth.OAuth2();
+      // Verify token with Google and get user info
       oauth2Client.setCredentials({ access_token: accessToken });
-      
       const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
       const userInfo = await oauth2.userinfo.get();
       
       const googleUserEmail = userInfo.data.email;
-      if (!googleUserEmail || googleUserEmail !== firebaseUserEmail) {
-        return res.status(403).json({ 
-          error: "Token mismatch",
-          message: "Drive token does not belong to the authenticated user"
-        });
+      if (!googleUserEmail) {
+        return res.status(400).send(`
+          <script>
+            window.opener.postMessage({ success: false, error: 'Could not get user email from Google' }, '*');
+            window.close();
+          </script>
+        `);
       }
       
       // Set the token in httpOnly cookie
@@ -3253,36 +3305,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log successful completion
       console.log(`[OAuth Callback] ✅ Drive authentication successful`, {
         reqId,
-        userId,
-        userEmail: firebaseUserEmail,
         googleEmail: googleUserEmail,
         tokenStored: true,
-        authMethod: 'cookie'
+        authMethod: 'cookie',
+        hostname: req.get('host')
       });
       
-      res.json({
-        success: true,
-        message: "Drive authentication successful",
-        email: googleUserEmail,
-        authMethod: "cookie"
-      });
+      // Send success message to parent window and close popup
+      res.send(`
+        <script>
+          window.opener.postMessage({ 
+            success: true, 
+            email: '${googleUserEmail}',
+            authMethod: 'cookie'
+          }, '*');
+          window.close();
+        </script>
+      `);
       
     } catch (error) {
       const reqId = (req as any).reqId;
-      const userId = req.user?.uid;
       
       console.error(`[OAuth Callback] ❌ Drive authentication failed`, {
         reqId,
-        userId,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         hostname: req.get('host') || req.hostname
       });
       
-      res.status(500).json({ 
-        error: "OAuth callback failed",
-        message: "Failed to process OAuth callback"
-      });
+      res.status(500).send(`
+        <script>
+          window.opener.postMessage({ 
+            success: false, 
+            error: 'OAuth callback failed: ${error instanceof Error ? error.message : 'Unknown error'}' 
+          }, '*');
+          window.close();
+        </script>
+      `);
     }
   });
   

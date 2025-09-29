@@ -81,61 +81,36 @@ export const connectGoogleDrive = async (): Promise<boolean> => {
         return;
       }
       
-      if (event.data.type === 'DRIVE_AUTH_SUCCESS') {
+      if (event.data.success === true) {
+        console.log('[Drive Auth] ✅ Authentication successful from OAuth callback:', event.data);
         
-        // Send access token to backend for httpOnly cookie storage
-        console.log('[Drive Auth] 🚀 Calling OAuth callback with token...', {
-          tokenLength: event.data.accessToken?.length || 0,
-          hasIdToken: !!event.data.idToken,
-          origin: window.location.origin
-        });
+        // Clean up
+        window.removeEventListener('message', messageListener);
+        authWindow.close();
         
-        fetch('/api/drive/oauth-callback', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest' // CSRF protection
-          },
-          credentials: 'include', // Include cookies for Firebase auth
-          body: JSON.stringify({
-            access_token: event.data.accessToken,
-            id_token: event.data.idToken
-          })
-        }).then(response => {
-          console.log('[Drive Auth] OAuth callback response:', {
-            status: response.status,
-            statusText: response.statusText,
-            ok: response.ok,
-            headers: Object.fromEntries(response.headers.entries())
-          });
-          if (response.ok) {
-            console.log('[Drive Auth] ✅ Token stored in httpOnly cookie successfully');
-            resolve(true);
-          } else {
-            response.text().then(text => {
-              console.error('[Drive Auth] ❌ Failed to store token in cookie:', {
-                status: response.status,
-                statusText: response.statusText,
-                body: text
-              });
-            });
-            reject(new Error('Failed to store authentication token'));
-          }
-        }).catch(error => {
-          console.error('[Drive Auth] ❌ Error calling OAuth callback:', {
-            error: error.message,
-            stack: error.stack,
-            name: error.name
-          });
-          reject(new Error('Failed to complete authentication'));
-        }).finally(() => {
-          // Clean up
-          window.removeEventListener('message', messageListener);
-          authWindow.close();
-        });
+        resolve(true);
+        
+      } else if (event.data.success === false) {
+        console.error('[Drive Auth] ❌ Authentication failed from OAuth callback:', event.data.error);
+        
+        // Clean up
+        window.removeEventListener('message', messageListener);
+        authWindow.close();
+        
+        reject(new Error(event.data.error || 'Authentication failed'));
+        
+      } else if (event.data.type === 'DRIVE_AUTH_SUCCESS') {
+        // Fallback for old message format (if needed)
+        console.log('[Drive Auth] ✅ Authentication successful (legacy format)');
+        
+        // Clean up
+        window.removeEventListener('message', messageListener);
+        authWindow.close();
+        
+        resolve(true);
         
       } else if (event.data.type === 'DRIVE_AUTH_ERROR') {
-        console.error("Drive auth failed:", event.data.error);
+        console.error('[Drive Auth] ❌ Authentication failed (legacy format):', event.data.error);
         
         // Clean up
         window.removeEventListener('message', messageListener);
