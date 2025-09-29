@@ -6,87 +6,81 @@ export const DRIVE_TOKEN_COOKIE_NAME = 'drive_access_token';
 export const DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME = 'drive_access_token_time';
 
 export const getCookieOptions = (req?: Request) => {
-  const isProduction = process.env.NODE_ENV === 'production';
+  const hostname = req?.hostname || req?.get('Host') || 'localhost';
+  const protocol = req?.protocol || 'http';
   
-  // Derive domain dynamically from request hostname
-  let domain = undefined;
-  let isReplitDev = false;
+  console.log(`[Cookie Config] Getting cookie options for hostname: ${hostname}, protocol: ${protocol}`);
   
-  if (req) {
-    const hostname = req.get('host') || req.hostname;
-    console.log(`[Cookie Config] Request hostname: ${hostname}, NODE_ENV: ${process.env.NODE_ENV}`);
+  let opts: any;
+  
+  if (hostname.includes('.replit.dev')) {
+    // Replit staging: force secure=false, sameSite=lax, domain=.janeway.replit.dev
+    const parts = hostname.split('.');
+    const subdomain = parts.length >= 3 ? parts[parts.length - 3] : 'janeway'; // Extract 'janeway' from xyz.janeway.replit.dev
+    const domain = `.${subdomain}.replit.dev`;
     
-    if (hostname) {
-      // Check if this is a replit.dev domain
-      isReplitDev = hostname.includes('replit.dev');
-      
-      if (isReplitDev) {
-        // For staging on replit.dev: Extract full subdomain (e.g., .abc-123.janeway.replit.dev)
-        const replitParts = hostname.split('.');
-        if (replitParts.length >= 3) {
-          domain = '.' + replitParts.slice(-3).join('.'); // .janeway.replit.dev
-        }
-        console.log(`[Cookie Config] Replit.dev domain detected: ${domain}`);
-      } else if (hostname.includes('clasio.ai')) {
-        // For production on clasio.ai
-        domain = '.clasio.ai';
-        console.log(`[Cookie Config] Clasio.ai domain detected: ${domain}`);
-      } else {
-        // Generic domain resolution
-        const parts = hostname.split('.');
-        if (parts.length >= 2) {
-          domain = '.' + parts.slice(-2).join('.');
-        }
-        console.log(`[Cookie Config] Generic domain resolution: ${domain}`);
-      }
-    }
+    opts = {
+      domain,
+      secure: false, // Force false for staging
+      sameSite: 'lax' as const, // Force lax for staging
+      httpOnly: true,
+      maxAge: 50 * 60 * 1000, // 50 minutes
+      path: '/'
+    };
+    
+    console.log(`[Cookie Config] Replit staging environment:`, {
+      hostname,
+      subdomain,
+      opts
+    });
+  } else if (hostname.includes('.clasio.ai') || hostname === 'clasio.ai') {
+    // Production: force secure=true, sameSite=strict, domain=.clasio.ai
+    opts = {
+      domain: '.clasio.ai',
+      secure: true, // Force true for production
+      sameSite: 'strict' as const, // Force strict for production
+      httpOnly: true,
+      maxAge: 50 * 60 * 1000, // 50 minutes
+      path: '/'
+    };
+    
+    console.log(`[Cookie Config] Production environment:`, {
+      hostname,
+      opts
+    });
+  } else {
+    // Local development fallback
+    opts = {
+      secure: protocol === 'https',
+      sameSite: 'lax' as const,
+      httpOnly: true,
+      maxAge: 50 * 60 * 1000, // 50 minutes
+      path: '/'
+    };
+    
+    console.log(`[Cookie Config] Local development fallback:`, {
+      hostname,
+      protocol,
+      opts
+    });
   }
   
-  // Different security settings for staging vs production
-  const secure = isReplitDev ? false : isProduction; // HTTP allowed for replit.dev staging
-  const sameSite = isReplitDev ? 'lax' : (isProduction ? 'strict' : 'lax') as 'strict' | 'lax';
-  
-  const options = {
-    httpOnly: true,
-    secure,
-    sameSite,
-    domain,
-    path: '/',
-    maxAge: 50 * 60 * 1000 // 50 minutes (tokens expire at 60 minutes)
-  };
-  
-  console.log(`[Cookie Config] Final options:`, {
-    domain: options.domain,
-    secure: options.secure,
-    sameSite: options.sameSite,
-    httpOnly: options.httpOnly,
-    isReplitDev,
-    hostname: req?.get('host') || req?.hostname
-  });
-  
-  return options;
+  return opts;
 };
 
 // Set Drive access token in httpOnly cookie
 export const setDriveTokenCookie = (res: Response, token: string, req?: Request) => {
-  const options = getCookieOptions(req);
+  const hostname = req?.hostname || req?.get('Host') || 'localhost';
+  const opts = getCookieOptions(req);
   
-  console.log(`[setDriveTokenCookie] Setting Drive token cookie with options:`, {
-    domain: options.domain,
-    secure: options.secure,
-    sameSite: options.sameSite,
-    httpOnly: options.httpOnly,
-    tokenLength: token?.length || 0,
-    hostname: req?.get('host') || req?.hostname,
-    reqId: (req as any)?.reqId
-  });
+  console.log('[Drive Cookie] Setting drive access token:', { host: hostname, opts });
   
   // Set the token
-  res.cookie(DRIVE_TOKEN_COOKIE_NAME, token, options);
+  res.cookie(DRIVE_TOKEN_COOKIE_NAME, token, opts);
   console.log(`[setDriveTokenCookie] ✅ Set ${DRIVE_TOKEN_COOKIE_NAME} cookie`);
   
   // Set the timestamp for expiration checking
-  res.cookie(DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME, Date.now().toString(), options);
+  res.cookie(DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME, Date.now().toString(), opts);
   console.log(`[setDriveTokenCookie] ✅ Set ${DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME} cookie`);
   
   // Add telemetry header to track cookie usage
@@ -95,18 +89,13 @@ export const setDriveTokenCookie = (res: Response, token: string, req?: Request)
 
 // Clear Drive token cookies on sign-out
 export const clearDriveTokenCookies = (res: Response, req?: Request) => {
-  const options = getCookieOptions(req);
+  const hostname = req?.hostname || req?.get('Host') || 'localhost';
+  const opts = getCookieOptions(req);
   
-  console.log(`[clearDriveTokenCookies] Clearing Drive token cookies with options:`, {
-    domain: options.domain,
-    secure: options.secure,
-    sameSite: options.sameSite,
-    hostname: req?.get('host') || req?.hostname,
-    reqId: (req as any)?.reqId
-  });
+  console.log('[Drive Cookie] Clearing drive access token:', { host: hostname, opts });
   
-  res.clearCookie(DRIVE_TOKEN_COOKIE_NAME, options);
-  res.clearCookie(DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME, options);
+  res.clearCookie(DRIVE_TOKEN_COOKIE_NAME, opts);
+  res.clearCookie(DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME, opts);
   
   console.log(`[clearDriveTokenCookies] ✅ Cleared Drive token cookies`);
 };

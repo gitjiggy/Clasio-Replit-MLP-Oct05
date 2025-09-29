@@ -3189,6 +3189,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
+  // Add diagnostic endpoint for cookie debugging (temporary)
+  app.get('/api/drive/debug-cookie', (req, res) => {
+    const has = Boolean(req.cookies?.drive_access_token);
+    res.json({ has, cookies: Object.keys(req.cookies || {}) });
+  });
+
   // OAuth callback endpoint - sets httpOnly cookie with Drive token
   app.post("/api/drive/oauth-callback", validateJsonContentType, express.json(), verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
     try {
