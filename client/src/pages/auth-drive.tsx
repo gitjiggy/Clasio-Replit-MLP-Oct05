@@ -26,10 +26,16 @@ export default function AuthDrive() {
     setError('');
     
     try {
+      console.log('[DEBUG] Starting Google Drive authentication...');
+      console.log('[DEBUG] Auth object:', auth);
+      console.log('[DEBUG] Provider scopes:', driveGoogleProvider);
       
       const result = await signInWithPopup(auth, driveGoogleProvider);
+      console.log('[DEBUG] SignInWithPopup successful:', result);
+      
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const googleAccessToken = credential?.accessToken;
+      console.log('[DEBUG] Access token received:', !!googleAccessToken);
       
       
       if (googleAccessToken) {
@@ -80,7 +86,11 @@ export default function AuthDrive() {
       }
       
     } catch (error: any) {
-      console.error('Drive auth failed:', error);
+      console.error('[DEBUG] Drive auth failed - Full error:', error);
+      console.error('[DEBUG] Error code:', error.code);
+      console.error('[DEBUG] Error message:', error.message);
+      console.error('[DEBUG] Error stack:', error.stack);
+      
       setStatus('error');
       setIsFirstAttempt(false); // Mark that we've had a failure
       
