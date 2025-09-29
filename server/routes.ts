@@ -355,7 +355,7 @@ ensureTmpDir();
 setInterval(cleanupTmpFiles, 15 * 60 * 1000); // Clean every 15 minutes
 
 // Configure multer for disk storage with concurrency control
-const upload = multer({
+const uploadProxy = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, TMP_UPLOAD_DIR);
@@ -461,11 +461,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return m ? `users/${m[1]}/docs/${m[2]}/<file>` : p;
   };
 
-  // Configure multer for upload-proxy (BEFORE any JSON parser)
-  const uploadProxy = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB cap - matches schema validation
-  });
+  // Use the disk storage multer configuration for upload-proxy
+  // (uploadProxy is already configured above with disk storage)
 
   // Upload proxy MUST consume the body before any JSON middleware
   app.post("/api/documents/upload-proxy", 
@@ -515,6 +512,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { originalname, mimetype, path: filePath, size } = req.file;
         const uid = req.user?.uid!;
         const forceUpload = req.body.forceUpload === 'true'; // Check if user decided to force upload
+        
+        console.info(`Upload-proxy processing: ${originalname}, size: ${size}, path: ${filePath}, mimetype: ${mimetype}`);
         
         // Validate file signature to prevent MIME spoofing
         if (!(await validateFileSignature(filePath, mimetype))) {
@@ -1027,7 +1026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // OLD upload-proxy route removed - now handled earlier before JSON parsing
 
   // Standard upload route - handles single file uploads with multipart data
-  app.post("/api/documents/upload", verifyFirebaseToken, upload.single('file'), multerErrorHandler, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/upload", verifyFirebaseToken, uploadProxy.single('file'), multerErrorHandler, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?.uid;
       
