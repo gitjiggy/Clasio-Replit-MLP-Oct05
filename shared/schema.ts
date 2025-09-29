@@ -263,7 +263,7 @@ export const userQuotas = pgTable("user_quotas", {
   userId: text("user_id").notNull().unique(), // Firebase UID
   storageLimit: bigint("storage_limit_bytes", { mode: "bigint" }).notNull().default(sql`'1073741824'::bigint`), // 1GB for everyone
   storageUsed: bigint("storage_used_bytes", { mode: "bigint" }).notNull().default(sql`'0'::bigint`),
-  documentLimit: integer("document_limit").notNull().default(500), // 500 documents max
+  documentLimit: integer("document_limit").notNull().default(200), // 200 documents max
   documentCount: integer("document_count").notNull().default(0),
   quotaTier: text("quota_tier").notNull().default('standard'), // Single tier approach
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),

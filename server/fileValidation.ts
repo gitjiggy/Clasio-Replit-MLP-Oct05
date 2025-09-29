@@ -1,4 +1,4 @@
-// Conservative File Size Limits (20MB Maximum)
+// Conservative File Size Limits (50MB Maximum)
 // Enhanced File Validation with Friendly Errors
 
 import multer from 'multer';
@@ -6,32 +6,32 @@ import path from 'path';
 import { randomBytes } from 'crypto';
 
 export const FILE_SIZE_LIMITS = {
-  // All file types capped at 20MB - no exceptions!
-  'application/pdf': 20 * 1024 * 1024,
-  'image/jpeg': 20 * 1024 * 1024,
-  'image/png': 20 * 1024 * 1024,
-  'image/gif': 20 * 1024 * 1024,
-  'image/webp': 20 * 1024 * 1024,
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 20 * 1024 * 1024,
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 20 * 1024 * 1024,
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 20 * 1024 * 1024,
-  'application/vnd.ms-excel': 20 * 1024 * 1024,
-  'application/msword': 20 * 1024 * 1024,
-  'application/vnd.ms-powerpoint': 20 * 1024 * 1024,
-  'text/plain': 20 * 1024 * 1024,
-  'text/csv': 20 * 1024 * 1024,
-  'default': 20 * 1024 * 1024 // Universal 20MB limit
+  // All file types capped at 50MB - no exceptions!
+  'application/pdf': 50 * 1024 * 1024,
+  'image/jpeg': 50 * 1024 * 1024,
+  'image/png': 50 * 1024 * 1024,
+  'image/gif': 50 * 1024 * 1024,
+  'image/webp': 50 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 50 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 50 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 50 * 1024 * 1024,
+  'application/vnd.ms-excel': 50 * 1024 * 1024,
+  'application/msword': 50 * 1024 * 1024,
+  'application/vnd.ms-powerpoint': 50 * 1024 * 1024,
+  'text/plain': 50 * 1024 * 1024,
+  'text/csv': 50 * 1024 * 1024,
+  'default': 50 * 1024 * 1024 // Universal 50MB limit
 } as const;
 
 // Quirky file size error messages
 const FILE_SIZE_ERROR_MESSAGES = [
-  "Whoa there, speed racer! 🏎️ That file is larger than our servers can handle. Keep it under 20MB and we'll be best friends! 🤝",
+  "Whoa there, speed racer! 🏎️ That file is larger than our servers can handle. Keep it under 50MB and we'll be best friends! 🤝",
   "Houston, we have a problem! 🚀 Your file is too big for our digital filing cabinet. Try compressing it or splitting it into smaller chunks! 📁✂️",
-  "That file is chonkier than a well-fed cat! 🐱‍👤 Please slim it down to under 20MB so our servers don't get indigestion! 🤖💊",
-  "Your file is throwing our servers a surprise party they weren't ready for! 🎉 Keep it under 20MB and everyone stays happy! 😄",
-  "Plot twist: Your file is bigger than some movies! 🎬 Let's keep things snappy with files under 20MB, shall we? 🎭",
-  "Our servers are on a diet! 🥗 They can only digest files smaller than 20MB. Help them stay healthy! 💪",
-  "That file is like trying to fit an elephant through a mouse hole! 🐘🕳️ Compress it to under 20MB and watch the magic happen! ✨"
+  "That file is chonkier than a well-fed cat! 🐱‍👤 Please slim it down to under 50MB so our servers don't get indigestion! 🤖💊",
+  "Your file is throwing our servers a surprise party they weren't ready for! 🎉 Keep it under 50MB and everyone stays happy! 😄",
+  "Plot twist: Your file is bigger than some movies! 🎬 Let's keep things snappy with files under 50MB, shall we? 🎭",
+  "Our servers are on a diet! 🥗 They can only digest files smaller than 50MB. Help them stay healthy! 💪",
+  "That file is like trying to fit an elephant through a mouse hole! 🐘🕳️ Compress it to under 50MB and watch the magic happen! ✨"
 ];
 
 export function getFileSizeLimit(mimeType: string): number {
@@ -87,7 +87,7 @@ export function createUploadMiddleware() {
       }
     }),
     limits: {
-      fileSize: 20 * 1024 * 1024, // 20MB hard limit
+      fileSize: 50 * 1024 * 1024, // 50MB hard limit
       files: 1,
       fieldSize: 2 * 1024 * 1024, // 2MB for form fields
       fieldNameSize: 100, // Field name length
@@ -118,10 +118,10 @@ export function multerErrorHandler(error: any, req: any, res: any, next: any) {
         const quirkMessage = FILE_SIZE_ERROR_MESSAGES[Math.floor(Math.random() * FILE_SIZE_ERROR_MESSAGES.length)];
         return res.status(413).json({
           error: 'File too large',
-          message: `${quirkMessage}\n\n📊 Your file: ${fileMB}MB\n• Our limit: 20MB\n\n💡 Try compressing your file or splitting it into smaller parts!`,
+          message: `${quirkMessage}\n\n📊 Your file: ${fileMB}MB\n• Our limit: 50MB\n\n💡 Try compressing your file or splitting it into smaller parts!`,
           code: 'FILE_TOO_LARGE',
           details: {
-            maxSize: '20MB',
+            maxSize: '50MB',
             actualSize: `${fileMB}MB`
           }
         });

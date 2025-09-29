@@ -26,7 +26,7 @@ export interface QuotaCheckResult {
 // Conservative quota limits (all users get the same)
 const QUOTA_LIMITS = {
   STORAGE_BYTES: BigInt(1073741824), // 1GB exactly
-  DOCUMENT_COUNT: 500, // 500 documents maximum
+  DOCUMENT_COUNT: 200, // 200 documents maximum
   TIER: 'standard' // Single tier for everyone
 };
 
@@ -41,11 +41,11 @@ const QUOTA_EXCEEDED_MESSAGES = {
     "Your storage is fuller than a thanksgiving dinner plate! 🦃🍽️ Clear some space for dessert (new files)! 🍰"
   ],
   documents: [
-    "Document collector's achievement unlocked! 📋🏆 You've hit the 500 document limit. Time to organize! 📚",
-    "Your document library is complete! 📖 You've reached the 500-file maximum. Consider archiving some older ones! 📦",
-    "Document limit reached! 📄⚠️ You're at 500 files - time for some digital decluttering! 🧹",
+    "Document collector's achievement unlocked! 📋🏆 You've hit the 200 document limit. Time to organize! 📚",
+    "Your document library is complete! 📖 You've reached the 200-file maximum. Consider archiving some older ones! 📦",
+    "Document limit reached! 📄⚠️ You're at 200 files - time for some digital decluttering! 🧹",
     "Your file collection is maxed out! 🗃️ Archive some documents to make room for new ones! ✨",
-    "500 documents achieved! 🎯 You're officially a power user. Now let's make some space! 🚀",
+    "200 documents achieved! 🎯 You're officially a power user. Now let's make some space! 🚀",
     "Document storage full! 📊 Time to archive the old to make way for the new! 🔄"
   ]
 };

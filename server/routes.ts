@@ -558,7 +558,7 @@ async function cleanupTmpFiles() {
 ensureTmpDir();
 setInterval(cleanupTmpFiles, 15 * 60 * 1000); // Clean every 15 minutes
 
-// Use enhanced multer configuration from fileValidation with 20MB limits
+// Use enhanced multer configuration from fileValidation with 50MB limits
 const uploadProxy = createUploadMiddleware();
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -622,7 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents/upload-proxy", 
     verifyFirebaseToken,
     uploadProxy.single("file"), // <<< this must run before any json parser
-    newMulterErrorHandler, // Enhanced multer error handler with 20MB limits
+    newMulterErrorHandler, // Enhanced multer error handler with 50MB limits
     async (req: AuthenticatedRequest, res) => {
       // Set up abort detection
       let isAborted = false;
@@ -718,7 +718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
         
-        // 3. Check document count quota (500 documents max)
+        // 3. Check document count quota (200 documents max)
         const documentQuotaCheck = await checkDocumentQuota(uid);
         if (!documentQuotaCheck.allowed) {
           // Cleanup concurrency counter and temp file
