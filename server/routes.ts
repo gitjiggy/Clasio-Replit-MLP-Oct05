@@ -3395,9 +3395,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Verify Drive connection and get status
-  app.get("/api/drive/connect", verifyFirebaseToken, rejectLegacyDriveHeader, requireDriveAccess, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/drive/connect", verifyFirebaseToken, rejectLegacyDriveHeader, async (req: AuthenticatedRequest, res) => {
     try {
-      const driveService = (req as any).driveService as DriveService;
+      // Check if Drive token exists (without requiring it)
+      const { token: driveAccessToken } = getDriveToken(req);
+      
+      if (!driveAccessToken) {
+        // Not connected - return friendly status instead of 401 error
+        return res.json({
+          connected: false,
+          hasAccess: false,
+          quota: null,
+          message: "Google Drive not connected"
+        });
+      }
+
+      // Token exists - verify it and get quota
+      const driveService = new DriveService(driveAccessToken);
       
       // Verify Drive access
       const hasAccess = await driveService.verifyDriveAccess();
