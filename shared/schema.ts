@@ -257,6 +257,23 @@ export const idempotencyKeys = pgTable("idempotency_keys", {
   statusIndex: index("idempotency_status_idx").on(table.status, table.createdAt),
 }));
 
+// Conservative user quotas with 1GB storage limit
+export const userQuotas = pgTable("user_quotas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().unique(), // Firebase UID
+  storageLimit: bigint("storage_limit_bytes", { mode: "bigint" }).notNull().default(BigInt(1073741824)), // 1GB for everyone
+  storageUsed: bigint("storage_used_bytes", { mode: "bigint" }).notNull().default(BigInt(0)),
+  documentLimit: integer("document_limit").notNull().default(500), // 500 documents max
+  documentCount: integer("document_count").notNull().default(0),
+  quotaTier: text("quota_tier").notNull().default('standard'), // Single tier approach
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+}, (table) => ({
+  // Indexes for efficient quota operations
+  userIdIndex: index("user_quotas_user_id_idx").on(table.userId),
+  storageUsageIndex: index("user_quotas_storage_usage_idx").on(table.storageUsed, table.storageLimit),
+}));
+
 export const insertFolderSchema = createInsertSchema(folders).omit({
   id: true,
   createdAt: true,
@@ -309,6 +326,12 @@ export const insertIdempotencyKeySchema = createInsertSchema(idempotencyKeys).om
   expiresAt: true,
 });
 
+export const insertUserQuotaSchema = createInsertSchema(userQuotas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type InsertFolder = z.infer<typeof insertFolderSchema>;
 export type InsertTag = z.infer<typeof insertTagSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
@@ -319,6 +342,7 @@ export type InsertAiAnalysisQueue = z.infer<typeof insertAiAnalysisQueueSchema>;
 export type InsertDailyApiUsage = z.infer<typeof insertDailyApiUsageSchema>;
 export type InsertAiQueueMetrics = z.infer<typeof insertAiQueueMetricsSchema>;
 export type InsertIdempotencyKey = z.infer<typeof insertIdempotencyKeySchema>;
+export type InsertUserQuota = z.infer<typeof insertUserQuotaSchema>;
 
 export type Folder = typeof folders.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
@@ -330,6 +354,7 @@ export type AiAnalysisQueue = typeof aiAnalysisQueue.$inferSelect;
 export type DailyApiUsage = typeof dailyApiUsage.$inferSelect;
 export type AiQueueMetrics = typeof aiQueueMetrics.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
+export type UserQuota = typeof userQuotas.$inferSelect;
 
 export type DocumentWithFolderAndTags = Document & {
   folder?: Folder;
