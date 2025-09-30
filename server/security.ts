@@ -90,6 +90,10 @@ export function getSecurityConfig(): SecurityConfig {
         ...(isDevelopment ? ["'unsafe-eval'"] : []),
         "https://replit.com",
         "https://www.googletagmanager.com",
+        "https://apis.google.com",
+        "https://www.gstatic.com",
+        "https://securetoken.googleapis.com",
+        "https://identitytoolkit.googleapis.com",
         // Dynamic nonce will be injected per-request in getHelmetConfig
       ],
       'style-src': [
@@ -112,6 +116,10 @@ export function getSecurityConfig(): SecurityConfig {
       'connect-src': [
         "'self'",
         ...allowedApiDomains, // Dynamic API domains
+        "https://apis.google.com",
+        "https://securetoken.googleapis.com",
+        "https://identitytoolkit.googleapis.com",
+        "https://firebaseinstallations.googleapis.com",
         ...(isDevelopment ? ["ws://localhost:*", "wss://localhost:*"] : []),
       ],
       'frame-src': [
