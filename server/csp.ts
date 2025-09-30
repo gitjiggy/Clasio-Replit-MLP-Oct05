@@ -11,6 +11,7 @@ const allow = {
   ],
   scriptsElem: [
     "'self'",
+    "'unsafe-inline'",
     "https://apis.google.com",
     "https://www.googletagmanager.com",
     "https://www.gstatic.com"
