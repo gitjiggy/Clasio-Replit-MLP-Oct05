@@ -19,7 +19,8 @@ export interface SecurityConfig {
 export function getSecurityConfig(): SecurityConfig {
   const isDevelopment = process.env.NODE_ENV === 'development';
   const isProduction = process.env.NODE_ENV === 'production';
-  const enableSecurityHeaders = process.env.ENABLE_SECURITY_HEADERS === 'true' || isProduction;
+  // Only enable strict CSP if explicitly set to true (disabled by default for Firebase compatibility)
+  const enableSecurityHeaders = process.env.ENABLE_SECURITY_HEADERS === 'true';
   const cspReportOnly = process.env.CSP_REPORT_ONLY === 'true';
 
   // Core Google API domains (configurable via environment)
