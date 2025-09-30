@@ -4,6 +4,25 @@ This is a modern document management system built with React and Express, featur
 
 # Recent Changes
 
+## September 30, 2025 - Authentication Fix & Rebranding to Clasio
+
+**Authentication Loading Screen Fix**:
+- Fixed critical bug where app would hang on "Loading..." screen after Google OAuth redirect
+- Root cause: Auth state observer wasn't reliably setting loading state to false
+- Solution: Ensured loading state is set to false after redirect check completes, with fallback in auth observer
+- Authentication now works reliably with redirect-based flow (better for PWA/mobile support)
+
+**Complete Rebranding to Clasio**:
+- Changed all "DocuFlow" references to "Clasio" throughout the application
+- Updated app header, loading screens, welcome messages, and login modal
+- Added proper page title: "Clasio - AI-Powered Document Management"
+- Brand name now consistent across all user-facing surfaces
+
+**Technical Details**:
+- Auth Context now properly handles redirect results asynchronously
+- Both redirect result handler and auth state observer set loading to false
+- Eliminates race conditions that caused infinite loading states
+
 ## September 28, 2025 - GitHub Repository for External Vendor Collaboration
 
 **Created Comprehensive GitHub Repository**:
