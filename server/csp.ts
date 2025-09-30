@@ -62,7 +62,8 @@ export function cspMiddleware(): RequestHandler {
         "font-src": allow.fonts,
         "connect-src": allow.connects,
         "frame-src": allow.frames,
-        "img-src": allow.imgs
+        "img-src": allow.imgs,
+        "frame-ancestors": ["'self'", "https://*.replit.dev", "https://*.replit.app", "https://*.replit.com"]
       },
       reportOnly: CSP_REPORT_ONLY
     },
