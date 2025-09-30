@@ -43,13 +43,13 @@ driveGoogleProvider.setCustomParameters({
   'prompt': 'consent'  // Force consent screen for Drive scopes
 });
 
-// Basic Firebase authentication (NO Drive scopes) - Works reliably with popup
+// Basic Firebase authentication (NO Drive scopes) - Using redirect for better reliability
 export const signInWithGoogle = async () => {
-  
   try {
-    const result = await signInWithPopup(auth, basicGoogleProvider);
-    
-    return { user: result.user };
+    // Use redirect instead of popup for better reliability across all browsers/devices
+    await signInWithRedirect(auth, basicGoogleProvider);
+    // Note: This function will redirect away from the page
+    // The result will be handled by handleAuthRedirect() on return
   } catch (error: any) {
     console.error("Basic authentication failed:", error);
     throw new Error("Authentication failed: " + error.message);
