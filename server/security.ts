@@ -98,7 +98,7 @@ export function getSecurityConfig(): SecurityConfig {
       ],
       'style-src': [
         "'self'",
-        ...(isDevelopment ? ["'unsafe-inline'"] : []),
+        "'unsafe-inline'", // Required for Firebase and inline styles
         "https://fonts.googleapis.com",
       ],
       'font-src': [
@@ -125,6 +125,8 @@ export function getSecurityConfig(): SecurityConfig {
       'frame-src': [
         "https://accounts.google.com",
         "https://drive.google.com",
+        "https://*.firebaseapp.com",
+        "https://*.google.com",
       ],
       'object-src': ["'none'"],
       'base-uri': ["'self'"],
