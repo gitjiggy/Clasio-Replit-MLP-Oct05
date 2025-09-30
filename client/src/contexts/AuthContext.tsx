@@ -82,25 +82,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return; // Skip Firebase auth if test auth was successful
     }
 
-    // Handle auth redirect on app load (fallback method)
-    const handleAuth = async () => {
+    // Set up auth state observer synchronously
+    const unsubscribe = onAuthStateChange((user) => {
+      console.log("🔄 Auth state changed:", user?.email || "no user");
+      setUser(user);
+      setLoading(false);
+    });
+
+    // Handle auth redirect asynchronously
+    const handleAuthAsync = async () => {
       try {
         const authResult = await handleAuthRedirect();
         if (authResult) {
+          console.log("✅ Auth redirect successful:", authResult.user.email);
           setUser(authResult.user);
         }
       } catch (error) {
         console.error("Auth redirect failed:", error);
+      } finally {
+        // Always set loading to false after handling redirect, even if no result
+        setLoading(false);
       }
     };
 
-    handleAuth();
-
-    // Set up auth state observer for both popup and redirect authentication
-    const unsubscribe = onAuthStateChange((user) => {
-      setUser(user);
-      setLoading(false);
-    });
+    handleAuthAsync();
 
     return () => unsubscribe();
   }, []);
