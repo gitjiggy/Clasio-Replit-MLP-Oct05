@@ -30,7 +30,7 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold">DocuFlow</h1>
+          <h1 className="text-xl font-bold">Clasio</h1>
           <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
             AI-Powered
           </span>
@@ -128,7 +128,7 @@ function AuthenticatedApp() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="text-sm text-muted-foreground">Loading DocuFlow...</p>
+          <p className="text-sm text-muted-foreground">Loading Clasio...</p>
         </div>
       </div>
     );
@@ -142,7 +142,7 @@ function AuthenticatedApp() {
           <Router />
         ) : (
           <div className="container mx-auto py-8 text-center">
-            <h2 className="text-2xl font-bold mb-4">Welcome to DocuFlow</h2>
+            <h2 className="text-2xl font-bold mb-4">Welcome to Clasio</h2>
             <p className="text-muted-foreground mb-6">
               Your AI-powered document management system. Sign in to get started.
             </p>

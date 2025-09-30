@@ -45,7 +45,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-center">Welcome to DocuFlow</DialogTitle>
+          <DialogTitle className="text-center">Welcome to Clasio</DialogTitle>
           <DialogDescription className="text-center">
             Sign in to access your document management system with AI-powered features
           </DialogDescription>

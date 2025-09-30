@@ -1176,7 +1176,7 @@ export default function Documents() {
         <div className="p-6 border-b border-border">
           <h1 className="text-xl font-bold text-foreground flex items-center">
             <FolderOpen className="mr-3 text-primary" />
-            DocuFlow
+            Clasio
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Document Management API</p>
         </div>
