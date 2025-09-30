@@ -7,7 +7,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { aiQueueProcessor } from "./aiQueueProcessor";
 import * as cron from "node-cron";
 import { DatabaseStorage } from "./storage";
-import { getSecurityConfig, getHelmetConfig, logSecurityStatus, generateCSPNonce } from "./security";
+import { cspMiddleware } from "./csp";
 import { transactionManager } from "./transactionManager";
 import { requestTrackingMiddleware, getRequestMetrics, getSystemMetricsSummary } from './middleware/requestTracking.js';
 import { healthCheck, readinessCheck, getSystemStatus } from './middleware/healthChecks.js';
@@ -68,58 +68,18 @@ const app = express();
 // Configure trust proxy for rate limiting (Replit uses proxies)
 app.set('trust proxy', 1);
 
-// Security configuration based on environment
-const securityConfig = getSecurityConfig();
-
-// Configure CORS with environment-based origins
+// Configure CORS
 app.use(cors({
-  origin: securityConfig.corsOrigins,
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://clasio.ai', 'https://www.clasio.ai']
+    : true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Generate CSP nonce for each request (must come before helmet)
-app.use(generateCSPNonce);
-
-// Security middleware with proper nonce integration
-app.use((req, res, next) => {
-  // Get base config and clone CSP directives
-  const config = getSecurityConfig();
-  let cspDirectives = { ...config.cspDirectives };
-  
-  // Inject per-request nonce into script-src if available
-  if (res.locals.nonce) {
-    cspDirectives = {
-      ...cspDirectives,
-      'script-src': [
-        ...cspDirectives['script-src'],
-        `'nonce-${res.locals.nonce}'`
-      ]
-    };
-  }
-  
-  // Apply helmet with the nonce-injected configuration
-  helmet({
-    contentSecurityPolicy: config.enableCSP ? {
-      directives: cspDirectives,
-      reportOnly: config.cspReportOnly,
-      ...(process.env.CSP_REPORT_URI && {
-        reportUri: process.env.CSP_REPORT_URI
-      })
-    } : false,
-    crossOriginEmbedderPolicy: config.enableCOEP,
-    hsts: config.enableSTSHeader ? {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true
-    } : false,
-    referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
-  })(req, res, next);
-});
-
-// Log security status on startup
-logSecurityStatus();
+// Apply CSP middleware
+app.use(cspMiddleware());
 
 // Rate limiters are now in separate module to avoid circular dependencies
 
