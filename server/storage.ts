@@ -529,41 +529,76 @@ export class DatabaseStorage implements IStorage {
       .offset((filters.page - 1) * filters.limit);
 
 
-    // Get tags and version information for each document
-    const docsWithTags = await Promise.all(
-      results.map(async (result) => {
-        const docTags = await db
-          .select({ tag: tags })
-          .from(documentTags)
-          .leftJoin(tags, eq(documentTags.tagId, tags.id))
-          .where(eq(documentTags.documentId, result.document.id));
+    // OPTIMIZATION: Fetch tags and version info in bulk instead of N+1 queries
+    const documentIds = results.map(r => r.document.id);
+    
+    if (documentIds.length === 0) {
+      return [];
+    }
 
-        // Get version information
-        const currentVersionInfo = await db
-          .select({
-            version: documentVersions.version,
-          })
-          .from(documentVersions)
-          .where(and(
-            eq(documentVersions.documentId, result.document.id),
-            eq(documentVersions.isActive, true)
-          ))
-          .limit(1);
-
-        const totalVersions = await db
-          .select({ count: count() })
-          .from(documentVersions)
-          .where(eq(documentVersions.documentId, result.document.id));
-
-        return {
-          ...result.document,
-          folder: result.folder || undefined,
-          tags: docTags.map(dt => dt.tag).filter(Boolean) as Tag[],
-          currentVersionNumber: currentVersionInfo[0]?.version || 1,
-          versionCount: totalVersions[0]?.count || 1,
-        };
+    // Bulk fetch all tags for all documents (1 query instead of N)
+    const allDocTags = await db
+      .select({
+        documentId: documentTags.documentId,
+        tag: tags
       })
-    );
+      .from(documentTags)
+      .leftJoin(tags, eq(documentTags.tagId, tags.id))
+      .where(inArray(documentTags.documentId, documentIds));
+
+    // Bulk fetch current version info for all documents (1 query instead of N)
+    const allCurrentVersions = await db
+      .select({
+        documentId: documentVersions.documentId,
+        version: documentVersions.version,
+      })
+      .from(documentVersions)
+      .where(and(
+        inArray(documentVersions.documentId, documentIds),
+        eq(documentVersions.isActive, true)
+      ));
+
+    // Bulk fetch version counts for all documents (1 query instead of N)
+    const allVersionCounts = await db
+      .select({
+        documentId: documentVersions.documentId,
+        count: count()
+      })
+      .from(documentVersions)
+      .where(inArray(documentVersions.documentId, documentIds))
+      .groupBy(documentVersions.documentId);
+
+    // Map tags and versions to documents in-memory (fast!)
+    const tagsByDocId = new Map<string, Tag[]>();
+    allDocTags.forEach(({ documentId, tag }) => {
+      if (tag) {
+        if (!tagsByDocId.has(documentId)) {
+          tagsByDocId.set(documentId, []);
+        }
+        tagsByDocId.get(documentId)!.push(tag);
+      }
+    });
+
+    const versionByDocId = new Map<string, number>();
+    allCurrentVersions.forEach(({ documentId, version }) => {
+      versionByDocId.set(documentId, version);
+    });
+
+    const versionCountByDocId = new Map<string, number>();
+    allVersionCounts.forEach(({ documentId, count }) => {
+      versionCountByDocId.set(documentId, count);
+    });
+
+    // Assemble final results (no more database queries!)
+    const docsWithTags = results.map((result) => {
+      return {
+        ...result.document,
+        folder: result.folder || undefined,
+        tags: tagsByDocId.get(result.document.id) || [],
+        currentVersionNumber: versionByDocId.get(result.document.id) || 1,
+        versionCount: versionCountByDocId.get(result.document.id) || 1,
+      };
+    });
 
     return docsWithTags;
   }
