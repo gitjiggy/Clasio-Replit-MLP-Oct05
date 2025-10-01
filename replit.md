@@ -4,6 +4,21 @@ This is a modern document management system built with React and Express, featur
 
 # Recent Changes
 
+## October 1, 2025 - Firebase authDomain Fix for Custom Domain
+
+**Critical Configuration Update**:
+- **Root Cause Identified**: Firebase authDomain was using `documentorganizerclean-b629f.firebaseapp.com` instead of custom domain `clasio.ai`
+- **Impact**: Authentication popup was opening as new tab instead of popup window due to domain mismatch
+- **Resolution**: Updated authDomain to `clasio.ai` in both `firebase.ts` and `auth-drive.tsx`
+- **Files Modified**:
+  - `client/src/lib/firebase.ts`: Changed authDomain from template string to `"clasio.ai"`
+  - `client/src/pages/auth-drive.tsx`: Changed authDomain from `documentorganizerclean-b629f.firebaseapp.com` to `"clasio.ai"`
+
+**Firebase Console Configuration Verified**:
+- Authorized domains include both `clasio.ai` and `www.clasio.ai`
+- Custom domain properly configured in Firebase console
+- Authentication now uses branded domain for cleaner user experience
+
 ## October 1, 2025 - Cookie-Resilient Authentication Architecture
 
 **Production-Ready Authentication Flow**:
