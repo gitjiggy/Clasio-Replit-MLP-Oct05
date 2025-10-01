@@ -27,14 +27,20 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    console.log("Button clicked, starting redirect...");
+    console.log("🔘 Button clicked - starting Google sign-in");
     setIsSigningIn(true);
     
     try {
+      console.log("🚀 Calling signInWithRedirect...");
       await signInWithRedirect(auth, basicGoogleProvider);
-      // User will be redirected away - no further code needed here
+      console.log("✅ Redirect initiated");
     } catch (error) {
-      console.error("Redirect failed:", error);
+      console.error("❌ Redirect failed:", error);
+      console.error("Error details:", {
+        code: (error as any)?.code,
+        message: (error as any)?.message,
+        stack: (error as any)?.stack
+      });
       setIsSigningIn(false);
     }
   };
