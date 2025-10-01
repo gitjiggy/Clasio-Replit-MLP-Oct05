@@ -25,6 +25,30 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// DIAGNOSTIC: Log Firebase config to detect undefined values
+console.log("🔧 Firebase Config Check:", {
+  hasApiKey: !!firebaseConfig.apiKey,
+  hasProjectId: !!firebaseConfig.projectId,
+  hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
+  hasAppId: !!firebaseConfig.appId,
+  authDomain: firebaseConfig.authDomain,
+  // Log actual values in dev only
+  ...(import.meta.env.DEV ? {
+    apiKey: firebaseConfig.apiKey?.substring(0, 10) + "...",
+    projectId: firebaseConfig.projectId,
+  } : {})
+});
+
+// Validate required fields
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {
+  console.error("❌ CRITICAL: Missing Firebase environment variables!", {
+    apiKey: firebaseConfig.apiKey ? "present" : "MISSING",
+    projectId: firebaseConfig.projectId ? "present" : "MISSING",
+    appId: firebaseConfig.appId ? "present" : "MISSING",
+  });
+  throw new Error("Firebase configuration incomplete. Check environment variables.");
+}
+
 // Initialize Firebase - Ensure singleton to prevent instance mismatch
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
