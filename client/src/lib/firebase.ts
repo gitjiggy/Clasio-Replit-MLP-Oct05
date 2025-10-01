@@ -25,28 +25,27 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// DIAGNOSTIC: Log Firebase config to detect undefined values
-console.log("🔧 Firebase Config Check:", {
-  hasApiKey: !!firebaseConfig.apiKey,
-  hasProjectId: !!firebaseConfig.projectId,
-  hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
-  hasAppId: !!firebaseConfig.appId,
-  authDomain: firebaseConfig.authDomain,
-  // Log actual values in dev only
-  ...(import.meta.env.DEV ? {
+// DIAGNOSTIC: Log Firebase config to detect undefined values (dev only)
+if (import.meta.env.DEV) {
+  console.log("🔧 Firebase Config Check:", {
+    hasApiKey: !!firebaseConfig.apiKey,
+    hasProjectId: !!firebaseConfig.projectId,
+    hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
+    hasAppId: !!firebaseConfig.appId,
+    authDomain: firebaseConfig.authDomain,
     apiKey: firebaseConfig.apiKey?.substring(0, 10) + "...",
     projectId: firebaseConfig.projectId,
-  } : {})
-});
+  });
+}
 
-// Validate required fields
+// Validate required fields - warn but don't crash
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {
-  console.error("❌ CRITICAL: Missing Firebase environment variables!", {
+  console.error("❌ WARNING: Missing Firebase environment variables!", {
     apiKey: firebaseConfig.apiKey ? "present" : "MISSING",
     projectId: firebaseConfig.projectId ? "present" : "MISSING",
     appId: firebaseConfig.appId ? "present" : "MISSING",
   });
-  throw new Error("Firebase configuration incomplete. Check environment variables.");
+  console.error("🚨 Authentication will not work until environment variables are configured in deployment.");
 }
 
 // Initialize Firebase - Ensure singleton to prevent instance mismatch
