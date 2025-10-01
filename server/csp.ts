@@ -35,7 +35,13 @@ const allow = {
     "'self'",
     "https://accounts.google.com",
     "https://apis.google.com",
-    "https://documentorganizerclean-b629f.firebaseapp.com"
+    "https://*.firebaseapp.com"
+  ],
+  childFrames: [
+    "'self'",
+    "https://accounts.google.com",
+    "https://apis.google.com",
+    "https://*.firebaseapp.com"
   ],
   imgs: [
     "'self'",
@@ -64,6 +70,7 @@ export function cspMiddleware(): RequestHandler {
         "font-src": allow.fonts,
         "connect-src": allow.connects,
         "frame-src": allow.frames,
+        "child-src": allow.childFrames,
         "img-src": allow.imgs,
         "frame-ancestors": ["'self'", "https://*.replit.dev", "https://*.replit.app", "https://*.replit.com"]
       },
