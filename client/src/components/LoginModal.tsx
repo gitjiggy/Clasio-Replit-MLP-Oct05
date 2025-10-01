@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,13 +15,6 @@ interface LoginModalProps {
 export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const { user } = useAuth();
-
-  // Close modal if user is authenticated
-  useEffect(() => {
-    if (user && open) {
-      onOpenChange(false);
-    }
-  }, [user, open, onOpenChange]);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -42,7 +35,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open && !user} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center">Welcome to Clasio</DialogTitle>
