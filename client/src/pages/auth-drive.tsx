@@ -11,7 +11,7 @@ import { getAuth } from 'firebase/auth';
 // Firebase config for this popup (isolated)
 const firebaseConfig = {
   apiKey: "AIzaSyBQ0QVw5r8YLsz4FZpYgMKLBSR8xI4NjEU",
-  authDomain: "documentorganizerclean-b629f.firebaseapp.com",
+  authDomain: "clasio.ai",
   projectId: "documentorganizerclean-b629f",
   storageBucket: "documentorganizerclean-b629f.firebasestorage.app",
   messagingSenderId: "12971844848",
