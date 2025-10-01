@@ -151,16 +151,18 @@ function AuthenticatedApp() {
 function App() {
   // Initialize app: complete any pending auth redirects and set up analytics
   useEffect(() => {
-    // CRITICAL: Complete any pending redirect before rendering
+    // CRITICAL: Await redirect completion to avoid auth state races
     // This ensures redirect results are processed before auth state is checked
-    completeRedirectIfAny();
-    
-    // Initialize Google Analytics
-    if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
-      console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
-    } else {
-      initGA();
-    }
+    (async () => {
+      await completeRedirectIfAny();
+      
+      // Initialize Google Analytics
+      if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
+        console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
+      } else {
+        initGA();
+      }
+    })();
   }, []);
 
   return (

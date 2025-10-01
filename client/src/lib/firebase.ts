@@ -31,6 +31,22 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 // Initialize Auth - Export singleton instance
 export const auth = getAuth(app);
 
+// Set best available persistence immediately at module load
+// This must run BEFORE any popup/redirect to avoid breaking user activation chain
+(async function initPersistence() {
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+  } catch {
+    // If localStorage/IndexedDB is blocked, fall back to memory
+    // Allows popup to succeed, though session won't persist across reload
+    try {
+      await setPersistence(auth, inMemoryPersistence);
+    } catch (e) {
+      console.warn("Could not set any persistence:", e);
+    }
+  }
+})();
+
 // Basic Google Auth Provider for initial Firebase login (NO Drive scopes)
 export const basicGoogleProvider = new GoogleAuthProvider();
 basicGoogleProvider.setCustomParameters({
@@ -45,18 +61,6 @@ driveGoogleProvider.setCustomParameters({
   'prompt': 'consent'  // Force consent screen for Drive scopes
 });
 
-// Set best available persistence to avoid 3P cookie issues
-// Safari/Incognito may block cookies, causing popup failures
-async function setBestPersistence() {
-  try {
-    await setPersistence(auth, browserLocalPersistence);
-  } catch {
-    // If localStorage/IndexedDB is blocked, fall back to memory
-    // Allows popup to succeed, though session won't persist across reload
-    await setPersistence(auth, inMemoryPersistence);
-  }
-}
-
 // Custom error for popup fallback detection
 export class PopupBlockedError extends Error {
   constructor(message: string = "Popup blocked, using redirect fallback") {
@@ -67,7 +71,6 @@ export class PopupBlockedError extends Error {
 
 // Call this once on app load to complete any pending redirect
 export async function completeRedirectIfAny() {
-  await setBestPersistence();
   try {
     await getRedirectResult(auth); // no-op if no redirect pending
   } catch (e) {
@@ -76,10 +79,8 @@ export async function completeRedirectIfAny() {
 }
 
 // Basic Firebase authentication with popup + redirect fallback
-// Must be called directly from click handler (no awaits before it)
+// CRITICAL: NO awaits before signInWithPopup - persistence is set at module load
 export const signInWithGoogle = async () => {
-  await setBestPersistence();
-  
   const startTime = performance.now();
   
   try {
