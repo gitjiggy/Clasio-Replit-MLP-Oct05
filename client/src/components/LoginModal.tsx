@@ -19,13 +19,14 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   const { toast } = useToast();
 
   const handleGoogleSignIn = async () => {
+    // CRITICAL: Call signInWithGoogle() immediately with no awaits before it
+    // This ensures popup opens in direct response to user click
+    setIsSigningIn(true);
+    
     try {
-      setIsSigningIn(true);
-      trackEvent('login_start', { method: 'google_popup' });
-      
       await signInWithGoogle();
-      
-      // Success - auth state observer will track login event
+      // Success - auth state observer will handle the rest
+      trackEvent('login_success', { method: 'google_popup' });
     } catch (error: any) {
       console.error("Sign-in error:", error);
       
@@ -47,6 +48,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
           description: "You closed the popup. Try again or use full-page sign-in below.",
           variant: "destructive"
         });
+        trackEvent('login_cancelled', { method: 'google_popup' });
       } else if (error?.code === "auth/popup-blocked") {
         // Shouldn't reach here, but handle just in case
         toast({
@@ -54,19 +56,24 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
           description: "Your browser blocked the popup. Try using full-page sign-in below.",
           variant: "destructive"
         });
+        trackEvent('login_failed', { method: 'google_popup', reason: 'popup_blocked' });
+      } else {
+        // Other errors
+        trackEvent('login_failed', { method: 'google_popup', error_message: error?.message });
       }
       
-      trackEvent('login_failed', { method: 'google_popup', error_message: error?.message });
       setIsSigningIn(false);
     }
   };
 
   const handleFullPageSignIn = async () => {
+    // CRITICAL: Call signInWithRedirect() immediately with no awaits before it
+    setIsSigningIn(true);
+    
     try {
-      setIsSigningIn(true);
-      trackEvent('login_start', { method: 'google_redirect_manual' });
       await signInWithRedirect(auth, basicGoogleProvider);
       // Keep loading state - redirect will happen
+      trackEvent('login_redirect_initiated', { method: 'google_redirect_manual' });
     } catch (error) {
       console.error("Redirect sign-in error:", error);
       toast({
@@ -74,6 +81,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
         description: "Failed to redirect to sign-in. Please try again.",
         variant: "destructive"
       });
+      trackEvent('login_failed', { method: 'google_redirect_manual', error_message: String(error) });
       setIsSigningIn(false);
     }
   };
