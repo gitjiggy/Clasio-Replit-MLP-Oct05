@@ -113,6 +113,36 @@ app.use((req, res, next) => {
   next();
 });
 
+// Firebase Auth Handler Proxy - Required for custom domain redirect auth
+// This proxies /__/auth/* requests to Firebase's actual auth handler
+app.use('/__/auth', async (req, res) => {
+  const firebaseAuthUrl = `https://documentorganizerclean-b629f.firebaseapp.com${req.originalUrl}`;
+  
+  try {
+    // Fetch from Firebase's auth handler
+    const response = await fetch(firebaseAuthUrl, {
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: 'documentorganizerclean-b629f.firebaseapp.com',
+      } as any,
+    });
+
+    // Copy status and headers
+    res.status(response.status);
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+
+    // Stream the response body
+    const body = await response.text();
+    res.send(body);
+  } catch (error) {
+    console.error('Firebase auth proxy error:', error);
+    res.status(500).send('Auth proxy error');
+  }
+});
+
 // Token 5/8: Health and monitoring endpoints (before main routes)
 app.get('/health', healthCheck);
 app.get('/ready', readinessCheck);
