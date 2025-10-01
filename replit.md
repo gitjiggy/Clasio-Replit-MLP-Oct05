@@ -4,20 +4,28 @@ This is a modern document management system built with React and Express, featur
 
 # Recent Changes
 
-## October 1, 2025 - Firebase authDomain Fix for Custom Domain
+## October 1, 2025 - Redirect-Only Authentication Strategy
 
-**Critical Configuration Update**:
-- **Root Cause Identified**: Firebase authDomain was using `documentorganizerclean-b629f.firebaseapp.com` instead of custom domain `clasio.ai`
-- **Impact**: Authentication popup was opening as new tab instead of popup window due to domain mismatch
-- **Resolution**: Updated authDomain to `clasio.ai` in both `firebase.ts` and `auth-drive.tsx`
+**Authentication Flow Simplification**:
+- **Issue**: Popup-based authentication was unreliably opening as new tabs due to browser cross-domain restrictions
+- **Root Cause**: Modern browsers treat cross-domain popups as security risk and often convert them to tabs
+- **Solution**: Switched primary authentication to redirect-only flow (eliminating popup complexity)
 - **Files Modified**:
-  - `client/src/lib/firebase.ts`: Changed authDomain from template string to `"clasio.ai"`
-  - `client/src/pages/auth-drive.tsx`: Changed authDomain from `documentorganizerclean-b629f.firebaseapp.com` to `"clasio.ai"`
+  - `client/src/components/LoginModal.tsx`: Main "Continue with Google" button now uses `signInWithRedirect` directly
+  - `client/src/lib/firebase.ts`: Kept `authDomain: "clasio.ai"` for proper domain configuration
+  - `client/src/pages/auth-drive.tsx`: Uses `authDomain: "clasio.ai"` for Drive OAuth
 
-**Firebase Console Configuration Verified**:
-- Authorized domains include both `clasio.ai` and `www.clasio.ai`
-- Custom domain properly configured in Firebase console
-- Authentication now uses branded domain for cleaner user experience
+**Implementation Details**:
+- Redirect result handling already in place via `completeRedirectIfAny()` in `App.tsx`
+- User clicks "Continue with Google" → redirects to Google sign-in → returns to app authenticated
+- Eliminated popup-specific error handling and fallback logic
+- Cleaner, more predictable authentication experience across all browsers
+
+**Benefits**:
+- Consistent behavior across all browsers (no popup vs tab confusion)
+- Works reliably with strict browser security settings
+- No cross-domain messaging issues
+- Simpler codebase with less error handling complexity
 
 ## October 1, 2025 - Cookie-Resilient Authentication Architecture
 

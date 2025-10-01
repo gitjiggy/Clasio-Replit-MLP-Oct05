@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Shield, FileText, Brain, ExternalLink } from "lucide-react";
-import { signInWithGoogle, PopupBlockedError, persistenceReady } from "@/lib/firebase";
+import { Loader2, Shield, FileText, Brain } from "lucide-react";
+import { persistenceReady } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import { signInWithRedirect } from "firebase/auth";
@@ -27,73 +27,25 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    // CRITICAL: Call signInWithGoogle() immediately with no awaits before it
-    // This ensures popup opens in direct response to user click
-    setIsSigningIn(true);
-    
-    try {
-      await signInWithGoogle();
-      // Success - auth state observer will handle the rest
-      trackEvent('login_success', { method: 'google_popup' });
-    } catch (error: any) {
-      // Handle popup blocked - redirect fallback in progress
-      if (error instanceof PopupBlockedError) {
-        toast({
-          title: "Redirecting to sign-in",
-          description: "Your browser blocked the popup. Redirecting to full-page sign-in...",
-        });
-        trackEvent('login_fallback_redirect', { method: 'google_popup_blocked' });
-        // Keep loading state - redirect will happen
-        return;
-      }
-      
-      // Handle user cancelled popup
-      if (error?.code === "auth/popup-closed-by-user") {
-        console.warn("Sign-in cancelled by user");
-        toast({
-          title: "Sign-in cancelled",
-          description: "You closed the popup. Try again or use full-page sign-in below.",
-          variant: "destructive"
-        });
-        trackEvent('login_cancelled', { method: 'google_popup' });
-      } else if (error?.code === "auth/popup-blocked") {
-        // Shouldn't reach here, but handle just in case
-        console.error("Popup blocked:", error);
-        toast({
-          title: "Popup blocked",
-          description: "Your browser blocked the popup. Try using full-page sign-in below.",
-          variant: "destructive"
-        });
-        trackEvent('login_failed', { method: 'google_popup', reason: 'popup_blocked' });
-      } else {
-        // Other errors
-        console.error("Sign-in error:", error);
-        trackEvent('login_failed', { method: 'google_popup', error_message: error?.message });
-      }
-      
-      setIsSigningIn(false);
-    }
-  };
-
-  const handleFullPageSignIn = async () => {
-    // CRITICAL: Call signInWithRedirect() immediately with no awaits before it
+    // Use redirect flow for reliable cross-domain authentication
     setIsSigningIn(true);
     
     try {
       await signInWithRedirect(auth, basicGoogleProvider);
-      // Keep loading state - redirect will happen
-      trackEvent('login_redirect_initiated', { method: 'google_redirect_manual' });
-    } catch (error) {
-      console.error("Redirect sign-in error:", error);
+      // User will be redirected away - redirect result will be handled on return
+      trackEvent('login_redirect_initiated', { method: 'google_redirect' });
+    } catch (error: any) {
+      console.error("Sign-in error:", error);
       toast({
         title: "Sign-in error",
         description: "Failed to redirect to sign-in. Please try again.",
         variant: "destructive"
       });
-      trackEvent('login_failed', { method: 'google_redirect_manual', error_message: String(error) });
+      trackEvent('login_failed', { method: 'google_redirect', error_message: error?.message });
       setIsSigningIn(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -168,18 +120,6 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                   Continue with Google
                 </>
               )}
-            </Button>
-
-            <Button
-              onClick={handleFullPageSignIn}
-              disabled={isSigningIn}
-              variant="outline"
-              className="w-full"
-              size="lg"
-              data-testid="button-google-redirect"
-            >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Use full-page sign-in
             </Button>
           </div>
 
