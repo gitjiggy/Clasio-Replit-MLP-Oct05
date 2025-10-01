@@ -121,11 +121,17 @@ app.use('/__/auth', createProxyMiddleware({
   changeOrigin: true,
   secure: true,
   followRedirects: true,
+  // Add back the /__/auth prefix that Express strips when mounting at '/__/auth'
+  pathRewrite: (path: string, req: any) => {
+    const newPath = '/__/auth' + path;
+    console.log(`🔀 Path rewrite: ${path} → ${newPath}`);
+    return newPath;
+  },
   onProxyReq: (proxyReq: any, req: any, res: any) => {
     console.log(`🔄 Proxying Firebase auth: ${req.method} ${req.originalUrl}`);
   },
   onProxyRes: (proxyRes: any, req: any, res: any) => {
-    console.log(`✅ Firebase auth response: ${proxyRes.statusCode}`);
+    console.log(`✅ Firebase auth response: ${proxyRes.statusCode} for ${req.originalUrl}`);
   },
   onError: (err: any, req: any, res: any) => {
     console.error('❌ Firebase auth proxy error:', err);
