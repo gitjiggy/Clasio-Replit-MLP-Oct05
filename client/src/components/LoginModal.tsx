@@ -28,8 +28,6 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
       // Success - auth state observer will handle the rest
       trackEvent('login_success', { method: 'google_popup' });
     } catch (error: any) {
-      console.error("Sign-in error:", error);
-      
       // Handle popup blocked - redirect fallback in progress
       if (error instanceof PopupBlockedError) {
         toast({
@@ -43,6 +41,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
       
       // Handle user cancelled popup
       if (error?.code === "auth/popup-closed-by-user") {
+        console.warn("Sign-in cancelled by user");
         toast({
           title: "Sign-in cancelled",
           description: "You closed the popup. Try again or use full-page sign-in below.",
@@ -51,6 +50,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
         trackEvent('login_cancelled', { method: 'google_popup' });
       } else if (error?.code === "auth/popup-blocked") {
         // Shouldn't reach here, but handle just in case
+        console.error("Popup blocked:", error);
         toast({
           title: "Popup blocked",
           description: "Your browser blocked the popup. Try using full-page sign-in below.",
@@ -59,6 +59,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
         trackEvent('login_failed', { method: 'google_popup', reason: 'popup_blocked' });
       } else {
         // Other errors
+        console.error("Sign-in error:", error);
         trackEvent('login_failed', { method: 'google_popup', error_message: error?.message });
       }
       
