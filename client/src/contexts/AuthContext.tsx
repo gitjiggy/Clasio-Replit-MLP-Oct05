@@ -82,32 +82,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return; // Skip Firebase auth if test auth was successful
     }
 
-    // Set up auth state observer synchronously
-    const unsubscribe = onAuthStateChange((user) => {
-      console.log("🔄 Auth state changed:", user?.email || "no user");
-      setUser(user);
-      setLoading(false);
-    });
+    let unsubscribe: (() => void) | null = null;
 
-    // Handle auth redirect asynchronously
-    const handleAuthAsync = async () => {
+    // App bootstrap: Check for OAuth redirect result FIRST (very early)
+    const initializeAuth = async () => {
       try {
+        console.log("🔍 Checking for OAuth redirect result...");
         const authResult = await handleAuthRedirect();
-        if (authResult) {
-          console.log("✅ Auth redirect successful:", authResult.user.email);
+        
+        // If result?.user, set session and route to app
+        if (authResult?.user) {
+          console.log("✅ OAuth redirect successful - User authenticated:", authResult.user.email);
           setUser(authResult.user);
+          setLoading(false);
+          return; // Auth complete, no need for state observer
         }
+
+        console.log("ℹ️ No redirect result, checking existing session...");
+        
+        // If not, set up auth state observer for existing sessions
+        unsubscribe = onAuthStateChange((user) => {
+          console.log("🔄 Auth state changed:", user?.email || "no user");
+          setUser(user);
+          setLoading(false);
+        });
+
       } catch (error) {
-        console.error("Auth redirect failed:", error);
-      } finally {
-        // Always set loading to false after handling redirect, even if no result
-        setLoading(false);
+        console.error("❌ Auth initialization failed:", error);
+        setLoading(false); // Show login button on error
       }
     };
 
-    handleAuthAsync();
+    initializeAuth();
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const value = {
