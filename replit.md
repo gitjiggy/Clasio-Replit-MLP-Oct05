@@ -4,6 +4,36 @@ This is a modern document management system built with React and Express, featur
 
 # Recent Changes
 
+## October 1, 2025 - Popup Authentication Fix with Fallback Strategy
+
+**Fixed Critical Popup Blocking Issue**:
+- Implemented intelligent popup detection with automatic redirect fallback
+- Root cause: Browser popup blockers were preventing Google sign-in popup from opening
+- Solution: Time-based detection (<1.5s) automatically falls back to full-page redirect when popup is blocked
+
+**Enhanced CSP (Content Security Policy)**:
+- Added support for additional Google authentication domains:
+  - `https://*.google.com`
+  - `https://*.gstatic.com`
+  - `https://*.googleusercontent.com`
+- Expanded `frame-src` and `child-src` directives to prevent popup termination
+
+**Improved User Experience**:
+- Added secondary "Use full-page sign-in" button for users who prefer redirect flow
+- Toast notifications provide clear feedback for popup failures
+- Better error handling distinguishes between blocked popups and user-cancelled flows
+- Tracks authentication method analytics (popup vs redirect)
+
+**Technical Implementation**:
+- Exported `basicGoogleProvider` and `auth` from Firebase module for direct access
+- Timing-based heuristic detects popup failures: `elapsed < 1500ms`
+- Graceful degradation: popup → automatic redirect fallback → manual redirect option
+
+**Next Steps for Production**:
+- Verify Firebase Console Authorized Domains include `clasio.ai` and `www.clasio.ai`
+- Test CSP changes in report-only mode before enforcing
+- Monitor analytics to track popup vs redirect usage patterns
+
 ## September 30, 2025 - Authentication Fix & Rebranding to Clasio
 
 **Authentication Loading Screen Fix**:

@@ -45,13 +45,19 @@ const allow = {
     "'self'",
     "https://accounts.google.com",
     "https://apis.google.com",
-    "https://*.firebaseapp.com"
+    "https://*.firebaseapp.com",
+    "https://*.google.com",
+    "https://*.gstatic.com",
+    "https://*.googleusercontent.com"
   ],
   childFrames: [
     "'self'",
     "https://accounts.google.com",
     "https://apis.google.com",
-    "https://*.firebaseapp.com"
+    "https://*.firebaseapp.com",
+    "https://*.google.com",
+    "https://*.gstatic.com",
+    "https://*.googleusercontent.com"
   ],
   imgs: [
     "'self'",

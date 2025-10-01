@@ -2,7 +2,7 @@
 // Based on blueprint:firebase_barebones_javascript
 
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from "firebase/auth";
+import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, signOut, User } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -20,7 +20,7 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // Basic Google Auth Provider for initial Firebase login (NO Drive scopes)
-const basicGoogleProvider = new GoogleAuthProvider();
+export const basicGoogleProvider = new GoogleAuthProvider();
 basicGoogleProvider.setCustomParameters({
   'prompt': 'select_account'  // Always show account selector
 });
@@ -33,21 +33,45 @@ driveGoogleProvider.setCustomParameters({
   'prompt': 'consent'  // Force consent screen for Drive scopes
 });
 
-// Basic Firebase authentication (NO Drive scopes) - Popup only, no redirect fallback
+// Custom error for popup fallback detection
+export class PopupBlockedError extends Error {
+  constructor(message: string = "Popup blocked, using redirect fallback") {
+    super(message);
+    this.name = "PopupBlockedError";
+  }
+}
+
+// Basic Firebase authentication with popup + redirect fallback
 export const signInWithGoogle = async () => {
+  const startTime = Date.now();
+  
   try {
     const result = await signInWithPopup(auth, basicGoogleProvider);
-    
-    // Firebase gives back user + tokens
-    const user = result.user;
-    
-    // (Optional) Store user info for your app state
-    console.log("✅ Signed in user:", user);
-    
-    return user;
+    console.log("✅ Signed in user:", result.user);
+    return result.user;
   } catch (err: any) {
+    const elapsed = Date.now() - startTime;
+    
+    // Detect blocked popup: explicit block error OR closed within 1.5s
+    const isBlocked = 
+      err.code === "auth/popup-blocked" ||
+      (err.code === "auth/popup-closed-by-user" && elapsed < 1500);
+    
+    if (isBlocked) {
+      console.warn("⚠️ Popup blocked or closed immediately. Falling back to redirect...");
+      // Throw custom error to signal fallback, then redirect
+      try {
+        await signInWithRedirect(auth, basicGoogleProvider);
+      } catch (redirectErr) {
+        console.error("Redirect failed:", redirectErr);
+        throw redirectErr;
+      }
+      // Throw sentinel error to signal UI that redirect is happening
+      throw new PopupBlockedError();
+    }
+    
     if (err.code === "auth/popup-closed-by-user") {
-      console.warn("Popup closed before completing sign-in.");
+      console.warn("Popup closed by user after", elapsed, "ms");
     } else if (err.code === "auth/cancelled-popup-request") {
       console.warn("Another popup request was cancelled.");
     } else {
