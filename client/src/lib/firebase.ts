@@ -1,7 +1,7 @@
 // Firebase configuration and authentication setup
 // Based on blueprint:firebase_barebones_javascript
 
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApp, getApps } from "firebase/app";
 import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, signOut, User, setPersistence, browserLocalPersistence } from "firebase/auth";
 
 const firebaseConfig = {
@@ -13,20 +13,10 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase (only if not already initialized)
-let app;
-try {
-  app = initializeApp(firebaseConfig);
-} catch (error: any) {
-  if (error.code === 'app/duplicate-app') {
-    // Firebase has already been initialized, which is fine
-    app = initializeApp(firebaseConfig, 'secondary');
-  } else {
-    throw error;
-  }
-}
+// Initialize Firebase - Ensure singleton to prevent instance mismatch
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-// Initialize Auth
+// Initialize Auth - Export singleton instance
 export const auth = getAuth(app);
 
 // Set persistence BEFORE any sign-in/redirect (critical for redirect flows)

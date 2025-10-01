@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, getAuth } from 'firebase/auth';
-import { onAuthStateChange } from '@/lib/firebase';
+import { User } from 'firebase/auth';
+import { auth, onAuthStateChange } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -23,7 +23,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User | null>(() => getAuth().currentUser);
+  const [user, setUser] = useState<User | null>(() => auth.currentUser);
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
