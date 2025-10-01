@@ -34,7 +34,8 @@ const allow = {
   frames: [
     "'self'",
     "https://accounts.google.com",
-    "https://apis.google.com"
+    "https://apis.google.com",
+    "https://documentorganizerclean-b629f.firebaseapp.com"
   ],
   imgs: [
     "'self'",
