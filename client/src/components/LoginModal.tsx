@@ -3,11 +3,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Shield, FileText, Brain } from "lucide-react";
-import { persistenceReady } from "@/lib/firebase";
+import { persistenceReady, auth, basicGoogleProvider } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithRedirect } from "firebase/auth";
-import { auth, basicGoogleProvider } from "@/lib/firebase";
 
 interface LoginModalProps {
   open: boolean;
@@ -27,21 +25,37 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    // Use redirect flow for reliable cross-domain authentication
+    // Use popup flow - redirect requires Firebase Hosting or complex proxying
     setIsSigningIn(true);
     
     try {
-      await signInWithRedirect(auth, basicGoogleProvider);
-      // User will be redirected away - redirect result will be handled on return
-      trackEvent('login_redirect_initiated', { method: 'google_redirect' });
+      const { signInWithPopup } = await import("firebase/auth");
+      const result = await signInWithPopup(auth, basicGoogleProvider);
+      console.log("✅ Signed in:", result.user.email);
+      trackEvent('login_success', { method: 'google_popup' });
+      // Auth state observer will handle the rest
     } catch (error: any) {
       console.error("Sign-in error:", error);
-      toast({
-        title: "Sign-in error",
-        description: "Failed to redirect to sign-in. Please try again.",
-        variant: "destructive"
-      });
-      trackEvent('login_failed', { method: 'google_redirect', error_message: error?.message });
+      
+      // Handle popup blocked
+      if (error?.code === "auth/popup-blocked" || error?.code === "auth/popup-closed-by-user") {
+        toast({
+          title: "Popup blocked",
+          description: "Please allow popups for this site and try again.",
+          variant: "destructive"
+        });
+      } else if (error?.code === "auth/cancelled-popup-request") {
+        // User closed popup - don't show error
+        console.log("Popup cancelled by user");
+      } else {
+        toast({
+          title: "Sign-in failed",
+          description: error?.message || "Please try again.",
+          variant: "destructive"
+        });
+      }
+      
+      trackEvent('login_failed', { method: 'google_popup', error_code: error?.code });
       setIsSigningIn(false);
     }
   };
