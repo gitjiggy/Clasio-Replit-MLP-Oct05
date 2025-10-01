@@ -7,14 +7,18 @@ const allow = {
     "'unsafe-inline'",
     "https://apis.google.com",
     "https://www.googletagmanager.com",
-    "https://www.gstatic.com"
+    "https://www.gstatic.com",
+    "https://www.google-analytics.com",
+    "https://replit.com"
   ],
   scriptsElem: [
     "'self'",
     "'unsafe-inline'",
     "https://apis.google.com",
     "https://www.googletagmanager.com",
-    "https://www.gstatic.com"
+    "https://www.gstatic.com",
+    "https://www.google-analytics.com",
+    "https://replit.com"
   ],
   styles: [
     "'self'",
@@ -29,7 +33,8 @@ const allow = {
     "https://securetoken.googleapis.com",
     "https://identitytoolkit.googleapis.com",
     "https://firebasestorage.googleapis.com",
-    "https://www.gstatic.com"
+    "https://www.gstatic.com",
+    "https://www.google-analytics.com"
   ],
   frames: [
     "'self'",
