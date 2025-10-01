@@ -3,9 +3,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Shield, FileText, Brain } from "lucide-react";
-import { persistenceReady, auth, basicGoogleProvider } from "@/lib/firebase";
+import { persistenceReady } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
+import { signInWithRedirect } from "firebase/auth";
+import { auth, basicGoogleProvider } from "@/lib/firebase";
 
 interface LoginModalProps {
   open: boolean;
@@ -25,37 +27,14 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    // Use popup flow - redirect requires Firebase Hosting or complex proxying
+    console.log("Button clicked, starting redirect...");
     setIsSigningIn(true);
     
     try {
-      const { signInWithPopup } = await import("firebase/auth");
-      const result = await signInWithPopup(auth, basicGoogleProvider);
-      console.log("✅ Signed in:", result.user.email);
-      trackEvent('login_success', { method: 'google_popup' });
-      // Auth state observer will handle the rest
-    } catch (error: any) {
-      console.error("Sign-in error:", error);
-      
-      // Handle popup blocked
-      if (error?.code === "auth/popup-blocked" || error?.code === "auth/popup-closed-by-user") {
-        toast({
-          title: "Popup blocked",
-          description: "Please allow popups for this site and try again.",
-          variant: "destructive"
-        });
-      } else if (error?.code === "auth/cancelled-popup-request") {
-        // User closed popup - don't show error
-        console.log("Popup cancelled by user");
-      } else {
-        toast({
-          title: "Sign-in failed",
-          description: error?.message || "Please try again.",
-          variant: "destructive"
-        });
-      }
-      
-      trackEvent('login_failed', { method: 'google_popup', error_code: error?.code });
+      await signInWithRedirect(auth, basicGoogleProvider);
+      // User will be redirected away - no further code needed here
+    } catch (error) {
+      console.error("Redirect failed:", error);
       setIsSigningIn(false);
     }
   };
