@@ -14,7 +14,10 @@ interface LoginModalProps {
 
 export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const { user } = useAuth();
+  const { user, initializing } = useAuth();
+
+  // Only show when app is ready and user is not signed in.
+  const shouldShow = !initializing && !user && open;
 
   const handleGoogleSignIn = async () => {
     try {
@@ -35,7 +38,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   };
 
   return (
-    <Dialog open={open && !user} onOpenChange={onOpenChange}>
+    <Dialog open={shouldShow} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center">Welcome to Clasio</DialogTitle>

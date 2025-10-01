@@ -24,7 +24,7 @@ interface AppHeaderProps {
 }
 
 function AppHeader({ onSignInClick }: AppHeaderProps) {
-  const { user, loading } = useAuth();
+  const { user, initializing } = useAuth();
   
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -36,7 +36,7 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
           </span>
         </div>
         
-        {!loading && (
+        {!initializing && (
           <div className="flex items-center gap-4">
             {user ? (
               <UserMenu />
@@ -113,20 +113,10 @@ function Router() {
 }
 
 function AuthenticatedApp() {
-  const { user, loading } = useAuth();
+  const { user, initializing } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  useEffect(() => {
-    // Show login modal if user is not authenticated after loading completes
-    if (!loading && !user) {
-      setShowLoginModal(true);
-    } else if (user) {
-      // Close modal when user is authenticated
-      setShowLoginModal(false);
-    }
-  }, [user, loading]);
-
-  if (loading) {
+  if (initializing) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -153,7 +143,7 @@ function AuthenticatedApp() {
         )}
       </main>
       
-      <LoginModal open={showLoginModal} onOpenChange={setShowLoginModal} />
+      <LoginModal open={!user || showLoginModal} onOpenChange={setShowLoginModal} />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 // Based on blueprint:firebase_barebones_javascript
 
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut, User } from "firebase/auth";
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut, User, setPersistence, browserLocalPersistence } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -28,6 +28,11 @@ try {
 
 // Initialize Auth
 export const auth = getAuth(app);
+
+// Set persistence BEFORE any sign-in/redirect (critical for redirect flows)
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error("Failed to set auth persistence:", error);
+});
 
 // Basic Google Auth Provider for initial Firebase login (NO Drive scopes)
 const basicGoogleProvider = new GoogleAuthProvider();
@@ -156,30 +161,15 @@ export const signOutUser = async () => {
   return signOut(auth);
 };
 
-// Handle redirect result after Google sign-in (fallback method)
-export const handleAuthRedirect = async () => {
-  
+// Handle redirect result once, then rely on the subscriber
+export const initAuthOnce = async () => {
   try {
-    const result = await getRedirectResult(auth);
-    
-    if (result) {
-      // This gives you a Google Access Token. You can use it to access Google APIs.
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const googleAccessToken = credential?.accessToken;
-
-      // The signed-in user info.
-      const user = result.user;
-      
-      // Token is now handled by server-side cookie authentication
-      // No need to store locally
-      
-      return { user, googleAccessToken };
-    }
-    return null;
-  } catch (error: any) {
-    console.error("Auth redirect error:", error.code, error.message);
-    throw new Error(error.message || "Authentication failed");
+    // This resolves to a credential *if* the page just returned from Google.
+    await getRedirectResult(auth);
+  } catch (e) {
+    console.error('Redirect result error', e);
   }
+  // From here on, UI should rely on onAuthStateChanged subscription.
 };
 
 // Legacy token storage functions removed - all authentication is now via httpOnly cookies

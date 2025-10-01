@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from 'firebase/auth';
-import { onAuthStateChange, handleAuthRedirect } from '@/lib/firebase';
+import { User, getAuth } from 'firebase/auth';
+import { onAuthStateChange, initAuthOnce } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
+  initializing: boolean;
   isAuthenticated: boolean;
 }
 
@@ -23,8 +23,8 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => getAuth().currentUser);
+  const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
     // DEVELOPMENT ONLY: Check for test authentication
@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           console.log('✅ Test authentication detected, setting test user');
           setUser(testUser);
-          setLoading(false);
+          setInitializing(false);
           return true; // Indicate test auth was used
         }
       }
@@ -82,49 +82,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return; // Skip Firebase auth if test auth was successful
     }
 
-    let unsubscribe: (() => void) | null = null;
-
-    // App bootstrap: Check for OAuth redirect result FIRST (very early)
-    const initializeAuth = async () => {
-      try {
-        console.log("🔍 Checking for OAuth redirect result...");
-        const authResult = await handleAuthRedirect();
-        
-        // If result?.user, set session and route to app
-        if (authResult?.user) {
-          console.log("✅ OAuth redirect successful - User authenticated:", authResult.user.email);
-          setUser(authResult.user);
-          setLoading(false);
-          return; // Auth complete, no need for state observer
-        }
-
-        console.log("ℹ️ No redirect result, checking existing session...");
-        
-        // If not, set up auth state observer for existing sessions
-        unsubscribe = onAuthStateChange((user) => {
-          console.log("🔄 Auth state changed:", user?.email || "no user");
-          setUser(user);
-          setLoading(false);
-        });
-
-      } catch (error) {
-        console.error("❌ Auth initialization failed:", error);
-        setLoading(false); // Show login button on error
-      }
-    };
-
-    initializeAuth();
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
+    // Initialize auth - handle redirect result once early in bootstrap
+    initAuthOnce().then(() => {
+      // Set up auth state subscriber
+      const unsub = onAuthStateChange((u) => {
+        setUser(u ?? null);
+        setInitializing(false);
+      });
+      return unsub;
+    }).catch((error) => {
+      console.error("Auth initialization error:", error);
+      setInitializing(false);
+    });
   }, []);
 
   const value = {
     user,
-    loading,
+    initializing,
     isAuthenticated: !!user,
   };
 
