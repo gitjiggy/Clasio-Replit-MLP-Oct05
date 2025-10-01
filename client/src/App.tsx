@@ -18,7 +18,6 @@ import { useState, useEffect } from "react";
 import { initGA } from "./lib/analytics";
 import { useAnalytics } from "./hooks/use-analytics";
 import { FileText, HardDrive, Trash2 } from "lucide-react";
-import { completeRedirectIfAny } from "@/lib/firebase";
 
 interface AppHeaderProps {
   onSignInClick: () => void;
@@ -149,20 +148,13 @@ function AuthenticatedApp() {
 }
 
 function App() {
-  // Initialize app: complete any pending auth redirects and set up analytics
+  // Initialize Google Analytics on mount
   useEffect(() => {
-    // CRITICAL: Await redirect completion to avoid auth state races
-    // This ensures redirect results are processed before auth state is checked
-    (async () => {
-      await completeRedirectIfAny();
-      
-      // Initialize Google Analytics
-      if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
-        console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
-      } else {
-        initGA();
-      }
-    })();
+    if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
+      console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
+    } else {
+      initGA();
+    }
   }, []);
 
   return (

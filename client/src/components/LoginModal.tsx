@@ -6,7 +6,7 @@ import { Loader2, Shield, FileText, Brain } from "lucide-react";
 import { persistenceReady } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithRedirect } from "firebase/auth";
+import { signInWithPopup } from "firebase/auth";
 import { auth, basicGoogleProvider } from "@/lib/firebase";
 
 interface LoginModalProps {
@@ -31,16 +31,29 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     setIsSigningIn(true);
     
     try {
-      console.log("🚀 Calling signInWithRedirect...");
-      await signInWithRedirect(auth, basicGoogleProvider);
-      console.log("✅ Redirect initiated");
+      console.log("🚀 Calling signInWithPopup...");
+      await signInWithPopup(auth, basicGoogleProvider);
+      console.log("✅ Popup sign-in successful");
+      trackEvent("auth_signin_success", { method: "google" });
     } catch (error) {
-      console.error("❌ Redirect failed:", error);
+      console.error("❌ Popup sign-in failed:", error);
       console.error("Error details:", {
         code: (error as any)?.code,
         message: (error as any)?.message,
         stack: (error as any)?.stack
       });
+      
+      toast({
+        title: "Sign-in failed",
+        description: (error as any)?.message || "Failed to sign in with Google. Please try again.",
+        variant: "destructive"
+      });
+      
+      trackEvent("auth_signin_error", { 
+        method: "google",
+        error: (error as any)?.code || "unknown"
+      });
+      
       setIsSigningIn(false);
     }
   };

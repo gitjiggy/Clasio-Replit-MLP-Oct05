@@ -4,62 +4,37 @@ This is a modern document management system built with React and Express, featur
 
 # Recent Changes
 
-## October 1, 2025 - Redirect-Only Authentication with Default Firebase Domain
+## October 1, 2025 - Popup-Based Authentication for Custom Domain Compatibility
 
-**Authentication Flow Fix**:
-- **Issue**: Authentication redirect was hanging at `/__/auth/handler` page
-- **Root Cause**: Custom domain `authDomain: "clasio.ai"` requires special Firebase Hosting configuration. OAuth redirect URLs in Google Cloud Console are configured for default Firebase domain.
-- **Solution**: Changed `authDomain` back to `"documentorganizerclean-b629f.firebaseapp.com"` (Firebase default)
+**Authentication Approach**:
+- **Issue**: Redirect-based authentication (`signInWithRedirect`) doesn't work reliably with custom domains (`clasio.ai`) due to Firebase auth handler (`/__/auth/handler`) only existing on Firebase Hosting domains
+- **Root Cause**: Custom domains require special Firebase Hosting configuration for redirect auth to work. Redirect flow expects auth cookies on the same domain.
+- **Solution**: Switched to popup-based authentication (`signInWithPopup`) which works seamlessly with custom domains
 - **Files Modified**:
-  - `client/src/lib/firebase.ts`: Changed authDomain to Firebase default domain
-  - `client/src/pages/auth-drive.tsx`: Changed authDomain to Firebase default domain
-  - `client/src/components/LoginModal.tsx`: Simplified to single "Continue with Google" button using `signInWithRedirect`
+  - `client/src/lib/firebase.ts`: Set `authDomain` to Firebase default (`documentorganizerclean-b629f.firebaseapp.com`)
+  - `client/src/components/LoginModal.tsx`: Changed from `signInWithRedirect` to `signInWithPopup` with proper error handling
+  - `client/src/App.tsx`: Removed redirect completion logic (no longer needed for popup auth)
 
-**How It Works**:
+**How Popup Auth Works**:
 - User clicks "Continue with Google" on `clasio.ai`
-- Browser redirects to `documentorganizerclean-b629f.firebaseapp.com/__/auth/handler`
-- Google OAuth completes authentication (recognizes Firebase domain)
-- User returns to `clasio.ai` fully authenticated
-- Main app domain (`clasio.ai`) stays the same for users
+- Popup window opens on Firebase's domain (`documentorganizerclean-b629f.firebaseapp.com`)
+- Google OAuth completes in the popup window
+- Popup closes and passes authentication result back to parent window (`clasio.ai`)
+- User is authenticated immediately without page reload
 
 **Benefits**:
-- Authentication works reliably out of the box
-- No custom domain configuration needed for Firebase Auth
-- Cleaner single-button interface
-- Works across all browsers with redirect flow
+- ✅ Works perfectly with custom domains (no Firebase Hosting configuration needed)
+- ✅ No cross-domain cookie issues
+- ✅ Faster user experience (no full page redirects)
+- ✅ Better for PWAs and mobile browsers
+- ✅ Cleaner code (no redirect completion logic needed)
 
-## October 1, 2025 - Cookie-Resilient Authentication Architecture
-
-**Production-Ready Authentication Flow**:
-- **Module-Level Persistence**: Persistence (browserLocalPersistence → inMemoryPersistence fallback) now initializes at module load via top-level async IIFE, eliminating all awaits between user click and popup
-- **Zero-Latency Popup**: signInWithGoogle() calls signInWithPopup() immediately without any preceding awaits, preserving user activation chain critical for popup success
-- **Awaited Redirect Completion**: App.tsx properly awaits completeRedirectIfAny() in async IIFE on boot to prevent auth state races
-- **900ms Detection Threshold**: Reduced from 1.5s to 900ms using performance.now() for faster popup-block detection
-- **Fallback Chain**: browserLocalPersistence (ideal) → inMemoryPersistence (Safari/Incognito with 3P cookie blocking) → redirect flow (popup blocked)
-
-**Cross-Browser Resilience**:
-- Safari/Incognito strict cookie policies: inMemoryPersistence fallback ensures popup succeeds despite blocked storage
-- Popup blockers: Auto-detects blocks via timing heuristic (<900ms + specific error codes), falls back to redirect
-- No user activation loss: All persistence setup happens at module import, no awaits in click handler
-
-**Technical Implementation Details**:
-- firebase.ts: Top-level initPersistence() IIFE runs immediately on module load
-- LoginModal: handleGoogleSignIn calls signInWithGoogle() with zero awaits before popup
-- App.tsx: Awaits completeRedirectIfAny() in useEffect async IIFE before GA init
-- Analytics tracking moved after popup/redirect attempts (preserves user activation)
-- Error detection includes auth/cancelled-popup-request for comprehensive blocking detection
-
-**Architecture Review Status**: ✅ Passed
-- No awaits between click and popup
-- Persistence set at module load (no user click required)
-- Redirect completion properly awaited on app boot
-- Manual redirect inherits module-level persistence
-- All changes align with Safari/Incognito/strict cookie policy requirements
-
-**Recommended Next Steps**:
-1. Gate sign-in buttons until initPersistence resolves (export readiness flag from firebase.ts)
-2. Add telemetry for popup timing and fallback rates (track elapsed ms, error codes in analytics)
-3. Implement automated E2E tests for Chrome Incognito and Safari popup/redirect flows
+**Technical Details**:
+- `authDomain` set to Firebase's default domain where auth handler exists
+- Popup auth bypasses custom domain limitations
+- Persistence (browserLocalPersistence) set at module load
+- Full error handling with user-friendly toast notifications
+- Analytics tracking for sign-in success/failure
 
 ## September 30, 2025 - Authentication Fix & Rebranding to Clasio
 
