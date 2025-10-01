@@ -518,7 +518,7 @@ export default function Documents() {
   // Fetch folders with document counts - poll during AI analysis to catch Smart Organization updates
   const { data: folders = [], isLoading: foldersLoading } = useQuery<(Folder & { documentCount: number })[]>({
     queryKey: ['/api/folders'],
-    refetchInterval: isPollingForAI ? 5000 : false, // Poll every 5 seconds during AI analysis
+    refetchInterval: isPollingForAI ? 2000 : false, // Poll every 2 seconds during AI analysis for faster updates
   });
 
   // Get automatic folders only (Smart Organization)
@@ -563,7 +563,7 @@ export default function Documents() {
       page: currentPage 
     }],
     enabled: !isMainCategorySelected, // Only fetch documents when NOT viewing main category sub-folders
-    refetchInterval: isPollingForAI ? 5000 : false, // Poll every 5 seconds when expecting AI analysis
+    refetchInterval: isPollingForAI ? 2000 : false, // Poll every 2 seconds when expecting AI analysis for faster updates
   });
   
 

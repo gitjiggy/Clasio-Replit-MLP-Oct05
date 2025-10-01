@@ -28,7 +28,7 @@ class AIQueueProcessor {
   
   // Concurrency configuration
   private readonly MAX_CONTENT_EXTRACTION_WORKERS = 2; // Content extraction can be parallel
-  private readonly MAX_ANALYSIS_WORKERS = 3; // Analysis needs API rate limiting  
+  private readonly MAX_ANALYSIS_WORKERS = 5; // Increased from 3 for faster parallel processing
   private readonly MAX_EMBEDDING_WORKERS = 2; // Embedding generation in parallel
   
   // Exponential backoff for Gemini API errors

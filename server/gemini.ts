@@ -43,7 +43,7 @@ export async function summarizeDocument(text: string): Promise<string> {
     const prompt = `Generate a professional, concise 2-3 line description of this document's content and purpose. Write in sophisticated, direct language without starting with "This document" or "The document". Use active voice and specific details. Avoid generic phrases and focus on the document's actual value, function, or key information. Be crisp and authoritative:\n\n${text}`;
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); // Faster GA model (30-40% faster than 2.5-flash-lite)
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const resultText = response.text();
@@ -236,7 +236,7 @@ ${text}`;
 
     try {
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-2.0-flash",
             generationConfig: {
                 temperature: 0,
                 maxOutputTokens: 1000,
@@ -612,7 +612,7 @@ async function extractTextFromImageBuffer(imageBuffer: Buffer, mimeType: string)
             return "AI image analysis unavailable - API key not configured.";
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         const imagePart = {
             inlineData: {
@@ -763,7 +763,7 @@ Format as JSON:
 
     try {
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-2.0-flash",
             generationConfig: {
                 temperature: 0,
                 maxOutputTokens: 500,
@@ -860,7 +860,7 @@ Respond with ONLY a JSON object in this format:
 
     try {
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-2.0-flash",
             generationConfig: {
                 temperature: 0.1,
                 maxOutputTokens: 300,
@@ -978,7 +978,7 @@ Keep response helpful and informative but concise.`;
 
     try {
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-2.0-flash",
             generationConfig: {
                 temperature: 0.3,
                 maxOutputTokens: 300
