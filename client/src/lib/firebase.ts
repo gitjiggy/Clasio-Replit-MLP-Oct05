@@ -33,14 +33,16 @@ export const auth = getAuth(app);
 
 // Set best available persistence immediately at module load
 // This must run BEFORE any popup/redirect to avoid breaking user activation chain
-(async function initPersistence() {
+export const persistenceReady = (async function initPersistence() {
   try {
     await setPersistence(auth, browserLocalPersistence);
+    console.log("✅ Persistence set to browserLocalPersistence");
   } catch {
     // If localStorage/IndexedDB is blocked, fall back to memory
     // Allows popup to succeed, though session won't persist across reload
     try {
       await setPersistence(auth, inMemoryPersistence);
+      console.log("⚠️ Persistence set to inMemoryPersistence (fallback)");
     } catch (e) {
       console.warn("Could not set any persistence:", e);
     }
@@ -78,26 +80,26 @@ export async function completeRedirectIfAny() {
   }
 }
 
-// Basic Firebase authentication with popup + redirect fallback
+// Basic Firebase authentication with popup ONLY (no automatic fallback)
 // CRITICAL: NO awaits before signInWithPopup - persistence is set at module load
 export const signInWithGoogle = async () => {
-  const startTime = performance.now();
+  console.log("🔐 Attempting Google sign-in with popup...");
   
   try {
+    console.log("🚀 Calling signInWithPopup...");
     const result = await signInWithPopup(auth, basicGoogleProvider);
-    console.log("✅ Signed in user:", result.user);
+    console.log("✅ Signed in user:", result.user.email);
     return result.user;
   } catch (err: any) {
-    const elapsed = performance.now() - startTime;
+    console.error("❌ Sign-in error:", {
+      code: err.code,
+      message: err.message,
+      name: err.name
+    });
     
-    // Detect blocked popup: explicit block error OR closed within 900ms
-    const isBlocked = 
-      err.code === "auth/popup-blocked" ||
-      err.code === "auth/cancelled-popup-request" ||
-      (err.code === "auth/popup-closed-by-user" && elapsed < 900);
-    
-    if (isBlocked) {
-      console.warn("⚠️ Popup blocked or closed immediately. Falling back to redirect...");
+    // Only handle explicit popup-blocked error for automatic fallback
+    if (err.code === "auth/popup-blocked") {
+      console.warn("⚠️ Popup blocked. Falling back to redirect...");
       // Throw custom error to signal fallback, then redirect
       try {
         await signInWithRedirect(auth, basicGoogleProvider);
@@ -109,11 +111,7 @@ export const signInWithGoogle = async () => {
       throw new PopupBlockedError();
     }
     
-    if (err.code === "auth/popup-closed-by-user") {
-      console.warn("Popup closed by user after", elapsed, "ms");
-    } else {
-      console.error("Google sign-in error:", err);
-    }
+    // Let other errors (including user cancellation) pass through
     throw err;
   }
 };

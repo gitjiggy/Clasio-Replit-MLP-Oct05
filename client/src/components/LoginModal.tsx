@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Shield, FileText, Brain, ExternalLink } from "lucide-react";
-import { signInWithGoogle, PopupBlockedError } from "@/lib/firebase";
+import { signInWithGoogle, PopupBlockedError, persistenceReady } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import { signInWithRedirect } from "firebase/auth";
@@ -16,7 +16,15 @@ interface LoginModalProps {
 
 export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isPersistenceReady, setIsPersistenceReady] = useState(false);
   const { toast } = useToast();
+
+  // Wait for persistence to be ready before allowing sign-in
+  useEffect(() => {
+    persistenceReady.then(() => {
+      setIsPersistenceReady(true);
+    });
+  }, []);
 
   const handleGoogleSignIn = async () => {
     // CRITICAL: Call signInWithGoogle() immediately with no awaits before it
