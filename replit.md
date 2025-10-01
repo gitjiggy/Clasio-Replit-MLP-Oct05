@@ -4,28 +4,29 @@ This is a modern document management system built with React and Express, featur
 
 # Recent Changes
 
-## October 1, 2025 - Redirect-Only Authentication Strategy
+## October 1, 2025 - Redirect-Only Authentication with Default Firebase Domain
 
-**Authentication Flow Simplification**:
-- **Issue**: Popup-based authentication was unreliably opening as new tabs due to browser cross-domain restrictions
-- **Root Cause**: Modern browsers treat cross-domain popups as security risk and often convert them to tabs
-- **Solution**: Switched primary authentication to redirect-only flow (eliminating popup complexity)
+**Authentication Flow Fix**:
+- **Issue**: Authentication redirect was hanging at `/__/auth/handler` page
+- **Root Cause**: Custom domain `authDomain: "clasio.ai"` requires special Firebase Hosting configuration. OAuth redirect URLs in Google Cloud Console are configured for default Firebase domain.
+- **Solution**: Changed `authDomain` back to `"documentorganizerclean-b629f.firebaseapp.com"` (Firebase default)
 - **Files Modified**:
-  - `client/src/components/LoginModal.tsx`: Main "Continue with Google" button now uses `signInWithRedirect` directly
-  - `client/src/lib/firebase.ts`: Kept `authDomain: "clasio.ai"` for proper domain configuration
-  - `client/src/pages/auth-drive.tsx`: Uses `authDomain: "clasio.ai"` for Drive OAuth
+  - `client/src/lib/firebase.ts`: Changed authDomain to Firebase default domain
+  - `client/src/pages/auth-drive.tsx`: Changed authDomain to Firebase default domain
+  - `client/src/components/LoginModal.tsx`: Simplified to single "Continue with Google" button using `signInWithRedirect`
 
-**Implementation Details**:
-- Redirect result handling already in place via `completeRedirectIfAny()` in `App.tsx`
-- User clicks "Continue with Google" → redirects to Google sign-in → returns to app authenticated
-- Eliminated popup-specific error handling and fallback logic
-- Cleaner, more predictable authentication experience across all browsers
+**How It Works**:
+- User clicks "Continue with Google" on `clasio.ai`
+- Browser redirects to `documentorganizerclean-b629f.firebaseapp.com/__/auth/handler`
+- Google OAuth completes authentication (recognizes Firebase domain)
+- User returns to `clasio.ai` fully authenticated
+- Main app domain (`clasio.ai`) stays the same for users
 
 **Benefits**:
-- Consistent behavior across all browsers (no popup vs tab confusion)
-- Works reliably with strict browser security settings
-- No cross-domain messaging issues
-- Simpler codebase with less error handling complexity
+- Authentication works reliably out of the box
+- No custom domain configuration needed for Firebase Auth
+- Cleaner single-button interface
+- Works across all browsers with redirect flow
 
 ## October 1, 2025 - Cookie-Resilient Authentication Architecture
 
