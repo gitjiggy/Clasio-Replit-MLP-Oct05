@@ -6,7 +6,7 @@ import { Loader2, Shield, FileText, Brain } from "lucide-react";
 import { persistenceReady } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithPopup } from "firebase/auth";
+import { signInWithRedirect } from "firebase/auth";
 import { auth, basicGoogleProvider } from "@/lib/firebase";
 
 interface LoginModalProps {
@@ -27,16 +27,16 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    console.log("🔘 Button clicked - starting Google sign-in");
+    console.log("🔘 Button clicked - starting Google sign-in with redirect");
     setIsSigningIn(true);
     
     try {
-      console.log("🚀 Calling signInWithPopup...");
-      await signInWithPopup(auth, basicGoogleProvider);
-      console.log("✅ Popup sign-in successful");
-      trackEvent("auth_signin_success", { method: "google" });
+      console.log("🚀 Calling signInWithRedirect...");
+      // Redirect will navigate away from this page
+      await signInWithRedirect(auth, basicGoogleProvider);
+      // This line won't execute as page will redirect
     } catch (error) {
-      console.error("❌ Popup sign-in failed:", error);
+      console.error("❌ Redirect sign-in failed:", error);
       console.error("Error details:", {
         code: (error as any)?.code,
         message: (error as any)?.message,
@@ -45,12 +45,12 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
       
       toast({
         title: "Sign-in failed",
-        description: (error as any)?.message || "Failed to sign in with Google. Please try again.",
+        description: (error as any)?.message || "Failed to start sign-in. Please try again.",
         variant: "destructive"
       });
       
       trackEvent("auth_signin_error", { 
-        method: "google",
+        method: "google_redirect",
         error: (error as any)?.code || "unknown"
       });
       

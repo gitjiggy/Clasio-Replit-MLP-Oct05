@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from 'firebase/auth';
+import { User, getRedirectResult } from 'firebase/auth';
 import { auth, onAuthStateChange } from '@/lib/firebase';
 
 interface AuthContextType {
@@ -82,17 +82,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return; // Skip Firebase auth if test auth was successful
     }
 
-    // Set up auth state subscriber - SDK handles redirect result automatically
-    const unsub = onAuthStateChange((u) => {
-      setUser(u ?? null);
-      setInitializing(false);
-    });
-
-    return () => {
-      if (unsub) {
-        unsub();
+    // Check for redirect result first
+    (async () => {
+      try {
+        console.log("🔄 Checking for redirect result...");
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log("✅ Redirect sign-in successful:", result.user.email);
+          setUser(result.user);
+          setInitializing(false);
+          return; // Don't set up the listener, we have the user
+        } else {
+          console.log("ℹ️ No redirect result found");
+        }
+      } catch (error) {
+        console.error("❌ Redirect result error:", error);
       }
-    };
+      
+      // Set up auth state subscriber
+      const unsub = onAuthStateChange((u) => {
+        setUser(u ?? null);
+        setInitializing(false);
+      });
+
+      return () => {
+        if (unsub) {
+          unsub();
+        }
+      };
+    })();
   }, []);
 
   const value = {
