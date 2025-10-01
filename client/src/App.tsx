@@ -120,6 +120,9 @@ function AuthenticatedApp() {
     // Show login modal if user is not authenticated after loading completes
     if (!loading && !user) {
       setShowLoginModal(true);
+    } else if (user) {
+      // Close modal when user is authenticated
+      setShowLoginModal(false);
     }
   }, [user, loading]);
 
