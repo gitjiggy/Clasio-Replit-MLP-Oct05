@@ -114,7 +114,6 @@ function Router() {
 
 function AuthenticatedApp() {
   const { user, initializing } = useAuth();
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
   if (initializing) {
     return (
@@ -129,7 +128,7 @@ function AuthenticatedApp() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <AppHeader onSignInClick={() => setShowLoginModal(true)} />
+      <AppHeader onSignInClick={() => {}} />
       <main className="flex-1">
         {user ? (
           <Router />
@@ -143,7 +142,7 @@ function AuthenticatedApp() {
         )}
       </main>
       
-      <LoginModal open={!user || showLoginModal} onOpenChange={setShowLoginModal} />
+      <LoginModal open={!user} onOpenChange={() => {}} />
     </div>
   );
 }

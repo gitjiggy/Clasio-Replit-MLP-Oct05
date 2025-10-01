@@ -2,7 +2,7 @@
 // Based on blueprint:firebase_barebones_javascript
 
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut, User, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, signOut, User, setPersistence, browserLocalPersistence } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -48,16 +48,25 @@ driveGoogleProvider.setCustomParameters({
   'prompt': 'consent'  // Force consent screen for Drive scopes
 });
 
-// Basic Firebase authentication (NO Drive scopes) - Using redirect for better reliability
+// Basic Firebase authentication (NO Drive scopes) - Using popup with redirect fallback
 export const signInWithGoogle = async () => {
+  await setPersistence(auth, browserLocalPersistence);
   try {
-    // Use redirect instead of popup for better reliability across all browsers/devices
-    await signInWithRedirect(auth, basicGoogleProvider);
-    // Note: This function will redirect away from the page
-    // The result will be handled by handleAuthRedirect() on return
-  } catch (error: any) {
-    console.error("Basic authentication failed:", error);
-    throw new Error("Authentication failed: " + error.message);
+    // Prefer popup: avoids third-party cookie issues
+    await signInWithPopup(auth, basicGoogleProvider);
+    // success → onAuthStateChanged will fire and close the modal
+  } catch (err: any) {
+    // Popup blocked or not available? Fall back to redirect.
+    const popupBlocked =
+      err?.code === "auth/popup-blocked" ||
+      err?.code === "auth/popup-closed-by-user" ||
+      err?.code === "auth/cancelled-popup-request";
+
+    if (popupBlocked) {
+      await signInWithRedirect(auth, basicGoogleProvider);
+      return;
+    }
+    throw err; // surface real errors
   }
 };
 
@@ -161,20 +170,7 @@ export const signOutUser = async () => {
   return signOut(auth);
 };
 
-// Handle redirect result once, then rely on the subscriber
-export const initAuthOnce = async () => {
-  try {
-    // This resolves to a credential *if* the page just returned from Google.
-    await getRedirectResult(auth);
-  } catch (e) {
-    console.error('Redirect result error', e);
-  }
-  // From here on, UI should rely on onAuthStateChanged subscription.
-};
-
-// Legacy token storage functions removed - all authentication is now via httpOnly cookies
-
-// Auth state observer
+// Auth state observer - SDK handles redirect result automatically
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, callback);
 };

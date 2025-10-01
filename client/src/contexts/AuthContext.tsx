@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, getAuth } from 'firebase/auth';
-import { onAuthStateChange, initAuthOnce } from '@/lib/firebase';
+import { onAuthStateChange } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -82,18 +82,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return; // Skip Firebase auth if test auth was successful
     }
 
-    // Initialize auth - handle redirect result once early in bootstrap
-    initAuthOnce().then(() => {
-      // Set up auth state subscriber
-      const unsub = onAuthStateChange((u) => {
-        setUser(u ?? null);
-        setInitializing(false);
-      });
-      return unsub;
-    }).catch((error) => {
-      console.error("Auth initialization error:", error);
+    // Set up auth state subscriber - SDK handles redirect result automatically
+    const unsub = onAuthStateChange((u) => {
+      setUser(u ?? null);
       setInitializing(false);
     });
+
+    return () => {
+      if (unsub) {
+        unsub();
+      }
+    };
   }, []);
 
   const value = {
