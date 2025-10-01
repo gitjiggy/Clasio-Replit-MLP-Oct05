@@ -2,7 +2,19 @@
 // Based on blueprint:firebase_barebones_javascript
 
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, signOut, User } from "firebase/auth";
+import { 
+  getAuth, 
+  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult,
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signOut, 
+  User,
+  browserLocalPersistence,
+  inMemoryPersistence,
+  setPersistence
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -33,6 +45,18 @@ driveGoogleProvider.setCustomParameters({
   'prompt': 'consent'  // Force consent screen for Drive scopes
 });
 
+// Set best available persistence to avoid 3P cookie issues
+// Safari/Incognito may block cookies, causing popup failures
+async function setBestPersistence() {
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+  } catch {
+    // If localStorage/IndexedDB is blocked, fall back to memory
+    // Allows popup to succeed, though session won't persist across reload
+    await setPersistence(auth, inMemoryPersistence);
+  }
+}
+
 // Custom error for popup fallback detection
 export class PopupBlockedError extends Error {
   constructor(message: string = "Popup blocked, using redirect fallback") {
@@ -41,21 +65,35 @@ export class PopupBlockedError extends Error {
   }
 }
 
+// Call this once on app load to complete any pending redirect
+export async function completeRedirectIfAny() {
+  await setBestPersistence();
+  try {
+    await getRedirectResult(auth); // no-op if no redirect pending
+  } catch (e) {
+    console.error("Redirect completion failed:", e);
+  }
+}
+
 // Basic Firebase authentication with popup + redirect fallback
+// Must be called directly from click handler (no awaits before it)
 export const signInWithGoogle = async () => {
-  const startTime = Date.now();
+  await setBestPersistence();
+  
+  const startTime = performance.now();
   
   try {
     const result = await signInWithPopup(auth, basicGoogleProvider);
     console.log("✅ Signed in user:", result.user);
     return result.user;
   } catch (err: any) {
-    const elapsed = Date.now() - startTime;
+    const elapsed = performance.now() - startTime;
     
-    // Detect blocked popup: explicit block error OR closed within 1.5s
+    // Detect blocked popup: explicit block error OR closed within 900ms
     const isBlocked = 
       err.code === "auth/popup-blocked" ||
-      (err.code === "auth/popup-closed-by-user" && elapsed < 1500);
+      err.code === "auth/cancelled-popup-request" ||
+      (err.code === "auth/popup-closed-by-user" && elapsed < 900);
     
     if (isBlocked) {
       console.warn("⚠️ Popup blocked or closed immediately. Falling back to redirect...");
@@ -72,8 +110,6 @@ export const signInWithGoogle = async () => {
     
     if (err.code === "auth/popup-closed-by-user") {
       console.warn("Popup closed by user after", elapsed, "ms");
-    } else if (err.code === "auth/cancelled-popup-request") {
-      console.warn("Another popup request was cancelled.");
     } else {
       console.error("Google sign-in error:", err);
     }

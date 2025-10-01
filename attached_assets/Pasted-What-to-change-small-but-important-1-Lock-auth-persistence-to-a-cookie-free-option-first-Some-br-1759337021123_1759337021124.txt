@@ -1,0 +1,127 @@
+What to change (small but important)
+1) Lock auth persistence to a cookie-free option first
+
+Some browsers/contexts (Incognito/Safari) kill the popup because 3P cookies are blocked and the SDK tries to use them during the popup handshake. For web apps, using browserLocalPersistence first is safest; if that’s not available (e.g., locked-down modes), fall back to inMemoryPersistence, then redirect.
+
+client/src/lib/firebase.ts (or your firebase init file)
+
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  browserLocalPersistence,
+  inMemoryPersistence,
+  setPersistence,
+  getRedirectResult,
+} from "firebase/auth";
+import { app } from "./firebaseApp";
+
+export const auth = getAuth(app);
+
+// Make the SDK resilient where cookies are limited
+async function setBestPersistence() {
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+  } catch {
+    // If localStorage/IndexedDB is blocked, fall back to memory;
+    // allows popup to succeed, though session won’t persist across reload.
+    await setPersistence(auth, inMemoryPersistence);
+  }
+}
+
+const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: "select_account" });
+
+/**
+ * Must be called from the click handler with no awaits before it.
+ * Tries popup first; if blocked or closes immediately, falls back to redirect.
+ */
+export async function signInWithGooglePopupPrefer() {
+  await setBestPersistence();
+
+  // Heuristic: if the popup returns in < 900ms, it was likely blocked/closed.
+  const start = performance.now();
+  try {
+    const cred = await signInWithPopup(auth, provider);
+    return cred.user;
+  } catch (err: any) {
+    const code = err?.code || "";
+    const fastFail = performance.now() - start < 900;
+
+    if (
+      code === "auth/popup-blocked" ||
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/cancelled-popup-request" ||
+      fastFail
+    ) {
+      // Don’t show a failure toast here—immediately redirect as fallback.
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+    // Other genuine errors bubble up to your UI
+    throw err;
+  }
+}
+
+/** Call this once on app load to finish the redirect flow. */
+export async function completeRedirectIfAny() {
+  await setBestPersistence();
+  try {
+    await getRedirectResult(auth); // no-op if none
+  } catch (e) {
+    console.error("Redirect completion failed:", e);
+  }
+}
+
+
+Where to call:
+
+Call completeRedirectIfAny() once when your root app mounts (before rendering the login modal).
+
+Ensure your Sign in button’s onClick calls signInWithGooglePopupPrefer() immediately—no awaits or analytics before it.
+
+// Login button
+<button
+  onClick={() => {
+    signInWithGooglePopupPrefer().catch((e) => {
+      // Optional: toast only for non-popup-block errors
+      if (!String(e?.code || "").startsWith("auth/popup")) {
+        console.error(e);
+        // toast.error("Sign-in failed. Please try again.");
+      }
+    });
+  }}
+>
+  Continue with Google
+</button>
+
+2) Tie the modal strictly to auth state (no race)
+
+You already moved toward this, but make sure the modal only opens when !user and closes when user exists—no local timers.
+
+<Dialog open={!user} /* ... */>
+  {/* modal content */}
+</Dialog>
+
+3) Keep the redirect path clean
+
+You’ve got the fallback; also make sure you run completeRedirectIfAny() early on every load so a redirect result finishes cleanly before you render guarded routes.
+
+Quick checklist
+
+ Authorized domains (your screenshot shows clasio.ai & www.clasio.ai)
+
+ OAuth Client in Google Cloud Console:
+
+Authorized JS origins: https://clasio.ai, https://documentorganizerclean-b629f.firebaseapp.com
+
+Authorized redirect URIs: https://documentorganizerclean-b629f.firebaseapp.com/__/auth/handler
+
+ CSP already includes *.google.com, *.gstatic.com, *.googleapis.com, *.googleusercontent.com
+
+ Button handler calls popup immediately (no pre-work)
+
+ Persistence set as above to avoid cookie-only modes breaking popup
+
+ Redirect completion is called on boot
