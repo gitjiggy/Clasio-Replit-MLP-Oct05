@@ -75,7 +75,13 @@ export function cspMiddleware(): RequestHandler {
     return (req, res, next) => next();
   }
 
-  return helmet({
+  // Skip CSP for Firebase auth handler - it needs its own CSP
+  return (req, res, next) => {
+    if (req.path.startsWith('/__/auth')) {
+      return next();
+    }
+    
+    helmet({
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
@@ -94,5 +100,6 @@ export function cspMiddleware(): RequestHandler {
     },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: false
-  });
+  })(req, res, next);
+  };
 }

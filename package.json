@@ -76,6 +76,7 @@
     "google-auth-library": "^10.3.0",
     "googleapis": "^159.0.0",
     "helmet": "^8.1.0",
+    "http-proxy-middleware": "^3.0.5",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.453.0",
     "mammoth": "^1.11.0",
