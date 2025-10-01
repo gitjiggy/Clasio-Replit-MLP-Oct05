@@ -96,10 +96,22 @@ export class PopupBlockedError extends Error {
 
 // Call this once on app load to complete any pending redirect
 export async function completeRedirectIfAny() {
+  console.log("🔄 Checking for pending redirect...");
   try {
-    await getRedirectResult(auth); // no-op if no redirect pending
-  } catch (e) {
-    console.error("Redirect completion failed:", e);
+    const result = await getRedirectResult(auth);
+    if (result) {
+      console.log("✅ Redirect completed successfully:", result.user.email);
+    } else {
+      console.log("ℹ️ No pending redirect found");
+    }
+    return result;
+  } catch (e: any) {
+    console.error("❌ Redirect completion failed:", {
+      code: e?.code,
+      message: e?.message,
+      stack: e?.stack
+    });
+    throw e;
   }
 }
 
