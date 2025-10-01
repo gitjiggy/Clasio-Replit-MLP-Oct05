@@ -33,6 +33,11 @@ const allow = {
     "https://securetoken.googleapis.com",
     "https://identitytoolkit.googleapis.com",
     "https://firebasestorage.googleapis.com",
+    "https://firestore.googleapis.com",
+    "https://content-firebaseappcheck.googleapis.com",
+    "https://oauth2.googleapis.com",
+    "https://accounts.google.com",
+    "https://openidconnect.googleapis.com",
     "https://www.gstatic.com",
     "https://www.google-analytics.com"
   ],
@@ -81,6 +86,7 @@ export function cspMiddleware(): RequestHandler {
       },
       reportOnly: CSP_REPORT_ONLY
     },
-    crossOriginEmbedderPolicy: false
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false
   });
 }
