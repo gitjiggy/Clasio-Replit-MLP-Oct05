@@ -2,7 +2,7 @@
 // Based on blueprint:firebase_barebones_javascript
 
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, signOut, User, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,11 +19,6 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 // Initialize Auth - Export singleton instance
 export const auth = getAuth(app);
 
-// Set persistence BEFORE any sign-in/redirect (critical for redirect flows)
-setPersistence(auth, browserLocalPersistence).catch((error) => {
-  console.error("Failed to set auth persistence:", error);
-});
-
 // Basic Google Auth Provider for initial Firebase login (NO Drive scopes)
 const basicGoogleProvider = new GoogleAuthProvider();
 basicGoogleProvider.setCustomParameters({
@@ -38,25 +33,27 @@ driveGoogleProvider.setCustomParameters({
   'prompt': 'consent'  // Force consent screen for Drive scopes
 });
 
-// Basic Firebase authentication (NO Drive scopes) - Using popup with redirect fallback
+// Basic Firebase authentication (NO Drive scopes) - Popup only, no redirect fallback
 export const signInWithGoogle = async () => {
-  await setPersistence(auth, browserLocalPersistence);
   try {
-    // Prefer popup: avoids third-party cookie issues
-    await signInWithPopup(auth, basicGoogleProvider);
-    // success → onAuthStateChanged will fire and close the modal
+    const result = await signInWithPopup(auth, basicGoogleProvider);
+    
+    // Firebase gives back user + tokens
+    const user = result.user;
+    
+    // (Optional) Store user info for your app state
+    console.log("✅ Signed in user:", user);
+    
+    return user;
   } catch (err: any) {
-    // Popup blocked or not available? Fall back to redirect.
-    const popupBlocked =
-      err?.code === "auth/popup-blocked" ||
-      err?.code === "auth/popup-closed-by-user" ||
-      err?.code === "auth/cancelled-popup-request";
-
-    if (popupBlocked) {
-      await signInWithRedirect(auth, basicGoogleProvider);
-      return;
+    if (err.code === "auth/popup-closed-by-user") {
+      console.warn("Popup closed before completing sign-in.");
+    } else if (err.code === "auth/cancelled-popup-request") {
+      console.warn("Another popup request was cancelled.");
+    } else {
+      console.error("Google sign-in error:", err);
     }
-    throw err; // surface real errors
+    throw err;
   }
 };
 
