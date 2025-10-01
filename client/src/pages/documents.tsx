@@ -515,9 +515,10 @@ export default function Documents() {
     }
   };
 
-  // Fetch folders with document counts
+  // Fetch folders with document counts - poll during AI analysis to catch Smart Organization updates
   const { data: folders = [], isLoading: foldersLoading } = useQuery<(Folder & { documentCount: number })[]>({
     queryKey: ['/api/folders'],
+    refetchInterval: isPollingForAI ? 5000 : false, // Poll every 5 seconds during AI analysis
   });
 
   // Get automatic folders only (Smart Organization)
@@ -632,6 +633,20 @@ export default function Documents() {
       queryClient.invalidateQueries({ 
         queryKey: ["/api/folders"],
         refetchType: 'all'
+      });
+      
+      // Force immediate refetch of folders AND documents to show Smart Organization results
+      console.log('🔄 Forcing immediate refetch of folders and documents...');
+      Promise.all([
+        queryClient.refetchQueries({ queryKey: ["/api/folders"] }),
+        queryClient.refetchQueries({ 
+          queryKey: ['/api/documents'],
+          exact: false 
+        })
+      ]).then(() => {
+        console.log('✅ Immediate refetch completed - Smart Organization should be visible');
+      }).catch((error) => {
+        console.error('❌ Immediate refetch failed:', error);
       });
       
       // Also do a second refresh after a short delay to catch any race conditions
