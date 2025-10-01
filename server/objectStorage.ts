@@ -130,11 +130,11 @@ async function withRetry<T>(
 export class ObjectStorageService {
   private bucketName: string;
 
-  // Configure CORS for the bucket to allow direct uploads from browsers
+  // Configure CORS for the bucket to allow direct uploads from browsers (non-blocking)
   private async setupBucketCors(): Promise<void> {
     try {
       if (!objectStorageClient) {
-        console.warn("⚠️ GCS client not available, skipping CORS setup");
+        // Silent skip - this is optional setup
         return;
       }
       
@@ -151,14 +151,23 @@ export class ObjectStorageService {
       await bucket.setCorsConfiguration(corsConfiguration);
       console.log(`✅ CORS configured for bucket: ${this.bucketName}`);
     } catch (error) {
-      console.warn(`⚠️ Could not configure CORS for bucket: ${error}`);
-      // Don't throw - this is a best-effort setup
+      // Silent failure - CORS is optional for basic functionality
+      // If needed for production, grant 'storage.buckets.update' permission to service account
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('storage.buckets.update')) {
+        console.warn(`⚠️ CORS setup needs 'storage.buckets.update' permission - app will work but direct uploads may have CORS issues`);
+      }
     }
   }
 
   constructor() {
     this.bucketName = process.env.GCS_BUCKET_NAME || "development-bucket";
-    this.setupBucketCors(); // Configure CORS for direct uploads
+    
+    // Fire-and-forget CORS setup - don't block initialization
+    this.setupBucketCors().catch(err => {
+      console.warn(`⚠️ CORS setup failed (non-blocking): ${err.message || err}`);
+    });
+    
     if (!process.env.GCS_BUCKET_NAME) {
       console.warn("⚠️  GCS_BUCKET_NAME not found, using placeholder bucket name");
     }

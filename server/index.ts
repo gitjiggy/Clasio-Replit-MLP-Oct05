@@ -135,7 +135,18 @@ app.use('/__/auth', createProxyMiddleware({
 
 // Token 5/8: Health and monitoring endpoints (before main routes)
 app.get('/health', healthCheck);
-app.get('/ready', readinessCheck);
+
+// Fast readiness check for deployment platform - returns 200 OK immediately
+app.get('/ready', (req: Request, res: Response) => {
+  res.status(200).json({ 
+    status: 'ready',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Detailed readiness check with DB and queue checks
+app.get('/readiness', readinessCheck);
 
 // Monitoring and metrics endpoints
 app.get('/metrics', async (req, res) => {
