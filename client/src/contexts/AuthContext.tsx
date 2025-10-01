@@ -82,7 +82,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return; // Skip Firebase auth if test auth was successful
     }
 
-    // Check for redirect result first
+    // Check for redirect result first, then set up listener
+    let unsubscribe: (() => void) | undefined;
+    
     (async () => {
       try {
         console.log("🔄 Checking for redirect result...");
@@ -91,26 +93,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           console.log("✅ Redirect sign-in successful:", result.user.email);
           setUser(result.user);
           setInitializing(false);
-          return; // Don't set up the listener, we have the user
         } else {
           console.log("ℹ️ No redirect result found");
         }
       } catch (error) {
         console.error("❌ Redirect result error:", error);
+        setInitializing(false);
       }
       
-      // Set up auth state subscriber
-      const unsub = onAuthStateChange((u) => {
+      // Always set up auth state subscriber (handles sign-out, token refresh, etc.)
+      unsubscribe = onAuthStateChange((u) => {
         setUser(u ?? null);
         setInitializing(false);
       });
-
-      return () => {
-        if (unsub) {
-          unsub();
-        }
-      };
     })();
+
+    // Cleanup function
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const value = {

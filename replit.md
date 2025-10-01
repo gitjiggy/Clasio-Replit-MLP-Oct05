@@ -4,37 +4,50 @@ This is a modern document management system built with React and Express, featur
 
 # Recent Changes
 
-## October 1, 2025 - Popup-Based Authentication for Custom Domain Compatibility
+## October 1, 2025 - Final Authentication Configuration (LOCKED - DO NOT CHANGE)
 
-**Authentication Approach**:
-- **Issue**: Redirect-based authentication (`signInWithRedirect`) doesn't work reliably with custom domains (`clasio.ai`) due to Firebase auth handler (`/__/auth/handler`) only existing on Firebase Hosting domains
-- **Root Cause**: Custom domains require special Firebase Hosting configuration for redirect auth to work. Redirect flow expects auth cookies on the same domain.
-- **Solution**: Switched to popup-based authentication (`signInWithPopup`) which works seamlessly with custom domains
-- **Files Modified**:
-  - `client/src/lib/firebase.ts`: Set `authDomain` to Firebase default (`documentorganizerclean-b629f.firebaseapp.com`)
-  - `client/src/components/LoginModal.tsx`: Changed from `signInWithRedirect` to `signInWithPopup` with proper error handling
-  - `client/src/App.tsx`: Removed redirect completion logic (no longer needed for popup auth)
+**⚠️ CRITICAL: This configuration is FINAL and must NOT be changed**
 
-**How Popup Auth Works**:
-- User clicks "Continue with Google" on `clasio.ai`
-- Popup window opens on Firebase's domain (`documentorganizerclean-b629f.firebaseapp.com`)
-- Google OAuth completes in the popup window
-- Popup closes and passes authentication result back to parent window (`clasio.ai`)
-- User is authenticated immediately without page reload
+**Authentication Setup for Custom Domain (`clasio.ai`) NOT on Firebase Hosting:**
+- **authDomain**: `documentorganizerclean-b629f.firebaseapp.com` (LOCKED - NEVER change to clasio.ai)
+- **Method**: Redirect-based authentication (`signInWithRedirect`) ONLY
+- **Why popup doesn't work**: Third-party cookie protections and postMessage restrictions prevent popup auth from working reliably on custom domains not hosted on Firebase
+- **Why this authDomain**: Firebase Auth only provisions OAuth from its managed domain unless deployed via Firebase Hosting
 
-**Benefits**:
-- ✅ Works perfectly with custom domains (no Firebase Hosting configuration needed)
-- ✅ No cross-domain cookie issues
-- ✅ Faster user experience (no full page redirects)
-- ✅ Better for PWAs and mobile browsers
-- ✅ Cleaner code (no redirect completion logic needed)
+**Implementation Details**:
+1. `client/src/lib/firebase.ts`:
+   - authDomain = `documentorganizerclean-b629f.firebaseapp.com` (NEVER toggle)
+   - Persistence set at module load (browserLocalPersistence with inMemoryPersistence fallback)
 
-**Technical Details**:
-- `authDomain` set to Firebase's default domain where auth handler exists
-- Popup auth bypasses custom domain limitations
-- Persistence (browserLocalPersistence) set at module load
-- Full error handling with user-friendly toast notifications
-- Analytics tracking for sign-in success/failure
+2. `client/src/components/LoginModal.tsx`:
+   - Uses `signInWithRedirect(auth, basicGoogleProvider)`
+   - Redirects user to Firebase's domain for OAuth
+   - Page navigation happens automatically
+
+3. `client/src/contexts/AuthContext.tsx`:
+   - Calls `getRedirectResult(auth)` ONCE on app boot
+   - Sets up `onAuthStateChanged` listener for ongoing auth state
+   - Properly handles cleanup on unmount
+
+**Authentication Flow**:
+1. User clicks "Continue with Google" on `clasio.ai`
+2. Page redirects to `documentorganizerclean-b629f.firebaseapp.com/__/auth/handler`
+3. Google OAuth completes on Firebase's domain
+4. User redirects back to `clasio.ai`
+5. `getRedirectResult` captures the auth result
+6. `onAuthStateChanged` maintains auth state
+
+**Firebase Console Requirements**:
+- ✅ Google provider enabled
+- ✅ Authorized domains: `clasio.ai`, `www.clasio.ai`, `documentorganizerclean-b629f.firebaseapp.com`
+- ✅ OAuth consent screen configured
+- ✅ Web client ID matches the one in code
+
+**DO NOT**:
+- ❌ Change authDomain to `clasio.ai` (breaks OAuth)
+- ❌ Use popup authentication (unreliable on custom domains)
+- ❌ Call getRedirectResult multiple times (causes race conditions)
+- ❌ Toggle between popup and redirect flows
 
 ## September 30, 2025 - Authentication Fix & Rebranding to Clasio
 
