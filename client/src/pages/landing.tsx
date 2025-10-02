@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, ScanEye, Zap, ShieldCheck, BanIcon, Building2 } from "lucide-react";
-import heroImage from "@assets/with_padding_1759374990669.png";
+import heroImage from "@assets/noBgColor (1)_1759383165014.png";
 
 export default function Landing() {
   const { user } = useAuth();
@@ -82,18 +82,30 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       {/* Premium Hero Section - Full Viewport */}
-      <section className="relative min-h-screen flex flex-col">
+      <section className="relative min-h-screen flex flex-col overflow-hidden">
+        {/* Premium Gradient Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-700 to-pink-600 dark:from-indigo-900 dark:via-purple-900 dark:to-pink-900"></div>
+        
+        {/* Animated Gradient Overlay for Depth */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-pink-500/20 animate-pulse" style={{ animationDuration: '8s' }}></div>
+        
+        {/* Mesh Gradient Effect */}
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+          <div className="absolute top-0 right-0 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+          <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
+        </div>
         {/* Elegant Header */}
-        <header className="absolute top-0 left-0 right-0 z-50 bg-transparent">
+        <header className="relative top-0 left-0 right-0 z-50 bg-transparent">
           <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-6 md:py-8 flex justify-between items-center">
-            <div className="text-2xl md:text-3xl font-normal tracking-[0.3em] text-gray-900 dark:text-white bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+            <div className="text-2xl md:text-3xl font-normal tracking-[0.3em] text-white">
               CLASIO
             </div>
             <div className="flex gap-3 md:gap-4">
               <Button
                 disabled
                 variant="ghost"
-                className="text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 font-light tracking-wide text-lg md:text-xl px-6 py-3"
+                className="text-white hover:bg-white/10 font-light tracking-wide text-lg md:text-xl px-6 py-3"
                 data-testid="button-sign-up"
               >
                 SIGN UP
@@ -109,26 +121,31 @@ export default function Landing() {
           </div>
         </header>
 
-        {/* Hero Content - 50% Smaller, Full Image Visible, Below the Fold */}
-        <div className="flex-1 flex flex-col items-center justify-center pt-20 md:pt-24 pb-16 md:pb-20">
-          <div className="w-full">
-            <div className="h-[50vh]">
-              <img
-                src={heroImage}
-                alt="Clasio - Documents, Meet AI"
-                className="w-full h-full object-contain object-[center_40%] drop-shadow-2xl"
-              />
+        {/* Hero Content - Premium Logo Display */}
+        <div className="relative flex-1 flex flex-col items-center justify-center pt-20 md:pt-24 pb-16 md:pb-20">
+          <div className="w-full max-w-5xl mx-auto px-6">
+            {/* Logo Container with Glassmorphism Effect */}
+            <div className="relative backdrop-blur-sm bg-white/5 rounded-3xl p-8 md:p-12 border border-white/10 shadow-2xl">
+              <div className="relative">
+                <img
+                  src={heroImage}
+                  alt="Clasio - Documents, Meet AI"
+                  className="w-full h-auto max-w-3xl mx-auto drop-shadow-2xl"
+                />
+              </div>
             </div>
-            <div className="px-6 md:px-12 lg:px-16 mt-8 md:mt-10">
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-light text-center text-gray-900 dark:text-white leading-tight tracking-tight">
-                <div>Clasio organizes your document chaos,</div>
-                <div className="mt-2">so you don't have to.</div>
+            
+            {/* Tagline */}
+            <div className="px-6 md:px-12 lg:px-16 mt-12 md:mt-16">
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-light text-center text-white leading-tight tracking-tight">
+                <div>Organize your document chaos,</div>
+                <div className="mt-2">automatically.</div>
               </h1>
               <div className="flex flex-col sm:flex-row gap-5 md:gap-6 justify-center items-center mt-10 md:mt-12">
                 <Button
                   onClick={handleSignIn}
                   size="lg"
-                  className="bg-[#55b3f3] hover:bg-[#55b3f3]/90 text-white font-light tracking-wide text-xl px-12 md:px-14 py-7 md:py-8 shadow-xl"
+                  className="bg-white hover:bg-white/90 text-purple-700 font-medium tracking-wide text-xl px-12 md:px-14 py-7 md:py-8 shadow-2xl"
                   data-testid="button-hero-sign-in"
                 >
                   GET STARTED
@@ -137,7 +154,7 @@ export default function Landing() {
                   disabled
                   size="lg"
                   variant="outline"
-                  className="border-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white font-light tracking-wide text-xl px-12 md:px-14 py-7 md:py-8"
+                  className="border-2 border-white/30 text-white hover:bg-white/10 font-light tracking-wide text-xl px-12 md:px-14 py-7 md:py-8 backdrop-blur-sm"
                   data-testid="button-try-demo"
                 >
                   TRY DEMO

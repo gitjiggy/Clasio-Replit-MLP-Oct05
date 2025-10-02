@@ -95,6 +95,11 @@ export default function Privacy() {
           <p className="text-gray-700 dark:text-gray-300">
             We may update this Privacy Policy from time to time. We'll notify users of significant changes by posting updates on the website.
           </p>
+
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-8 mb-4">10. Contact Us</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            If you have questions, please reach out to us at support@clasio.ai
+          </p>
         </div>
       </main>
     </div>
