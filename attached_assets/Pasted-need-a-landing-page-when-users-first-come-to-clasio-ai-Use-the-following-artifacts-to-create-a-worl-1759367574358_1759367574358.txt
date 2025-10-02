@@ -1,0 +1,95 @@
+need a landing page when users first come to clasio.ai. Use the following artifacts to create a world-class, award winning sleek looking landing page. Ask clarifying questions before implementing.
+
+The landing page should be mobile friendly. fast, responsive and great on desktop. Stack: HTML + Tailwind (or your default with utility-class equivalents).
+Tone: clean, modern, trustworthy.
+Take careful note of the hero image. Be sure to use it top and center along with a "Sign Up Free" and "Sign In" buttons. The Sign In button will obviously replace the "Continue with Google" finctionality we have right now. The modal for "Continue with Google" shall thus completely go away, with only the functionality remaining, which will now be "Sign In".
+For the whole website, be consistent with the logo's color schemes which are:
+CMYK: 0%, 0%, 0%, 0%; RGB: 255, 255, 255; HEX: #ffffff
+CMYK: 0%, 17%, 77%, 2.0%; RGB: 250, 207, 57; HEX: #facf39
+CMYK: 65%, 26%, 0%, 4.7%; RGB: 85, 179, 243; HEX: #55b3f3
+
+For reference, the reference font for the hero logo is Nexa Bold and for the slogan is Bourton Inline. Use fonts that are cohesive or similar to these fonts
+
+Sections & content (use this exact copy)
+Hero image (already provided)
+
+Text below hero: ‘Clasio organizes your document chaos, so you don't have to.’
+
+Right side on desktop: phone mockup showing Clasio; hero becomes stacked on mobile.
+How it works
+
+Capture
+Snap with your camera, upload from your device, or import from Google Drive.
+
+Organize
+AI auto-sorts documents into the right place, securely and reliably.
+
+Find
+Search by voice or text to surface any document or detail in seconds.
+
+Why you will love Clasio
+
+Snap it. Save it. Fuhgeddaboudit.
+Capture once. Stored, secured, and searchable forever.
+
+Talk to your doc.
+Ask naturally, and your documents answer instantly.
+
+Your docs. Your business.
+Private by design. Never training LLMs. Yes, really.
+
+Folders, Schmolders.
+Chaos out, clarity in. Every file files itself.
+
+Trust strip
+
+Icons/text: ‘Private by design’, ‘Organize documents in minutes, ‘No training LLMs’, 'Enterprise grade, but made for you'.
+
+CTA band
+Headline: ‘Ready to end document chaos?’
+
+Button: ‘Get Started Free’
+
+Footer
+
+Links: Docs, Contact, Privacy, Terms. Social icons.
+
+Layout & responsiveness
+
+Mobile first. 16–24px base, 28–36px H1 on mobile; scale up to 48–56px on desktop.
+
+Max content width ~1120px; generous padding (px-6 mobile, px-8 md, px-10 lg).
+
+Use a 3-step card row that snaps to a single stacked column on mobile.
+
+Use a 2×2 grid for the 4 value props on desktop; stacked cards on mobile.
+
+Keep line length 45–70 characters; increase line-height to ~1.5.
+
+Visual system
+
+Typography: Stay consistent with color scheme for logo described above for UI; weight 600 for headings, 400–500 for body.
+
+Accent color: Stay consistent with color scheme for logo described above. Buttons: solid primary + outline secondary.
+
+Cards: rounded-2xl, soft shadow, 16–24px padding.
+
+Icons: line icons (Lucide/Feather); one per step/value prop.
+
+Motion: subtle fade/slide on scroll; 150–250ms; reduce-motion respected.
+
+Accessibility: WCAG AA contrast; focus states; alt text for images.
+
+Nice touches
+
+Sticky nav with transparent → solid on scroll.
+
+Dark mode toggle (optional).
+
+OG meta + favicon.
+
+Splecial Notes pay attention
+we also have a "demo mode", "camera capture" and "voice search" fucntionality that's not built yet. (As a reminder, in demo mode:
+Allow non-logged-in users to upload 1 document, see AI classification, and search). You should layout demo mode facade i.e. text and buttons but without any functionality. We will build that later. Same goes true for camera capture and voice search.
+
+now please ask any questions you may have
