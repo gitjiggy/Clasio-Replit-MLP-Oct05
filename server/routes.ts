@@ -3983,9 +3983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: 'Email service not configured' });
       }
 
-      // Send email using Resend
-      // Note: In testing mode without domain verification, both sender and recipient must be the account owner
-      // For production, verify your domain at resend.com/domains
+      // Send email using Resend with verified domain
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -3993,15 +3991,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: 'niraj.desai@gmail.com', // Testing mode: must use account owner email
-          to: ['niraj.desai@gmail.com'], // Testing mode: sends to account owner only
+          from: 'Clasio Contact <support@clasio.ai>',
+          to: ['support@clasio.ai'],
           reply_to: from,
-          subject: `[Clasio Contact] ${subject} (from ${from})`,
+          subject: `[Contact Form] ${subject}`,
           html: `
             <div>
               <h2>New Contact Form Submission</h2>
               <p><strong>From:</strong> ${from}</p>
-              <p><strong>Original To:</strong> ${to}</p>
               <p><strong>Subject:</strong> ${subject}</p>
               <hr />
               <p>${message.replace(/\n/g, '<br />')}</p>
@@ -4013,17 +4010,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = await response.json();
 
       if (!response.ok) {
-        // In testing mode, Resend requires domain verification
-        // Log the error but return success to avoid breaking UX
-        console.warn('⚠️ Resend API limitation (testing mode):', data);
-        console.log('📧 Contact form submission received:', { from, to, subject });
-        
-        // Return success even though email wasn't sent (testing mode limitation)
-        return res.json({ 
-          success: true, 
-          message: 'Contact form submitted successfully',
-          note: 'Email sending requires domain verification in production'
-        });
+        console.error('Resend API error:', data);
+        return res.status(500).json({ error: 'Failed to send email' });
       }
 
       console.log('📧 Contact email sent successfully:', data);

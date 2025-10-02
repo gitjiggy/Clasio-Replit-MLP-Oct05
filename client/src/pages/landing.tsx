@@ -81,8 +81,8 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Premium Hero Section - Compact */}
-      <section className="relative flex flex-col">
+      {/* Premium Hero Section - Full Viewport */}
+      <section className="relative min-h-screen flex flex-col">
         {/* Elegant Header */}
         <header className="absolute top-0 left-0 right-0 z-50 bg-transparent">
           <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-4 md:py-6 flex justify-between items-center">
@@ -109,8 +109,8 @@ export default function Landing() {
           </div>
         </header>
 
-        {/* Hero Content - 50% Smaller, Full Image Visible */}
-        <div className="flex flex-col items-center justify-center pt-20 md:pt-24">
+        {/* Hero Content - 50% Smaller, Full Image Visible, Below the Fold */}
+        <div className="flex-1 flex flex-col items-center justify-center pt-20 md:pt-24 pb-16 md:pb-20">
           <div className="w-full">
             <div className="h-[50vh]">
               <img
