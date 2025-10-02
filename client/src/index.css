@@ -157,3 +157,10 @@
   animation: scroll 30s linear infinite;
   will-change: transform;
 }
+
+/* Mobile: Faster scroll for better visibility */
+@media (max-width: 768px) {
+  .animate-scroll {
+    animation: scroll 15s linear infinite;
+  }
+}

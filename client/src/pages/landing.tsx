@@ -82,6 +82,20 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      {/* Elegant Header - Sticky on Scroll */}
+      <header className="sticky top-0 left-0 right-0 z-50 bg-gradient-to-r from-slate-600/95 via-indigo-500/95 to-purple-500/95 dark:from-slate-800/95 dark:via-indigo-900/95 dark:to-purple-900/95 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-4 md:py-6 flex justify-end items-center">
+          <Button
+            onClick={handleSignIn}
+            size="sm"
+            className="bg-[#facf39] hover:bg-[#facf39]/90 text-gray-900 font-light tracking-wide shadow-md text-sm px-6 py-2"
+            data-testid="button-sign-in"
+          >
+            SIGN IN
+          </Button>
+        </div>
+      </header>
+
       {/* Premium Hero Section - Full Viewport */}
       <section className="relative min-h-screen flex flex-col overflow-hidden">
         {/* Soft Gradient Background - Lighter Tones */}
@@ -96,19 +110,6 @@ export default function Landing() {
           <div className="absolute top-0 right-0 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
           <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-violet-300 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
         </div>
-        {/* Elegant Header */}
-        <header className="relative top-0 left-0 right-0 z-50 bg-transparent">
-          <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-4 md:py-6 flex justify-end items-center">
-            <Button
-              onClick={handleSignIn}
-              size="sm"
-              className="bg-[#facf39] hover:bg-[#facf39]/90 text-gray-900 font-light tracking-wide shadow-md text-sm px-6 py-2"
-              data-testid="button-sign-in"
-            >
-              SIGN IN
-            </Button>
-          </div>
-        </header>
 
         {/* Hero Content - Premium Logo Display */}
         <div className="relative flex-1 flex flex-col items-center justify-center pt-20 md:pt-24 pb-16 md:pb-20">
@@ -291,7 +292,7 @@ export default function Landing() {
                 className="text-lg font-light text-gray-900 dark:text-white hover:text-[#55b3f3] dark:hover:text-[#55b3f3] transition-colors tracking-wide"
                 data-testid="link-legal"
               >
-                LEGAL
+                TERMS
               </a>
               <a
                 href="/proof"
@@ -305,7 +306,7 @@ export default function Landing() {
                 className="text-lg font-light text-gray-900 dark:text-white hover:text-[#55b3f3] dark:hover:text-[#55b3f3] transition-colors tracking-wide"
                 data-testid="link-contact"
               >
-                CONTACT US
+                CONTACT
               </button>
             </div>
           </div>
