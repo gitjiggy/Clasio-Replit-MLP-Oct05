@@ -4160,7 +4160,6 @@ export class DatabaseStorage implements IStorage {
 
   // AI Analysis
   async analyzeDocumentWithAI(documentId: string, userId: string, driveContent?: string, driveAccessToken?: string): Promise<boolean> {
-    console.log(`🔵 [AI-ANALYZE] Starting AI analysis for documentId=${documentId}, userId=${userId}`);
     try {
       // Import here to avoid circular dependencies
       const { summarizeDocument, analyzeDocumentContent, extractTextFromDocument } = await import("./gemini.js");
@@ -4168,10 +4167,8 @@ export class DatabaseStorage implements IStorage {
       // Get the document
       const document = await this.getDocumentById(documentId, userId);
       if (!document) {
-        console.log(`🔵 [AI-ANALYZE] Document not found: ${documentId}`);
         return false;
       }
-      console.log(`🔵 [AI-ANALYZE] Document found: ${document.fileName}, filePath=${document.filePath}`);
 
       // Extract text from the document
       let documentText: string;
@@ -4199,13 +4196,11 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      console.log(`🔵 [AI-ANALYZE] Calling Gemini API with text length: ${documentText.length}`);
       // Generate AI analysis
       const [summary, analysis] = await Promise.all([
         summarizeDocument(documentText),
         analyzeDocumentContent(documentText)
       ]);
-      console.log(`🔵 [AI-ANALYZE] Gemini API call successful, summary length: ${summary?.length || 0}`);
 
       // Update the document with AI analysis AND save content for search (with tenant isolation)
       const [updatedDoc] = await db
@@ -4241,13 +4236,8 @@ export class DatabaseStorage implements IStorage {
       }
 
       return !!updatedDoc;
-    } catch (error: any) {
-      console.error("🔴 [AI-ANALYZE] Error analyzing document with AI:", {
-        documentId,
-        userId,
-        message: error?.message,
-        stack: error?.stack?.split('\n').slice(0, 5).join('\n')
-      });
+    } catch (error) {
+      console.error("Error analyzing document with AI:", error);
       return false;
     }
   }
@@ -4882,13 +4872,11 @@ export class DatabaseStorage implements IStorage {
 
   // AI Analysis Queue Management Methods
   async enqueueDocumentForAnalysis(documentId: string, userId: string, priority: number = 5): Promise<AiAnalysisQueue> {
-    console.log(`🔍 [ENQUEUE-DIAG] Attempting to enqueue document ${documentId} for user ${userId}, priority ${priority}`);
     await this.ensureInitialized();
     
     try {
       // Estimate tokens based on document content or size
       const document = await this.getDocumentById(documentId, userId);
-      console.log(`🔍 [ENQUEUE-DIAG] Document fetched:`, document ? `id=${document.id}, name=${document.name}, hasContent=${!!document.documentContent}, size=${document.fileSize}` : 'NOT FOUND');
       
       let estimatedTokens = 3000; // Default estimate
       
@@ -4900,8 +4888,6 @@ export class DatabaseStorage implements IStorage {
         estimatedTokens = Math.min(Math.ceil(document.fileSize / 5), 8000); // Cap at 8k tokens
       }
 
-      console.log(`🔍 [ENQUEUE-DIAG] Inserting queue job: documentId=${documentId}, userId=${userId}, estimatedTokens=${estimatedTokens}`);
-      
       const [queueJob] = await db
         .insert(aiAnalysisQueue)
         .values({
@@ -4916,10 +4902,7 @@ export class DatabaseStorage implements IStorage {
         .onConflictDoNothing() // Handle duplicate prevention from unique index
         .returning();
 
-      console.log(`🔍 [ENQUEUE-DIAG] Insert result:`, queueJob ? `jobId=${queueJob.id}, status=${queueJob.status}` : 'NULL (conflict or duplicate)');
-
       if (!queueJob) {
-        console.log(`🔍 [ENQUEUE-DIAG] No queue job returned, checking for existing pending/processing job`);
         // Job already exists, get existing one
         const existingJob = await db
           .select()
@@ -4932,18 +4915,15 @@ export class DatabaseStorage implements IStorage {
           )
           .limit(1);
         
-        console.log(`🔍 [ENQUEUE-DIAG] Existing job check:`, existingJob[0] ? `found jobId=${existingJob[0].id}` : 'NONE FOUND');
-        
         if (existingJob[0]) {
           return existingJob[0];
         }
         throw new Error("Failed to enqueue document and no existing job found");
       }
 
-      console.log(`🔍 [ENQUEUE-DIAG] Successfully enqueued document ${documentId}, jobId=${queueJob.id}`);
       return queueJob;
     } catch (error) {
-      console.error(`❌ [ENQUEUE-DIAG] Failed to enqueue document ${documentId} for analysis:`, error);
+      console.error(`Failed to enqueue document ${documentId} for analysis:`, error);
       throw error;
     }
   }
