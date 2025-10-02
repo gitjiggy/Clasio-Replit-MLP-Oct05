@@ -104,8 +104,7 @@ export default function Landing() {
             <div className="flex gap-3 md:gap-4">
               <Button
                 disabled
-                variant="ghost"
-                className="text-white hover:bg-white/10 font-light tracking-wide text-lg md:text-xl px-6 py-3"
+                className="bg-white hover:bg-white/90 text-purple-700 font-medium tracking-wide shadow-lg text-lg md:text-xl px-6 py-3 cursor-not-allowed"
                 data-testid="button-sign-up"
               >
                 SIGN UP
@@ -153,7 +152,7 @@ export default function Landing() {
                 <Button
                   disabled
                   size="lg"
-                  className="border-2 border-white/50 bg-white/10 text-white hover:bg-white/20 font-light tracking-wide text-xl px-12 md:px-14 py-7 md:py-8 backdrop-blur-sm cursor-not-allowed"
+                  className="bg-[#facf39] hover:bg-[#facf39]/90 text-gray-900 font-light tracking-wide text-xl px-12 md:px-14 py-7 md:py-8 shadow-2xl cursor-not-allowed"
                   data-testid="button-try-demo"
                 >
                   TRY DEMO
