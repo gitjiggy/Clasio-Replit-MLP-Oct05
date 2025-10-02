@@ -352,8 +352,8 @@ app.get('/dashboard', (req, res) => {
   }
 
   // Start AI Queue Processor for background document analysis (can be disabled for standalone worker deployment)
-  const enableInProcessWorker = process.env.ENABLE_INPROCESS_WORKER === 'true' || process.env.NODE_ENV === 'development';
-  if (enableInProcessWorker) {
+  const disableInProcessWorker = process.env.DISABLE_INPROCESS_WORKER === 'true';
+  if (!disableInProcessWorker) {
     console.log('Starting AI Queue Processor for document analysis');
     aiQueueProcessor.start();
   } else {
