@@ -2530,19 +2530,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document not found" });
       }
 
-      // Check if document was recently analyzed (prevent spam)
-      if (document.aiAnalyzedAt) {
-        const timeSinceLastAnalysis = Date.now() - new Date(document.aiAnalyzedAt).getTime();
-        const oneMinute = 60 * 1000; // 1 minute in milliseconds
-        if (timeSinceLastAnalysis < oneMinute) {
-          console.error("AI analysis failed: Rate limited");
-          return res.status(429).json({ 
-            error: "Document was recently analyzed. Please wait before analyzing again.",
-            retryAfter: Math.ceil((oneMinute - timeSinceLastAnalysis) / 1000)
-          });
-        }
-      }
-
       // Handle Drive vs uploaded documents differently
       let success = false;
       
