@@ -8,6 +8,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LoginModal } from "@/components/LoginModal";
 import { UserMenu } from "@/components/UserMenu";
+import Landing from "@/pages/landing";
+import Privacy from "@/pages/privacy";
+import Legal from "@/pages/legal";
+import Proof from "@/pages/proof";
 import Documents from "@/pages/documents";
 import Trash from "@/pages/trash";
 import Drive from "@/pages/drive";
@@ -101,7 +105,6 @@ function Router() {
     <>
       <Navigation />
       <Switch>
-        <Route path="/" component={Documents} />
         <Route path="/documents" component={Documents} />
         <Route path="/trash" component={Trash} />
         <Route path="/drive" component={Drive} />
@@ -114,6 +117,14 @@ function Router() {
 
 function AuthenticatedApp() {
   const { user, initializing } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  // Redirect authenticated users from landing to documents
+  useEffect(() => {
+    if (user && location === "/") {
+      setLocation("/documents");
+    }
+  }, [user, location, setLocation]);
 
   if (initializing) {
     return (
@@ -126,23 +137,23 @@ function AuthenticatedApp() {
     );
   }
 
+  // Public routes accessible to all
+  if (location === "/privacy") return <Privacy />;
+  if (location === "/legal") return <Legal />;
+  if (location === "/proof") return <Proof />;
+
+  // Show landing page for non-authenticated users
+  if (!user) {
+    return <Landing />;
+  }
+
+  // Show authenticated app for logged-in users
   return (
     <div className="min-h-screen flex flex-col">
       <AppHeader onSignInClick={() => {}} />
       <main className="flex-1">
-        {user ? (
-          <Router />
-        ) : (
-          <div className="container mx-auto py-8 text-center">
-            <h2 className="text-2xl font-bold mb-4">Welcome to Clasio</h2>
-            <p className="text-muted-foreground mb-6">
-              Your AI-powered document management system. Sign in to get started.
-            </p>
-          </div>
-        )}
+        <Router />
       </main>
-      
-      <LoginModal open={!user} onOpenChange={() => {}} />
     </div>
   );
 }
