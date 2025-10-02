@@ -3960,6 +3960,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log('🧪 Development failpoint testing endpoints enabled');
   }
 
+  // Contact form endpoint
+  app.post("/api/contact", express.json(), standardLimiter, async (req: Request, res: Response) => {
+    try {
+      const { from, to, subject, message } = req.body;
+
+      // Validate input
+      if (!from || !to || !subject || !message) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(from)) {
+        return res.status(400).json({ error: 'Invalid email address' });
+      }
+
+      // Check if Resend API key is configured
+      const resendApiKey = process.env.RESEND_API_KEY;
+      if (!resendApiKey) {
+        console.error('RESEND_API_KEY not configured');
+        return res.status(500).json({ error: 'Email service not configured' });
+      }
+
+      // Send email using Resend
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'Clasio Contact Form <onboarding@resend.dev>', // Resend verified sender
+          to: [to],
+          reply_to: from,
+          subject: `Contact Form: ${subject}`,
+          html: `
+            <div>
+              <p><strong>From:</strong> ${from}</p>
+              <p><strong>Subject:</strong> ${subject}</p>
+              <hr />
+              <p>${message.replace(/\n/g, '<br />')}</p>
+            </div>
+          `
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Resend API error:', data);
+        return res.status(500).json({ error: 'Failed to send email' });
+      }
+
+      console.log('📧 Contact email sent successfully:', data);
+      res.json({ success: true, id: data.id });
+    } catch (error) {
+      console.error('Error sending contact email:', error);
+      res.status(500).json({ error: 'Failed to send email' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
