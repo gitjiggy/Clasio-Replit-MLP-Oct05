@@ -1544,15 +1544,15 @@ export default function Documents() {
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">
-              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+              <div className="bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Brain className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">AI Search Results</h3>
+                  <Brain className="h-5 w-5 text-purple-600" />
+                  <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">AI Search Results</h3>
                   <Badge variant="secondary" className="text-xs">
                     {aiSearchResults.totalResults} found
                   </Badge>
                 </div>
-                <div className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+                <div className="text-sm text-purple-800 dark:text-purple-200 mb-2">
                   {aiSearchResults.response.includes('•') ? (
                     // Format numbered responses
                     <div className="space-y-2">
@@ -1564,7 +1564,7 @@ export default function Documents() {
                           ) : (
                             // Subsequent parts are the numbered points
                             <>
-                              <span className="text-blue-600 dark:text-blue-400 font-bold mt-0.5 min-w-[1.25rem]">{index}.</span>
+                              <span className="text-purple-600 dark:text-purple-400 font-bold mt-0.5 min-w-[1.25rem]">{index}.</span>
                               <span className="flex-1">{part.trim()}</span>
                             </>
                           )}
@@ -1578,7 +1578,7 @@ export default function Documents() {
                 </div>
                 {aiSearchResults.keywords && aiSearchResults.keywords.length > 0 && (
                   <div className="flex gap-1 flex-wrap">
-                    <span className="text-xs text-blue-700 dark:text-blue-300">Keywords:</span>
+                    <span className="text-xs text-purple-700 dark:text-purple-300">Keywords:</span>
                     {aiSearchResults.keywords.map((keyword: string, index: number) => (
                       <Badge key={index} variant="outline" className="text-xs">
                         {keyword}
@@ -1786,27 +1786,27 @@ export default function Documents() {
                     
                     {/* AI Analysis Results */}
                     {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
-                      <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
+                      <div className="mb-3 p-2 bg-purple-50 dark:bg-purple-950 rounded-md border border-purple-200 dark:border-purple-800">
                         <div className="flex items-center gap-2 mb-1">
-                          <Sparkles className="h-3 w-3 text-blue-600" />
-                          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                          <Sparkles className="h-3 w-3 text-purple-600" />
+                          <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
                             {document.aiSummary ? 'AI Analysis' : 'Classification'}
                           </span>
                         </div>
                         {document.aiSummary && (
-                          <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{document.aiSummary}</p>
+                          <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">{document.aiSummary}</p>
                         )}
                         {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
                           <div className="flex flex-wrap gap-1">
                             {document.aiKeyTopics.map((topic, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                              <Badge key={index} variant="secondary" className="text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
                                 {topic}
                               </Badge>
                             ))}
                           </div>
                         )}
                         {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
-                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
+                          <div className="text-xs text-purple-600 dark:text-purple-400 mt-1 space-y-1">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                               <span className="text-xs truncate">Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
                               <div className="flex items-center gap-1 flex-wrap">
@@ -1816,7 +1816,7 @@ export default function Documents() {
                                   </span>
                                 )}
                                 {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
-                                  <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium whitespace-nowrap" data-testid={`confidence-category-${document.id}`}>
+                                  <span className="text-xs bg-purple-100 dark:bg-purple-900 px-1.5 py-0.5 rounded font-medium whitespace-nowrap" data-testid={`confidence-category-${document.id}`}>
                                     Conf: {formatConfidence(document.aiCategoryConfidence)}
                                   </span>
                                 )}
@@ -1832,7 +1832,7 @@ export default function Documents() {
                                     </span>
                                   )}
                                   {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
-                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium whitespace-nowrap" data-testid={`confidence-type-${document.id}`}>
+                                    <span className="text-xs bg-purple-100 dark:bg-purple-900 px-1.5 py-0.5 rounded font-medium whitespace-nowrap" data-testid={`confidence-type-${document.id}`}>
                                       Conf: {formatConfidence(document.aiDocumentTypeConfidence)}
                                     </span>
                                   )}
