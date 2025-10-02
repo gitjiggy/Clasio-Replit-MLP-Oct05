@@ -4872,11 +4872,14 @@ export class DatabaseStorage implements IStorage {
 
   // AI Analysis Queue Management Methods
   async enqueueDocumentForAnalysis(documentId: string, userId: string, priority: number = 5): Promise<AiAnalysisQueue> {
+    console.log(`🔍 [ENQUEUE-DIAG] Attempting to enqueue document ${documentId} for user ${userId}, priority ${priority}`);
     await this.ensureInitialized();
     
     try {
       // Estimate tokens based on document content or size
       const document = await this.getDocumentById(documentId, userId);
+      console.log(`🔍 [ENQUEUE-DIAG] Document fetched:`, document ? `id=${document.id}, name=${document.name}, hasContent=${!!document.documentContent}, size=${document.fileSize}` : 'NOT FOUND');
+      
       let estimatedTokens = 3000; // Default estimate
       
       if (document && document.documentContent) {
@@ -4887,6 +4890,8 @@ export class DatabaseStorage implements IStorage {
         estimatedTokens = Math.min(Math.ceil(document.fileSize / 5), 8000); // Cap at 8k tokens
       }
 
+      console.log(`🔍 [ENQUEUE-DIAG] Inserting queue job: documentId=${documentId}, userId=${userId}, estimatedTokens=${estimatedTokens}`);
+      
       const [queueJob] = await db
         .insert(aiAnalysisQueue)
         .values({
@@ -4900,7 +4905,10 @@ export class DatabaseStorage implements IStorage {
         .onConflictDoNothing() // Handle duplicate prevention from unique index
         .returning();
 
+      console.log(`🔍 [ENQUEUE-DIAG] Insert result:`, queueJob ? `jobId=${queueJob.id}, status=${queueJob.status}` : 'NULL (conflict or duplicate)');
+
       if (!queueJob) {
+        console.log(`🔍 [ENQUEUE-DIAG] No queue job returned, checking for existing pending/processing job`);
         // Job already exists, get existing one
         const existingJob = await db
           .select()
@@ -4913,15 +4921,18 @@ export class DatabaseStorage implements IStorage {
           )
           .limit(1);
         
+        console.log(`🔍 [ENQUEUE-DIAG] Existing job check:`, existingJob[0] ? `found jobId=${existingJob[0].id}` : 'NONE FOUND');
+        
         if (existingJob[0]) {
           return existingJob[0];
         }
         throw new Error("Failed to enqueue document and no existing job found");
       }
 
+      console.log(`🔍 [ENQUEUE-DIAG] Successfully enqueued document ${documentId}, jobId=${queueJob.id}`);
       return queueJob;
     } catch (error) {
-      console.error(`❌ Failed to enqueue document ${documentId} for analysis:`, error);
+      console.error(`❌ [ENQUEUE-DIAG] Failed to enqueue document ${documentId} for analysis:`, error);
       throw error;
     }
   }
