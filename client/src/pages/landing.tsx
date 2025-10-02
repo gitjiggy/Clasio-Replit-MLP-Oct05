@@ -120,13 +120,19 @@ export default function Landing() {
         {/* Hero Content - Premium Logo Display */}
         <div className="relative flex-1 flex flex-col items-center justify-center pt-20 md:pt-24 pb-16 md:pb-20">
           <div className="w-full max-w-5xl mx-auto px-6">
-            {/* Logo Container with Glassmorphism Effect */}
-            <div className="relative backdrop-blur-sm bg-white/5 rounded-3xl p-8 md:p-12 border border-white/10 shadow-2xl">
+            {/* Logo - Blended into Background */}
+            <div className="relative">
               <div className="relative">
+                {/* Soft glow effect behind logo */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-purple-300/20 to-pink-300/10 blur-3xl transform scale-110"></div>
+                
                 <img
                   src={heroImage}
                   alt="Clasio - Documents, Meet AI"
-                  className="w-full h-auto max-w-3xl mx-auto drop-shadow-2xl"
+                  className="relative w-full h-auto max-w-3xl mx-auto drop-shadow-[0_0_80px_rgba(255,255,255,0.3)]"
+                  style={{
+                    filter: 'drop-shadow(0 0 60px rgba(167, 139, 250, 0.4))'
+                  }}
                 />
               </div>
             </div>
