@@ -97,23 +97,15 @@ export default function Landing() {
         </div>
         {/* Elegant Header */}
         <header className="relative top-0 left-0 right-0 z-50 bg-transparent">
-          <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-6 md:py-8 flex justify-end items-center">
-            <div className="flex gap-3 md:gap-4">
-              <Button
-                disabled
-                className="bg-white hover:bg-white/90 text-purple-700 font-medium tracking-wide shadow-lg text-lg md:text-xl px-6 py-3 cursor-not-allowed"
-                data-testid="button-sign-up"
-              >
-                SIGN UP
-              </Button>
-              <Button
-                onClick={handleSignIn}
-                className="bg-[#facf39] hover:bg-[#facf39]/90 text-gray-900 font-light tracking-wide shadow-lg text-lg md:text-xl px-6 py-3"
-                data-testid="button-sign-in"
-              >
-                SIGN IN
-              </Button>
-            </div>
+          <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-4 md:py-6 flex justify-end items-center">
+            <Button
+              onClick={handleSignIn}
+              size="sm"
+              className="bg-[#facf39] hover:bg-[#facf39]/90 text-gray-900 font-light tracking-wide shadow-md text-sm px-6 py-2"
+              data-testid="button-sign-in"
+            >
+              SIGN IN
+            </Button>
           </div>
         </header>
 
@@ -143,22 +135,14 @@ export default function Landing() {
                 <div>Clasio organizes your document chaos,</div>
                 <div className="mt-2">so you don't have to.</div>
               </h1>
-              <div className="flex flex-col sm:flex-row gap-5 md:gap-6 justify-center items-center mt-10 md:mt-12">
+              <div className="flex justify-center items-center mt-10 md:mt-12">
                 <Button
                   onClick={handleSignIn}
                   size="lg"
-                  className="bg-white hover:bg-white/90 text-purple-700 font-medium tracking-wide text-xl px-12 md:px-14 py-7 md:py-8 shadow-2xl"
+                  className="bg-white hover:bg-white/90 text-purple-700 font-light tracking-wide text-base md:text-lg px-8 md:px-10 py-5 md:py-6 shadow-xl"
                   data-testid="button-hero-sign-in"
                 >
                   GET STARTED
-                </Button>
-                <Button
-                  disabled
-                  size="lg"
-                  className="bg-[#facf39] hover:bg-[#facf39]/90 text-gray-900 font-light tracking-wide text-xl px-12 md:px-14 py-7 md:py-8 shadow-2xl cursor-not-allowed"
-                  data-testid="button-try-demo"
-                >
-                  TRY DEMO
                 </Button>
               </div>
             </div>
