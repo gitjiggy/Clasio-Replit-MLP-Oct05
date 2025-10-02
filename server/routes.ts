@@ -2497,7 +2497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Analysis endpoint
-  app.post("/api/documents/:id/analyze", verifyFirebaseToken, strictLimiter, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/:id/analyze", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const documentId = req.params.id;
       
