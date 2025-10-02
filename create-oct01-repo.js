@@ -45,6 +45,7 @@ async function getUncachableGitHubClient() {
 
 // Files/directories to exclude
 const EXCLUDE_PATTERNS = [
+  '.git',
   'node_modules',
   '.env',
   '.env.local',
@@ -131,15 +132,32 @@ function getAllFiles(dir, baseDir = dir) {
 async function createRepository(octokit, owner, repoName) {
   try {
     console.log(`Creating repository ${owner}/${repoName}...`);
-    const { data } = await octokit.repos.createInOrg({
-      org: owner,
-      name: repoName,
-      description: 'Clasio - AI-Powered Document Management System (MLP Oct 01, 2025)',
-      private: false,
-      auto_init: false
-    });
-    console.log(`✅ Repository created: ${data.html_url}`);
-    return data;
+    
+    // Try creating as user repo first
+    try {
+      const { data } = await octokit.repos.createForAuthenticatedUser({
+        name: repoName,
+        description: 'Clasio - AI-Powered Document Management System (MLP Oct 01, 2025)',
+        private: false,
+        auto_init: false
+      });
+      console.log(`✅ Repository created: ${data.html_url}`);
+      return data;
+    } catch (userError) {
+      // If that fails, try as org
+      if (userError.status === 404 || userError.status === 403) {
+        const { data } = await octokit.repos.createInOrg({
+          org: owner,
+          name: repoName,
+          description: 'Clasio - AI-Powered Document Management System (MLP Oct 01, 2025)',
+          private: false,
+          auto_init: false
+        });
+        console.log(`✅ Repository created: ${data.html_url}`);
+        return data;
+      }
+      throw userError;
+    }
   } catch (error) {
     if (error.status === 422) {
       console.log('Repository already exists, using existing repo...');
