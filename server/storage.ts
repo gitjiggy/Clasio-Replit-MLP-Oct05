@@ -4890,14 +4890,13 @@ export class DatabaseStorage implements IStorage {
         estimatedTokens = Math.min(Math.ceil(document.fileSize / 5), 8000); // Cap at 8k tokens
       }
 
-      console.log(`🟢 [ENQUEUE-DEBUG] Attempting DB insert with tenantId="${userId}", priority=${priority}, estimatedTokens=${estimatedTokens}`);
+      console.log(`🟢 [ENQUEUE-DEBUG] Attempting DB insert with priority=${priority}, estimatedTokens=${estimatedTokens}`);
       
       const [queueJob] = await db
         .insert(aiAnalysisQueue)
         .values({
           documentId,
           userId,
-          tenantId: userId, // Set tenantId to match userId for Firebase users
           priority,
           estimatedTokens,
           status: "pending",
@@ -4979,7 +4978,6 @@ export class DatabaseStorage implements IStorage {
         .values({
           documentId,
           userId,
-          tenantId: userId, // Set tenantId to match userId for Firebase users
           jobType: "embedding_generation",
           priority, // Default 8 for background embedding generation
           estimatedTokens,
@@ -5102,7 +5100,6 @@ export class DatabaseStorage implements IStorage {
         .values({
           documentId,
           userId,
-          tenantId: userId, // Set tenantId to match userId for Firebase users
           jobType: "content_extraction",
           priority, // Default 3 for medium priority background content extraction
           estimatedTokens,
