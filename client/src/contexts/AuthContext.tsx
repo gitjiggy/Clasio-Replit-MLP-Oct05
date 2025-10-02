@@ -88,40 +88,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     (async () => {
       try {
-        // CRITICAL: Wait for persistence to be ready before checking redirect result
-        // Firebase clears redirect state when persistence changes, so we must wait
-        console.log("⏳ Waiting for persistence to be ready...");
         await persistenceReady;
-        console.log("✅ Persistence ready, checking for redirect result...");
-        
-        // DIAGNOSTIC: Log current URL and storage state
-        console.log("🔍 Current URL:", window.location.href);
-        console.log("🔍 Current pathname:", window.location.pathname);
-        
         const result = await getRedirectResult(auth);
-        console.log("🔍 getRedirectResult returned:", result);
-        console.log("🔍 Result type:", typeof result, "Is null?", result === null);
         
         if (result) {
-          console.log("✅ Redirect sign-in successful:", result.user.email);
           setUser(result.user);
           setInitializing(false);
           
-          // Track successful sign-in for conversion rate analytics
           trackEvent('auth_signin_success', { 
             method: 'google_redirect',
             user_id: result.user.uid
           });
-        } else {
-          console.log("ℹ️ No redirect result found");
         }
       } catch (error) {
-        console.error("❌ Redirect result error:", error);
-        console.error("❌ Error details:", {
-          name: (error as any)?.name,
-          code: (error as any)?.code,
-          message: (error as any)?.message
-        });
+        console.error("Redirect sign-in error:", error);
         setInitializing(false);
       }
       

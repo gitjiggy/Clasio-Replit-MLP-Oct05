@@ -6,7 +6,7 @@ import { Loader2, Shield, FileText, Brain } from "lucide-react";
 import { persistenceReady } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithPopup, signInWithRedirect } from "firebase/auth";
+import { signInWithRedirect } from "firebase/auth";
 import { auth, basicGoogleProvider } from "@/lib/firebase";
 
 interface LoginModalProps {
@@ -27,73 +27,13 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    console.log("🔘 Button clicked - starting Google sign-in");
     setIsSigningIn(true);
     
-    // In dev, use popup only (no redirect fallback)
-    // In production, use redirect
-    const isDev = import.meta.env.DEV;
-    
     try {
-      // Wait for persistence to be ready
       await persistenceReady;
-      console.log("✅ Persistence ready");
-      
-      if (isDev) {
-        // DEV: Popup only (better debugging, immediate feedback)
-        console.log("🚀 DEV MODE: Using popup sign-in...");
-        try {
-          const result = await signInWithPopup(auth, basicGoogleProvider);
-          console.log("✅ Popup sign-in successful:", result.user.email);
-          
-          toast({
-            title: "Signed in successfully",
-            description: `Welcome, ${result.user.displayName || result.user.email}!`
-          });
-          
-          trackEvent("auth_signin_success", { 
-            method: "google_popup",
-            user_id: result.user.uid
-          });
-          
-          onOpenChange(false);
-          setIsSigningIn(false);
-        } catch (popupError: any) {
-          console.error("❌ Popup sign-in failed:", popupError);
-          console.error("Full error details:", {
-            name: popupError?.name,
-            code: popupError?.code,
-            message: popupError?.message,
-            customData: popupError?.customData
-          });
-          
-          // In dev, show detailed error
-          toast({
-            title: "Popup sign-in failed",
-            description: popupError?.message || "Please allow popups for this site, or check console for details.",
-            variant: "destructive"
-          });
-          
-          trackEvent("auth_signin_error", { 
-            method: "google_popup",
-            error: popupError?.code || "unknown"
-          });
-          
-          setIsSigningIn(false);
-        }
-      } else {
-        // PRODUCTION: Redirect (more reliable across devices)
-        console.log("🚀 PRODUCTION MODE: Using redirect sign-in...");
-        await signInWithRedirect(auth, basicGoogleProvider);
-        // This line won't execute as page will redirect
-      }
+      await signInWithRedirect(auth, basicGoogleProvider);
     } catch (error) {
-      console.error("❌ Sign-in failed:", error);
-      console.error("Error details:", {
-        code: (error as any)?.code,
-        message: (error as any)?.message,
-        stack: (error as any)?.stack
-      });
+      console.error("Sign-in failed:", error);
       
       toast({
         title: "Sign-in failed",
@@ -102,7 +42,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
       });
       
       trackEvent("auth_signin_error", { 
-        method: "google_auth",
+        method: "google_redirect",
         error: (error as any)?.code || "unknown"
       });
       

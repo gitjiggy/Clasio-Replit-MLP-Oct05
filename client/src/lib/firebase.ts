@@ -37,18 +37,6 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// DIAGNOSTIC: Log Firebase config to detect undefined values (dev only)
-if (import.meta.env.DEV) {
-  console.log("🔧 Firebase Config Check:", {
-    hasApiKey: !!firebaseConfig.apiKey,
-    hasProjectId: !!firebaseConfig.projectId,
-    hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
-    hasAppId: !!firebaseConfig.appId,
-    authDomain: firebaseConfig.authDomain,
-    apiKey: firebaseConfig.apiKey?.substring(0, 10) + "...",
-    projectId: firebaseConfig.projectId,
-  });
-}
 
 // Validate required fields - warn but don't crash
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {
@@ -67,17 +55,12 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // Set best available persistence immediately at module load
-// This must run BEFORE any popup/redirect to avoid breaking user activation chain
 export const persistenceReady = (async function initPersistence() {
   try {
     await setPersistence(auth, browserLocalPersistence);
-    console.log("✅ Persistence set to browserLocalPersistence");
   } catch {
-    // If localStorage/IndexedDB is blocked, fall back to memory
-    // Allows popup to succeed, though session won't persist across reload
     try {
       await setPersistence(auth, inMemoryPersistence);
-      console.log("⚠️ Persistence set to inMemoryPersistence (fallback)");
     } catch (e) {
       console.warn("Could not set any persistence:", e);
     }
