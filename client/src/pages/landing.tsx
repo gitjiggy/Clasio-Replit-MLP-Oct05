@@ -85,8 +85,8 @@ export default function Landing() {
       <section className="relative min-h-screen flex flex-col">
         {/* Elegant Header */}
         <header className="absolute top-0 left-0 right-0 z-50 bg-transparent">
-          <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-4 md:py-6 flex justify-between items-center">
-            <div className="text-4xl md:text-5xl font-light tracking-wide text-gray-900 dark:text-white">
+          <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-6 md:py-8 flex justify-between items-center">
+            <div className="text-2xl md:text-3xl font-normal tracking-[0.3em] text-gray-900 dark:text-white bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
               CLASIO
             </div>
             <div className="flex gap-3 md:gap-4">
