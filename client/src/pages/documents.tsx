@@ -497,6 +497,7 @@ export default function Documents() {
         toast({
           title: "AI Search Complete",
           description: `Found ${response.documents?.length || 0} relevant documents`,
+          duration: 1000,
         });
       } catch (error) {
         console.error('AI Search failed:', error);
@@ -765,6 +766,7 @@ export default function Documents() {
       toast({
         title: "Upload successful",
         description: "Document has been uploaded successfully.",
+        duration: 1000,
       });
     },
     onError: (error) => {
@@ -798,8 +800,12 @@ export default function Documents() {
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] }); // Keep folder counts fresh
       toast({
         title: "AI Analysis Complete",
-        description: "Document has been analyzed with AI successfully.",
+        description: "Document has been analyzed with AI successfully. Page refreshing...",
+        duration: 1000,
       });
+      
+      // Scroll to top to show UI refresh
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     },
     onError: (error) => {
       // Track failed AI analysis
@@ -836,6 +842,7 @@ export default function Documents() {
       toast({
         title: "Document deleted",
         description: "Document has been deleted successfully.",
+        duration: 1000,
       });
     },
     onError: (error) => {
@@ -888,6 +895,7 @@ export default function Documents() {
       toast({
         title: "All documents deleted",
         description: data.message || `Successfully moved ${data.deletedCount} documents to trash`,
+        duration: 1000,
       });
     },
     onError: (error) => {
@@ -1050,6 +1058,7 @@ export default function Documents() {
       title: result.successful > 0 ? "Bulk Upload Success!" : "Upload Issues",
       description: toastMessage + ` ${result.aiAnalysis.message}`,
       variant: result.failed > 0 ? "destructive" : "default",
+      duration: result.failed > 0 ? undefined : 1000,
     });
   };
 

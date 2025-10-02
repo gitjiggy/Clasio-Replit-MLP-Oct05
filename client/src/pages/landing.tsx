@@ -62,6 +62,7 @@ export default function Landing() {
         toast({
           title: "Message sent!",
           description: "We'll get back to you soon.",
+          duration: 1000,
         });
         setShowContactModal(false);
         setEmailForm({ from: "", subject: "", message: "" });

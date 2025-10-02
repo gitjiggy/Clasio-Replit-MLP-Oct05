@@ -31,6 +31,7 @@ export function UserMenu() {
       toast({
         title: "Signed out",
         description: "You have been successfully signed out.",
+        duration: 1000,
       });
     } catch (error) {
       console.error("Sign-out error:", error);
