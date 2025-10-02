@@ -4872,11 +4872,13 @@ export class DatabaseStorage implements IStorage {
 
   // AI Analysis Queue Management Methods
   async enqueueDocumentForAnalysis(documentId: string, userId: string, priority: number = 5): Promise<AiAnalysisQueue> {
+    console.log(`🟢 [ENQUEUE-DEBUG] Called enqueueDocumentForAnalysis: docId=${documentId}, userId=${userId}, priority=${priority}`);
     await this.ensureInitialized();
     
     try {
       // Estimate tokens based on document content or size
       const document = await this.getDocumentById(documentId, userId);
+      console.log(`🟢 [ENQUEUE-DEBUG] Document fetched: ${document ? `exists, name="${document.name}"` : 'NOT FOUND'}`);
       
       let estimatedTokens = 3000; // Default estimate
       
@@ -4888,6 +4890,8 @@ export class DatabaseStorage implements IStorage {
         estimatedTokens = Math.min(Math.ceil(document.fileSize / 5), 8000); // Cap at 8k tokens
       }
 
+      console.log(`🟢 [ENQUEUE-DEBUG] Attempting DB insert with tenantId="${userId}", priority=${priority}, estimatedTokens=${estimatedTokens}`);
+      
       const [queueJob] = await db
         .insert(aiAnalysisQueue)
         .values({
@@ -4902,7 +4906,10 @@ export class DatabaseStorage implements IStorage {
         .onConflictDoNothing() // Handle duplicate prevention from unique index
         .returning();
 
+      console.log(`🟢 [ENQUEUE-DEBUG] Insert result: ${queueJob ? `SUCCESS, jobId=${queueJob.id}` : 'NULL (conflict detected)'}`);
+
       if (!queueJob) {
+        console.log(`🟢 [ENQUEUE-DEBUG] Checking for existing pending/processing job...`);
         // Job already exists, get existing one
         const existingJob = await db
           .select()
@@ -4915,15 +4922,18 @@ export class DatabaseStorage implements IStorage {
           )
           .limit(1);
         
+        console.log(`🟢 [ENQUEUE-DEBUG] Existing job query result: ${existingJob[0] ? `FOUND jobId=${existingJob[0].id}` : 'NOT FOUND'}`);
+        
         if (existingJob[0]) {
           return existingJob[0];
         }
         throw new Error("Failed to enqueue document and no existing job found");
       }
 
+      console.log(`🟢 [ENQUEUE-DEBUG] Successfully enqueued, returning jobId=${queueJob.id}`);
       return queueJob;
     } catch (error) {
-      console.error(`Failed to enqueue document ${documentId} for analysis:`, error);
+      console.error(`❌ [ENQUEUE-DEBUG] ERROR in enqueueDocumentForAnalysis:`, error);
       throw error;
     }
   }
