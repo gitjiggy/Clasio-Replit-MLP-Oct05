@@ -798,16 +798,24 @@ export default function Documents() {
   // AI Analysis mutation
   const analyzeDocumentMutation = useMutation({
     mutationFn: async (documentId: string) => {
+      console.log('🔵 [CLIENT] AI Analysis mutation started for document:', documentId);
       // Track AI analysis initiation
       trackEvent('ai_analysis_start', { document_id: documentId, analysis_type: 'gemini' });
       
       // Drive authentication is now handled via httpOnly cookies
       // No need to check for tokens or send in headers
       
-      const response = await apiRequest(`/api/documents/${documentId}/analyze`, {
-        method: "POST",
-      });
-      return response;
+      try {
+        console.log('🔵 [CLIENT] Calling apiRequest to /api/documents/' + documentId + '/analyze');
+        const response = await apiRequest(`/api/documents/${documentId}/analyze`, {
+          method: "POST",
+        });
+        console.log('🔵 [CLIENT] API request successful:', response);
+        return response;
+      } catch (error) {
+        console.error('🔴 [CLIENT] API request failed:', error);
+        throw error;
+      }
     },
     onSuccess: (data) => {
       // Track successful AI analysis
@@ -824,7 +832,11 @@ export default function Documents() {
       // Scroll to top to show UI refresh
       setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('🔴 [CLIENT] AI Analysis mutation onError:', error);
+      console.error('🔴 [CLIENT] Error message:', error?.message);
+      console.error('🔴 [CLIENT] Error stack:', error?.stack);
+      
       // Track failed AI analysis
       trackEvent('ai_analysis_failed', { analysis_type: 'gemini', error_message: error.message });
       
