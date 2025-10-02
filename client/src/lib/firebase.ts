@@ -17,13 +17,19 @@ import {
 } from "firebase/auth";
 
 // Detect environment for authDomain
-// Production (clasio.ai) uses custom domain, dev uses Firebase default
+// Production (clasio.ai) uses custom domain
+// Dev (Replit preview) uses actual current hostname for OAuth redirect to work
 const isProduction = typeof window !== 'undefined' && 
   (window.location.hostname === 'clasio.ai' || window.location.hostname === 'www.clasio.ai');
 
+// In dev, use the actual hostname so Firebase redirects back to the correct URL
+const authDomain = isProduction 
+  ? "clasio.ai" 
+  : (typeof window !== 'undefined' ? window.location.hostname : "documentorganizerclean-b629f.firebaseapp.com");
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: isProduction ? "clasio.ai" : "documentorganizerclean-b629f.firebaseapp.com",
+  authDomain: authDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebasestorage.app`,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
