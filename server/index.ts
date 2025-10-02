@@ -310,7 +310,10 @@ app.get('/dashboard', (req, res) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  try {
+    console.log('Starting server initialization...');
+    const server = await registerRoutes(app);
+    console.log('Routes registered successfully');
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -399,4 +402,13 @@ app.get('/dashboard', (req, res) => {
   }, () => {
     log(`serving on port ${port}`);
   });
+  } catch (error) {
+    console.error('❌ FATAL ERROR during server startup:', error);
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace available');
+    console.error('This error occurred during server initialization. Check:');
+    console.error('  1. All environment variables are set correctly');
+    console.error('  2. Database connection is accessible');
+    console.error('  3. All required services (Firebase, GCS, etc.) are configured');
+    process.exit(1);
+  }
 })();
