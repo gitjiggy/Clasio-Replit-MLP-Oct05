@@ -83,17 +83,17 @@ export default function Landing() {
     <div className="min-h-screen bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       {/* Premium Hero Section - Full Viewport */}
       <section className="relative min-h-screen flex flex-col overflow-hidden">
-        {/* Premium Gradient Background - Refined Tones */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-700 via-indigo-800 to-purple-800 dark:from-slate-900 dark:via-indigo-950 dark:to-purple-950"></div>
+        {/* Soft Gradient Background - Lighter Tones */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-800 dark:via-indigo-900 dark:to-purple-900"></div>
         
         {/* Subtle Gradient Overlay for Depth */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 via-purple-500/10 to-violet-500/10 animate-pulse" style={{ animationDuration: '8s' }}></div>
+        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-300/15 via-purple-300/15 to-violet-300/15 animate-pulse" style={{ animationDuration: '8s' }}></div>
         
-        {/* Refined Mesh Gradient Effect */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
-          <div className="absolute top-0 right-0 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
-          <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-violet-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
+        {/* Soft Mesh Gradient Effect */}
+        <div className="absolute inset-0 opacity-25">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+          <div className="absolute top-0 right-0 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+          <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-violet-300 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
         </div>
         {/* Elegant Header */}
         <header className="relative top-0 left-0 right-0 z-50 bg-transparent">
@@ -167,14 +167,14 @@ export default function Landing() {
       </section>
 
       {/* How It Works - Compact Spacing */}
-      <section className="py-16 md:py-20 bg-gradient-to-b from-purple-50/30 via-white to-white dark:from-purple-950/10 dark:via-gray-950 dark:to-gray-950">
+      <section className="py-16 md:py-20 bg-gradient-to-b from-purple-50/50 via-white to-white dark:from-purple-950/10 dark:via-gray-950 dark:to-gray-950">
         <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16">
           <h2 className="text-4xl md:text-6xl font-light text-center text-gray-900 dark:text-white mb-12 md:mb-16 tracking-tight">
             How it works
           </h2>
           <div className="grid md:grid-cols-3 gap-8 md:gap-10">
             <div className="text-center group" data-testid="card-capture">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
                 <Sparkles className="w-10 h-10 text-white" />
               </div>
               <h3 className="text-2xl md:text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">Capture</h3>
@@ -184,7 +184,7 @@ export default function Landing() {
             </div>
 
             <div className="text-center group" data-testid="card-organize">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-600 to-violet-700 flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-400 to-violet-500 flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
                 <ScanEye className="w-10 h-10 text-white" />
               </div>
               <h3 className="text-2xl md:text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">Organize</h3>
@@ -194,7 +194,7 @@ export default function Landing() {
             </div>
 
             <div className="text-center group" data-testid="card-find">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
                 <Zap className="w-10 h-10 text-white" />
               </div>
               <h3 className="text-2xl md:text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">Find</h3>
@@ -214,7 +214,7 @@ export default function Landing() {
           </h2>
           <div className="grid md:grid-cols-2 gap-6 md:gap-8">
             <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-300 hover:shadow-2xl" data-testid="card-snap-save">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center mb-6 shadow-lg">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center mb-6 shadow-lg">
                 <Sparkles className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
@@ -226,7 +226,7 @@ export default function Landing() {
             </div>
 
             <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-purple-400 dark:hover:border-purple-400 transition-all duration-300 hover:shadow-2xl" data-testid="card-talk-doc">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-600 to-violet-700 flex items-center justify-center mb-6 shadow-lg">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-400 to-violet-500 flex items-center justify-center mb-6 shadow-lg">
                 <Zap className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
@@ -238,7 +238,7 @@ export default function Landing() {
             </div>
 
             <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-300 hover:shadow-2xl" data-testid="card-privacy">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center mb-6 shadow-lg">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center mb-6 shadow-lg">
                 <ShieldCheck className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
@@ -250,7 +250,7 @@ export default function Landing() {
             </div>
 
             <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-violet-400 dark:hover:border-violet-400 transition-all duration-300 hover:shadow-2xl" data-testid="card-auto-organize">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-600 to-violet-700 flex items-center justify-center mb-6 shadow-lg">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-400 to-violet-500 flex items-center justify-center mb-6 shadow-lg">
                 <ScanEye className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
@@ -265,7 +265,7 @@ export default function Landing() {
       </section>
 
       {/* Infinite Scrolling Trust Strip - At Bottom */}
-      <section className="bg-gradient-to-r from-slate-700 via-indigo-700 to-purple-700 dark:from-slate-900 dark:via-indigo-950 dark:to-purple-950 py-6 overflow-hidden">
+      <section className="bg-gradient-to-r from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-800 dark:via-indigo-900 dark:to-purple-900 py-6 overflow-hidden">
         <div className="flex animate-scroll whitespace-nowrap">
           {[...Array(4)].map((_, groupIndex) => (
             <div key={groupIndex} className="flex items-center gap-16 px-8">
