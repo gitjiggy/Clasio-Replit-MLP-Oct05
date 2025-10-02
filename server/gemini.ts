@@ -60,7 +60,7 @@ export async function analyzeDocumentContent(text: string): Promise<{
     documentType: string;
     category: string;
     wordCount: number;
-    conciseTitle: string;
+    conciseTitle: string | null;
     categoryConfidence: number;
     documentTypeConfidence: number;
     documentYear: string | null;
@@ -331,7 +331,7 @@ ${text}`;
             documentType: "Technical Documentation",
             category: "Personal",
             wordCount,
-            conciseTitle: "Analysis Failed",
+            conciseTitle: null,
             categoryConfidence: 0,
             documentTypeConfidence: 0,
             documentYear: null,

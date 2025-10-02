@@ -268,17 +268,24 @@ class AIQueueProcessor {
         const properSummary = await summarizeDocument(content);
         
         // Update document with AI insights using updateDocument
-        await storage.updateDocument(nextJob.documentId, {
+        // Only update aiConciseName if we have a valid title (don't overwrite with null/failed analysis)
+        const updateData: any = {
           aiSummary: properSummary,
           aiKeyTopics: analysisResult.keyTopics,
           aiDocumentType: analysisResult.documentType,
           aiCategory: analysisResult.category,
-          aiConciseName: analysisResult.conciseTitle,
           aiCategoryConfidence: analysisResult.categoryConfidence,
           aiDocumentTypeConfidence: analysisResult.documentTypeConfidence,
           aiWordCount: analysisResult.wordCount,
           aiAnalyzedAt: new Date()
-        }, nextJob.userId);
+        };
+        
+        // Only set aiConciseName if we have a valid title
+        if (analysisResult.conciseTitle) {
+          updateData.aiConciseName = analysisResult.conciseTitle;
+        }
+        
+        await storage.updateDocument(nextJob.documentId, updateData, nextJob.userId);
         
         // 🗂️ SMART ORGANIZATION: Automatically organize document into appropriate folder
         try {
@@ -526,17 +533,24 @@ class AIQueueProcessor {
         const properSummary = await summarizeDocument(content);
         
         // Update document with results
-        await storage.updateDocument(documentId, {
+        // Only update aiConciseName if we have a valid title (don't overwrite with null/failed analysis)
+        const updateData: any = {
           aiSummary: properSummary,
           aiKeyTopics: analysisResult.keyTopics,
           aiDocumentType: analysisResult.documentType,
           aiCategory: analysisResult.category,
-          aiConciseName: analysisResult.conciseTitle,
           aiCategoryConfidence: analysisResult.categoryConfidence,
           aiDocumentTypeConfidence: analysisResult.documentTypeConfidence,
           aiWordCount: analysisResult.wordCount,
           aiAnalyzedAt: new Date()
-        });
+        };
+        
+        // Only set aiConciseName if we have a valid title
+        if (analysisResult.conciseTitle) {
+          updateData.aiConciseName = analysisResult.conciseTitle;
+        }
+        
+        await storage.updateDocument(documentId, updateData);
         
         // 🗂️ SMART ORGANIZATION: Automatically organize document into appropriate folder (immediate path)
         try {
