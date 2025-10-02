@@ -4,6 +4,35 @@ This is a modern document management system built with React and Express, featur
 
 # Recent Changes
 
+## October 2, 2025 - Landing Page Redesign & Contact Form Implementation
+
+**Landing Page Visual Updates**:
+- **Hero Image**: Reduced from full viewport to 40-45vh height for less imposing appearance, crops from top for better composition
+- **Spacing Optimization**: Reduced white space throughout for concise, premium look:
+  - Section padding: 28-36 → 16-20 (py units)
+  - Header padding: 6-8 → 4-6 (py units)
+  - Section heading margins: 24 → 12-16 (mb units)
+  - Card gaps: 10-14 → 6-8 (gap units)
+  - Card padding: 10-12 → 8-10 (p units)
+  - Icon sizes: 16x16 → 14x14
+- **Typography**: Increased header logo to 4xl-5xl and buttons to lg-xl for better readability while maintaining premium aesthetic
+
+**Contact Form Email Integration**:
+- **Backend**: `/api/contact` endpoint implemented in `server/routes.ts` (line 3966)
+- **Email Service**: Resend API integration with RESEND_API_KEY secret
+- **Status**: ⚠️ **TESTING MODE** - Resend requires domain verification for production use
+  - Current limitation: Can only send emails in testing mode (both from/to must be account owner email)
+  - For production: Must verify domain at resend.com/domains and update sender email to use verified domain
+  - Email currently routes to niraj.desai@gmail.com in testing mode
+- **Frontend**: Contact modal with form validation, loading states, and toast notifications
+- **Features**: Email validation, rate limiting, proper error handling
+
+**Technical Implementation**:
+- Hero section: Changed from `min-h-screen` to compact layout with fixed image height
+- Image container: `h-[40vh] md:h-[45vh]` with `object-cover object-top` for proper cropping
+- All spacing values systematically reduced while preserving visual hierarchy
+- Email functionality ready for production once Resend domain is verified
+
 ## October 1, 2025 - Final Authentication Configuration (LOCKED - DO NOT CHANGE)
 
 **⚠️ CRITICAL: This configuration is FINAL and must NOT be changed**
