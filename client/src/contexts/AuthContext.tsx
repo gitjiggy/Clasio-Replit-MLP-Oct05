@@ -94,7 +94,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await persistenceReady;
         console.log("✅ Persistence ready, checking for redirect result...");
         
+        // DIAGNOSTIC: Log current URL and storage state
+        console.log("🔍 Current URL:", window.location.href);
+        console.log("🔍 Current pathname:", window.location.pathname);
+        
         const result = await getRedirectResult(auth);
+        console.log("🔍 getRedirectResult returned:", result);
+        console.log("🔍 Result type:", typeof result, "Is null?", result === null);
+        
         if (result) {
           console.log("✅ Redirect sign-in successful:", result.user.email);
           setUser(result.user);
@@ -110,6 +117,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       } catch (error) {
         console.error("❌ Redirect result error:", error);
+        console.error("❌ Error details:", {
+          name: (error as any)?.name,
+          code: (error as any)?.code,
+          message: (error as any)?.message
+        });
         setInitializing(false);
       }
       
