@@ -58,16 +58,19 @@ function validateEnvironment() {
     process.exit(1);
   }
 
-  console.log('Environment validation passed');
+  console.log('✓ Environment validation passed');
 }
 
 // Run environment validation before starting the server
+console.log('🚀 Starting Clasio server...');
 validateEnvironment();
 
 const app = express();
 
 // Configure trust proxy for rate limiting (Replit uses proxies)
 app.set('trust proxy', 1);
+
+console.log('✓ Express app configured');
 
 // Configure CORS
 app.use(cors({
@@ -311,9 +314,9 @@ app.get('/dashboard', (req, res) => {
 
 (async () => {
   try {
-    console.log('Starting server initialization...');
+    console.log('✓ Middleware configured, registering routes...');
     const server = await registerRoutes(app);
-    console.log('Routes registered successfully');
+    console.log('✓ API routes registered successfully');
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -349,26 +352,30 @@ app.get('/dashboard', (req, res) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    console.log('✓ Setting up Vite dev server...');
     await setupVite(app, server);
+    console.log('✓ Vite dev server ready');
   } else {
+    console.log('✓ Serving static assets (production mode)');
     serveStatic(app);
   }
 
   // Start AI Queue Processor for background document analysis (can be disabled for standalone worker deployment)
   const disableInProcessWorker = process.env.DISABLE_INPROCESS_WORKER === 'true';
   if (!disableInProcessWorker) {
-    console.log('Starting AI Queue Processor for document analysis');
+    console.log('✓ Starting AI Queue Processor for document analysis...');
     aiQueueProcessor.start();
+    console.log('✓ AI Queue Processor started');
   } else {
     console.log('⚠️  In-process AI Queue Processor disabled. Use standalone worker (server/aiWorker.ts) for production.');
   }
 
   // Start TTL cleanup job for expired idempotency keys (24-72h TTL)
-  console.log('Starting TTL cleanup job for expired idempotency keys');
+  console.log('✓ Starting TTL cleanup job for expired idempotency keys...');
   transactionManager.startTTLCleanup();
 
   // Start daily auto-cleanup job for expired trashed documents
-  console.log('Starting daily auto-cleanup job for trashed documents');
+  console.log('✓ Setting up daily auto-cleanup job for trashed documents...');
   const storage = new DatabaseStorage();
   
   // Schedule daily cleanup at 2:00 AM to avoid peak usage hours
@@ -388,19 +395,26 @@ app.get('/dashboard', (req, res) => {
     timezone: 'UTC'
   });
 
-  console.log('🕐 Daily auto-cleanup scheduled for 2:00 AM UTC');
+  console.log('✓ Daily auto-cleanup scheduled for 2:00 AM UTC');
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
+  console.log(`✓ Starting server on port ${port}...`);
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
-    log(`serving on port ${port}`);
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('🎉 Clasio server is ready!');
+    console.log(`📍 Listening on http://0.0.0.0:${port}`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('');
   });
   } catch (error) {
     console.error('❌ FATAL ERROR during server startup:', error);
