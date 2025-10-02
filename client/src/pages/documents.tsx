@@ -46,6 +46,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { trackEvent } from "@/lib/analytics";
 import { getGoogleAccessToken } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
 import type { UploadResult } from "@uppy/core";
 import type { DocumentWithFolderAndTags, DocumentWithVersions, DocumentVersion, Folder, Tag } from "@shared/schema";
 import { getDocumentDisplayName, getDocumentTooltip, type DocumentWithVersionInfo } from "@/lib/documentDisplay";
@@ -403,6 +404,7 @@ function calculateFinalScore(semanticScore: number, lexicalScore: number, qualit
 }
 
 export default function Documents() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFileType, setSelectedFileType] = useState("all");
   const [selectedDocument, setSelectedDocument] = useState<DocumentWithFolderAndTags | null>(null);
@@ -974,8 +976,12 @@ export default function Documents() {
       const fileExtension = file.name?.split('.').pop()?.toLowerCase() || '';
       const fileType = getFileTypeFromExtension(fileExtension);
       
-      // Track document upload event
-      trackEvent('file_upload', { file_type: fileType, file_size: file.size });
+      // Track document upload event with user_id
+      trackEvent('file_upload', { 
+        file_type: fileType, 
+        file_size: file.size,
+        user_id: user?.uid
+      });
       
       uploadMutation.mutate({
         uploadURL: file.uploadURL as string,
@@ -1004,7 +1010,8 @@ export default function Documents() {
     trackEvent("bulk_documents_uploaded", { 
       successful: result.successful, 
       failed: result.failed,
-      total: result.successful + result.failed
+      total: result.successful + result.failed,
+      user_id: user?.uid
     });
     
     // Extract document IDs from successful uploads and trigger AI polling

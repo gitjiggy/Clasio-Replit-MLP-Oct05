@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, getRedirectResult } from 'firebase/auth';
 import { auth, onAuthStateChange } from '@/lib/firebase';
+import { trackEvent } from '@/lib/analytics';
 
 interface AuthContextType {
   user: User | null;
@@ -93,6 +94,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           console.log("✅ Redirect sign-in successful:", result.user.email);
           setUser(result.user);
           setInitializing(false);
+          
+          // Track successful sign-in for conversion rate analytics
+          trackEvent('auth_signin_success', { 
+            method: 'google_redirect',
+            user_id: result.user.uid
+          });
         } else {
           console.log("ℹ️ No redirect result found");
         }

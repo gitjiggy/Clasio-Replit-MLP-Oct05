@@ -2250,6 +2250,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get system-wide analytics metrics - for tracking platform growth and usage! 📊
+  app.get("/api/analytics/system-metrics", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+
+      // Query database for system-wide metrics
+      const [
+        totalDocumentsResult,
+        uniqueUsersResult,
+        storageUsageResult
+      ] = await Promise.all([
+        // Total documents count (excluding deleted)
+        db.select({ count: sql<number>`count(*)::int` })
+          .from(documents)
+          .where(eq(documents.isDeleted, false)),
+        
+        // Unique users count
+        db.select({ count: sql<number>`count(distinct user_id)::int` })
+          .from(documents),
+        
+        // Total storage used in MB
+        db.select({ 
+          totalBytes: sql<number>`coalesce(sum(file_size), 0)::bigint`,
+          totalMB: sql<number>`coalesce(round(sum(file_size) / 1024.0 / 1024.0, 2), 0)::numeric`
+        })
+          .from(documents)
+          .where(eq(documents.isDeleted, false))
+      ]);
+
+      const totalDocuments = totalDocumentsResult[0]?.count || 0;
+      const uniqueUsers = uniqueUsersResult[0]?.count || 0;
+      const storageUsedMB = Number(storageUsageResult[0]?.totalMB) || 0;
+      const documentsPerUser = uniqueUsers > 0 ? 
+        Math.round((totalDocuments / uniqueUsers) * 10) / 10 : 0;
+
+      res.json({
+        success: true,
+        metrics: {
+          total_documents: totalDocuments,
+          total_users: uniqueUsers,
+          documents_per_user: documentsPerUser,
+          storage_used_mb: storageUsedMB,
+          storage_used_gb: Math.round((storageUsedMB / 1024) * 100) / 100
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching system analytics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch system analytics",
+        message: "Unable to retrieve analytics metrics. Please try again later."
+      });
+    }
+  });
+
   // Bulk enqueue documents for embedding generation - for processing existing documents! 📊
   app.post("/api/queue/bulk-embeddings", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
