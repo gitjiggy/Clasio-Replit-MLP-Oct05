@@ -17,6 +17,7 @@ import Trash from "@/pages/trash";
 import Drive from "@/pages/drive";
 import AuthDrive from "@/pages/auth-drive";
 import DocumentViewer from "@/pages/document-viewer";
+import Analytics from "@/pages/analytics";
 import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
 import { initGA } from "./lib/analytics";
@@ -108,6 +109,7 @@ function Router() {
         <Route path="/documents" component={Documents} />
         <Route path="/trash" component={Trash} />
         <Route path="/drive" component={Drive} />
+        <Route path="/analytics" component={Analytics} />
         <Route path="/viewer/:id" component={DocumentViewer} />
         <Route component={NotFound} />
       </Switch>

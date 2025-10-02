@@ -9,10 +9,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, LogOut, Settings, ChevronDown } from "lucide-react";
+import { User, LogOut, Settings, ChevronDown, BarChart3 } from "lucide-react";
 import { signOutUser } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 export function UserMenu() {
   const { user } = useAuth();
@@ -83,6 +84,12 @@ export function UserMenu() {
         <DropdownMenuItem data-testid="menu-item-settings">
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild data-testid="menu-item-analytics">
+          <Link href="/analytics">
+            <BarChart3 className="mr-2 h-4 w-4" />
+            <span>Analytics</span>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem 
