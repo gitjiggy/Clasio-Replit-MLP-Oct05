@@ -4897,6 +4897,7 @@ export class DatabaseStorage implements IStorage {
         .values({
           documentId,
           userId,
+          tenantId: userId, // Set tenantId to match userId for Firebase users
           priority,
           estimatedTokens,
           status: "pending",
@@ -4978,6 +4979,7 @@ export class DatabaseStorage implements IStorage {
         .values({
           documentId,
           userId,
+          tenantId: userId, // Set tenantId to match userId for Firebase users
           jobType: "embedding_generation",
           priority, // Default 8 for background embedding generation
           estimatedTokens,
@@ -5100,6 +5102,7 @@ export class DatabaseStorage implements IStorage {
         .values({
           documentId,
           userId,
+          tenantId: userId, // Set tenantId to match userId for Firebase users
           jobType: "content_extraction",
           priority, // Default 3 for medium priority background content extraction
           estimatedTokens,
