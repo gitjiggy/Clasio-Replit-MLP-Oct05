@@ -1185,15 +1185,15 @@ export default function Documents() {
   }, [searchQuery, selectedFileType, selectedFolderId, selectedTagId]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 bg-card border-r border-border flex flex-col">
-        <div className="p-6 border-b border-border">
-          <h1 className="text-xl font-bold text-foreground flex items-center">
-            <FolderOpen className="mr-3 text-primary" />
+    <div className="flex h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      {/* Sidebar - Hidden on mobile, visible on md+ */}
+      <aside className="hidden md:flex w-64 bg-card/80 backdrop-blur-sm border-r border-border flex-col">
+        <div className="p-4 md:p-6 border-b border-border">
+          <h1 className="text-lg md:text-xl font-light text-foreground flex items-center tracking-wide">
+            <FolderOpen className="mr-2 md:mr-3 text-purple-600" />
             Clasio
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Document Management API</p>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1 font-light">AI-Powered Document Management</p>
         </div>
         
         <nav className="flex-1 p-4">
@@ -1337,11 +1337,11 @@ export default function Documents() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-hidden flex flex-col">
-        {/* Header */}
-        <header className="bg-card border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h2 className="text-lg font-semibold text-foreground">
+        {/* Header - Mobile First */}
+        <header className="bg-card/80 backdrop-blur-sm border-b border-border px-3 md:px-6 py-3 md:py-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-2 md:gap-4">
+              <h2 className="text-base md:text-lg font-light text-foreground tracking-wide">
                 {isMainCategorySelected 
                   ? `${selectedFolder?.name} Sub-folders`
                   : isSubFolderSelected 
@@ -1349,7 +1349,7 @@ export default function Documents() {
                     : "All Documents"
                 }
               </h2>
-              <span className="text-sm text-muted-foreground" data-testid="document-count">
+              <span className="text-xs md:text-sm text-muted-foreground font-light" data-testid="document-count">
                 {isMainCategorySelected 
                   ? `${selectedCategorySubFolders.length} sub-folders`
                   : `${documentsData?.pagination.total || 0} documents`
@@ -1357,15 +1357,15 @@ export default function Documents() {
               </span>
             </div>
             
-            <div className="flex items-center space-x-3">
-              {/* Search */}
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
+              {/* Search - Mobile Responsive */}
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                 {/* Search Mode Toggle */}
                 <div className="flex items-center border border-border rounded-md">
                   <Button
                     variant={searchMode === "simple" ? "default" : "ghost"}
                     size="sm"
-                    className="rounded-r-none"
+                    className="rounded-r-none text-xs"
                     onClick={() => setSearchMode("simple")}
                     data-testid="search-mode-simple"
                   >
@@ -1374,7 +1374,7 @@ export default function Documents() {
                   <Button
                     variant={searchMode === "ai" ? "default" : "ghost"}
                     size="sm"
-                    className="rounded-l-none"
+                    className="rounded-l-none text-xs"
                     onClick={() => setSearchMode("ai")}
                     data-testid="search-mode-ai"
                   >
@@ -1383,13 +1383,13 @@ export default function Documents() {
                 </div>
                 
                 {/* Search Input */}
-                <div className="relative">
+                <div className="relative flex-1 md:flex-none">
                   <Input
                     type="text"
-                    placeholder={searchMode === "ai" ? "Ask AI to find documents..." : "Search documents..."}
+                    placeholder={searchMode === "ai" ? "Ask AI..." : "Search..."}
                     value={searchQuery}
                     onChange={(e) => handleSearchChange(e.target.value)}
-                    className="w-64 pl-10"
+                    className="w-full md:w-48 lg:w-64 pl-10 text-sm"
                     data-testid="search-input"
                   />
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1400,7 +1400,7 @@ export default function Documents() {
                   <Button
                     onClick={handleAISearch}
                     disabled={!searchQuery.trim() || aiSearchLoading}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-purple-600 hover:bg-purple-700 text-xs md:text-sm"
                     data-testid="ai-search-go"
                   >
                     {aiSearchLoading ? "Searching..." : "Go!"}
@@ -1430,44 +1430,47 @@ export default function Documents() {
                 </Button>
               </div>
               
-              {/* Queue Status Button */}
+              {/* Queue Status Button - Icon only on mobile */}
               <Button
                 variant="outline"
                 onClick={() => setQueueDashboardOpen(true)}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 md:gap-2"
+                size="sm"
                 data-testid="button-queue-status"
               >
                 <Brain className="h-4 w-4" />
-                AI Queue
+                <span className="hidden sm:inline text-xs md:text-sm">AI Queue</span>
               </Button>
               
-              {/* Smart Organization Button */}
+              {/* Smart Organization Button - Icon only on mobile */}
               <Button
                 variant="outline"
                 onClick={() => organizeAllMutation.mutate()}
                 disabled={organizeAllMutation.isPending}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 md:gap-2"
+                size="sm"
                 data-testid="button-organize-all"
               >
                 <Sparkles className="h-4 w-4" />
-                {organizeAllMutation.isPending ? 'Organizing...' : 'Smart Organization'}
+                <span className="hidden sm:inline text-xs md:text-sm">{organizeAllMutation.isPending ? 'Organizing...' : 'Smart Org'}</span>
               </Button>
               
-              {/* Delete All Button (for testing) */}
+              {/* Delete All Button (for testing) - Icon only on mobile */}
               {documentsData?.documents && documentsData.documents.length > 0 && (
                 <Button
                   variant="destructive"
                   onClick={() => deleteAllDocumentsMutation.mutate()}
                   disabled={deleteAllDocumentsMutation.isPending}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 md:gap-2"
+                  size="sm"
                   data-testid="button-delete-all"
                 >
                   <Trash2 className="h-4 w-4" />
-                  {deleteAllDocumentsMutation.isPending ? 'Deleting All...' : 'Delete All'}
+                  <span className="hidden sm:inline text-xs md:text-sm">{deleteAllDocumentsMutation.isPending ? 'Deleting...' : 'Delete All'}</span>
                 </Button>
               )}
               
-              {/* Upload Button - Now with bulk upload support! */}
+              {/* Upload Button - Icon only on mobile */}
               <ObjectUploader
                 maxNumberOfFiles={5}
                 maxFileSize={50 * 1024 * 1024} // 50MB
@@ -1477,22 +1480,22 @@ export default function Documents() {
                 onComplete={handleUploadComplete}
                 onBulkUploadComplete={handleBulkUploadComplete}
                 onSuccess={handleUploadSuccess}
-                buttonClassName="bg-primary text-primary-foreground hover:bg-primary/90"
+                buttonClassName="bg-purple-600 hover:bg-purple-700 text-white text-xs md:text-sm"
               >
-                <Upload className="mr-2 h-4 w-4" />
-                Upload
+                <Upload className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Upload</span>
               </ObjectUploader>
             </div>
           </div>
         </header>
 
-        {/* Filters */}
-        <div className="bg-card border-b border-border px-6 py-3">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-foreground">Filter:</label>
+        {/* Filters - Mobile First */}
+        <div className="bg-card/80 backdrop-blur-sm border-b border-border px-3 md:px-6 py-2 md:py-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-xs md:text-sm font-light text-foreground">Filter:</label>
               <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-                <SelectTrigger className="w-40" data-testid="filter-type">
+                <SelectTrigger className="w-32 md:w-40 text-xs md:text-sm" data-testid="filter-type">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1505,10 +1508,10 @@ export default function Documents() {
               </Select>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-foreground">Folder:</label>
+            <div className="flex items-center gap-2">
+              <label className="text-xs md:text-sm font-light text-foreground">Folder:</label>
               <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                <SelectTrigger className="w-40" data-testid="filter-folder">
+                <SelectTrigger className="w-32 md:w-40 text-xs md:text-sm" data-testid="filter-folder">
                   <SelectValue placeholder="All Folders" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1527,7 +1530,8 @@ export default function Documents() {
             <Button 
               variant="ghost" 
               onClick={clearFilters}
-              className="text-sm text-muted-foreground hover:text-foreground"
+              size="sm"
+              className="text-xs md:text-sm text-muted-foreground hover:text-foreground font-light"
               data-testid="clear-filters"
             >
               Clear Filters
@@ -1535,8 +1539,8 @@ export default function Documents() {
           </div>
         </div>
 
-        {/* Documents Grid */}
-        <div className="flex-1 overflow-auto p-6">
+        {/* Documents Grid - Mobile First Padding */}
+        <div className="flex-1 overflow-auto p-3 md:p-6">
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">
@@ -1803,33 +1807,33 @@ export default function Documents() {
                         )}
                         {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
                           <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span>Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
-                              <div className="flex items-center gap-1">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                              <span className="text-xs truncate">Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                              <div className="flex items-center gap-1 flex-wrap">
                                 {document.overrideCategory && (
                                   <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
                                     Custom
                                   </span>
                                 )}
                                 {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
-                                  <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-category-${document.id}`}>
-                                    Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium whitespace-nowrap" data-testid={`confidence-category-${document.id}`}>
+                                    Conf: {formatConfidence(document.aiCategoryConfidence)}
                                   </span>
                                 )}
                               </div>
                             </div>
                             {(document.overrideDocumentType || document.aiDocumentType) && (
-                              <div className="flex items-center justify-between">
-                                <span>Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
-                                <div className="flex items-center gap-1">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                                <span className="text-xs truncate">Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
+                                <div className="flex items-center gap-1 flex-wrap">
                                   {document.overrideDocumentType && (
                                     <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
                                       Custom
                                     </span>
                                   )}
                                   {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
-                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`confidence-type-${document.id}`}>
-                                      Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
+                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium whitespace-nowrap" data-testid={`confidence-type-${document.id}`}>
+                                      Conf: {formatConfidence(document.aiDocumentTypeConfidence)}
                                     </span>
                                   )}
                                 </div>
@@ -1840,17 +1844,17 @@ export default function Documents() {
                       </div>
                     )}
                     
-                    {/* AI Search Score Display */}
+                    {/* AI Search Score Display - Mobile Responsive */}
                     {searchMode === "ai" && aiSearchResults && document.aiScore !== undefined && (
                       <div className="mb-3 p-2 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950 dark:to-blue-950 rounded-md border border-purple-200 dark:border-purple-800">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <Brain className="h-4 w-4 text-purple-600" />
                             <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
                               AI Relevance Score
                             </span>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <div className="bg-white dark:bg-gray-800 px-2 py-1 rounded-full">
                               <span className="text-sm font-bold text-purple-700 dark:text-purple-300">
                                 {calibrateConfidence(document.aiScore)}%
@@ -1862,7 +1866,7 @@ export default function Documents() {
                                 style={{ width: `${Math.min(100, calibrateConfidence(document.aiScore))}%` }}
                               />
                             </div>
-                            <span className={`text-xs font-medium ${getConfidenceLevel(calibrateConfidence(document.aiScore)).color}`}>
+                            <span className={`text-xs font-medium whitespace-nowrap ${getConfidenceLevel(calibrateConfidence(document.aiScore)).color}`}>
                               {getConfidenceLevel(calibrateConfidence(document.aiScore)).label}
                             </span>
                           </div>
@@ -1870,34 +1874,35 @@ export default function Documents() {
                       </div>
                     )}
 
-                    <div className="flex items-center space-x-2">
+                    {/* Mobile-First Action Buttons - Responsive grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
                       <Button
                         size="sm"
-                        className="flex-1 bg-sky-400 hover:bg-sky-500 text-white border-0"
+                        className="bg-sky-400 hover:bg-sky-500 text-white border-0 px-2 sm:px-3"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDownload(document);
                         }}
                         data-testid={`download-${document.id}`}
                       >
-                        <Download className="mr-1 h-3 w-3" />
-                        <span className="text-xs">Download</span>
+                        <Download className="h-3 w-3 sm:mr-1" />
+                        <span className="text-xs hidden sm:inline">Download</span>
                       </Button>
                       <Button 
                         size="sm" 
-                        className="flex-1 bg-green-400 hover:bg-green-500 text-white border-0"
+                        className="bg-green-400 hover:bg-green-500 text-white border-0 px-2 sm:px-3"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenDocumentFile(document);
                         }}
                         data-testid={`preview-${document.id}`}
                       >
-                        <Eye className="mr-1 h-3 w-3" />
-                        <span className="text-xs font-medium">View Doc</span>
+                        <Eye className="h-3 w-3 sm:mr-1" />
+                        <span className="text-xs font-medium hidden sm:inline">View</span>
                       </Button>
                       <Button
                         size="sm"
-                        className="flex-1 bg-yellow-400 hover:bg-yellow-500 text-white border-0"
+                        className="bg-yellow-400 hover:bg-yellow-500 text-white border-0 px-2 sm:px-3"
                         onClick={(e) => {
                           e.stopPropagation();
                           analyzeDocumentMutation.mutate(document.id);
@@ -1905,12 +1910,12 @@ export default function Documents() {
                         disabled={analyzeDocumentMutation.isPending}
                         data-testid={`analyze-ai-${document.id}`}
                       >
-                        <Brain className="mr-1 h-3 w-3" />
-                        <span className="text-xs font-medium">AI Analyze</span>
+                        <Brain className="h-3 w-3 sm:mr-1" />
+                        <span className="text-xs font-medium hidden sm:inline">AI</span>
                       </Button>
                       <Button
                         size="sm"
-                        className="flex-1 bg-pink-300 hover:bg-pink-400 text-white border-0"
+                        className="bg-pink-300 hover:bg-pink-400 text-white border-0 px-2 sm:px-3"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteDocumentMutation.mutate(document.id);
@@ -1919,6 +1924,7 @@ export default function Documents() {
                         data-testid={`delete-${document.id}`}
                       >
                         <Trash2 className="h-3 w-3" />
+                        <span className="text-xs hidden sm:inline">Delete</span>
                       </Button>
                     </div>
                   </CardContent>
