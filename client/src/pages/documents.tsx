@@ -1889,7 +1889,7 @@ export default function Documents() {
                           </span>
                         </div>
                         {document.aiSummary && (
-                          <p className="text-xs text-purple-600 dark:text-purple-400 mb-2 leading-relaxed font-light">{document.aiSummary}</p>
+                          <p className="text-xs text-purple-600 dark:text-purple-400 mb-2 leading-relaxed font-light hover:text-purple-800 dark:hover:text-purple-300 transition-colors duration-200">{document.aiSummary}</p>
                         )}
                         {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
                           <div className="flex flex-wrap gap-1">
