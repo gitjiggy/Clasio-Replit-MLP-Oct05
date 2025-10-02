@@ -16,9 +16,14 @@ import {
   setPersistence
 } from "firebase/auth";
 
+// Detect environment for authDomain
+// Production (clasio.ai) uses custom domain, dev uses Firebase default
+const isProduction = typeof window !== 'undefined' && 
+  (window.location.hostname === 'clasio.ai' || window.location.hostname === 'www.clasio.ai');
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: "clasio.ai",
+  authDomain: isProduction ? "clasio.ai" : "documentorganizerclean-b629f.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebasestorage.app`,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
