@@ -86,21 +86,21 @@ export default function Landing() {
         {/* Elegant Header */}
         <header className="absolute top-0 left-0 right-0 z-50 bg-transparent">
           <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-6 md:py-8 flex justify-between items-center">
-            <div className="text-3xl md:text-4xl font-light tracking-wide text-gray-900 dark:text-white">
+            <div className="text-4xl md:text-5xl font-light tracking-wide text-gray-900 dark:text-white">
               CLASIO
             </div>
             <div className="flex gap-3 md:gap-4">
               <Button
                 disabled
                 variant="ghost"
-                className="text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 font-light tracking-wide text-base"
+                className="text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 font-light tracking-wide text-lg md:text-xl px-6 py-3"
                 data-testid="button-sign-up"
               >
                 SIGN UP
               </Button>
               <Button
                 onClick={handleSignIn}
-                className="bg-[#facf39] hover:bg-[#facf39]/90 text-gray-900 font-light tracking-wide shadow-lg text-base"
+                className="bg-[#facf39] hover:bg-[#facf39]/90 text-gray-900 font-light tracking-wide shadow-lg text-lg md:text-xl px-6 py-3"
                 data-testid="button-sign-in"
               >
                 SIGN IN
