@@ -137,9 +137,9 @@ export default function Landing() {
             
             {/* Tagline */}
             <div className="px-6 md:px-12 lg:px-16 mt-12 md:mt-16">
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-light text-center text-white leading-tight tracking-tight">
-                <div>Organize your document chaos,</div>
-                <div className="mt-2">automatically.</div>
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-light text-center text-white leading-tight tracking-tight">
+                <div>Clasio organizes your document chaos,</div>
+                <div className="mt-2">so you don't have to.</div>
               </h1>
               <div className="flex flex-col sm:flex-row gap-5 md:gap-6 justify-center items-center mt-10 md:mt-12">
                 <Button
@@ -153,8 +153,7 @@ export default function Landing() {
                 <Button
                   disabled
                   size="lg"
-                  variant="outline"
-                  className="border-2 border-white/30 text-white hover:bg-white/10 font-light tracking-wide text-xl px-12 md:px-14 py-7 md:py-8 backdrop-blur-sm"
+                  className="border-2 border-white/50 bg-white/10 text-white hover:bg-white/20 font-light tracking-wide text-xl px-12 md:px-14 py-7 md:py-8 backdrop-blur-sm cursor-not-allowed"
                   data-testid="button-try-demo"
                 >
                   TRY DEMO
@@ -166,14 +165,14 @@ export default function Landing() {
       </section>
 
       {/* How It Works - Compact Spacing */}
-      <section className="py-16 md:py-20 bg-white dark:bg-gray-950">
+      <section className="py-16 md:py-20 bg-gradient-to-b from-purple-50/30 via-white to-white dark:from-purple-950/10 dark:via-gray-950 dark:to-gray-950">
         <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16">
           <h2 className="text-4xl md:text-6xl font-light text-center text-gray-900 dark:text-white mb-12 md:mb-16 tracking-tight">
             How it works
           </h2>
           <div className="grid md:grid-cols-3 gap-8 md:gap-10">
             <div className="text-center group" data-testid="card-capture">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#55b3f3] to-[#4a9fd9] flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
                 <Sparkles className="w-10 h-10 text-white" />
               </div>
               <h3 className="text-2xl md:text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">Capture</h3>
@@ -183,8 +182,8 @@ export default function Landing() {
             </div>
 
             <div className="text-center group" data-testid="card-organize">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#facf39] to-[#e6b82e] flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <ScanEye className="w-10 h-10 text-gray-900" />
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <ScanEye className="w-10 h-10 text-white" />
               </div>
               <h3 className="text-2xl md:text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">Organize</h3>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed font-light text-lg">
@@ -193,7 +192,7 @@ export default function Landing() {
             </div>
 
             <div className="text-center group" data-testid="card-find">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#55b3f3] to-[#4a9fd9] flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
                 <Zap className="w-10 h-10 text-white" />
               </div>
               <h3 className="text-2xl md:text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">Find</h3>
@@ -206,14 +205,14 @@ export default function Landing() {
       </section>
 
       {/* Why You'll Love Clasio - Compact Cards */}
-      <section className="py-16 md:py-20 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
+      <section className="py-16 md:py-20 bg-white dark:bg-gray-950">
         <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16">
           <h2 className="text-4xl md:text-6xl font-light text-center text-gray-900 dark:text-white mb-12 md:mb-16 tracking-tight">
             Why you will love Clasio
           </h2>
           <div className="grid md:grid-cols-2 gap-6 md:gap-8">
-            <div className="bg-white dark:bg-gray-950 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-[#55b3f3] dark:hover:border-[#55b3f3] transition-all duration-300 hover:shadow-2xl" data-testid="card-snap-save">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#55b3f3] to-[#4a9fd9] flex items-center justify-center mb-6 shadow-lg">
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-purple-500 dark:hover:border-purple-500 transition-all duration-300 hover:shadow-2xl" data-testid="card-snap-save">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 shadow-lg">
                 <Sparkles className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
@@ -224,9 +223,9 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="bg-white dark:bg-gray-950 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-[#facf39] dark:hover:border-[#facf39] transition-all duration-300 hover:shadow-2xl" data-testid="card-talk-doc">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#facf39] to-[#e6b82e] flex items-center justify-center mb-6 shadow-lg">
-                <Zap className="w-7 h-7 text-gray-900" />
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-purple-500 dark:hover:border-purple-500 transition-all duration-300 hover:shadow-2xl" data-testid="card-talk-doc">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center mb-6 shadow-lg">
+                <Zap className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
                 Talk to your doc.
@@ -236,8 +235,8 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="bg-white dark:bg-gray-950 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-[#55b3f3] dark:hover:border-[#55b3f3] transition-all duration-300 hover:shadow-2xl" data-testid="card-privacy">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#55b3f3] to-[#4a9fd9] flex items-center justify-center mb-6 shadow-lg">
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-indigo-500 dark:hover:border-indigo-500 transition-all duration-300 hover:shadow-2xl" data-testid="card-privacy">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 shadow-lg">
                 <ShieldCheck className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
@@ -248,9 +247,9 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="bg-white dark:bg-gray-950 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-[#facf39] dark:hover:border-[#facf39] transition-all duration-300 hover:shadow-2xl" data-testid="card-auto-organize">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#facf39] to-[#e6b82e] flex items-center justify-center mb-6 shadow-lg">
-                <ScanEye className="w-7 h-7 text-gray-900" />
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-pink-500 dark:hover:border-pink-500 transition-all duration-300 hover:shadow-2xl" data-testid="card-auto-organize">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center mb-6 shadow-lg">
+                <ScanEye className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
                 Folders, Schmolders.
@@ -264,7 +263,7 @@ export default function Landing() {
       </section>
 
       {/* Infinite Scrolling Trust Strip - At Bottom */}
-      <section className="bg-gradient-to-r from-[#55b3f3] to-[#4a9fd9] py-6 overflow-hidden">
+      <section className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 dark:from-indigo-900 dark:via-purple-900 dark:to-pink-900 py-6 overflow-hidden">
         <div className="flex animate-scroll whitespace-nowrap">
           {[...Array(4)].map((_, groupIndex) => (
             <div key={groupIndex} className="flex items-center gap-16 px-8">
