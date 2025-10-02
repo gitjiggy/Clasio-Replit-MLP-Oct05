@@ -267,7 +267,7 @@ export default function Landing() {
       {/* Infinite Scrolling Trust Strip - At Bottom */}
       <section className="bg-gradient-to-r from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-800 dark:via-indigo-900 dark:to-purple-900 py-6 overflow-hidden">
         <div className="flex animate-scroll whitespace-nowrap">
-          {[...Array(4)].map((_, groupIndex) => (
+          {[...Array(8)].map((_, groupIndex) => (
             <div key={groupIndex} className="flex items-center gap-16 px-8">
               <div className="flex items-center gap-4" data-testid="trust-private">
                 <ShieldCheck className="w-6 h-6 text-white" />
