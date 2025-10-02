@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // Humorous delete messaging for Clasio's document management
 const DELETE_FLAVOR_TEXT = [
@@ -419,6 +419,9 @@ export default function Documents() {
   const [aiSearchResults, setAiSearchResults] = useState<any>(null);
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
   
+  // Track if user has manually toggled Smart Org (to prevent auto-reopening)
+  const userToggledSmartOrgRef = useRef(false);
+  
   // State for AI analysis polling
   const [recentUploads, setRecentUploads] = useState<{ timestamp: number; documentIds: string[] }>({ timestamp: 0, documentIds: [] });
   const [isPollingForAI, setIsPollingForAI] = useState(false);
@@ -545,6 +548,20 @@ export default function Documents() {
       const hasSubFoldersWithDocuments = category.subFolders.length > 0;
       return hasDirectDocuments || hasSubFoldersWithDocuments;
     });
+
+  // Auto-show Smart Organization on mobile when folders are available (only if user hasn't manually closed it)
+  useEffect(() => {
+    // Only auto-show if user hasn't manually toggled it closed
+    if (userToggledSmartOrgRef.current) return;
+    
+    // Only auto-show on mobile (when button is visible) and when folders exist
+    if (hierarchicalFolders.length > 0 && !showSmartOrg) {
+      const isMobile = window.innerWidth < 768; // md breakpoint
+      if (isMobile) {
+        setShowSmartOrg(true);
+      }
+    }
+  }, [hierarchicalFolders.length, showSmartOrg]);
 
   // Determine if selected folder is a main category or sub-folder
   const selectedFolder = folders.find(f => f.id === selectedFolderId);
@@ -1447,13 +1464,21 @@ export default function Documents() {
               {/* Smart Organization Button - Opens mobile menu on small screens */}
               <Button
                 variant="outline"
-                onClick={() => setShowSmartOrg(!showSmartOrg)}
-                className="flex items-center gap-1 md:gap-2 md:hidden"
+                onClick={() => {
+                  userToggledSmartOrgRef.current = true; // Mark that user has manually toggled
+                  setShowSmartOrg(!showSmartOrg);
+                }}
+                className="flex items-center gap-1 md:gap-2 md:hidden relative"
                 size="sm"
                 data-testid="button-smart-org-mobile"
               >
                 <Sparkles className="h-4 w-4" />
                 <span className="text-xs">Smart Org</span>
+                {hierarchicalFolders.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0 h-4 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300">
+                    {hierarchicalFolders.length}
+                  </Badge>
+                )}
               </Button>
               
               {/* Desktop Smart Organization - Run All */}
