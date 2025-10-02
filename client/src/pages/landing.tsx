@@ -81,11 +81,11 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Premium Hero Section - Full Viewport */}
-      <section className="relative min-h-screen flex flex-col">
+      {/* Premium Hero Section - Compact */}
+      <section className="relative flex flex-col">
         {/* Elegant Header */}
         <header className="absolute top-0 left-0 right-0 z-50 bg-transparent">
-          <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-6 md:py-8 flex justify-between items-center">
+          <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 py-4 md:py-6 flex justify-between items-center">
             <div className="text-4xl md:text-5xl font-light tracking-wide text-gray-900 dark:text-white">
               CLASIO
             </div>
@@ -109,20 +109,22 @@ export default function Landing() {
           </div>
         </header>
 
-        {/* Hero Content - Edge to Edge Image */}
-        <div className="flex-1 flex flex-col items-center justify-center pt-24 pb-16 md:pt-32 md:pb-24">
+        {/* Hero Content - Compact Image */}
+        <div className="flex flex-col items-center justify-center pt-20 md:pt-24">
           <div className="w-full">
-            <img
-              src={heroImage}
-              alt="Clasio - Documents, Meet AI"
-              className="w-full object-cover drop-shadow-2xl"
-            />
-            <div className="px-6 md:px-12 lg:px-16 mt-12 md:mt-16">
+            <div className="h-[40vh] md:h-[45vh] overflow-hidden">
+              <img
+                src={heroImage}
+                alt="Clasio - Documents, Meet AI"
+                className="w-full h-full object-cover object-top drop-shadow-2xl"
+              />
+            </div>
+            <div className="px-6 md:px-12 lg:px-16 mt-8 md:mt-10">
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-light text-center text-gray-900 dark:text-white leading-tight tracking-tight">
                 <div>Clasio organizes your document chaos,</div>
                 <div className="mt-2">so you don't have to.</div>
               </h1>
-              <div className="flex flex-col sm:flex-row gap-5 md:gap-6 justify-center items-center mt-16 md:mt-20">
+              <div className="flex flex-col sm:flex-row gap-5 md:gap-6 justify-center items-center mt-10 md:mt-12">
                 <Button
                   onClick={handleSignIn}
                   size="lg"
@@ -146,13 +148,13 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* How It Works - Premium Spacing */}
-      <section className="py-28 md:py-36 bg-white dark:bg-gray-950">
+      {/* How It Works - Compact Spacing */}
+      <section className="py-16 md:py-20 bg-white dark:bg-gray-950">
         <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16">
-          <h2 className="text-4xl md:text-6xl font-light text-center text-gray-900 dark:text-white mb-24 tracking-tight">
+          <h2 className="text-4xl md:text-6xl font-light text-center text-gray-900 dark:text-white mb-12 md:mb-16 tracking-tight">
             How it works
           </h2>
-          <div className="grid md:grid-cols-3 gap-12 md:gap-16">
+          <div className="grid md:grid-cols-3 gap-8 md:gap-10">
             <div className="text-center group" data-testid="card-capture">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#55b3f3] to-[#4a9fd9] flex items-center justify-center mb-8 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300">
                 <Sparkles className="w-10 h-10 text-white" />
@@ -186,18 +188,18 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Why You'll Love Clasio - Premium Cards */}
-      <section className="py-28 md:py-36 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
+      {/* Why You'll Love Clasio - Compact Cards */}
+      <section className="py-16 md:py-20 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
         <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16">
-          <h2 className="text-4xl md:text-6xl font-light text-center text-gray-900 dark:text-white mb-24 tracking-tight">
+          <h2 className="text-4xl md:text-6xl font-light text-center text-gray-900 dark:text-white mb-12 md:mb-16 tracking-tight">
             Why you will love Clasio
           </h2>
-          <div className="grid md:grid-cols-2 gap-10 md:gap-14">
-            <div className="bg-white dark:bg-gray-950 rounded-3xl p-10 md:p-12 border border-gray-200 dark:border-gray-800 hover:border-[#55b3f3] dark:hover:border-[#55b3f3] transition-all duration-300 hover:shadow-2xl" data-testid="card-snap-save">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#55b3f3] to-[#4a9fd9] flex items-center justify-center mb-8 shadow-lg">
-                <Sparkles className="w-8 h-8 text-white" />
+          <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+            <div className="bg-white dark:bg-gray-950 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-[#55b3f3] dark:hover:border-[#55b3f3] transition-all duration-300 hover:shadow-2xl" data-testid="card-snap-save">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#55b3f3] to-[#4a9fd9] flex items-center justify-center mb-6 shadow-lg">
+                <Sparkles className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">
+              <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
                 Snap it. Save it. Fuhgeddaboudit.
               </h3>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed font-light text-xl">
@@ -205,11 +207,11 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="bg-white dark:bg-gray-950 rounded-3xl p-10 md:p-12 border border-gray-200 dark:border-gray-800 hover:border-[#facf39] dark:hover:border-[#facf39] transition-all duration-300 hover:shadow-2xl" data-testid="card-talk-doc">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#facf39] to-[#e6b82e] flex items-center justify-center mb-8 shadow-lg">
-                <Zap className="w-8 h-8 text-gray-900" />
+            <div className="bg-white dark:bg-gray-950 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-[#facf39] dark:hover:border-[#facf39] transition-all duration-300 hover:shadow-2xl" data-testid="card-talk-doc">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#facf39] to-[#e6b82e] flex items-center justify-center mb-6 shadow-lg">
+                <Zap className="w-7 h-7 text-gray-900" />
               </div>
-              <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">
+              <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
                 Talk to your doc.
               </h3>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed font-light text-xl">
@@ -217,11 +219,11 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="bg-white dark:bg-gray-950 rounded-3xl p-10 md:p-12 border border-gray-200 dark:border-gray-800 hover:border-[#55b3f3] dark:hover:border-[#55b3f3] transition-all duration-300 hover:shadow-2xl" data-testid="card-privacy">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#55b3f3] to-[#4a9fd9] flex items-center justify-center mb-8 shadow-lg">
-                <ShieldCheck className="w-8 h-8 text-white" />
+            <div className="bg-white dark:bg-gray-950 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-[#55b3f3] dark:hover:border-[#55b3f3] transition-all duration-300 hover:shadow-2xl" data-testid="card-privacy">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#55b3f3] to-[#4a9fd9] flex items-center justify-center mb-6 shadow-lg">
+                <ShieldCheck className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">
+              <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
                 Your docs. Your business.
               </h3>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed font-light text-xl">
@@ -229,11 +231,11 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="bg-white dark:bg-gray-950 rounded-3xl p-10 md:p-12 border border-gray-200 dark:border-gray-800 hover:border-[#facf39] dark:hover:border-[#facf39] transition-all duration-300 hover:shadow-2xl" data-testid="card-auto-organize">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#facf39] to-[#e6b82e] flex items-center justify-center mb-8 shadow-lg">
-                <ScanEye className="w-8 h-8 text-gray-900" />
+            <div className="bg-white dark:bg-gray-950 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-800 hover:border-[#facf39] dark:hover:border-[#facf39] transition-all duration-300 hover:shadow-2xl" data-testid="card-auto-organize">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#facf39] to-[#e6b82e] flex items-center justify-center mb-6 shadow-lg">
+                <ScanEye className="w-7 h-7 text-gray-900" />
               </div>
-              <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">
+              <h3 className="text-3xl font-light text-gray-900 dark:text-white mb-4 tracking-wide">
                 Folders, Schmolders.
               </h3>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed font-light text-xl">
