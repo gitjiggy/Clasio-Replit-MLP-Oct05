@@ -79,16 +79,16 @@ function Navigation() {
                 Documents
               </Link>
             </TabsTrigger>
-            <TabsTrigger value="trash" asChild>
-              <Link href="/trash" className="flex items-center gap-2" data-testid="tab-trash">
-                <Trash2 className="h-4 w-4" />
-                Trash
-              </Link>
-            </TabsTrigger>
             <TabsTrigger value="drive" asChild>
               <Link href="/drive" className="flex items-center gap-2" data-testid="tab-drive">
                 <HardDrive className="h-4 w-4" />
                 Google Drive
+              </Link>
+            </TabsTrigger>
+            <TabsTrigger value="trash" asChild>
+              <Link href="/trash" className="flex items-center gap-2" data-testid="tab-trash">
+                <Trash2 className="h-4 w-4" />
+                Trash
               </Link>
             </TabsTrigger>
           </TabsList>
