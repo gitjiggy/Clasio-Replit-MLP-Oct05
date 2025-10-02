@@ -6,7 +6,7 @@ import { Loader2, Shield, FileText, Brain } from "lucide-react";
 import { persistenceReady } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithRedirect } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect } from "firebase/auth";
 import { auth, basicGoogleProvider } from "@/lib/firebase";
 
 interface LoginModalProps {
@@ -27,22 +27,49 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    console.log("🔘 Button clicked - starting Google sign-in with redirect");
+    console.log("🔘 Button clicked - starting Google sign-in");
     setIsSigningIn(true);
     
     try {
-      // CRITICAL: Wait for persistence to be ready before starting redirect
-      // This ensures auth state is saved properly before the redirect
-      console.log("⏳ Ensuring persistence is ready before redirect...");
+      // Wait for persistence to be ready
       await persistenceReady;
-      console.log("✅ Persistence ready, initiating redirect...");
+      console.log("✅ Persistence ready");
       
-      console.log("🚀 Calling signInWithRedirect...");
-      // Redirect will navigate away from this page
-      await signInWithRedirect(auth, basicGoogleProvider);
-      // This line won't execute as page will redirect
+      // Try popup first (works better in dev)
+      console.log("🚀 Attempting popup sign-in...");
+      try {
+        const result = await signInWithPopup(auth, basicGoogleProvider);
+        console.log("✅ Popup sign-in successful:", result.user.email);
+        
+        toast({
+          title: "Signed in successfully",
+          description: `Welcome, ${result.user.displayName || result.user.email}!`
+        });
+        
+        trackEvent("auth_signin_success", { 
+          method: "google_popup",
+          user_id: result.user.uid
+        });
+        
+        onOpenChange(false);
+        setIsSigningIn(false);
+        return;
+      } catch (popupError: any) {
+        // If popup fails (blocked), fall back to redirect
+        if (popupError.code === 'auth/popup-blocked' || 
+            popupError.code === 'auth/popup-closed-by-user' ||
+            popupError.code === 'auth/cancelled-popup-request') {
+          console.log("⚠️ Popup blocked, falling back to redirect...");
+          
+          await signInWithRedirect(auth, basicGoogleProvider);
+          // This line won't execute as page will redirect
+        } else {
+          // Re-throw other errors
+          throw popupError;
+        }
+      }
     } catch (error) {
-      console.error("❌ Redirect sign-in failed:", error);
+      console.error("❌ Sign-in failed:", error);
       console.error("Error details:", {
         code: (error as any)?.code,
         message: (error as any)?.message,
@@ -51,12 +78,12 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
       
       toast({
         title: "Sign-in failed",
-        description: (error as any)?.message || "Failed to start sign-in. Please try again.",
+        description: (error as any)?.message || "Failed to sign in. Please try again.",
         variant: "destructive"
       });
       
       trackEvent("auth_signin_error", { 
-        method: "google_redirect",
+        method: "google_auth",
         error: (error as any)?.code || "unknown"
       });
       
