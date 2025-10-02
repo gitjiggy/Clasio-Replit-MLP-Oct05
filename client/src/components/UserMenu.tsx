@@ -85,12 +85,14 @@ export function UserMenu() {
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild data-testid="menu-item-analytics">
-          <Link href="/analytics">
-            <BarChart3 className="mr-2 h-4 w-4" />
-            <span>Analytics</span>
-          </Link>
-        </DropdownMenuItem>
+        {user.email === "niraj.desai@gmail.com" && (
+          <DropdownMenuItem asChild data-testid="menu-item-analytics">
+            <Link href="/analytics">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              <span>Analytics</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem 
           onClick={handleSignOut}

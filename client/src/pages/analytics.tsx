@@ -58,6 +58,26 @@ export default function Analytics() {
     );
   }
 
+  if (user.email !== "niraj.desai@gmail.com") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-amber-200 dark:border-amber-800">
+          <CardHeader>
+            <CardTitle className="text-amber-600 dark:text-amber-400">Access Restricted</CardTitle>
+            <CardDescription>
+              This analytics dashboard is only accessible to authorized administrators.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              You are currently signed in as: <strong>{user.email}</strong>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950 flex items-center justify-center p-4">
