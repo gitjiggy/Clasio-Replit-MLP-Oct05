@@ -666,19 +666,19 @@ export function ObjectUploader({
         setErrors(failed);
         setState("error");
       } else {
-        // Transition to analyzing state to show background processing
+        // Transition to analyzing state for REAL analysis polling
         setState("analyzing");
         
         // Notify parent first
         onSuccess?.(finalize.docIds || []);
         
-        // Show success toast immediately
+        // Show success toast
         const successCount = finalize.docIds?.length || 0;
         const warningCount = warningFiles?.length || 0;
         
-        let description = `Uploaded ${successCount} file${successCount !== 1 ? 's' : ''}. We'll analyze them in the background.`;
+        let description = `Uploaded ${successCount} file${successCount !== 1 ? 's' : ''}. Analyzing with AI...`;
         if (warningCount > 0) {
-          description += ` (${warningCount} had duplicate warnings)`;
+          description += ` (${warningCount} had warnings)`;
         }
         
         toast({
@@ -686,16 +686,82 @@ export function ObjectUploader({
           description,
         });
         
-        // Show analyzing state for 3 seconds to indicate background processing
-        setTimeout(() => {
-          setState("done");
-          setTimeout(() => {
-            setShowModal(false);
-            setState("idle");
-            setSelectedFiles([]);
-            setErrors([]);
-          }, 1500); // Show "Done!" for a bit longer
-        }, 3000); // Show analyzing state for 3 seconds to indicate background processing
+        // Poll for AI analysis completion
+        const docIds = finalize.docIds || [];
+        let pollAttempts = 0;
+        const maxPollAttempts = 60; // 60 attempts * 2s = 2 minutes max
+        
+        const checkAnalysisComplete = async () => {
+          try {
+            pollAttempts++;
+            
+            // Check each document's analysis status
+            const docStatuses = await Promise.all(
+              docIds.map(async (docId: string) => {
+                try {
+                  const doc = await apiRequest(`/api/documents/${docId}`);
+                  return {
+                    docId,
+                    hasAISummary: !!doc.aiSummary,
+                    hasFolderId: !!doc.folderId
+                  };
+                } catch (err) {
+                  console.error(`Error checking document ${docId}:`, err);
+                  return { docId, hasAISummary: false, hasFolderId: false };
+                }
+              })
+            );
+            
+            const allAnalyzed = docStatuses.every(s => s.hasAISummary);
+            const allOrganized = docStatuses.every(s => s.hasFolderId);
+            
+            if (allAnalyzed && allOrganized) {
+              // Analysis AND Smart Organization complete!
+              toast({
+                title: "Analysis complete!",
+                description: "Documents analyzed and organized.",
+              });
+              
+              setState("done");
+              
+              // Refresh the page after a brief delay
+              setTimeout(() => {
+                window.location.reload();
+              }, 1000);
+            } else if (pollAttempts >= maxPollAttempts) {
+              // Timeout - analysis taking too long
+              toast({
+                title: "Analysis in progress",
+                description: "Taking longer than expected. Check back soon.",
+                variant: "destructive"
+              });
+              
+              setState("done");
+              setTimeout(() => {
+                setShowModal(false);
+                setState("idle");
+                setSelectedFiles([]);
+                setErrors([]);
+              }, 1500);
+            } else {
+              // Keep polling
+              setTimeout(checkAnalysisComplete, 2000);
+            }
+          } catch (error) {
+            console.error("Error polling analysis status:", error);
+            // On error, stop polling and close modal
+            setState("done");
+            setTimeout(() => {
+              setShowModal(false);
+              setState("idle");
+              setSelectedFiles([]);
+              setErrors([]);
+            }, 1500);
+          }
+        };
+        
+        // Start polling after a brief delay
+        setTimeout(checkAnalysisComplete, 2000);
       }
 
     } catch (e: any) {
