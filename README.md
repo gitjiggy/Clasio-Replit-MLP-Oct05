@@ -26,6 +26,42 @@
 Clasio is a comprehensive document management system that leverages AI to automatically organize, analyze, and retrieve documents. The platform features intelligent categorization, Smart Organization folders, advanced search capabilities, and seamless cloud storage integration.
 
 **Live Demo:** [clasio.ai](https://clasio.ai)
+**Latest Repository:** [Clasio-Replit-MLP-Oct02](https://github.com/gitjiggy/Clasio-Replit-MLP-Oct02)
+
+---
+
+## What's New for October 02, 2025
+
+### 🎨 Landing Page Visual Refinement
+
+#### **Lighter, Near-Pastel Color Palette**
+- **Hero Gradient**: Updated from darker tones to refined slate-600/indigo-500/purple-500
+- **Icon Circles**: Softer purple-400/violet-500 and indigo-400/purple-500 gradient fills
+- **Mesh Effects**: Lighter indigo-300/purple-300/violet-300 at 25% opacity for subtle depth
+- **Trust Strip**: Matching lighter gradient for visual consistency
+- **Overall Aesthetic**: More approachable, premium feel with near-pastel tones
+
+#### **Consistent Color System Across All Pages**
+- **Documents Page**: Updated all UI elements to match landing page palette
+  - Purple-600/700 → Purple-400/500 for icons and text
+  - Dark mode backgrounds: Gray-900/800 instead of purple for consistency
+  - Borders: Lighter purple-500/600 for better visual hierarchy
+- **Legal Pages**: Maintained neutral gray tones with consistent typography
+- **Complete Color Audit**: Removed all darker purple tones (7/8/9 range) except hover states
+
+#### **Contact Form Email Integration**
+- **Resend API Integration**: `/api/contact` endpoint for handling contact form submissions
+- **Email Validation**: Zod schema validation with proper error handling
+- **Rate Limiting**: Prevents spam with Express rate limiter
+- **Current Status**: ⚠️ Testing mode - requires domain verification at resend.com/domains
+  - Production setup: Must verify custom domain and update sender email
+  - Current limitation: Can only send emails in testing mode (both from/to must be account owner)
+  - Contact emails route to niraj.desai@gmail.com in testing mode
+
+### 📋 Documentation Updates
+- **replit.md**: Comprehensive project history and architecture documentation
+- **Legal Pages**: Privacy Policy, Terms & Conditions, and Proof of Claims pages complete
+- **Mobile-First Design**: All public pages optimized for mobile devices
 
 ---
 
