@@ -109,14 +109,14 @@ export default function Landing() {
           </div>
         </header>
 
-        {/* Hero Content - 50% Smaller, Full Image Visible, Below the Fold */}
+        {/* Hero Content - 50% Smaller, Balanced Padding */}
         <div className="flex-1 flex flex-col items-center justify-center pt-20 md:pt-24 pb-16 md:pb-20">
           <div className="w-full">
-            <div className="h-[50vh]">
+            <div className="h-[50vh] overflow-hidden">
               <img
                 src={heroImage}
                 alt="Clasio - Documents, Meet AI"
-                className="w-full h-full object-contain object-[center_40%] drop-shadow-2xl"
+                className="w-full h-[120%] object-cover object-top drop-shadow-2xl -mt-[10%]"
               />
             </div>
             <div className="px-6 md:px-12 lg:px-16 mt-8 md:mt-10">
