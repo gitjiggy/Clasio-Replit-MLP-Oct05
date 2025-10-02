@@ -165,7 +165,7 @@ export default function Landing() {
               </div>
               <h3 className="text-2xl md:text-3xl font-light text-gray-900 dark:text-white mb-5 tracking-wide">Capture</h3>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed font-light text-lg">
-                Snap with your camera, upload from your device, or import from Google Drive.
+                Snap with your phone, upload from your device, or import from Google Drive.
               </p>
             </div>
 
