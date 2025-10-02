@@ -116,7 +116,7 @@ export default function Landing() {
               <img
                 src={heroImage}
                 alt="Clasio - Documents, Meet AI"
-                className="w-full h-full object-contain drop-shadow-2xl"
+                className="w-full h-full object-contain object-[center_40%] drop-shadow-2xl"
               />
             </div>
             <div className="px-6 md:px-12 lg:px-16 mt-8 md:mt-10">
