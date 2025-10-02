@@ -697,8 +697,12 @@ export default function Documents() {
       if (recentlyAnalyzed.length > 0) {
         toast({
           title: "Smart Organization Complete! 🎯",
-          description: `${recentlyAnalyzed.length} document${recentlyAnalyzed.length > 1 ? 's' : ''} automatically organized and analyzed.`,
+          description: `${recentlyAnalyzed.length} document${recentlyAnalyzed.length > 1 ? 's' : ''} automatically organized. Page refreshing...`,
+          duration: 1000,
         });
+        
+        // Scroll to top to show UI refresh
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
       }
     }
   }, [documentsData, isPollingForAI, recentUploads, toast, searchQuery, selectedFileType, selectedFolderId, selectedTagId, currentPage]);
@@ -854,8 +858,12 @@ export default function Documents() {
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
       toast({
         title: "Smart Organization Complete",
-        description: data.message || `Organized ${data.organized} documents into smart folders`,
+        description: (data.message || `Organized ${data.organized} documents into smart folders`) + " - Page refreshing...",
+        duration: 1000,
       });
+      
+      // Scroll to top to show UI refresh
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     },
     onError: (error) => {
       toast({
