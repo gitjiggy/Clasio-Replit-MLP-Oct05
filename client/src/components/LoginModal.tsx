@@ -63,34 +63,44 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-center">Welcome to Clasio</DialogTitle>
-          <DialogDescription className="text-center">
-            Sign in to access your document management system with AI-powered features
+          <DialogTitle className="text-center text-2xl font-semibold bg-gradient-to-r from-slate-700 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            Welcome to Clasio
+          </DialogTitle>
+          <DialogDescription className="text-center text-base pt-1">
+            Your smart, secure home for documents.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* Features showcase */}
           <div className="grid gap-3">
-            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-              <FileText className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-sm font-medium">Document Management</p>
-                <p className="text-xs text-muted-foreground">Upload, organize, and version control</p>
+            <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-slate-50 to-indigo-50 dark:from-slate-900/50 dark:to-indigo-900/20 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-slate-500 to-indigo-500 flex items-center justify-center">
+                <FileText className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">Document Management</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Upload, organize, and stay in control.</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-              <Brain className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-sm font-medium">AI Analysis</p>
-                <p className="text-xs text-muted-foreground">Smart summaries and content insights</p>
+            
+            <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200/50 dark:border-indigo-700/50">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                <Brain className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">AI Analysis</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Instant insights and smarter summaries.</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-              <Shield className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-sm font-medium">Secure Access</p>
-                <p className="text-xs text-muted-foreground">Protected by Google authentication</p>
+            
+            <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 rounded-lg border border-purple-200/50 dark:border-purple-700/50">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center">
+                <Shield className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">Secure Access</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Protected with Google authentication.</p>
               </div>
             </div>
           </div>
