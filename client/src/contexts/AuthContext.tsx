@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, getRedirectResult } from 'firebase/auth';
-import { auth, onAuthStateChange } from '@/lib/firebase';
+import { auth, onAuthStateChange, persistenceReady } from '@/lib/firebase';
 import { trackEvent } from '@/lib/analytics';
 
 interface AuthContextType {
@@ -88,7 +88,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     (async () => {
       try {
-        console.log("🔄 Checking for redirect result...");
+        // CRITICAL: Wait for persistence to be ready before checking redirect result
+        // Firebase clears redirect state when persistence changes, so we must wait
+        console.log("⏳ Waiting for persistence to be ready...");
+        await persistenceReady;
+        console.log("✅ Persistence ready, checking for redirect result...");
+        
         const result = await getRedirectResult(auth);
         if (result) {
           console.log("✅ Redirect sign-in successful:", result.user.email);

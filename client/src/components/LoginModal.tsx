@@ -31,6 +31,12 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     setIsSigningIn(true);
     
     try {
+      // CRITICAL: Wait for persistence to be ready before starting redirect
+      // This ensures auth state is saved properly before the redirect
+      console.log("⏳ Ensuring persistence is ready before redirect...");
+      await persistenceReady;
+      console.log("✅ Persistence ready, initiating redirect...");
+      
       console.log("🚀 Calling signInWithRedirect...");
       // Redirect will navigate away from this page
       await signInWithRedirect(auth, basicGoogleProvider);
