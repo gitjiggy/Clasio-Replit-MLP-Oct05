@@ -49,8 +49,14 @@ export async function summarizeDocument(text: string): Promise<string> {
         const resultText = response.text();
 
         return resultText || "Unable to generate summary.";
-    } catch (error) {
-        console.error("Error summarizing document:", error);
+    } catch (error: any) {
+        console.error("🔴 [GEMINI-ERROR] Error summarizing document:", {
+            message: error?.message,
+            response: error?.response,
+            status: error?.status,
+            statusText: error?.statusText,
+            stack: error?.stack?.split('\n').slice(0, 3).join('\n')
+        });
         return "Error generating summary. Please try again.";
     }
 }
@@ -324,8 +330,14 @@ ${text}`;
         } else {
             throw new Error("Empty response from model");
         }
-    } catch (error) {
-        console.error("Error analyzing document content:", error);
+    } catch (error: any) {
+        console.error("🔴 [GEMINI-ERROR] Error analyzing document content:", {
+            message: error?.message,
+            response: error?.response,
+            status: error?.status,
+            statusText: error?.statusText,
+            stack: error?.stack?.split('\n').slice(0, 3).join('\n')
+        });
         return {
             keyTopics: ["Analysis unavailable"],
             documentType: "Technical Documentation",

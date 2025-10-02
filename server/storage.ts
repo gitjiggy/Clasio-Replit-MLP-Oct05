@@ -4160,6 +4160,7 @@ export class DatabaseStorage implements IStorage {
 
   // AI Analysis
   async analyzeDocumentWithAI(documentId: string, userId: string, driveContent?: string, driveAccessToken?: string): Promise<boolean> {
+    console.log(`🔵 [AI-ANALYZE] Starting AI analysis for documentId=${documentId}, userId=${userId}`);
     try {
       // Import here to avoid circular dependencies
       const { summarizeDocument, analyzeDocumentContent, extractTextFromDocument } = await import("./gemini.js");
@@ -4167,8 +4168,10 @@ export class DatabaseStorage implements IStorage {
       // Get the document
       const document = await this.getDocumentById(documentId, userId);
       if (!document) {
+        console.log(`🔵 [AI-ANALYZE] Document not found: ${documentId}`);
         return false;
       }
+      console.log(`🔵 [AI-ANALYZE] Document found: ${document.fileName}, filePath=${document.filePath}`);
 
       // Extract text from the document
       let documentText: string;
@@ -4196,11 +4199,13 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
+      console.log(`🔵 [AI-ANALYZE] Calling Gemini API with text length: ${documentText.length}`);
       // Generate AI analysis
       const [summary, analysis] = await Promise.all([
         summarizeDocument(documentText),
         analyzeDocumentContent(documentText)
       ]);
+      console.log(`🔵 [AI-ANALYZE] Gemini API call successful, summary length: ${summary?.length || 0}`);
 
       // Update the document with AI analysis AND save content for search (with tenant isolation)
       const [updatedDoc] = await db
@@ -4236,8 +4241,13 @@ export class DatabaseStorage implements IStorage {
       }
 
       return !!updatedDoc;
-    } catch (error) {
-      console.error("Error analyzing document with AI:", error);
+    } catch (error: any) {
+      console.error("🔴 [AI-ANALYZE] Error analyzing document with AI:", {
+        documentId,
+        userId,
+        message: error?.message,
+        stack: error?.stack?.split('\n').slice(0, 5).join('\n')
+      });
       return false;
     }
   }
