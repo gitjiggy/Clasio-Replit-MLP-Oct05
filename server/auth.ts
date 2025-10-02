@@ -5,13 +5,37 @@ import { Request, Response, NextFunction } from 'express';
 // Initialize Firebase Admin SDK for token verification
 if (!admin.apps.length) {
   try {
-    // For Replit environment, we'll use a simpler approach with just the project ID
-    // This allows us to verify ID tokens without full admin privileges
-    admin.initializeApp({
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-    });
+    // Use GCP service account key for Firebase Admin in production
+    // This allows us to verify ID tokens properly
+    const serviceAccountKey = process.env.GCP_SERVICE_ACCOUNT_KEY;
+    const projectId = process.env.GCP_PROJECT_ID;
+    
+    if (serviceAccountKey && projectId) {
+      console.log('🔑 Initializing Firebase Admin with service account credentials...');
+      const serviceAccount = JSON.parse(serviceAccountKey);
+      
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: projectId
+      });
+      
+      console.log('✅ Firebase Admin initialized successfully');
+    } else if (projectId) {
+      // Fallback: Initialize with just project ID (works in some environments)
+      console.warn('⚠️  No service account key found. Initializing with project ID only...');
+      admin.initializeApp({
+        projectId: projectId,
+      });
+    } else {
+      // Last resort: Try to use application default credentials
+      console.warn('⚠️  No credentials found. Attempting to use application default credentials...');
+      admin.initializeApp();
+    }
   } catch (error) {
-    console.error('Failed to initialize Firebase Admin:', error);
+    console.error('❌ Failed to initialize Firebase Admin:', error);
+    console.error('This will prevent authentication from working. Check your environment variables:');
+    console.error('- GCP_SERVICE_ACCOUNT_KEY should contain Firebase service account JSON');
+    console.error('- GCP_PROJECT_ID should contain your Firebase project ID');
   }
 }
 
@@ -76,33 +100,54 @@ export const verifyFirebaseToken = async (
     next();
     
   } catch (error) {
-    console.log(`🚫 Auth failed for ${req.method} ${req.path} - ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error(`🚫 Auth failed for ${req.method} ${req.path} - ${error instanceof Error ? error.message : 'Unknown error'}`);
     
     // Log auth failures with correlation ID for debugging
     if ((req as any).reqId) {
-      console.info(JSON.stringify({
+      console.error(JSON.stringify({
         evt: "auth.error",
         reqId: (req as any).reqId,
         route: req.path,
-        reason: error instanceof Error ? error.message : 'Unknown error'
+        method: req.method,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       }));
     }
     
     // Provide more specific error messages for debugging
     if (error instanceof Error) {
-      if (error.message.includes('Decoding Firebase ID token failed')) {
+      if (error.message.includes('project ID')) {
+        console.error('❌ CRITICAL: Firebase Admin not properly configured. Missing project ID or service account credentials.');
+        res.status(500).json({ 
+          error: 'Server authentication not configured',
+          message: 'Contact support if this persists'
+        });
+      } else if (error.message.includes('Decoding Firebase ID token failed')) {
         console.error('Firebase ID token is malformed or invalid');
-        res.status(401).json({ error: 'Firebase authentication failed. Please refresh the page and sign in again.' });
+        res.status(401).json({ 
+          error: 'Firebase authentication failed',
+          message: 'Please refresh the page and sign in again'
+        });
       } else if (error.message.includes('expired')) {
         console.error('Firebase ID token has expired');
-        res.status(401).json({ error: 'Your session has expired. Please refresh the page and sign in again.' });
+        res.status(401).json({ 
+          error: 'Session expired',
+          message: 'Your session has expired. Please refresh the page and sign in again'
+        });
       } else {
         console.error('Other Firebase auth error:', error.message);
-        res.status(401).json({ error: 'Authentication failed. Please refresh the page and sign in again.' });
+        res.status(401).json({ 
+          error: 'Authentication failed',
+          message: 'Please refresh the page and sign in again'
+        });
       }
     } else {
-      res.status(401).json({ error: 'Invalid or expired token' });
+      res.status(401).json({ 
+        error: 'Invalid or expired token',
+        message: 'Please refresh the page and sign in again'
+      });
     }
+    return; // CRITICAL: Stop execution after sending error response
   }
 };
 
