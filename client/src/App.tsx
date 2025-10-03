@@ -32,16 +32,14 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
   const { user, initializing } = useAuth();
   
   return (
-    <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+    <header className="border-b bg-gradient-to-r from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-700 dark:via-indigo-600 dark:to-purple-600 sticky top-0 z-50">
       <div className="container flex h-20 items-center justify-between px-4">
         <div className="flex-1 flex items-center justify-center md:justify-start">
-          <div className="relative px-4 py-2 rounded-xl bg-gradient-to-br from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-700 dark:via-indigo-600 dark:to-purple-600">
-            <img 
-              src="/attached_assets/noBgColor (1)_1759471370484.png" 
-              alt="Clasio - AI-Powered Document Management" 
-              className="h-10 md:h-12 w-auto drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"
-            />
-          </div>
+          <img 
+            src="/attached_assets/noBgColor (1)_1759471370484.png" 
+            alt="Clasio - AI-Powered Document Management" 
+            className="h-10 md:h-12 w-auto drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"
+          />
         </div>
         
         {!initializing && (
