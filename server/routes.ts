@@ -2294,11 +2294,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const storageUsedGB = Math.round(totalStorage / 1024 / 1024 / 1024 * 1000) / 1000;
       const storageQuotaPercentage = Math.round((totalStorage / storageQuotaBytes) * 100);
 
-      // Organization Patterns
-      const folderCounts = folders.map(folder => ({
-        name: folder.name,
-        count: folder.documentCount
-      })).sort((a, b) => b.count - a.count);
+      // Organization Patterns - only include folders with documents
+      const folderCounts = folders
+        .map(folder => ({
+          name: folder.name,
+          count: folder.documentCount
+        }))
+        .filter(folder => folder.count > 0)
+        .sort((a, b) => b.count - a.count);
       const mostActiveFolder = folderCounts[0];
 
       // Tag usage statistics
@@ -2385,7 +2388,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         insights: {
           organizationPatterns: {
-            mostActiveFolder: mostActiveFolder ? `Your most active folder is '${mostActiveFolder.name}' with ${mostActiveFolder.count} documents` : "Upload more documents to see folder patterns",
+            mostActiveFolder: mostActiveFolder && mostActiveFolder.count > 0
+              ? `Your most active folder is '${mostActiveFolder.name}' with ${mostActiveFolder.count} documents`
+              : fileCount > 0 
+                ? "Documents are evenly distributed across folders" 
+                : "Upload documents to see folder patterns",
             tagCount: tags.length,
             mostUsedTag: mostUsedTag ? `You've created ${tags.length} custom tags - '${mostUsedTag.name}' is used ${tagUsageRatio}x more than others` : "Create tags to organize your documents",
           },
