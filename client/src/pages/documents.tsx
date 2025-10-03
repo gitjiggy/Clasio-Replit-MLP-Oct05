@@ -1398,7 +1398,7 @@ export default function Documents() {
                       ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
                   }`}
-                  style={{ flex: '1' }}
+                  style={{ width: '46px' }}
                   onClick={() => setSearchMode("simple")}
                   data-testid="search-mode-simple"
                 >
@@ -1413,7 +1413,7 @@ export default function Documents() {
                       ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
                   }`}
-                  style={{ flex: '2' }}
+                  style={{ width: '92px' }}
                   onClick={() => setSearchMode("ai")}
                   data-testid="search-mode-ai"
                 >
