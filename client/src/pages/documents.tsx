@@ -1581,7 +1581,7 @@ export default function Documents() {
         </div>
 
         {/* Section 2 (Mobile): Smart Organization - Horizontal Scroll */}
-        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-4 mt-24`}>
+        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-4 mt-12`}>
           {/* Gradient fade indicators */}
           <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
