@@ -1319,15 +1319,15 @@ export default function Documents() {
                           <li key={subFolder.id}>
                             <Button
                               variant="ghost"
-                              className="w-full justify-between px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                              className="w-full justify-between px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground h-auto min-h-[32px]"
                               onClick={() => setSelectedFolderId(selectedFolderId === subFolder.id ? "" : subFolder.id)}
                               data-testid={`subfolder-${subFolder.name.toLowerCase().replace(/\s+/g, '-')}`}
                             >
-                              <div className="flex items-center">
-                                <div className="mr-3 h-3 w-3 rounded-sm" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
-                                <span>{subFolder.name}</span>
+                              <div className="flex items-center flex-1 min-w-0 pr-2">
+                                <div className="mr-3 h-3 w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
+                                <span className="break-words text-left leading-tight">{subFolder.name}</span>
                               </div>
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-muted-foreground flex-shrink-0">
                                 {subFolder.documentCount || 0}
                               </span>
                             </Button>
