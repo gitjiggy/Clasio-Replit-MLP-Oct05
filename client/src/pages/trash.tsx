@@ -375,35 +375,21 @@ export default function Trash() {
                       </div>
                     </div>
 
-                    {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
-                    <div className="grid grid-cols-2 gap-1.5 mt-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          restoreMutation.mutate(document.id);
-                        }}
-                        disabled={restoreMutation.isPending}
-                        data-testid={`button-restore-${document.id}`}
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">Restore</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-slate-100/50 hover:bg-slate-200/70 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                        data-testid={`view-info-${document.id}`}
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">Info</span>
-                      </Button>
-                    </div>
+                    {/* Action Button - Premium Subtle Design with Proper Touch Target */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-1.5 transition-all flex-col gap-0.5 mt-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        restoreMutation.mutate(document.id);
+                      }}
+                      disabled={restoreMutation.isPending}
+                      data-testid={`button-restore-${document.id}`}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span className="text-[10px] font-light tracking-wide">Restore</span>
+                    </Button>
                   </CardContent>
                 </Card>
               );
