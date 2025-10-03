@@ -1794,7 +1794,7 @@ export default function Documents() {
                   data-testid={`document-card-${document.id}`}
                   onClick={() => handleViewDocument(document)}
                 >
-                  <CardContent className="px-4 pt-4 pb-5 flex flex-col h-full overflow-hidden">
+                  <CardContent className="px-4 pt-4 pb-[3px] flex flex-col h-full overflow-hidden">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         <div className="flex-shrink-0">
