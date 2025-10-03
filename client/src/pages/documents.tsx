@@ -1586,15 +1586,15 @@ export default function Documents() {
           <div className="h-full px-6 py-4 flex items-start gap-4 min-w-max">
             {/* Category Cards */}
             {foldersLoading ? (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md w-56 h-[200px] flex items-center justify-center">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[224px] flex items-center justify-center">
                 <div className="text-xs text-muted-foreground">Loading...</div>
               </div>
             ) : hierarchicalFolders.length > 0 ? (
               hierarchicalFolders.map((category) => {
                 return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md w-56 h-[200px] flex flex-col">
+                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[224px] flex flex-col p-5 pb-4">
                     <button
-                      className="w-full flex items-center justify-between text-left mb-3 min-h-[44px] shrink-0"
+                      className="w-full flex items-center justify-between text-left mb-3 h-11 shrink-0"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
                       data-testid={`button-folder-${category.id}`}
                     >
@@ -1607,33 +1607,35 @@ export default function Documents() {
                       </span>
                     </button>
                     {category.subFolders && category.subFolders.length > 0 && (
-                      <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 pr-1">
-                        {category.subFolders.map((subFolder) => (
-                          <button
-                            key={subFolder.id}
-                            className="w-full flex items-center justify-between text-left py-2 px-2.5 rounded-lg hover:bg-purple-50 dark:hover:bg-gray-700 min-h-[40px] transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedFolderId(selectedFolderId === subFolder.id ? "all" : subFolder.id);
-                            }}
-                            data-testid={`button-subfolder-${subFolder.id}`}
-                          >
-                            <div className="flex items-center flex-1 min-w-0">
-                              <div className="mr-2 h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
-                              <span className="text-xs truncate leading-normal font-medium text-gray-700 dark:text-gray-300">{subFolder.name}</span>
-                            </div>
-                            <span className="text-xs text-muted-foreground ml-2 shrink-0 font-medium">
-                              {subFolder.documentCount || 0}
-                            </span>
-                          </button>
-                        ))}
+                      <div className="flex-1 overflow-hidden rounded-lg bg-slate-50/40 dark:bg-gray-900/40 px-3 py-2">
+                        <div className="h-[126px] space-y-2 overflow-y-auto pr-2">
+                          {category.subFolders.map((subFolder) => (
+                            <button
+                              key={subFolder.id}
+                              className="w-full flex items-center justify-between text-left px-2.5 rounded-lg hover:bg-purple-100 dark:hover:bg-gray-700 h-11 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedFolderId(selectedFolderId === subFolder.id ? "all" : subFolder.id);
+                              }}
+                              data-testid={`button-subfolder-${subFolder.id}`}
+                            >
+                              <div className="flex items-center flex-1 min-w-0">
+                                <div className="mr-2 h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
+                                <span className="text-xs truncate leading-normal font-medium text-gray-700 dark:text-gray-300">{subFolder.name}</span>
+                              </div>
+                              <span className="text-xs text-muted-foreground ml-2 shrink-0 font-medium">
+                                {subFolder.documentCount || 0}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
                 );
               })
             ) : (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md w-56 h-[200px] flex items-center justify-center">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[224px] flex items-center justify-center">
                 <div className="text-xs text-muted-foreground text-center">
                   Upload documents to see smart folders
                 </div>
