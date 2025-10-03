@@ -1377,141 +1377,32 @@ export default function Documents() {
       </aside>
 
       {/* Main Content - Mobile Grid Layout */}
-      <main className="md:flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[25vh_25vh_auto] md:grid-rows-none">
-        {/* Section 1 (Mobile): Controls + Filters Combined - 25vh with overflow */}
-        <div className="overflow-y-auto md:overflow-visible bg-card/80 backdrop-blur-sm border-b border-border">
-          {/* Header - Mobile Compact */}
-          <div className="px-3 md:px-6 py-2 md:py-4 border-b md:border-b-0 border-border/50">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-3">
-              <div className="flex items-center gap-2 md:gap-4">
-                <h2 className="text-sm md:text-lg font-light text-foreground tracking-wide">
+      <main className="md:flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[22vh_16vh_auto] md:grid-rows-none">
+        {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
+        <div className="overflow-y-auto md:overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 border-b border-border/30">
+          {/* Header - Clean Premium */}
+          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border/20">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-base md:text-lg font-medium text-foreground">
                   {isMainCategorySelected 
                     ? `${selectedFolder?.name} Sub-folders`
                     : isSubFolderSelected 
                       ? selectedFolder?.name 
-                      : "All Documents"
+                      : "Documents"
                   }
                 </h2>
-                <span className="text-xs md:text-sm text-muted-foreground font-light" data-testid="document-count">
+                <span className="text-xs text-muted-foreground/70" data-testid="document-count">
                   {isMainCategorySelected 
-                    ? `${selectedCategorySubFolders.length} sub-folders`
-                    : `${documentsData?.pagination.total || 0} documents`
+                    ? `${selectedCategorySubFolders.length} folders`
+                    : `${documentsData?.pagination.total || 0}`
                   }
                 </span>
               </div>
               
-              <div className="flex flex-wrap items-center gap-1.5 md:gap-3">
-                {/* Search - Mobile Responsive */}
-                <div className="flex flex-wrap items-center gap-1.5 md:gap-2 w-full md:w-auto">
-                  {/* Search Mode Toggle */}
-                  <div className="flex items-center border border-border rounded-md h-11 md:h-auto">
-                    <Button
-                      variant={searchMode === "simple" ? "default" : "ghost"}
-                      size="sm"
-                      className="rounded-r-none text-xs h-full"
-                      onClick={() => setSearchMode("simple")}
-                      data-testid="search-mode-simple"
-                    >
-                      Simple
-                    </Button>
-                    <Button
-                      variant={searchMode === "ai" ? "default" : "ghost"}
-                      size="sm"
-                      className="rounded-l-none text-xs h-full"
-                      onClick={() => setSearchMode("ai")}
-                      data-testid="search-mode-ai"
-                    >
-                      AI
-                    </Button>
-                  </div>
-                  
-                  {/* Search Input */}
-                  <div className="relative flex-1 md:flex-none">
-                    <Input
-                      type="text"
-                      placeholder={searchMode === "ai" ? "Ask AI..." : "Search..."}
-                      value={searchQuery}
-                      onChange={(e) => handleSearchChange(e.target.value)}
-                      className="w-full md:w-48 lg:w-64 pl-10 text-sm h-11"
-                      data-testid="search-input"
-                    />
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  </div>
-                  
-                  {/* AI Search Go Button */}
-                  {searchMode === "ai" && (
-                    <Button
-                      onClick={handleAISearch}
-                      disabled={!searchQuery.trim() || aiSearchLoading}
-                      className="bg-purple-500 hover:bg-purple-600 text-xs md:text-sm h-11"
-                      data-testid="ai-search-go"
-                    >
-                      {aiSearchLoading ? "..." : "Go!"}
-                    </Button>
-                  )}
-                </div>
-                
-                {/* Queue Status Button - Touch friendly */}
-                <Button
-                  variant="outline"
-                  onClick={() => setQueueDashboardOpen(true)}
-                  className="flex items-center gap-1 md:gap-2 h-11 min-w-[44px]"
-                  size="sm"
-                  data-testid="button-queue-status"
-                >
-                  <Brain className="h-5 w-5 md:h-4 md:w-4" />
-                  <span className="hidden sm:inline text-xs md:text-sm">AI Queue</span>
-                </Button>
-                
-                {/* Smart Organization Button - Mobile only (opens Section 2) */}
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    userToggledSmartOrgRef.current = true;
-                    setShowSmartOrg(!showSmartOrg);
-                  }}
-                  className="flex items-center gap-1 md:gap-2 md:hidden relative h-11 min-w-[44px]"
-                  size="sm"
-                  data-testid="button-smart-org-mobile"
-                >
-                  <Sparkles className="h-5 w-5" />
-                  <span className="text-xs">Smart</span>
-                  {hierarchicalFolders.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0 h-4 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300">
-                      {hierarchicalFolders.length}
-                    </Badge>
-                  )}
-                </Button>
-                
-                {/* Desktop Smart Organization - Run All */}
-                <Button
-                  variant="outline"
-                  onClick={() => organizeAllMutation.mutate()}
-                  disabled={organizeAllMutation.isPending}
-                  className="hidden md:flex items-center gap-2"
-                  size="sm"
-                  data-testid="button-organize-all"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  <span className="text-xs md:text-sm">{organizeAllMutation.isPending ? 'Organizing...' : 'Run Smart Org'}</span>
-                </Button>
-                
-                {/* Delete All Button - Touch friendly */}
-                {documentsData?.documents && documentsData.documents.length > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => deleteAllDocumentsMutation.mutate()}
-                    disabled={deleteAllDocumentsMutation.isPending}
-                    className="flex items-center gap-1 md:gap-2 h-11 min-w-[44px]"
-                    size="sm"
-                    data-testid="button-delete-all"
-                  >
-                    <Trash2 className="h-5 w-5 md:h-4 md:w-4" />
-                    <span className="hidden sm:inline text-xs md:text-sm">{deleteAllDocumentsMutation.isPending ? 'Del...' : 'Delete All'}</span>
-                  </Button>
-                )}
-                
-                {/* Upload Button - Touch friendly */}
+              {/* Primary Actions Row */}
+              <div className="flex items-center gap-2">
+                {/* Upload Button - Primary CTA */}
                 <ObjectUploader
                   maxNumberOfFiles={5}
                   maxFileSize={50 * 1024 * 1024}
@@ -1521,58 +1412,154 @@ export default function Documents() {
                   onComplete={handleUploadComplete}
                   onBulkUploadComplete={handleBulkUploadComplete}
                   onSuccess={handleUploadSuccess}
-                  buttonClassName="bg-purple-500 hover:bg-purple-600 text-white text-xs md:text-sm h-11 min-w-[44px] flex items-center gap-1 md:gap-2"
+                  buttonClassName="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-xs md:text-sm h-9 px-3 md:px-4 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2"
                 >
-                  <Upload className="h-5 w-5 md:h-4 md:w-4" />
-                  <span className="hidden md:inline">Upload</span>
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline font-medium">Upload</span>
                 </ObjectUploader>
+                
+                {/* Smart Organization Button - Mobile only */}
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    userToggledSmartOrgRef.current = true;
+                    setShowSmartOrg(!showSmartOrg);
+                  }}
+                  className="md:hidden h-9 px-3 bg-purple-50/80 hover:bg-purple-100/80 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 rounded-lg border border-purple-200/50 dark:border-purple-700/50"
+                  data-testid="button-smart-org-mobile"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {hierarchicalFolders.length > 0 && (
+                    <span className="ml-1.5 text-xs font-medium">{hierarchicalFolders.length}</span>
+                  )}
+                </Button>
+                
+                {/* Desktop Smart Organization */}
+                <Button
+                  variant="ghost"
+                  onClick={() => organizeAllMutation.mutate()}
+                  disabled={organizeAllMutation.isPending}
+                  className="hidden md:flex h-9 px-3 bg-purple-50/80 hover:bg-purple-100/80 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 rounded-lg border border-purple-200/50 dark:border-purple-700/50"
+                  data-testid="button-organize-all"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  <span className="text-xs font-medium">{organizeAllMutation.isPending ? 'Organizing...' : 'Smart Org'}</span>
+                </Button>
+                
+                {/* AI Queue Status */}
+                <Button
+                  variant="ghost"
+                  onClick={() => setQueueDashboardOpen(true)}
+                  className="h-9 px-3 bg-slate-50/80 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 rounded-lg border border-slate-200/50 dark:border-slate-700/50"
+                  data-testid="button-queue-status"
+                >
+                  <Brain className="h-4 w-4" />
+                </Button>
+                
+                {/* Delete All */}
+                {documentsData?.documents && documentsData.documents.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => deleteAllDocumentsMutation.mutate()}
+                    disabled={deleteAllDocumentsMutation.isPending}
+                    className="h-9 px-3 bg-rose-50/80 hover:bg-rose-100/80 dark:bg-rose-900/20 dark:hover:bg-rose-800/30 text-rose-600 dark:text-rose-400 rounded-lg border border-rose-200/50 dark:border-rose-700/50"
+                    data-testid="button-delete-all"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Filters - Mobile Compact */}
-          <div className="px-3 md:px-6 py-2 md:py-3">
-            <div className="flex flex-wrap items-center gap-2 md:gap-4">
-              <div className="flex items-center gap-2">
-                <label className="text-xs md:text-sm font-light text-foreground">Type:</label>
-                <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-                  <SelectTrigger className="w-28 md:w-40 text-xs md:text-sm h-11" data-testid="filter-type">
-                    <SelectValue placeholder="All Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="pdf">PDF</SelectItem>
-                    <SelectItem value="docx">Word Documents</SelectItem>
-                    <SelectItem value="xlsx">Excel</SelectItem>
-                    <SelectItem value="image">Images</SelectItem>
-                  </SelectContent>
-                </Select>
+          {/* Search & Filters - Clean Layout */}
+          <div className="px-4 md:px-6 py-2.5 space-y-2.5">
+            {/* Search Row */}
+            <div className="flex items-center gap-2">
+              {/* Search Mode Toggle */}
+              <div className="flex items-center bg-white dark:bg-gray-800 border border-border/30 rounded-lg overflow-hidden h-9">
+                <Button
+                  variant={searchMode === "simple" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none text-xs h-full px-3 border-0"
+                  onClick={() => setSearchMode("simple")}
+                  data-testid="search-mode-simple"
+                >
+                  Text
+                </Button>
+                <Button
+                  variant={searchMode === "ai" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none text-xs h-full px-3 border-0"
+                  onClick={() => setSearchMode("ai")}
+                  data-testid="search-mode-ai"
+                >
+                  AI
+                </Button>
               </div>
               
-              <div className="flex items-center gap-2">
-                <label className="text-xs md:text-sm font-light text-foreground">Folder:</label>
-                <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                  <SelectTrigger className="w-28 md:w-40 text-xs md:text-sm h-11" data-testid="filter-folder">
-                    <SelectValue placeholder="All Folders" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Folders</SelectItem>
-                    {folders
-                      .filter(folder => folder.isAutoCreated && !folder.parentId)
-                      .map((folder) => (
-                      <SelectItem key={folder.id} value={folder.id}>
-                        {folder.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Input
+                  type="text"
+                  placeholder={searchMode === "ai" ? "Ask AI about your documents..." : "Search documents..."}
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="w-full pl-9 text-xs h-9 bg-white dark:bg-gray-800 border-border/30 rounded-lg"
+                  data-testid="search-input"
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
               </div>
+              
+              {/* AI Search Go Button */}
+              {searchMode === "ai" && (
+                <Button
+                  onClick={handleAISearch}
+                  disabled={!searchQuery.trim() || aiSearchLoading}
+                  className="h-9 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-xs rounded-lg"
+                  data-testid="ai-search-go"
+                >
+                  {aiSearchLoading ? "..." : "Search"}
+                </Button>
+              )}
+            </div>
+            
+            {/* Filters Row */}
+            <div className="flex items-center gap-2">
+              <Select value={selectedFileType} onValueChange={setSelectedFileType}>
+                <SelectTrigger className="w-32 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-type">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="pdf">PDF</SelectItem>
+                  <SelectItem value="docx">Word</SelectItem>
+                  <SelectItem value="xlsx">Excel</SelectItem>
+                  <SelectItem value="image">Images</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+                <SelectTrigger className="flex-1 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-folder">
+                  <SelectValue placeholder="All Folders" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Folders</SelectItem>
+                  {folders
+                    .filter(folder => folder.isAutoCreated && !folder.parentId)
+                    .map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               
               <Button 
                 variant="ghost" 
                 onClick={clearFilters}
                 size="sm"
-                className="text-xs md:text-sm text-muted-foreground hover:text-foreground font-light h-11 min-w-[44px]"
+                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground bg-slate-50/50 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 rounded-lg border border-slate-200/50 dark:border-slate-700/50"
                 data-testid="clear-filters"
               >
                 Clear
@@ -1794,16 +1781,16 @@ export default function Documents() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
               {/* Display either AI search results or regular documents */}
               {(searchMode === "ai" && aiSearchResults ? aiSearchResults.documents : documentsData?.documents)?.map((document: any) => (
                 <Card 
                   key={document.id} 
-                  className="group hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm" 
+                  className="group hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[420px] flex flex-col" 
                   data-testid={`document-card-${document.id}`}
                   onClick={() => handleViewDocument(document)}
                 >
-                  <CardContent className="p-5">
+                  <CardContent className="p-4 flex flex-col h-full overflow-hidden">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         <div className="flex-shrink-0">
@@ -1909,65 +1896,63 @@ export default function Documents() {
                       )}
                     </div>
                     
-                    {/* AI Analysis Results */}
+                    {/* AI Analysis Results - Scrollable */}
                     {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
-                      <div className="mb-4 p-3 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/20 dark:to-indigo-950/20 rounded-xl border border-purple-200/50 dark:border-purple-500/30">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-                          <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+                      <div className="mb-3 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0 max-h-[140px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
+                        <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-purple-50/40 dark:bg-purple-950/10 pb-1">
+                          <Sparkles className="h-3 w-3 text-purple-500 dark:text-purple-400" />
+                          <span className="text-xs font-medium text-purple-600 dark:text-purple-300">
                             {document.aiSummary ? 'AI Analysis' : 'Classification'}
                           </span>
                         </div>
                         {document.aiSummary && (
-                          <p className="text-xs text-purple-600 dark:text-purple-400 mb-2 leading-relaxed font-light hover:text-purple-800 dark:hover:text-purple-300 transition-colors duration-200">{document.aiSummary}</p>
-                        )}
-                        {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {document.aiKeyTopics.map((topic, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs bg-purple-100 dark:bg-gray-800 text-purple-500 dark:text-purple-300">
-                                {topic}
-                              </Badge>
-                            ))}
-                          </div>
+                          <p className="text-xs text-purple-600/90 dark:text-purple-400/90 mb-2 leading-relaxed font-light line-clamp-3">{document.aiSummary}</p>
                         )}
                         {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
-                          <div className="text-xs text-purple-500 dark:text-purple-400 mt-1 space-y-1">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                              <span className="text-xs truncate">Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
-                              <div className="flex items-center gap-1 flex-wrap">
-                                {document.overrideCategory && (
-                                  <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-category-${document.id}`}>
+                          <div className="text-xs text-purple-500/80 dark:text-purple-400/80 mb-2 space-y-1">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs truncate">Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                                {document.overrideCategory ? (
+                                  <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-category-${document.id}`}>
                                     Custom
                                   </span>
-                                )}
-                                {!document.overrideCategory && formatConfidence(document.aiCategoryConfidence) && (
-                                  <span className="text-xs bg-purple-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-medium whitespace-nowrap" data-testid={`confidence-category-${document.id}`}>
-                                    Conf: {formatConfidence(document.aiCategoryConfidence)}
+                                ) : formatConfidence(document.aiCategoryConfidence) && (
+                                  <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-category-${document.id}`}>
+                                    {formatConfidence(document.aiCategoryConfidence)}
                                   </span>
                                 )}
                               </div>
                             </div>
                             {(document.overrideDocumentType || document.aiDocumentType) && (
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                                <span className="text-xs truncate">Sub-folder: {
-                                  (document.folder?.parentId ? document.folder.name : null) ||
-                                  document.overrideDocumentType || 
-                                  document.aiDocumentType
-                                }</span>
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  {document.overrideDocumentType && (
-                                    <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs truncate">Sub-folder: {
+                                    (document.folder?.parentId ? document.folder.name : null) ||
+                                    document.overrideDocumentType || 
+                                    document.aiDocumentType
+                                  }</span>
+                                  {document.overrideDocumentType ? (
+                                    <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-type-${document.id}`}>
                                       Custom
                                     </span>
-                                  )}
-                                  {!document.overrideDocumentType && formatConfidence(document.aiDocumentTypeConfidence) && (
-                                    <span className="text-xs bg-purple-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-medium whitespace-nowrap" data-testid={`confidence-type-${document.id}`}>
-                                      Conf: {formatConfidence(document.aiDocumentTypeConfidence)}
+                                  ) : formatConfidence(document.aiDocumentTypeConfidence) && (
+                                    <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-type-${document.id}`}>
+                                      {formatConfidence(document.aiDocumentTypeConfidence)}
                                     </span>
                                   )}
                                 </div>
                               </div>
                             )}
+                          </div>
+                        )}
+                        {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1 border-t border-purple-200/30 dark:border-purple-500/20">
+                            {document.aiKeyTopics.map((topic, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs bg-purple-100/60 dark:bg-gray-800/60 text-purple-600 dark:text-purple-300 border-0">
+                                {topic}
+                              </Badge>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -2003,35 +1988,38 @@ export default function Documents() {
                       </div>
                     )}
 
-                    {/* Mobile-First Action Buttons - Responsive grid with premium colors */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
+                    <div className="grid grid-cols-4 gap-1.5 mt-auto">
                       <Button
                         size="sm"
-                        className="bg-gradient-to-r from-indigo-400 to-indigo-500 hover:from-indigo-500 hover:to-indigo-600 text-white border-0 px-2 sm:px-3 shadow-sm hover:shadow-md transition-all"
+                        variant="ghost"
+                        className="h-11 bg-slate-100/50 hover:bg-slate-200/70 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 px-2 transition-all"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDownload(document);
                         }}
                         data-testid={`download-${document.id}`}
                       >
-                        <Download className="h-3.5 w-3.5 sm:mr-1.5" />
-                        <span className="text-xs font-medium hidden sm:inline">Download</span>
+                        <Download className="h-3.5 w-3.5 sm:mr-1" />
+                        <span className="text-xs hidden sm:inline">Get</span>
                       </Button>
                       <Button 
-                        size="sm" 
-                        className="bg-gradient-to-r from-green-400 to-green-500 hover:from-green-500 hover:to-green-600 text-white border-0 px-2 sm:px-3 shadow-sm hover:shadow-md transition-all"
+                        size="sm"
+                        variant="ghost"
+                        className="h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-2 transition-all"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenDocumentFile(document);
                         }}
                         data-testid={`preview-${document.id}`}
                       >
-                        <Eye className="h-3.5 w-3.5 sm:mr-1.5" />
-                        <span className="text-xs font-medium hidden sm:inline">View</span>
+                        <Eye className="h-3.5 w-3.5 sm:mr-1" />
+                        <span className="text-xs hidden sm:inline">View</span>
                       </Button>
                       <Button
                         size="sm"
-                        className="bg-gradient-to-r from-purple-400 to-violet-500 hover:from-purple-500 hover:to-violet-600 text-white border-0 px-2 sm:px-3 shadow-sm hover:shadow-md transition-all"
+                        variant="ghost"
+                        className="h-11 bg-purple-100/50 hover:bg-purple-200/70 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-700/50 px-2 transition-all"
                         onClick={(e) => {
                           e.stopPropagation();
                           analyzeDocumentMutation.mutate(document.id);
@@ -2039,12 +2027,13 @@ export default function Documents() {
                         disabled={analyzeDocumentMutation.isPending}
                         data-testid={`analyze-ai-${document.id}`}
                       >
-                        <Brain className="h-3.5 w-3.5 sm:mr-1.5" />
-                        <span className="text-xs font-medium hidden sm:inline">AI</span>
+                        <Brain className="h-3.5 w-3.5 sm:mr-1" />
+                        <span className="text-xs hidden sm:inline">AI</span>
                       </Button>
                       <Button
                         size="sm"
-                        className="bg-gradient-to-r from-rose-400 to-pink-400 hover:from-rose-500 hover:to-pink-500 text-white border-0 px-2 sm:px-3 shadow-sm hover:shadow-md transition-all"
+                        variant="ghost"
+                        className="h-11 bg-rose-100/50 hover:bg-rose-200/70 dark:bg-rose-900/20 dark:hover:bg-rose-800/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-700/50 px-2 transition-all"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteDocumentMutation.mutate(document.id);
@@ -2052,8 +2041,8 @@ export default function Documents() {
                         disabled={deleteDocumentMutation.isPending}
                         data-testid={`delete-${document.id}`}
                       >
-                        <Trash2 className="h-3.5 w-3.5 sm:mr-1.5" />
-                        <span className="text-xs font-medium hidden sm:inline">Delete</span>
+                        <Trash2 className="h-3.5 w-3.5 sm:mr-1" />
+                        <span className="text-xs hidden sm:inline">Del</span>
                       </Button>
                     </div>
                   </CardContent>
