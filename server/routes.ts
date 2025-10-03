@@ -1229,10 +1229,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get document with folder and tags
       const documentWithDetails = await storage.getDocumentById(document.id);
       
-      // Trigger background content extraction with proper automation pipeline
-      const correlationId = (req as any).reqId; // Capture for background operations
+      // Queue for AI analysis immediately - don't wait for content extraction
+      try {
+        await storage.enqueueDocumentForAnalysis(document.id, userId, 5); // Normal priority
+        console.info(JSON.stringify({
+          evt: "standard_upload.analysis_queued",
+          reqId: (req as any).reqId,
+          uid: userId,
+          docId: document.id,
+          filename: document.name,
+          timestamp: new Date().toISOString()
+        }));
+      } catch (analysisError) {
+        console.error(JSON.stringify({
+          evt: "standard_upload.analysis_queue_failed",
+          reqId: (req as any).reqId,
+          uid: userId,
+          docId: document.id,
+          filename: document.name,
+          error: analysisError instanceof Error ? analysisError.message : String(analysisError),
+          stack: analysisError instanceof Error ? analysisError.stack : undefined,
+          timestamp: new Date().toISOString()
+        }));
+      }
+      
+      // Trigger background content extraction (fire-and-forget for better UX)
+      const correlationId = (req as any).reqId;
       storage.extractDocumentContent(document.id, userId)
-        .then(async (success) => {
+        .then(success => {
           if (success) {
             console.info(JSON.stringify({
               evt: "standard_upload.content_extracted",
@@ -1242,29 +1266,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               filename: document.name,
               timestamp: new Date().toISOString()
             }));
-            
-            // 🚀 AUTO-QUEUE AI ANALYSIS: Only after content extraction succeeds
-            try {
-              await storage.enqueueDocumentForAnalysis(document.id, userId, 5); // Normal priority
-              console.info(JSON.stringify({
-                evt: "standard_upload.analysis_queued",
-                reqId: correlationId,
-                uid: userId,
-                docId: document.id,
-                filename: document.name,
-                timestamp: new Date().toISOString()
-              }));
-            } catch (analysisError) {
-              console.warn(JSON.stringify({
-                evt: "standard_upload.analysis_queue_failed",
-                reqId: correlationId,
-                uid: userId,
-                docId: document.id,
-                filename: document.name,
-                error: analysisError instanceof Error ? analysisError.message : String(analysisError),
-                timestamp: new Date().toISOString()
-              }));
-            }
           } else {
             console.error(JSON.stringify({
               evt: "standard_upload.content_extraction_failed",
