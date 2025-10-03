@@ -1578,15 +1578,15 @@ export default function Documents() {
         </div>
 
         {/* Section 2 (Mobile): Smart Organization - Horizontal Scroll */}
-        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-hidden snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-2xl shadow-lg pb-3 mt-10 w-[200%]`}>
+        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-hidden snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-2xl shadow-lg pb-3 mt-10`}>
           {/* Gradient fade indicators */}
-          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
+          <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
+          <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           
-          <div className="h-full px-2 py-2.5 flex items-start gap-2 min-w-max">
+          <div className="h-full px-6 py-3 flex items-start gap-3 min-w-max">
             {/* Category Cards */}
             {foldersLoading ? (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-lg p-2.5 shadow-sm w-40 flex items-center justify-center h-32">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-52 h-52 flex items-center justify-center">
                 <div className="text-xs text-muted-foreground">Loading...</div>
               </div>
             ) : hierarchicalFolders.length > 0 ? (
@@ -1595,7 +1595,7 @@ export default function Documents() {
                 const remainingCount = (category.subFolders?.length || 0) - 2;
                 
                 return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-48 h-44 flex flex-col">
+                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-52 h-52 flex flex-col">
                     <button
                       className="w-full flex items-center justify-between text-left mb-2 min-h-[44px] shrink-0"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
@@ -1634,7 +1634,7 @@ export default function Documents() {
                 );
               })
             ) : (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-lg p-2.5 shadow-sm w-40 flex items-center justify-center h-32">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-52 h-52 flex items-center justify-center">
                 <div className="text-xs text-muted-foreground text-center">
                   Upload documents to see smart folders
                 </div>
