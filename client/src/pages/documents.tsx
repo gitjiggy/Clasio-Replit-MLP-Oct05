@@ -1379,7 +1379,7 @@ export default function Documents() {
             {/* Single Row: All Controls - Scrollable */}
             <div className="flex items-center gap-2 min-w-max">
               {/* Title + Document Count */}
-              <div className="flex items-baseline gap-3 pr-2">
+              <div className="flex items-baseline gap-2 pr-2">
                 <h2 className="text-base font-medium text-foreground whitespace-nowrap">
                   {isMainCategorySelected 
                     ? `${selectedFolder?.name} Sub-folders`
@@ -1388,7 +1388,7 @@ export default function Documents() {
                       : "Documents"
                   }
                 </h2>
-                <span className="text-base text-muted-foreground/70 whitespace-nowrap" data-testid="document-count">
+                <span className="text-sm text-muted-foreground/70 whitespace-nowrap" data-testid="document-count">
                   {isMainCategorySelected 
                     ? `${selectedCategorySubFolders.length} folders`
                     : `${documentsData?.pagination.total || 0}`
@@ -1398,7 +1398,7 @@ export default function Documents() {
               
               {/* Filters */}
               <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-                <SelectTrigger className="w-32 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-type">
+                <SelectTrigger className="w-28 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-type">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1411,7 +1411,7 @@ export default function Documents() {
               </Select>
               
               <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                <SelectTrigger className="w-40 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-folder">
+                <SelectTrigger className="w-36 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-folder">
                   <SelectValue placeholder="All Folders" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1430,7 +1430,7 @@ export default function Documents() {
                 variant="ghost" 
                 onClick={clearFilters}
                 size="sm"
-                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground bg-slate-50/50 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 rounded-lg border border-slate-200/50 dark:border-slate-700/50 flex-shrink-0"
+                className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground bg-slate-50/50 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 rounded-lg border border-slate-200/50 dark:border-slate-700/50 flex-shrink-0"
                 data-testid="clear-filters"
               >
                 Clear
@@ -1473,7 +1473,7 @@ export default function Documents() {
                 </div>
                 
                 {/* Compact Search Input */}
-                <div className="relative w-48">
+                <div className="relative w-40">
                   <Input
                     type="text"
                     placeholder={searchMode === "ai" ? "Ask AI..." : "Ask.."}
@@ -1500,7 +1500,7 @@ export default function Documents() {
                 onComplete={handleUploadComplete}
                 onBulkUploadComplete={handleBulkUploadComplete}
                 onSuccess={handleUploadSuccess}
-                buttonClassName="h-11 px-5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 flex-shrink-0"
+                buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 flex-shrink-0"
               >
                 <Upload className="h-5 w-5" />
                 <span>Upload</span>
@@ -1513,7 +1513,7 @@ export default function Documents() {
                   userToggledSmartOrgRef.current = true;
                   setShowSmartOrg(!showSmartOrg);
                 }}
-                className="md:hidden h-11 px-5 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2.5"
+                className="md:hidden h-11 px-4 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
                 data-testid="button-smart-org-mobile"
               >
                 <Sparkles className="h-5 w-5" />
@@ -1527,7 +1527,7 @@ export default function Documents() {
               <Button
                 variant="ghost"
                 onClick={() => setQueueDashboardOpen(true)}
-                className="h-11 px-5 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2.5"
+                className="h-11 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
                 data-testid="button-queue-status"
               >
                 <Brain className="h-5 w-5" />
@@ -1540,7 +1540,7 @@ export default function Documents() {
                   variant="ghost"
                   onClick={() => deleteAllDocumentsMutation.mutate()}
                   disabled={deleteAllDocumentsMutation.isPending}
-                  className="h-11 px-5 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2.5"
+                  className="h-11 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
                   data-testid="button-delete-all"
                 >
                   <Trash2 className="h-5 w-5" />
