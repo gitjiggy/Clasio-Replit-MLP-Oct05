@@ -168,7 +168,7 @@ export interface IStorage {
   createDocument(document: InsertDocument, reqId?: string, idempotencyKey?: string): Promise<Document>;
   getDocuments(filters: DocumentFilters, userId: string): Promise<DocumentWithFolderAndTags[]>;
   getAllActiveDocuments(userId: string): Promise<DocumentWithFolderAndTags[]>;
-  getTrashedDocuments(userId: string): Promise<DocumentWithFolderAndTags[]>;
+  getTrashedDocuments(userId: string): Promise<{ documents: DocumentWithFolderAndTags[] }>;
   emptyTrash(userId: string): Promise<{ deletedCount: number }>;
   purgeExpiredTrashedDocuments(): Promise<{ deletedCount: number }>;
   reconcileGCSPaths(dryRun?: boolean): Promise<{
@@ -653,10 +653,11 @@ export class DatabaseStorage implements IStorage {
     return result as DocumentWithFolderAndTags[];
   }
 
-  async getTrashedDocuments(): Promise<DocumentWithFolderAndTags[]> {
+  async getTrashedDocuments(userId: string): Promise<DocumentWithFolderAndTags[]> {
     await this.ensureInitialized();
+    ensureTenantContext(userId);
     
-    // Get only documents that are trashed (status='trashed')
+    // Get only documents that are trashed (status='trashed') for this user
     const results = await db
       .select({
         document: {
@@ -684,7 +685,10 @@ export class DatabaseStorage implements IStorage {
       })
       .from(documents)
       .leftJoin(folders, eq(documents.folderId, folders.id))
-      .where(eq(documents.status, 'trashed'))
+      .where(and(
+        eq(documents.status, 'trashed'),
+        eq(documents.userId, userId)
+      ))
       .orderBy(desc(documents.deletedAt)); // Show most recently deleted first
 
     // Get tags for each trashed document
@@ -704,7 +708,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    return docsWithTags;
+    return { documents: docsWithTags };
   }
 
   async emptyTrash(userId: string): Promise<{ deletedCount: number }> {

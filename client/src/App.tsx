@@ -69,24 +69,38 @@ function Navigation() {
   else if (location === "/trash") currentTab = "trash";
   
   return (
-    <div className="border-b bg-background">
-      <div className="container mx-auto px-6">
+    <div className="border-b bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 shadow-sm">
+      <div className="container mx-auto px-6 py-2">
         <Tabs value={currentTab} className="w-full">
-          <TabsList className="grid w-full max-w-[600px] grid-cols-3">
-            <TabsTrigger value="documents" asChild>
-              <Link href="/documents" className="flex items-center gap-2" data-testid="tab-documents">
+          <TabsList className="grid w-full max-w-[600px] grid-cols-3 bg-transparent gap-2 p-0 h-auto">
+            <TabsTrigger 
+              value="documents" 
+              asChild
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-md font-semibold rounded-lg transition-all hover:scale-[1.02]"
+            >
+              <Link href="/documents" className="flex items-center gap-2 px-4 py-2" data-testid="tab-documents">
                 <FileText className="h-4 w-4" />
-                Documents
+                <span className="hidden sm:inline">Documents</span>
+                <span className="sm:hidden">Docs</span>
               </Link>
             </TabsTrigger>
-            <TabsTrigger value="drive" asChild>
-              <Link href="/drive" className="flex items-center gap-2" data-testid="tab-drive">
+            <TabsTrigger 
+              value="drive" 
+              asChild
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-md font-semibold rounded-lg transition-all hover:scale-[1.02]"
+            >
+              <Link href="/drive" className="flex items-center gap-2 px-4 py-2" data-testid="tab-drive">
                 <HardDrive className="h-4 w-4" />
-                Google Drive
+                <span className="hidden sm:inline">Google Drive</span>
+                <span className="sm:hidden">Drive</span>
               </Link>
             </TabsTrigger>
-            <TabsTrigger value="trash" asChild>
-              <Link href="/trash" className="flex items-center gap-2" data-testid="tab-trash">
+            <TabsTrigger 
+              value="trash" 
+              asChild
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-slate-600 data-[state=active]:to-slate-700 data-[state=active]:text-white data-[state=active]:shadow-md font-semibold rounded-lg transition-all hover:scale-[1.02]"
+            >
+              <Link href="/trash" className="flex items-center gap-2 px-4 py-2" data-testid="tab-trash">
                 <Trash2 className="h-4 w-4" />
                 Trash
               </Link>

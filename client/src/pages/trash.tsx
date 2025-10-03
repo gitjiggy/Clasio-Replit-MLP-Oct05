@@ -153,6 +153,30 @@ export default function Trash() {
     },
   });
 
+  // Restore all mutation
+  const restoreAllMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/documents/trash/restore-all", {
+        method: "PATCH",
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents/trash"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      toast({
+        title: "✅ All documents restored",
+        description: data.message || `Successfully restored ${data.restoredCount} documents`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to restore all",
+        description: error.details || error.message || "Failed to restore all documents",
+        variant: "destructive",
+      });
+    },
+  });
+
   const trashedDocuments = trashedData?.documents || [];
   const retentionDays = trashConfig?.retentionDays && !isNaN(trashConfig.retentionDays) ? trashConfig.retentionDays : 7;
 
@@ -189,29 +213,41 @@ export default function Trash() {
   }
 
   return (
-    <div className="container mx-auto px-6 py-8" data-testid="page-trash">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Trash</h1>
-            <p className="text-muted-foreground mt-1">
-              {trashConfig?.policy || `Documents are automatically deleted after ${retentionDays} days`}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {trashedDocuments.length > 0 && (
-              <>
-                <Badge variant="secondary" className="text-sm">
-                  {trashedDocuments.length} {trashedDocuments.length === 1 ? 'item' : 'items'}
-                </Badge>
-                <Dialog open={showEmptyTrashDialog} onOpenChange={setShowEmptyTrashDialog}>
-                  <DialogTrigger asChild>
-                    <Button variant="destructive" size="sm" data-testid="button-empty-trash">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Empty Trash
-                    </Button>
-                  </DialogTrigger>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+      <div className="container mx-auto px-6 py-8" data-testid="page-trash">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-700 via-slate-600 to-indigo-600 dark:from-slate-200 dark:via-slate-300 dark:to-indigo-400 bg-clip-text text-transparent">Trash</h1>
+              <p className="text-muted-foreground mt-1">
+                {trashConfig?.policy || `Documents are automatically deleted after ${retentionDays} days`}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {trashedDocuments.length > 0 && (
+                <>
+                  <Badge variant="secondary" className="text-sm">
+                    {trashedDocuments.length} {trashedDocuments.length === 1 ? 'item' : 'items'}
+                  </Badge>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => restoreAllMutation.mutate()}
+                    disabled={restoreAllMutation.isPending}
+                    data-testid="button-restore-all"
+                    className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-sm"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    {restoreAllMutation.isPending ? "Restoring..." : "Restore All"}
+                  </Button>
+                  <Dialog open={showEmptyTrashDialog} onOpenChange={setShowEmptyTrashDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="destructive" size="sm" data-testid="button-empty-trash">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Empty Trash
+                      </Button>
+                    </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
@@ -247,11 +283,11 @@ export default function Trash() {
                   </DialogContent>
                 </Dialog>
               </>
-            )}
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Documents Grid */}
+          {/* Documents Grid */}
         {trashedDocuments.length === 0 ? (
           <div className="text-center py-12">
             <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -263,14 +299,79 @@ export default function Trash() {
         ) : (
           <div className="grid gap-4">
             {trashedDocuments.map((document) => {
-              const daysRemaining = getDaysRemaining(document.deletedAt!, retentionDays);
+              const daysRemaining = getDaysRemaining(document.deletedAt!.toString(), retentionDays);
               const countdownMessage = getCountdownMessage(daysRemaining);
               const isExpiringSoon = daysRemaining <= 1;
 
               return (
                 <Card key={document.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    {/* Mobile Layout */}
+                    <div className="md:hidden space-y-3">
+                      <div className="flex items-start space-x-3">
+                        {/* File Icon */}
+                        <div className="text-muted-foreground flex-shrink-0">
+                          {getFileIcon(document.fileType)}
+                        </div>
+
+                        {/* Document Info */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium truncate" data-testid={`text-document-name-${document.id}`}>
+                            {getDocumentDisplayName(document)}
+                          </h3>
+                          {document.folder && (
+                            <Badge variant="outline" className="text-xs mt-1">
+                              {document.folder.name}
+                            </Badge>
+                          )}
+                          <div className="space-y-1 mt-2 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              Deleted {new Date(document.deletedAt!).toLocaleDateString()}
+                            </div>
+                            <div className={`flex items-center gap-1 ${isExpiringSoon ? 'text-red-600 dark:text-red-400' : ''}`}>
+                              <Clock className="h-3 w-3" />
+                              {countdownMessage}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Actions Row */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => restoreMutation.mutate(document.id)}
+                          disabled={restoreMutation.isPending}
+                          data-testid={`button-restore-${document.id}`}
+                          className="flex items-center gap-1 flex-1"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Restore
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" data-testid={`button-menu-${document.id}`}>
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => restoreMutation.mutate(document.id)}
+                              disabled={restoreMutation.isPending}
+                              data-testid={`menu-restore-${document.id}`}
+                            >
+                              <RotateCcw className="mr-2 h-4 w-4" />
+                              Restore Document
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {/* Desktop Layout */}
+                    <div className="hidden md:flex items-center justify-between">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         {/* File Icon */}
                         <div className="text-muted-foreground">
@@ -304,7 +405,7 @@ export default function Trash() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2 ml-auto md:ml-0">
+                      <div className="flex items-center gap-2">
                         {/* Restore Button */}
                         <Button
                           variant="outline"
@@ -343,23 +444,24 @@ export default function Trash() {
               );
             })}
           </div>
-        )}
-
-        {/* Information Footer */}
-        <div className="mt-8 p-4 bg-muted/50 rounded-lg">
-          <h3 className="font-medium mb-2">About Trash & Restore</h3>
-          <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Documents in trash are automatically deleted after {retentionDays} days</li>
-            <li>• Files are soft-deleted and can be restored within the {retentionDays}-day window</li>
-            <li>• Restore recovers both document metadata and the original file content</li>
-            <li>• After {retentionDays} days, files are permanently deleted and cannot be recovered</li>
-            <li>• Document organization and AI analysis are preserved during restore</li>
-          </ul>
-          {trashConfig?.description && (
-            <p className="text-sm text-muted-foreground mt-2 italic">
-              {trashConfig.description}
-            </p>
           )}
+
+          {/* Information Footer */}
+          <div className="mt-8 p-4 bg-muted/50 rounded-lg">
+            <h3 className="font-medium mb-2">About Trash & Restore</h3>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• Documents in trash are automatically deleted after {retentionDays} days</li>
+              <li>• Files are soft-deleted and can be restored within the {retentionDays}-day window</li>
+              <li>• Restore recovers both document metadata and the original file content</li>
+              <li>• After {retentionDays} days, files are permanently deleted and cannot be recovered</li>
+              <li>• Document organization and AI analysis are preserved during restore</li>
+            </ul>
+            {trashConfig?.description && (
+              <p className="text-sm text-muted-foreground mt-2 italic">
+                {trashConfig.description}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

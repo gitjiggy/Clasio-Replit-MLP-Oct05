@@ -1809,8 +1809,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) {
         return res.status(401).json({ error: "User authentication required" });
       }
-      const trashedDocuments = await storage.getTrashedDocuments(userId);
-      res.json({ documents: trashedDocuments });
+      const result = await storage.getTrashedDocuments(userId);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching trashed documents:", error);
       res.status(500).json({ error: "Failed to fetch trashed documents" });
@@ -2504,6 +2504,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error restoring document:", error);
       res.status(500).json({ error: "Failed to restore document" });
+    }
+  });
+
+  // Restore all documents from trash
+  app.patch("/api/documents/trash/restore-all", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+      
+      // Get all trashed documents for this user
+      const trashedDocs = await storage.getTrashedDocuments(userId);
+      
+      if (trashedDocs.documents.length === 0) {
+        return res.json({ 
+          success: true,
+          message: "No documents to restore",
+          restoredCount: 0
+        });
+      }
+      
+      // Restore each document
+      let restoredCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+      
+      for (const doc of trashedDocs.documents) {
+        try {
+          const result = await storage.restoreDocument(doc.id, userId);
+          if (result.success) {
+            restoredCount++;
+          } else {
+            failedCount++;
+            errors.push(`${doc.name}: ${result.error || 'Unknown error'}`);
+          }
+        } catch (err: any) {
+          failedCount++;
+          errors.push(`${doc.name}: ${err.message || 'Unknown error'}`);
+        }
+      }
+      
+      res.json({ 
+        success: true,
+        message: `Restored ${restoredCount} of ${trashedDocs.documents.length} documents`,
+        restoredCount,
+        failedCount,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error("Error restoring all documents:", error);
+      res.status(500).json({ error: "Failed to restore all documents" });
     }
   });
 
