@@ -3271,8 +3271,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) {
         return res.status(401).json({ error: "User authentication required" });
       }
-      const validatedData = insertTagSchema.parse(req.body);
-      const tag = await storage.createTag(validatedData, userId);
+      // Only validate name and color from request body, userId comes from auth
+      const bodySchema = insertTagSchema.omit({ userId: true });
+      const validatedData = bodySchema.parse(req.body);
+      const tag = await storage.createTag({ ...validatedData, userId }, userId);
       res.status(201).json(tag);
     } catch (error) {
       console.error("Error creating tag:", error);
