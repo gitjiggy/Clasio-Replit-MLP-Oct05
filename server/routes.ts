@@ -2530,7 +2530,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document not found" });
       }
 
-      // Handle Drive vs uploaded documents differently
+      // If force reanalysis, queue the job instead of running immediately
+      if (forceReanalysis) {
+        try {
+          // Enqueue for background analysis
+          await storage.enqueueDocumentForAnalysis(documentId, userId, 1); // High priority for user-requested
+          
+          // Clear any stale error flags
+          await db
+            .update(documents)
+            .set({
+              aiSummary: null,
+              aiKeyTopics: null,
+              aiDocumentType: null,
+              aiCategory: null,
+              aiSentiment: null,
+              aiWordCount: null,
+              aiAnalyzedAt: null,
+              aiConciseName: null,
+              aiCategoryConfidence: null,
+              aiDocumentTypeConfidence: null
+            })
+            .where(and(eq(documents.id, documentId), eq(documents.userId, userId)));
+          
+          return res.json({
+            success: true,
+            message: "Document queued for AI analysis",
+            status: "pending"
+          });
+        } catch (error) {
+          console.error("Failed to enqueue document for reanalysis:", error);
+          return res.status(500).json({ error: "Failed to queue document for analysis" });
+        }
+      }
+
+      // Handle Drive vs uploaded documents differently for immediate analysis
       let success = false;
       
       if (document.driveFileId) {
