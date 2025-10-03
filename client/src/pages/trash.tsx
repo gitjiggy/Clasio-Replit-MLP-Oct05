@@ -3,14 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { DocumentWithFolderAndTags } from "@shared/schema";
 import { getDocumentDisplayName } from "@/lib/documentDisplay";
 import { 
-  MoreVertical,
   Trash2,
   RotateCcw,
   FileText,
@@ -308,11 +306,11 @@ export default function Trash() {
               return (
                 <Card 
                   key={document.id} 
-                  className="group hover:shadow-xl hover:border-red-300 dark:hover:border-red-500 transition-all duration-300 border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[390px] flex flex-col" 
+                  className="group hover:shadow-xl hover:border-red-300 dark:hover:border-red-500 transition-all duration-300 border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full flex flex-col" 
                   data-testid={`trash-document-card-${document.id}`}
                 >
-                  <CardContent className="px-4 pt-4 pb-0 flex flex-col h-full overflow-hidden">
-                    <div className="flex items-start justify-between mb-4">
+                  <CardContent className="px-4 pt-4 pb-2.5 flex flex-col overflow-hidden">
+                    <div className="flex items-start mb-4">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         <div className="flex-shrink-0 text-muted-foreground">
                           {getFileIcon(document.fileType)}
@@ -331,28 +329,6 @@ export default function Trash() {
                           )}
                         </div>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-auto p-1" 
-                            data-testid={`menu-${document.id}`}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => restoreMutation.mutate(document.id)}
-                            disabled={restoreMutation.isPending}
-                            data-testid={`menu-restore-${document.id}`}
-                          >
-                            <RotateCcw className="mr-2 h-4 w-4" />
-                            Restore Document
-                          </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                     </div>
                     
                     {document.tags && document.tags.length > 0 && (
@@ -400,7 +376,7 @@ export default function Trash() {
                     </div>
 
                     {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
-                    <div className="grid grid-cols-2 gap-1.5 mt-2 -mb-2">
+                    <div className="grid grid-cols-2 gap-1.5 mt-2">
                       <Button
                         size="sm"
                         variant="ghost"
