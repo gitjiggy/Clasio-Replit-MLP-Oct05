@@ -2376,12 +2376,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update document
   app.put("/api/documents/:id", express.json(), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      console.log("🔍 PUT /api/documents/:id DEBUG:", {
-        body: req.body,
-        bodyKeys: Object.keys(req.body || {}),
-        contentType: req.headers['content-type'],
-        hasJsonMiddleware: true
-      });
+      console.log("🔍 PUT /api/documents/:id - Raw body:", req.body);
+      console.log("🔍 Headers:", req.headers['content-type']);
+      
+      // If body is still empty, check if raw body exists
+      if (Object.keys(req.body || {}).length === 0 && req.headers['content-type']?.includes('application/json')) {
+        console.error("⚠️ Body parsing failed despite express.json() middleware");
+        console.error("⚠️ This suggests middleware ordering issue or body was consumed elsewhere");
+      }
       
       const { name, folderId, isFavorite, tagIds } = req.body;
       
@@ -3337,27 +3339,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Document-Tags endpoints
   app.post("/api/document-tags", express.json(), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      console.log("🔍 POST /api/document-tags DEBUG:", {
-        body: req.body,
-        user: req.user,
-        userId_from_req: req.userId,
-        userId_from_user: req.user?.uid,
-        headers: req.headers
-      });
-      
-      // Use req.userId which is set by verifyFirebaseToken
+      // The userId needs to be added BEFORE validation
       const userId = req.userId || req.user?.uid;
+      
       if (!userId) {
-        console.error("❌ No userId found in request");
-        return res.status(401).json({ error: "User authentication required" });
+        return res.status(401).json({ error: "User not authenticated" });
       }
       
-      // Add userId to body for validation
-      const bodyWithUserId = { ...req.body, userId };
-      console.log("🔍 bodyWithUserId:", bodyWithUserId);
+      // Add userId to body BEFORE parsing with Zod
+      const bodyWithUser = { ...req.body, userId };
       
-      const validatedData = insertDocumentTagSchema.parse(bodyWithUserId);
-      const documentTag = await storage.addDocumentTag(validatedData, userId);
+      // NOW parse with Zod using safeParse
+      const parsed = insertDocumentTagSchema.safeParse(bodyWithUser);
+      
+      if (!parsed.success) {
+        console.error("Zod validation failed:", parsed.error);
+        return res.status(400).json({ error: parsed.error });
+      }
+      
+      // Continue with validated data
+      const documentTag = await storage.addDocumentTag(parsed.data, userId);
       res.status(201).json(documentTag);
     } catch (error) {
       console.error("Error adding tag to document:", error);

@@ -1,0 +1,62 @@
+Based on the analysis, tell Replit to fix these specific issues:
+For Tags Issue:
+The problem is that userId isn't being properly added to the request body before Zod validation. The fix:
+javascript// In /api/document-tags POST route
+app.post('/api/document-tags', 
+  express.json(),
+  verifyFirebaseToken,
+  async (req, res) => {
+    // The userId needs to be added BEFORE validation
+    const userId = req.userId || req.user?.uid;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    // Add userId to body BEFORE parsing with Zod
+    const bodyWithUser = { ...req.body, userId };
+    
+    // NOW parse with Zod
+    const parsed = insertDocumentTagSchema.safeParse(bodyWithUser);
+    
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error });
+    }
+    
+    // Continue with the rest...
+  }
+);
+For Favorites Issue:
+The body is empty because there's likely a middleware ordering problem. The fix:
+javascript// In /api/documents/:id PUT route
+app.put('/api/documents/:id',
+  express.json(), // This MUST be first
+  verifyFirebaseToken, // This MUST be second
+  async (req, res) => {
+    console.log('Raw body:', req.body);
+    console.log('Headers:', req.headers);
+    
+    // If body is still empty, check if raw body exists
+    if (Object.keys(req.body).length === 0 && req.headers['content-type']?.includes('application/json')) {
+      // Force re-parse if needed
+      try {
+        // This suggests the body wasn't parsed despite express.json()
+        console.error('Body parsing failed despite express.json() middleware');
+      } catch (e) {
+        console.error('Body parsing error:', e);
+      }
+    }
+    
+    // Rest of the code...
+  }
+);
+Tell Replit to also check:
+
+Global middleware conflict - Make sure there's no global body parser that's consuming the body before these routes
+Verify the order - The middleware must be: express.json() → verifyFirebaseToken → route handler
+Check for duplicate route definitions - Make sure these routes aren't defined twice with different middleware
+
+The core issues are:
+
+Tags: userId must be injected into the body BEFORE Zod validation
+Favorites: The body parser isn't working, likely due to middleware ordering or conflict
