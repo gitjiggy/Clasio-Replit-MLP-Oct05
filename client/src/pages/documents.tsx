@@ -1648,7 +1648,7 @@ export default function Documents() {
         </div>
 
         {/* Section 3 (Mobile): Documents Grid - auto height with overflow-y */}
-        <div className="overflow-y-auto md:flex-1 md:overflow-auto p-3 md:p-6 mt-12">
+        <div className="overflow-y-auto md:flex-1 md:overflow-auto p-3 md:p-6 mt-6">
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">
