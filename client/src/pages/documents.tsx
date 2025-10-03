@@ -1578,21 +1578,21 @@ export default function Documents() {
         </div>
 
         {/* Section 2 (Mobile): Smart Organization - Horizontal Scroll */}
-        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-32 mt-10`}>
+        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-4 mt-10`}>
           {/* Gradient fade indicators */}
           <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           
-          <div className="h-full px-6 py-24 flex items-start gap-4 min-w-max">
+          <div className="h-full px-6 py-4 flex items-start gap-4 min-w-max">
             {/* Category Cards */}
             {foldersLoading ? (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[224px] flex items-center justify-center">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[448px] flex items-center justify-center">
                 <div className="text-xs text-muted-foreground">Loading...</div>
               </div>
             ) : hierarchicalFolders.length > 0 ? (
               hierarchicalFolders.map((category) => {
                 return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[224px] flex flex-col p-5 pb-4">
+                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[448px] flex flex-col p-5 pb-4">
                     <button
                       className="w-full flex items-center justify-between text-left mb-3 h-11 shrink-0"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
@@ -1608,7 +1608,7 @@ export default function Documents() {
                     </button>
                     {category.subFolders && category.subFolders.length > 0 && (
                       <div className="flex-1 overflow-hidden rounded-lg bg-slate-50/40 dark:bg-gray-900/40 px-3 py-2">
-                        <div className="h-[126px] space-y-2 overflow-y-auto pr-2">
+                        <div className="h-[378px] space-y-2 overflow-y-auto pr-2">
                           {category.subFolders.map((subFolder) => (
                             <button
                               key={subFolder.id}
@@ -1635,7 +1635,7 @@ export default function Documents() {
                 );
               })
             ) : (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[224px] flex items-center justify-center">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[448px] flex items-center justify-center">
                 <div className="text-xs text-muted-foreground text-center">
                   Upload documents to see smart folders
                 </div>
