@@ -323,7 +323,7 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
     const existingTagNames = availableTags.map(tag => tag.name);
     
     // Combine common tags with existing tags, removing duplicates
-    const allTags = [...new Set([...commonTags, ...existingTagNames])];
+    const allTags = Array.from(new Set([...commonTags, ...existingTagNames]));
     
     return allTags;
   };
@@ -575,7 +575,10 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                     {document.folder ? (
                       <Badge 
                         variant="secondary" 
-                        style={{ backgroundColor: `${document.folder.color}20`, color: document.folder.color }}
+                        style={{ 
+                          backgroundColor: document.folder.color ? `${document.folder.color}20` : '#e5e7eb20',
+                          color: document.folder.color || '#6b7280'
+                        }}
                         className="text-[10px] h-5 px-1.5"
                       >
                         {document.folder.name}
@@ -610,7 +613,10 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                             key={tag.id} 
                             variant="secondary"
                             className="flex items-center gap-1 text-[10px] h-5 px-1.5"
-                            style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+                            style={{ 
+                              backgroundColor: tag.color ? `${tag.color}20` : '#e5e7eb20',
+                              color: tag.color || '#6b7280'
+                            }}
                             data-testid={`tag-${tag.id}`}
                           >
                             <span>{tag.name}</span>
