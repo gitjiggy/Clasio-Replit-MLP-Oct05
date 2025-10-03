@@ -1226,15 +1226,13 @@ export default function Documents() {
   }, [searchQuery, selectedFileType, selectedFolderId, selectedTagId]);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Sidebar - Hidden on mobile, visible on md+ */}
-      <aside className="hidden md:flex w-80 bg-card/80 backdrop-blur-sm border-r border-border flex-col overflow-hidden">
-        
-        {/* Filters Section - At top of sidebar */}
-        <div className="p-4 pb-2 border-b border-border/30">
-          <div className="space-y-2">
+    <div className="flex flex-col h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      {/* Filters Strip - Positioned below navigation, above content */}
+      <div className="border-b bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 shadow-sm">
+        <div className="container mx-auto px-6 py-3">
+          <div className="flex items-center gap-3 max-w-4xl">
             <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-              <SelectTrigger className="w-full text-sm h-10 bg-white dark:bg-gray-800 border-border/40 rounded-lg shadow-sm" data-testid="filter-type">
+              <SelectTrigger className="w-40 text-sm h-10 bg-white dark:bg-gray-800 border-border/40 rounded-lg shadow-sm" data-testid="filter-type">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -1247,7 +1245,7 @@ export default function Documents() {
             </Select>
             
             <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-              <SelectTrigger className="w-full text-sm h-10 bg-white dark:bg-gray-800 border-border/40 rounded-lg shadow-sm" data-testid="filter-folder">
+              <SelectTrigger className="w-52 text-sm h-10 bg-white dark:bg-gray-800 border-border/40 rounded-lg shadow-sm" data-testid="filter-folder">
                 <SelectValue placeholder="All Folders" />
               </SelectTrigger>
               <SelectContent>
@@ -1266,13 +1264,19 @@ export default function Documents() {
               variant="ghost" 
               onClick={clearFilters}
               size="sm"
-              className="w-full h-9 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg border border-blue-200/50 dark:border-blue-700/50"
+              className="h-10 px-5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg border border-blue-200/50 dark:border-blue-700/50 font-semibold"
               data-testid="clear-filters"
             >
               Clear
             </Button>
           </div>
         </div>
+      </div>
+      
+      {/* Main Content Container */}
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        {/* Sidebar - Hidden on mobile, visible on md+ */}
+        <aside className="hidden md:flex w-80 bg-card/80 backdrop-blur-sm border-r border-border flex-col overflow-hidden">
         
         <nav className="flex-1 p-4 overflow-y-auto">
           <ul className="space-y-2">
@@ -2084,6 +2088,7 @@ export default function Documents() {
           )}
         </div>
       </main>
+      </div> {/* Close Main Content Container */}
       
       {/* Document Modal */}
       <DocumentModal
