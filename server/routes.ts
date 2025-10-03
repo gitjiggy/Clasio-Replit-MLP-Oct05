@@ -3324,7 +3324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Document-Tags endpoints
-  app.post("/api/document-tags", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/document-tags", express.json(), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?.uid;
       if (!userId) {

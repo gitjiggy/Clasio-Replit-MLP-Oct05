@@ -418,6 +418,7 @@ export default function Documents() {
   const [searchMode, setSearchMode] = useState<"simple" | "ai">("simple");
   const [aiSearchResults, setAiSearchResults] = useState<any>(null);
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<"all" | "recent" | "favorites">("all");
   
   // Track if user has manually toggled Smart Org (to prevent auto-reopening)
   const userToggledSmartOrgRef = useRef(false);
@@ -1235,7 +1236,12 @@ export default function Documents() {
             <li>
               <Button 
                 variant="ghost" 
-                className="w-full justify-start bg-blue-100/50 hover:bg-blue-200/70 dark:bg-blue-900/20 dark:hover:bg-blue-800/30 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-700/50 font-light tracking-wide text-base"
+                className={`w-full justify-start font-light tracking-wide text-base ${
+                  viewMode === "all" 
+                    ? "bg-blue-100/50 hover:bg-blue-200/70 dark:bg-blue-900/20 dark:hover:bg-blue-800/30 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-700/50"
+                    : "text-foreground hover:bg-accent"
+                }`}
+                onClick={() => setViewMode("all")}
                 data-testid="nav-all-documents"
               >
                 <FileText className="mr-3 h-5 w-5" />
@@ -1245,7 +1251,12 @@ export default function Documents() {
             <li>
               <Button 
                 variant="ghost" 
-                className="w-full justify-start text-foreground hover:bg-accent font-light tracking-wide text-base"
+                className={`w-full justify-start font-light tracking-wide text-base ${
+                  viewMode === "recent" 
+                    ? "bg-blue-100/50 hover:bg-blue-200/70 dark:bg-blue-900/20 dark:hover:bg-blue-800/30 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-700/50"
+                    : "text-foreground hover:bg-accent"
+                }`}
+                onClick={() => setViewMode("recent")}
                 data-testid="nav-recent-uploads"
               >
                 <Upload className="mr-3 h-5 w-5" />
@@ -1255,7 +1266,12 @@ export default function Documents() {
             <li>
               <Button 
                 variant="ghost" 
-                className="w-full justify-start text-foreground hover:bg-accent font-light tracking-wide text-base"
+                className={`w-full justify-start font-light tracking-wide text-base ${
+                  viewMode === "favorites" 
+                    ? "bg-blue-100/50 hover:bg-blue-200/70 dark:bg-blue-900/20 dark:hover:bg-blue-800/30 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-700/50"
+                    : "text-foreground hover:bg-accent"
+                }`}
+                onClick={() => setViewMode("favorites")}
                 data-testid="nav-favorites"
               >
                 <Star className="mr-3 h-5 w-5" />
@@ -1734,7 +1750,23 @@ export default function Documents() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
               {/* Display either AI search results or regular documents */}
-              {(searchMode === "ai" && aiSearchResults ? aiSearchResults.documents : documentsData?.documents)?.map((document: any) => (
+              {(() => {
+                let docs = searchMode === "ai" && aiSearchResults ? aiSearchResults.documents : documentsData?.documents;
+                
+                // Apply view mode filter
+                if (viewMode === "recent") {
+                  // Sort by upload date, showing most recent first (last 7 days or top 20)
+                  docs = docs?.slice().sort((a: any, b: any) => {
+                    const dateA = new Date(a.uploadDate).getTime();
+                    const dateB = new Date(b.uploadDate).getTime();
+                    return dateB - dateA;
+                  }).slice(0, 20);
+                } else if (viewMode === "favorites") {
+                  // Filter to show only favorited documents
+                  docs = docs?.filter((doc: any) => doc.isFavorite);
+                }
+                
+                return docs?.map((document: any) => (
                 <Card 
                   key={document.id} 
                   className="group hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[390px] flex flex-col" 
@@ -1998,7 +2030,8 @@ export default function Documents() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              ));
+              })()}
             </div>
           )}
 
