@@ -1426,7 +1426,7 @@ export default function Documents() {
               <div className="relative w-48">
                 <Input
                   type="text"
-                  placeholder={searchMode === "ai" ? "Ask AI..." : "Search..."}
+                  placeholder={searchMode === "ai" ? "Ask AI..." : "Ask.."}
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   className="w-full px-3 text-sm h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
