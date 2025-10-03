@@ -408,11 +408,19 @@ async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any
     const userInfo = await oauth2.userinfo.get();
     
     const googleUserEmail = userInfo.data.email;
-    if (!googleUserEmail || googleUserEmail !== firebaseUserEmail) {
+    
+    // DEVELOPMENT MODE: Skip email matching for test users
+    const isTestUser = process.env.NODE_ENV === 'development' && firebaseUserEmail === 'test@example.com';
+    
+    if (!isTestUser && (!googleUserEmail || googleUserEmail !== firebaseUserEmail)) {
       return res.status(403).json({ 
         error: "Drive access token does not belong to the authenticated user",
         message: "Token mismatch detected"
       });
+    }
+    
+    if (isTestUser) {
+      console.log(`[Dev Mode] Bypassing email check: Firebase=${firebaseUserEmail}, Google=${googleUserEmail}`);
     }
 
     // Store Drive service in request for reuse
@@ -3489,14 +3497,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Send success message to parent window and close popup
       res.send(`
-        <script>
-          window.opener.postMessage({ 
-            success: true, 
-            email: '${googleUserEmail}',
-            authMethod: 'cookie'
-          }, '*');
-          window.close();
-        </script>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: system-ui, -apple-system, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+            .success-message {
+              background: white;
+              padding: 2rem;
+              border-radius: 12px;
+              box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+              text-align: center;
+            }
+            .checkmark {
+              width: 60px;
+              height: 60px;
+              border-radius: 50%;
+              background: #10b981;
+              color: white;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 32px;
+              margin: 0 auto 1rem;
+            }
+            h1 {
+              margin: 0 0 0.5rem;
+              color: #1f2937;
+              font-size: 24px;
+            }
+            p {
+              margin: 0;
+              color: #6b7280;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="success-message">
+            <div class="checkmark">✓</div>
+            <h1>Connected Successfully!</h1>
+            <p>Returning to Drive...</p>
+          </div>
+          <script>
+            // Send message to parent window
+            if (window.opener) {
+              window.opener.postMessage({ 
+                success: true, 
+                email: '${googleUserEmail}',
+                authMethod: 'cookie'
+              }, '*');
+            }
+            
+            // Close popup after brief delay to show success message
+            setTimeout(() => {
+              window.close();
+              // Fallback: if window.close() is blocked, redirect to main page
+              setTimeout(() => {
+                if (!window.closed) {
+                  window.location.href = '/';
+                }
+              }, 500);
+            }, 1500);
+          </script>
+        </body>
+        </html>
       `);
       
     } catch (error) {
