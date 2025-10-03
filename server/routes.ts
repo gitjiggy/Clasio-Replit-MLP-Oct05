@@ -2389,6 +2389,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (folderId !== undefined) updateData.folderId = folderId;
       if (isFavorite !== undefined) updateData.isFavorite = isFavorite;
       
+      console.log('📝 Update document request:', {
+        documentId: req.params.id,
+        bodyKeys: Object.keys(req.body),
+        body: req.body,
+        name, folderId, isFavorite, tagIds,
+        updateData,
+        updateDataKeys: Object.keys(updateData)
+      });
+      
       const document = await storage.updateDocument(req.params.id, updateData, userId);
 
       if (!document) {
