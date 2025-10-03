@@ -1382,7 +1382,7 @@ export default function Documents() {
       {/* Main Content - Mobile Grid Layout */}
       <main className="flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[22vh_16vh_auto] md:grid-rows-none overflow-hidden">
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
-        <div className="overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 border-b border-border/30">
+        <div className="overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80">
           {/* Header - Clean Premium */}
           <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border/20">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
