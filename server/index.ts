@@ -14,6 +14,7 @@ import { requestTrackingMiddleware, getRequestMetrics, getSystemMetricsSummary }
 import { healthCheck, readinessCheck, getSystemStatus } from './middleware/healthChecks.js';
 import { queueMetrics } from './middleware/queueMetrics.js';
 import { logger } from './logger.js';
+import { validateFirebaseAdmin } from './auth.js';
 
 // Environment variable validation
 function validateEnvironment() {
@@ -377,6 +378,16 @@ app.get('/dashboard', (req, res) => {
   } catch (dbError) {
     console.error('❌ Database initialization failed:', dbError);
     throw new Error('Cannot start server without database connection');
+  }
+
+  // Validate Firebase Admin is properly initialized
+  console.log('🔑 Validating Firebase Admin authentication...');
+  try {
+    validateFirebaseAdmin();
+    console.log('✅ Firebase Admin authentication ready');
+  } catch (authError) {
+    console.error('❌ Firebase Admin validation failed:', authError);
+    throw new Error('Cannot start server without Firebase authentication');
   }
 
   // Start AI Queue Processor for background document analysis (can be disabled for standalone worker deployment)

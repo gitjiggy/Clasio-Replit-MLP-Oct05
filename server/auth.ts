@@ -4,14 +4,14 @@ import { Request, Response, NextFunction } from 'express';
 
 // Initialize Firebase Admin SDK for token verification
 if (!admin.apps.length) {
-  try {
-    // Use GCP service account key for Firebase Admin in production
-    // This allows us to verify ID tokens properly
-    const serviceAccountKey = process.env.GCP_SERVICE_ACCOUNT_KEY;
-    const projectId = process.env.GCP_PROJECT_ID;
-    
-    if (serviceAccountKey && projectId) {
-      console.log('🔑 Initializing Firebase Admin with service account credentials...');
+  // Use GCP service account key for Firebase Admin in production
+  // This allows us to verify ID tokens properly
+  const serviceAccountKey = process.env.GCP_SERVICE_ACCOUNT_KEY;
+  const projectId = process.env.GCP_PROJECT_ID;
+  
+  if (serviceAccountKey && projectId) {
+    console.log('🔑 Initializing Firebase Admin with service account credentials...');
+    try {
       const serviceAccount = JSON.parse(serviceAccountKey);
       
       admin.initializeApp({
@@ -20,22 +20,44 @@ if (!admin.apps.length) {
       });
       
       console.log('✅ Firebase Admin initialized successfully');
-    } else if (projectId) {
-      // Fallback: Initialize with just project ID (works in some environments)
-      console.warn('⚠️  No service account key found. Initializing with project ID only...');
+    } catch (error) {
+      console.error('❌ FATAL: Failed to initialize Firebase Admin with service account:', error);
+      throw new Error(`Firebase Admin initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  } else if (projectId) {
+    // Fallback: Initialize with just project ID (works in some environments)
+    console.warn('⚠️  No service account key found. Initializing with project ID only...');
+    try {
       admin.initializeApp({
         projectId: projectId,
       });
-    } else {
-      // Last resort: Try to use application default credentials
-      console.warn('⚠️  No credentials found. Attempting to use application default credentials...');
-      admin.initializeApp();
+      console.log('✅ Firebase Admin initialized with project ID only');
+    } catch (error) {
+      console.error('❌ FATAL: Failed to initialize Firebase Admin with project ID:', error);
+      throw new Error(`Firebase Admin initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  } else {
+    // No credentials available - cannot initialize
+    console.error('❌ FATAL: No Firebase credentials found. Missing both:');
+    console.error('  - GCP_SERVICE_ACCOUNT_KEY (Firebase service account JSON)');
+    console.error('  - GCP_PROJECT_ID (Firebase project ID)');
+    throw new Error('Firebase Admin cannot be initialized: missing required environment variables');
+  }
+}
+
+// Export function to validate Firebase Admin is ready
+export function validateFirebaseAdmin(): void {
+  if (!admin.apps.length) {
+    throw new Error('Firebase Admin not initialized');
+  }
+  
+  try {
+    // Test that auth() is accessible
+    const auth = admin.auth();
+    console.log('✅ Firebase Admin validation passed');
   } catch (error) {
-    console.error('❌ Failed to initialize Firebase Admin:', error);
-    console.error('This will prevent authentication from working. Check your environment variables:');
-    console.error('- GCP_SERVICE_ACCOUNT_KEY should contain Firebase service account JSON');
-    console.error('- GCP_PROJECT_ID should contain your Firebase project ID');
+    console.error('❌ Firebase Admin validation failed:', error);
+    throw new Error(`Firebase Admin is not properly configured: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
