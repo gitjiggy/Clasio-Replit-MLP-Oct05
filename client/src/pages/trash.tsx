@@ -214,7 +214,7 @@ export default function Trash() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-4 py-8 max-w-full overflow-x-hidden" data-testid="page-trash">
+      <div className="container mx-auto px-4 md:px-6 py-8" data-testid="page-trash">
         <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
