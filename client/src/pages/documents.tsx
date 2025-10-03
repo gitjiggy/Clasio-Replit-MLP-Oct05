@@ -1755,12 +1755,12 @@ export default function Documents() {
                 
                 // Apply view mode filter
                 if (viewMode === "recent") {
-                  // Sort by upload date, showing most recent first (last 7 days or top 20)
+                  // Sort by upload date, showing most recent 5 documents
                   docs = docs?.slice().sort((a: any, b: any) => {
                     const dateA = new Date(a.uploadDate).getTime();
                     const dateB = new Date(b.uploadDate).getTime();
                     return dateB - dateA;
-                  }).slice(0, 20);
+                  }).slice(0, 5);
                 } else if (viewMode === "favorites") {
                   // Filter to show only favorited documents
                   docs = docs?.filter((doc: any) => doc.isFavorite);
