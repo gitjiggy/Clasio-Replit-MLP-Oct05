@@ -1914,7 +1914,7 @@ export default function Documents() {
                           </span>
                         </div>
                         {document.aiSummary && (
-                          <p className="text-xs text-purple-600/90 dark:text-purple-400/90 mb-2 leading-relaxed font-light line-clamp-3">{document.aiSummary}</p>
+                          <p className="text-xs text-purple-600/90 dark:text-purple-400/90 mb-2 leading-relaxed font-light">{document.aiSummary}</p>
                         )}
                         {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
                           <div className="text-xs text-purple-500/80 dark:text-purple-400/80 mb-2 space-y-1">
