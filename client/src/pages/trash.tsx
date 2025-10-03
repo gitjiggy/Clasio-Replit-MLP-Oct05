@@ -214,40 +214,41 @@ export default function Trash() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-6 py-8" data-testid="page-trash">
+      <div className="container mx-auto px-4 py-8 max-w-full overflow-x-hidden" data-testid="page-trash">
         <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
+            <div className="min-w-0 flex-shrink">
               <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-700 via-slate-600 to-indigo-600 dark:from-slate-200 dark:via-slate-300 dark:to-indigo-400 bg-clip-text text-transparent">Trash</h1>
-              <p className="text-muted-foreground mt-1">
+              <p className="text-muted-foreground mt-1 text-sm">
                 {trashConfig?.policy || `Documents are automatically deleted after ${retentionDays} days`}
               </p>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {trashedDocuments.length > 0 && (
                 <>
-                  <Badge variant="secondary" className="text-sm">
+                  <Badge variant="secondary" className="text-xs md:text-sm flex-shrink-0">
                     {trashedDocuments.length} {trashedDocuments.length === 1 ? 'item' : 'items'}
                   </Badge>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => restoreAllMutation.mutate()}
-                    disabled={restoreAllMutation.isPending}
-                    data-testid="button-restore-all"
-                    className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-sm"
-                  >
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    {restoreAllMutation.isPending ? "Restoring..." : "Restore All"}
-                  </Button>
-                  <Dialog open={showEmptyTrashDialog} onOpenChange={setShowEmptyTrashDialog}>
-                    <DialogTrigger asChild>
-                      <Button variant="destructive" size="sm" data-testid="button-empty-trash">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Empty Trash
-                      </Button>
-                    </DialogTrigger>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => restoreAllMutation.mutate()}
+                      disabled={restoreAllMutation.isPending}
+                      data-testid="button-restore-all"
+                      className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-sm text-xs md:text-sm"
+                    >
+                      <RotateCcw className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                      Restore All
+                    </Button>
+                    <Dialog open={showEmptyTrashDialog} onOpenChange={setShowEmptyTrashDialog}>
+                      <DialogTrigger asChild>
+                        <Button variant="destructive" size="sm" data-testid="button-empty-trash" className="text-xs md:text-sm">
+                          <Trash2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                          Empty
+                        </Button>
+                      </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
@@ -282,7 +283,8 @@ export default function Trash() {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-              </>
+                  </div>
+                </>
               )}
             </div>
           </div>
