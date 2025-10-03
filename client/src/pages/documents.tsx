@@ -1234,31 +1234,31 @@ export default function Documents() {
           <ul className="space-y-2">
             <li>
               <Button 
-                variant="default" 
-                className="w-full justify-start"
+                variant="ghost" 
+                className="w-full justify-start bg-blue-100/50 hover:bg-blue-200/70 dark:bg-blue-900/20 dark:hover:bg-blue-800/30 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-700/50 font-light tracking-wide text-base"
                 data-testid="nav-all-documents"
               >
-                <FileText className="mr-3 h-4 w-4" />
+                <FileText className="mr-3 h-5 w-5" />
                 All Documents
               </Button>
             </li>
             <li>
               <Button 
                 variant="ghost" 
-                className="w-full justify-start text-foreground hover:bg-accent"
+                className="w-full justify-start text-foreground hover:bg-accent font-light tracking-wide text-base"
                 data-testid="nav-recent-uploads"
               >
-                <Upload className="mr-3 h-4 w-4" />
+                <Upload className="mr-3 h-5 w-5" />
                 Recent Uploads
               </Button>
             </li>
             <li>
               <Button 
                 variant="ghost" 
-                className="w-full justify-start text-foreground hover:bg-accent"
+                className="w-full justify-start text-foreground hover:bg-accent font-light tracking-wide text-base"
                 data-testid="nav-favorites"
               >
-                <Star className="mr-3 h-4 w-4" />
+                <Star className="mr-3 h-5 w-5" />
                 Favorites
               </Button>
             </li>
