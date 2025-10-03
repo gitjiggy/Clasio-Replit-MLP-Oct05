@@ -1818,7 +1818,7 @@ export default function Documents() {
                           {getFileIcon(document.fileType)}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-light tracking-wide text-foreground truncate mb-0.5 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
+                          <h3 className="text-sm font-light tracking-wide text-indigo-600 dark:text-indigo-400 truncate mb-0.5 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 group-hover:underline transition-all cursor-pointer underline-offset-2" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
                             {getDocumentDisplayName(document)}
                           </h3>
                           <div className="flex items-center gap-2 flex-wrap">
