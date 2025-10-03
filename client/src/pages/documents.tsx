@@ -1549,7 +1549,7 @@ export default function Documents() {
                 )}
               </Button>
               
-              {/* AI Queue Status */}
+              {/* Fun Facts */}
               <Button
                 variant="ghost"
                 onClick={() => setQueueDashboardOpen(true)}
@@ -1557,7 +1557,7 @@ export default function Documents() {
                 data-testid="button-queue-status"
               >
                 <Brain className="h-5 w-5" />
-                <span className="text-sm font-light tracking-wide">AI Queue</span>
+                <span className="text-sm font-light tracking-wide">Fun Facts</span>
               </Button>
               
               {/* Delete All */}
