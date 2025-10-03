@@ -1229,7 +1229,7 @@ export default function Documents() {
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       {/* Sidebar - Hidden on mobile, visible on md+ */}
       <aside className="hidden md:flex w-80 bg-card/80 backdrop-blur-sm border-r border-border flex-col">
-        <div className="p-4 md:p-6 border-b border-border flex items-center justify-center bg-gradient-to-r from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-700 dark:via-indigo-600 dark:to-purple-600">
+        <div className="p-4 md:p-6 border-b border-border flex items-center justify-center bg-black">
           <img 
             src="/attached_assets/noBgColor (1)_1759471370484.png" 
             alt="Clasio AI Documents" 
