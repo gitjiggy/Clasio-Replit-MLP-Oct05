@@ -1583,7 +1583,7 @@ export default function Documents() {
           <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           
-          <div className="h-full px-4 py-2.5 flex items-start gap-2.5 min-w-max">
+          <div className="h-full px-2 py-2.5 flex items-start gap-2 min-w-max">
             {/* Category Cards */}
             {foldersLoading ? (
               <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-lg p-2.5 shadow-sm w-40 flex items-center justify-center h-32">
@@ -1595,7 +1595,7 @@ export default function Documents() {
                 const remainingCount = (category.subFolders?.length || 0) - 2;
                 
                 return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-60 h-44 flex flex-col">
+                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-48 h-44 flex flex-col">
                     <button
                       className="w-full flex items-center justify-between text-left mb-2 min-h-[44px] shrink-0"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
