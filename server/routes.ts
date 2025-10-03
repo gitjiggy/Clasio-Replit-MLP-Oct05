@@ -2374,7 +2374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update document
-  app.put("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.put("/api/documents/:id", express.json(), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       console.log("🔍 PUT /api/documents/:id - Request body:", req.body);
       console.log("🔍 Content-Type:", req.headers['content-type']);
@@ -3337,7 +3337,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) {
         return res.status(401).json({ error: "User authentication required" });
       }
-      const validatedData = insertDocumentTagSchema.parse(req.body);
+      // Add userId to body for validation
+      const bodyWithUserId = { ...req.body, userId };
+      const validatedData = insertDocumentTagSchema.parse(bodyWithUserId);
       const documentTag = await storage.addDocumentTag(validatedData, userId);
       res.status(201).json(documentTag);
     } catch (error) {
