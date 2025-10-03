@@ -1581,7 +1581,7 @@ export default function Documents() {
         </div>
 
         {/* Section 2 (Mobile): Smart Organization - Horizontal Scroll */}
-        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-4 mt-4`}>
+        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-4 mt-10`}>
           {/* Gradient fade indicators */}
           <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
@@ -1648,7 +1648,7 @@ export default function Documents() {
         </div>
 
         {/* Section 3 (Mobile): Documents Grid - auto height with overflow-y */}
-        <div className="overflow-y-auto md:flex-1 md:overflow-auto p-3 md:p-6 mt-4">
+        <div className="overflow-y-auto md:flex-1 md:overflow-auto p-3 md:p-6 mt-12">
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">
