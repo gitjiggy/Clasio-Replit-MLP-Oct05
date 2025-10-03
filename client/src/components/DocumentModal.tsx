@@ -124,8 +124,8 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
         description: `"${tagName}" tag has been created successfully.`,
       });
       // Add the newly created tag to the document
-      if (data.tag?.id) {
-        addTagToDocumentMutation.mutate(data.tag.id);
+      if (data.id) {
+        addTagToDocumentMutation.mutate(data.id);
       }
     },
     onError: (error: any) => {
