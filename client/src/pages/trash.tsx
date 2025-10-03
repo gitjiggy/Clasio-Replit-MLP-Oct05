@@ -270,7 +270,7 @@ export default function Trash() {
               return (
                 <Card key={document.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         {/* File Icon */}
                         <div className="text-muted-foreground">
@@ -304,7 +304,7 @@ export default function Trash() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ml-auto md:ml-0">
                         {/* Restore Button */}
                         <Button
                           variant="outline"
