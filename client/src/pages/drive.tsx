@@ -253,27 +253,12 @@ export default function Drive() {
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <HardDrive className="h-8 w-8 text-blue-600" />
-          <div>
-            <h1 className="text-3xl font-light tracking-wide">Google Drive</h1>
-            <p className="text-muted-foreground font-light tracking-wide">Import and organize your Drive documents with AI</p>
-          </div>
+      <div className="flex items-center gap-3 mb-6">
+        <HardDrive className="h-8 w-8 text-blue-600" />
+        <div>
+          <h1 className="text-3xl font-light tracking-wide">Google Drive</h1>
+          <p className="text-muted-foreground font-light tracking-wide">Import and organize your Drive documents with AI</p>
         </div>
-        <Button 
-          onClick={() => {
-            refetchConnection();
-            refetch();
-          }} 
-          variant="outline" 
-          size="sm" 
-          data-testid="button-refresh-drive"
-          disabled={connectionLoading || documentsLoading}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${(connectionLoading || documentsLoading) ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
       </div>
 
       {/* Connection Status - Compact & Stylish */}
@@ -381,17 +366,33 @@ export default function Drive() {
 
       {connectionStatus?.connected && (
         <>
-          {/* Search - Compact & Stylish */}
-          <div className="mb-6 inline-flex items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-2.5 shadow-sm max-w-md">
-            <Search className="h-4 w-4 text-muted-foreground mr-3 flex-shrink-0" />
-            <input
-              type="text"
-              placeholder="Search Drive documents..."
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm font-light tracking-wide text-foreground placeholder:text-muted-foreground w-full"
-              data-testid="input-drive-search"
-            />
+          {/* Search & Refresh - Compact & Stylish */}
+          <div className="mb-6 flex items-center justify-between gap-4">
+            <div className="inline-flex items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-2.5 shadow-sm max-w-md">
+              <Search className="h-4 w-4 text-muted-foreground mr-3 flex-shrink-0" />
+              <input
+                type="text"
+                placeholder="Search Drive documents..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="bg-transparent border-none outline-none text-sm font-light tracking-wide text-foreground placeholder:text-muted-foreground w-full"
+                data-testid="input-drive-search"
+              />
+            </div>
+            <Button 
+              onClick={() => {
+                refetchConnection();
+                refetch();
+              }} 
+              variant="outline" 
+              size="sm" 
+              className="font-light tracking-wide"
+              data-testid="button-refresh-drive"
+              disabled={connectionLoading || documentsLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${(connectionLoading || documentsLoading) ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
 
           {/* Documents Grid */}
