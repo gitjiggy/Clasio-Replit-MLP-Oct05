@@ -934,11 +934,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date().toISOString()
         }));
 
-        // Step 3: Queue for AI analysis (like other upload routes)
-        let analysisQueued = false;
+        // Step 3: Queue for AI analysis (CRITICAL - fail upload if this fails)
         try {
           await storage.enqueueDocumentForAnalysis(document.id, uid, 5); // Normal priority
-          analysisQueued = true;
           console.info(JSON.stringify({
             evt: "upload-proxy.analysis_queued",
             reqId: (req as any).reqId,
@@ -948,15 +946,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: new Date().toISOString()
           }));
         } catch (analysisError) {
-          console.warn(JSON.stringify({
+          console.error(JSON.stringify({
             evt: "upload-proxy.analysis_queue_failed",
             reqId: (req as any).reqId,
             uid,
             docId: document.id,
             filename: originalname,
             error: analysisError instanceof Error ? analysisError.message : String(analysisError),
+            stack: analysisError instanceof Error ? analysisError.stack : undefined,
             timestamp: new Date().toISOString()
           }));
+          
+          // AI analysis is a core feature - fail the upload if queue creation fails
+          throw new Error(`Upload succeeded but AI analysis failed to start: ${analysisError instanceof Error ? analysisError.message : String(analysisError)}`);
         }
 
         // Step 4: Queue content extraction for background processing (non-blocking)
@@ -1035,7 +1037,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stack: err.stack,
           timestamp: new Date().toISOString()
         }));
-        return res.status(500).json({ error: "proxy upload failed" });
+        // Return the actual error message to surface queue creation failures
+        return res.status(500).json({ error: err.message || "proxy upload failed" });
       }
     }
   );
@@ -1229,7 +1232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get document with folder and tags
       const documentWithDetails = await storage.getDocumentById(document.id);
       
-      // Queue for AI analysis immediately - don't wait for content extraction
+      // Queue for AI analysis immediately (CRITICAL - fail upload if this fails)
       try {
         await storage.enqueueDocumentForAnalysis(document.id, userId, 5); // Normal priority
         console.info(JSON.stringify({
@@ -1251,6 +1254,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stack: analysisError instanceof Error ? analysisError.stack : undefined,
           timestamp: new Date().toISOString()
         }));
+        
+        // AI analysis is a core feature - fail the upload if queue creation fails
+        throw new Error(`Upload succeeded but AI analysis failed to start: ${analysisError instanceof Error ? analysisError.message : String(analysisError)}`);
       }
       
       // Trigger background content extraction (fire-and-forget for better UX)
@@ -1303,7 +1309,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString()
       }));
-      res.status(500).json({ error: "Failed to create document" });
+      // Return the actual error message to surface queue creation failures
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create document" });
     }
   });
 

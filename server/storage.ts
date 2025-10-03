@@ -4874,56 +4874,77 @@ export class DatabaseStorage implements IStorage {
   async enqueueDocumentForAnalysis(documentId: string, userId: string, priority: number = 5): Promise<AiAnalysisQueue> {
     await this.ensureInitialized();
     
-    try {
-      // Estimate tokens based on document content or size
-      const document = await this.getDocumentById(documentId, userId);
-      let estimatedTokens = 3000; // Default estimate
-      
-      if (document && document.documentContent) {
-        // Rough estimate: 1 token ≈ 4 characters
-        estimatedTokens = Math.ceil(document.documentContent.length / 4) + 1000; // Add buffer for prompt
-      } else if (document && document.fileSize) {
-        // Estimate based on file size (very rough)
-        estimatedTokens = Math.min(Math.ceil(document.fileSize / 5), 8000); // Cap at 8k tokens
-      }
-
-      const [queueJob] = await db
-        .insert(aiAnalysisQueue)
-        .values({
-          documentId,
-          userId,
-          priority,
-          estimatedTokens,
-          status: "pending",
-          scheduledAt: new Date(), // Schedule immediately by default
-        })
-        .onConflictDoNothing() // Handle duplicate prevention from unique index
-        .returning();
-
-      if (!queueJob) {
-        // Job already exists, get existing one
-        const existingJob = await db
-          .select()
-          .from(aiAnalysisQueue)
-          .where(
-            and(
-              eq(aiAnalysisQueue.documentId, documentId),
-              inArray(aiAnalysisQueue.status, ["pending", "processing"])
-            )
-          )
-          .limit(1);
-        
-        if (existingJob[0]) {
-          return existingJob[0];
-        }
-        throw new Error("Failed to enqueue document and no existing job found");
-      }
-
-      return queueJob;
-    } catch (error) {
-      console.error(`❌ Failed to enqueue document ${documentId} for analysis:`, error);
-      throw error;
+    // Estimate tokens based on document content or size
+    const document = await this.getDocumentById(documentId, userId);
+    let estimatedTokens = 3000; // Default estimate
+    
+    if (document && document.documentContent) {
+      // Rough estimate: 1 token ≈ 4 characters
+      estimatedTokens = Math.ceil(document.documentContent.length / 4) + 1000; // Add buffer for prompt
+    } else if (document && document.fileSize) {
+      // Estimate based on file size (very rough)
+      estimatedTokens = Math.min(Math.ceil(document.fileSize / 5), 8000); // Cap at 8k tokens
     }
+
+    // Retry logic for constraint violations
+    let attempts = 0;
+    const maxAttempts = 2;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      
+      try {
+        const [queueJob] = await db
+          .insert(aiAnalysisQueue)
+          .values({
+            documentId,
+            userId,
+            priority,
+            estimatedTokens,
+            status: "pending",
+            scheduledAt: new Date(),
+          })
+          .returning();
+
+        return queueJob;
+        
+      } catch (error: any) {
+        // Check if it's a unique constraint violation
+        const isConstraintError = error?.code === '23505' || 
+                                   error?.message?.includes('duplicate key') ||
+                                   error?.message?.includes('unique constraint');
+        
+        if (isConstraintError && attempts < maxAttempts) {
+          // On constraint error, check if job already exists
+          const existingJob = await db
+            .select()
+            .from(aiAnalysisQueue)
+            .where(
+              and(
+                eq(aiAnalysisQueue.documentId, documentId),
+                inArray(aiAnalysisQueue.status, ["pending", "processing"])
+              )
+            )
+            .limit(1);
+          
+          if (existingJob[0]) {
+            // Job already exists and is pending/processing - return it
+            return existingJob[0];
+          }
+          
+          // No existing job found but constraint failed - this is the idempotencyKey collision
+          // Wait a tiny bit and retry with a new auto-generated idempotencyKey
+          await new Promise(resolve => setTimeout(resolve, 10));
+          continue; // Retry the insert
+        }
+        
+        // Not a constraint error, or we've exhausted retries
+        console.error(`❌ Failed to enqueue document ${documentId} for analysis (attempt ${attempts}):`, error);
+        throw error;
+      }
+    }
+    
+    throw new Error(`Failed to enqueue document ${documentId} after ${maxAttempts} attempts`);
   }
 
   async enqueueDocumentForEmbedding(documentId: string, userId: string, priority: number = 8): Promise<AiAnalysisQueue> {
