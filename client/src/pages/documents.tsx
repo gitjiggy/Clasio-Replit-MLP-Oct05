@@ -1615,7 +1615,7 @@ export default function Documents() {
                           {category.subFolders.map((subFolder) => (
                             <button
                               key={subFolder.id}
-                              className="w-full flex items-center justify-between text-left px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-gray-700/50 hover:bg-purple-100 dark:hover:bg-purple-900/30 border border-slate-200/50 dark:border-gray-600/50 transition-all shadow-sm hover:shadow-md"
+                              className="w-full flex items-center justify-between text-left px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-gray-700/50 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all shadow-sm hover:shadow-md"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedFolderId(selectedFolderId === subFolder.id ? "all" : subFolder.id);
