@@ -1503,7 +1503,7 @@ export default function Documents() {
                 buttonClassName="h-11 px-5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 flex-shrink-0"
               >
                 <Upload className="h-5 w-5" />
-                <span className="hidden sm:inline">Upload</span>
+                <span>Upload</span>
               </ObjectUploader>
               
               {/* Smart Organization Button - Mobile only */}
@@ -1513,12 +1513,13 @@ export default function Documents() {
                   userToggledSmartOrgRef.current = true;
                   setShowSmartOrg(!showSmartOrg);
                 }}
-                className="md:hidden h-11 px-4 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0"
+                className="md:hidden h-11 px-5 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2.5"
                 data-testid="button-smart-org-mobile"
               >
                 <Sparkles className="h-5 w-5" />
+                <span className="text-sm font-medium">Smart Org</span>
                 {hierarchicalFolders.length > 0 && (
-                  <span className="ml-1.5 text-xs font-semibold">{hierarchicalFolders.length}</span>
+                  <span className="ml-auto text-xs font-semibold bg-purple-200/50 dark:bg-purple-800/50 px-2 py-0.5 rounded-full">{hierarchicalFolders.length}</span>
                 )}
               </Button>
               
@@ -1526,10 +1527,11 @@ export default function Documents() {
               <Button
                 variant="ghost"
                 onClick={() => setQueueDashboardOpen(true)}
-                className="h-11 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0"
+                className="h-11 px-5 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2.5"
                 data-testid="button-queue-status"
               >
                 <Brain className="h-5 w-5" />
+                <span className="text-sm font-medium">AI Queue</span>
               </Button>
               
               {/* Delete All */}
@@ -1538,10 +1540,11 @@ export default function Documents() {
                   variant="ghost"
                   onClick={() => deleteAllDocumentsMutation.mutate()}
                   disabled={deleteAllDocumentsMutation.isPending}
-                  className="h-11 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0"
+                  className="h-11 px-5 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2.5"
                   data-testid="button-delete-all"
                 >
                   <Trash2 className="h-5 w-5" />
+                  <span className="text-sm font-medium">Delete All</span>
                 </Button>
               )}
             </div>
