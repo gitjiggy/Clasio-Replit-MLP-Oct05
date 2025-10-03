@@ -651,6 +651,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return false;
       };
 
+      let quotaUpdated = false; // Track quota updates for potential rollback
+      let uid: string | undefined;
+      let size: number | undefined;
+      
       try {
         // Entry log with content-type and correlation ID
         console.info(JSON.stringify({ 
@@ -663,10 +667,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (!req.file) return res.status(400).json({ error: "file missing" });
 
-        const { originalname, mimetype, path: filePath, size } = req.file;
-        const uid = req.user?.uid!;
+        const { originalname, mimetype, path: filePath } = req.file;
+        size = req.file.size;
+        uid = req.user?.uid!;
         const forceUpload = req.body.forceUpload === 'true'; // Check if user decided to force upload
-        let quotaUpdated = false; // Track quota updates for potential rollback
         
         console.info(`Upload-proxy processing: ${originalname}, size: ${size}, path: ${filePath}, mimetype: ${mimetype}`);
         
@@ -992,7 +996,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reqId: (req as any).reqId,
           uid,
           docId: document.id,
-          analysisQueued,
           timestamp: new Date().toISOString()
         }));
         
