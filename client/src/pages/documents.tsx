@@ -1471,12 +1471,11 @@ export default function Documents() {
                   <Button
                     variant={searchMode === "simple" ? "default" : "ghost"}
                     size="sm"
-                    className={`rounded-none text-xs font-semibold h-full border-0 gap-1 flex flex-row items-center justify-center ${
+                    className={`rounded-none text-xs font-semibold h-full border-0 gap-1 flex flex-row items-center justify-center flex-1 ${
                       searchMode === "simple" 
                         ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
                         : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
                     }`}
-                    style={{ width: '46px' }}
                     onClick={() => setSearchMode("simple")}
                     data-testid="search-mode-simple"
                   >
@@ -1486,12 +1485,11 @@ export default function Documents() {
                   <Button
                     variant={searchMode === "ai" ? "default" : "ghost"}
                     size="sm"
-                    className={`rounded-none text-xs font-semibold h-full border-0 gap-1 flex items-center justify-center ${
+                    className={`rounded-none text-xs font-semibold h-full border-0 gap-1 flex items-center justify-center flex-1 ${
                       searchMode === "ai" 
                         ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
                         : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
                     }`}
-                    style={{ width: '92px' }}
                     onClick={() => setSearchMode("ai")}
                     data-testid="search-mode-ai"
                   >
