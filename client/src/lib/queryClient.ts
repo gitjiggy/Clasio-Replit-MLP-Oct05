@@ -46,6 +46,16 @@ async function getAuthHeaders(): Promise<{ [key: string]: string }> {
   // Add CSRF protection header for all requests
   headers['X-Requested-With'] = 'XMLHttpRequest';
   
+  // DEVELOPMENT ONLY: Auto-detect Replit dev and use test token
+  const isReplitDev = typeof window !== 'undefined' && window.location.hostname.includes('.replit.dev');
+  const isDev = import.meta.env.DEV || isReplitDev;
+  
+  if (isDev) {
+    // Use test token for dev authentication bypass
+    headers['Authorization'] = 'Bearer test-token-for-automated-testing-only';
+    return headers;
+  }
+  
   if (auth.currentUser) {
     try {
       // Force refresh if token is near expiry to prevent failures
