@@ -1230,15 +1230,11 @@ export default function Documents() {
       {/* Sidebar - Hidden on mobile, visible on md+ */}
       <aside className="hidden md:flex w-64 bg-card/80 backdrop-blur-sm border-r border-border flex-col">
         <div className="p-4 md:p-6 border-b border-border flex items-center justify-center">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-purple-300/20 to-pink-300/10 blur-2xl transform scale-110"></div>
+          <div className="px-4 py-3 rounded-xl bg-gradient-to-br from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-700 dark:via-indigo-600 dark:to-purple-600">
             <img 
               src="/attached_assets/noBgColor (1)_1759471370484.png" 
               alt="Clasio AI Documents" 
-              className="relative max-w-[180px] h-auto drop-shadow-[0_0_40px_rgba(255,255,255,0.3)]"
-              style={{
-                filter: 'drop-shadow(0 0 30px rgba(167, 139, 250, 0.4))'
-              }}
+              className="max-w-[160px] h-auto drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"
             />
           </div>
         </div>
