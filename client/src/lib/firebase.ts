@@ -16,17 +16,20 @@ import {
   setPersistence
 } from "firebase/auth";
 
-// Detect environment for authDomain
-// Production (clasio.ai) uses custom domain
-// Dev uses Firebase default domain (authDomain must be Firebase-hosted)
-const isProduction = typeof window !== 'undefined' && 
-  (window.location.hostname === 'clasio.ai' || window.location.hostname === 'www.clasio.ai');
+// Detect if running on Replit dev or production
+const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+const isReplitDev = currentHostname.includes('.replit.dev');
+const isProduction = currentHostname === 'clasio.ai' || currentHostname === 'www.clasio.ai';
 
-// authDomain MUST be a domain where Firebase hosts OAuth handlers
-// For dev, use Firebase default; for production, use custom domain
-const authDomain = isProduction 
-  ? "clasio.ai" 
-  : "documentorganizerclean-b629f.firebaseapp.com";
+// For Replit dev, use the actual Replit domain as authDomain (whitelisted in Firebase Console)
+// For production, use clasio.ai (custom domain configured in Firebase)
+// Otherwise use Firebase default domain
+let authDomain = "documentorganizerclean-b629f.firebaseapp.com";
+if (isReplitDev && currentHostname) {
+  authDomain = currentHostname;
+} else if (isProduction) {
+  authDomain = "clasio.ai";
+}
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
