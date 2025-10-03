@@ -1226,7 +1226,16 @@ export default function Documents() {
   }, [searchQuery, selectedFileType, selectedFolderId, selectedTagId]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+    <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      {/* Mobile Premium Header - Only visible on mobile */}
+      <header className="md:hidden bg-gradient-to-r from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-800 dark:via-indigo-900 dark:to-purple-900 px-4 py-3 flex items-center justify-between shadow-lg">
+        <h1 className="text-xl font-light text-white tracking-wide flex items-center">
+          <FolderOpen className="mr-2 h-5 w-5" />
+          Clasio
+        </h1>
+        <p className="text-xs text-white/80 font-light tracking-wide">AI Documents</p>
+      </header>
+      
       {/* Sidebar - Hidden on mobile, visible on md+ */}
       <aside className="hidden md:flex w-64 bg-card/80 backdrop-blur-sm border-r border-border flex-col">
         <div className="p-4 md:p-6 border-b border-border">
@@ -1377,7 +1386,7 @@ export default function Documents() {
       </aside>
 
       {/* Main Content - Mobile Grid Layout */}
-      <main className="md:flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[22vh_16vh_auto] md:grid-rows-none">
+      <main className="flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[22vh_16vh_auto] md:grid-rows-none overflow-hidden">
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
         <div className="overflow-y-auto md:overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 border-b border-border/30">
           {/* Header - Clean Premium */}
@@ -1476,21 +1485,30 @@ export default function Documents() {
           <div className="px-4 md:px-6 py-2.5 space-y-2.5">
             {/* Search Row */}
             <div className="flex items-center gap-2">
-              {/* Search Mode Toggle */}
-              <div className="flex items-center bg-white dark:bg-gray-800 border border-border/30 rounded-lg overflow-hidden h-9">
+              {/* Search Mode Toggle - Premium Design */}
+              <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-sm">
                 <Button
                   variant={searchMode === "simple" ? "default" : "ghost"}
                   size="sm"
-                  className="rounded-none text-xs h-full px-3 border-0"
+                  className={`rounded-none text-sm font-semibold h-full px-4 border-0 ${
+                    searchMode === "simple" 
+                      ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                  }`}
                   onClick={() => setSearchMode("simple")}
                   data-testid="search-mode-simple"
                 >
-                  Text
+                  <span className="hidden md:inline">Simple</span>
+                  <span className="md:hidden">Text</span>
                 </Button>
                 <Button
                   variant={searchMode === "ai" ? "default" : "ghost"}
                   size="sm"
-                  className="rounded-none text-xs h-full px-3 border-0"
+                  className={`rounded-none text-sm font-semibold h-full px-4 border-0 ${
+                    searchMode === "ai" 
+                      ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                  }`}
                   onClick={() => setSearchMode("ai")}
                   data-testid="search-mode-ai"
                 >
