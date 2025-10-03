@@ -1266,10 +1266,18 @@ export default function Documents() {
           
           {/* Automatic Organization Folders - Always visible */}
           <div className="mt-6">
-            <h3 className="px-3 text-base md:text-lg font-light text-foreground tracking-wide flex items-center">
-              <Brain className="mr-2.5 h-5 w-5" />
-              Smart Organization
-            </h3>
+            <button
+              onClick={() => organizeAllMutation.mutate()}
+              disabled={organizeAllMutation.isPending}
+              className="w-full px-3 py-2 text-base md:text-lg font-light text-foreground tracking-wide flex items-center hover:bg-purple-50/50 dark:hover:bg-purple-900/20 rounded-lg transition-all cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="button-organize-all"
+            >
+              <Brain className="mr-2.5 h-5 w-5 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform" />
+              <span className="group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                {organizeAllMutation.isPending ? 'Organizing...' : 'Smart Organization'}
+              </span>
+              <Sparkles className="ml-auto h-4 w-4 text-purple-500 opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all" />
+            </button>
             
             {foldersLoading ? (
               <div className="mt-2 px-3 py-4 text-xs text-muted-foreground text-center">
@@ -1512,18 +1520,6 @@ export default function Documents() {
                 {hierarchicalFolders.length > 0 && (
                   <span className="ml-1.5 text-xs font-semibold">{hierarchicalFolders.length}</span>
                 )}
-              </Button>
-              
-              {/* Desktop Smart Organization */}
-              <Button
-                variant="ghost"
-                onClick={() => organizeAllMutation.mutate()}
-                disabled={organizeAllMutation.isPending}
-                className="hidden md:flex h-11 px-5 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all gap-2 flex-shrink-0"
-                data-testid="button-organize-all"
-              >
-                <Sparkles className="h-5 w-5" />
-                <span className="text-sm font-medium whitespace-nowrap">{organizeAllMutation.isPending ? 'Organizing...' : 'Smart Org'}</span>
               </Button>
               
               {/* AI Queue Status */}
