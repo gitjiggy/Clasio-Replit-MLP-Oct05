@@ -1372,7 +1372,7 @@ export default function Documents() {
             <div className="flex items-center gap-2">
               {/* Title + Document Count */}
               <div className="flex items-baseline gap-3">
-                <h2 className="text-base md:text-lg font-medium text-foreground">
+                <h2 className="text-base font-medium text-foreground">
                   {isMainCategorySelected 
                     ? `${selectedFolder?.name} Sub-folders`
                     : isSubFolderSelected 
@@ -1380,7 +1380,7 @@ export default function Documents() {
                       : "Documents"
                   }
                 </h2>
-                <span className="text-xs text-muted-foreground/70" data-testid="document-count">
+                <span className="text-base text-muted-foreground/70" data-testid="document-count">
                   {isMainCategorySelected 
                     ? `${selectedCategorySubFolders.length} folders`
                     : `${documentsData?.pagination.total || 0}`
@@ -1393,7 +1393,7 @@ export default function Documents() {
                 <Button
                   variant={searchMode === "simple" ? "default" : "ghost"}
                   size="sm"
-                  className={`rounded-none text-sm font-semibold h-full px-4 border-0 gap-1.5 ${
+                  className={`rounded-none text-sm font-semibold h-full w-24 border-0 gap-1.5 ${
                     searchMode === "simple" 
                       ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
@@ -1407,7 +1407,7 @@ export default function Documents() {
                 <Button
                   variant={searchMode === "ai" ? "default" : "ghost"}
                   size="sm"
-                  className={`rounded-none text-sm font-semibold h-full px-4 border-0 gap-1.5 ${
+                  className={`rounded-none text-sm font-semibold h-full w-24 border-0 gap-1.5 ${
                     searchMode === "ai" 
                       ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
@@ -1427,7 +1427,7 @@ export default function Documents() {
                   placeholder={searchMode === "ai" ? "Ask AI..." : "Search..."}
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  className="w-full pl-9 pr-3 text-xs h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
+                  className="w-full pl-9 pr-3 text-sm h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
                   data-testid="search-input"
                 />
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
