@@ -1347,7 +1347,7 @@ export default function Documents() {
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
         <div className="overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80">
           {/* Header - Clean Premium Single Row with Horizontal Scroll */}
-          <div className="px-1 md:px-2 py-1 md:py-1.5 border-b border-border/20 overflow-x-auto">
+          <div className="pl-1 md:pl-2 pr-3 md:pr-6 py-1 md:py-1.5 border-b border-border/20 overflow-x-auto">
             {/* Single Row: All Controls - Scrollable */}
             <div className="flex items-center gap-2 min-w-max">
               {/* Title + Document Count */}
