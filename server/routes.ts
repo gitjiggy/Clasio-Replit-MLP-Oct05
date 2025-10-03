@@ -2376,6 +2376,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update document
   app.put("/api/documents/:id", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
+      console.log("🔍 PUT /api/documents/:id - Request body:", req.body);
+      console.log("🔍 Content-Type:", req.headers['content-type']);
+      
       const { name, folderId, isFavorite, tagIds } = req.body;
       
       const userId = req.user?.uid;
@@ -2388,6 +2391,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (name !== undefined) updateData.name = name;
       if (folderId !== undefined) updateData.folderId = folderId;
       if (isFavorite !== undefined) updateData.isFavorite = isFavorite;
+      
+      console.log("🔍 Update data:", updateData);
       
       const document = await storage.updateDocument(req.params.id, updateData, userId);
 

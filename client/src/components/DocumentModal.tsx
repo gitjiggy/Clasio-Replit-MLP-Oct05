@@ -568,7 +568,7 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                 Organization
               </h4>
               
-              <div className="grid grid-cols-2 gap-3 text-xs font-light tracking-wide">
+              <div className="grid grid-cols-3 gap-3 text-xs font-light tracking-wide">
                 <div className="space-y-1.5">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Folder</div>
                   <div>
@@ -590,20 +590,22 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-                    <span>Tags</span>
-                    <button
-                      onClick={() => toggleFavoriteMutation.mutate()}
-                      disabled={toggleFavoriteMutation.isPending}
-                      className="hover:scale-110 transition-transform disabled:opacity-50"
-                      title={document.isFavorite ? "Remove from favorites" : "Add to favorites"}
-                      data-testid="toggle-favorite-star"
-                    >
-                      <Star 
-                        className={`h-4 w-4 ${document.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
-                      />
-                    </button>
-                  </div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Favorites</div>
+                  <button
+                    onClick={() => toggleFavoriteMutation.mutate()}
+                    disabled={toggleFavoriteMutation.isPending}
+                    className="hover:scale-110 transition-transform disabled:opacity-50 w-fit"
+                    title={document.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                    data-testid="toggle-favorite-star"
+                  >
+                    <Star 
+                      className={`h-4 w-4 ${document.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
+                    />
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Tags</div>
                   <div className="space-y-1.5">
                     {/* Existing Tags */}
                     <div className="flex flex-wrap gap-1">
