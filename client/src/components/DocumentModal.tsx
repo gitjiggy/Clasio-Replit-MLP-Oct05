@@ -63,7 +63,7 @@ function HighlightedText({ text, searchQuery }: { text: string; searchQuery?: st
     return parts.map((part, index) => 
       // Parts at odd indices are the captured groups (matches)
       index % 2 === 1 ? 
-        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 px-1 rounded">
+        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
           {part}
         </mark> : 
         part
@@ -73,46 +73,65 @@ function HighlightedText({ text, searchQuery }: { text: string; searchQuery?: st
   return <span>{highlightedText}</span>;
 }
 
-export function DocumentModal({ 
-  document, 
-  open, 
-  onOpenChange, 
-  searchQuery,
-  onDownload 
-}: DocumentModalProps) {
-  // Early return BEFORE any hooks are called to prevent hooks order violations
-  if (!document) return null;
+export function DocumentModal({ document: initialDocument, open, onOpenChange, searchQuery, onDownload }: DocumentModalProps) {
+  if (!initialDocument) return null;
 
-  const [contentExpanded, setContentExpanded] = useState(false);
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
-  const [isEditingClassification, setIsEditingClassification] = useState(false);
-  const [editCategory, setEditCategory] = useState<string>("");
-  const [editDocumentType, setEditDocumentType] = useState<string>("");
-  const [isAddingTag, setIsAddingTag] = useState(false);
-  const [newTagName, setNewTagName] = useState<string>("");
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  
+  const [document] = useState(initialDocument);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // Fetch document content on-demand when modal opens
-  const { data: contentData, isLoading: isLoadingContent } = useQuery({
+  // State for editing classification
+  const [isEditingClassification, setIsEditingClassification] = useState(false);
+  const [editCategory, setEditCategory] = useState('');
+  const [editDocumentType, setEditDocumentType] = useState('');
+
+  // State for tag management
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+
+  // State for content expansion
+  const [contentExpanded, setContentExpanded] = useState(false);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+
+  // Fetch document content (if not already embedded)
+  const { data: contentData, isLoading: isLoadingContent } = useQuery<{ content: string }>({
     queryKey: [`/api/documents/${document.id}/content`],
-    enabled: open && !document.documentContent, // Only fetch if modal is open and content is not already available
+    enabled: !document.documentContent && !!document.id,
+    staleTime: Infinity, // Content doesn't change once extracted
   });
-  
-  // Fetch folders for classification editing
-  const { data: folders = [] } = useQuery<FolderType[]>({
-    queryKey: ['/api/folders'],
-    enabled: open, // Only fetch when modal is open
-  });
-  
-  // Fetch available tags for tagging
+
+  // Fetch available tags
   const { data: availableTags = [] } = useQuery<TagType[]>({
     queryKey: ['/api/tags'],
-    enabled: open, // Only fetch when modal is open
   });
-  
+
+  // Create new tag mutation
+  const createTagMutation = useMutation({
+    mutationFn: async (tagName: string) => {
+      const response = await apiRequest('/api/tags', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: tagName, color: '#6366f1' }), // Default color
+      });
+      return response;
+    },
+    onSuccess: (data, tagName) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tags'] });
+      // Add the newly created tag to the document
+      if (data.id) {
+        addTagToDocumentMutation.mutate(data.id);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Create Tag",
+        description: error.message || "Failed to create new tag.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Update classification mutation
   const updateClassificationMutation = useMutation({
     mutationFn: async (data: { category: string; documentType: string }) => {
@@ -146,30 +165,6 @@ export function DocumentModal({
       toast({
         title: "Update Failed", 
         description: error.message || "Failed to update document classification.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Create new tag mutation
-  const createTagMutation = useMutation({
-    mutationFn: async (tagName: string) => {
-      const response = await apiRequest('/api/tags', {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: tagName }),
-      });
-      return response;
-    },
-    onSuccess: (newTag) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tags'] });
-      // Automatically add the new tag to the document
-      addTagToDocumentMutation.mutate(newTag.id);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to Create Tag",
-        description: error.message || "Failed to create new tag.",
         variant: "destructive",
       });
     },
@@ -303,7 +298,7 @@ export function DocumentModal({
   const formatDate = (date: string | Date) => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
-      month: 'long',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -311,7 +306,7 @@ export function DocumentModal({
   };
 
   const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return 'Unknown size';
+    if (!bytes) return 'Unknown';
     const units = ['B', 'KB', 'MB', 'GB'];
     let size = bytes;
     let unitIndex = 0;
@@ -366,9 +361,9 @@ export function DocumentModal({
   const getPreviewContent = () => {
     if (isLoadingContent) {
       return (
-        <div className="flex items-center justify-center py-8 text-muted-foreground">
-          <div className="animate-pulse flex items-center">
-            <FileText className="h-8 w-8 mr-2" />
+        <div className="flex items-center justify-center py-6 text-muted-foreground">
+          <div className="animate-pulse flex items-center text-xs font-light tracking-wide">
+            <FileText className="h-4 w-4 mr-2" />
             <span>Loading content...</span>
           </div>
         </div>
@@ -377,9 +372,9 @@ export function DocumentModal({
 
     if (!documentContent) {
       return (
-        <div className="flex items-center justify-center py-8 text-muted-foreground">
-          <FileX className="h-8 w-8 mr-2" />
-          <span>Content not available for preview</span>
+        <div className="flex items-center justify-center py-6 text-muted-foreground">
+          <FileX className="h-4 w-4 mr-2" />
+          <span className="text-xs font-light tracking-wide">Content not available for preview</span>
         </div>
       );
     }
@@ -421,37 +416,26 @@ export function DocumentModal({
     };
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium flex items-center">
-            <FileText className="h-4 w-4 mr-2" />
-            Document Content
-            {searchQuery && matches.length > 0 && (
-              <Badge variant="secondary" className="ml-2">
-                <Search className="h-3 w-3 mr-1" />
-                {matches.length} matches found
-              </Badge>
-            )}
-            {searchQuery && matches.length === 0 && (
-              <Badge variant="outline" className="ml-2">
-                <Search className="h-3 w-3 mr-1" />
-                No matches for "{searchQuery}"
-              </Badge>
-            )}
-          </h4>
           <div className="flex items-center space-x-2">
-            {matches.length > 1 && (
-              <div className="flex items-center space-x-1">
+            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Document Content</h4>
+          </div>
+          <div className="flex items-center gap-2">
+            {searchQuery && matches.length > 0 && (
+              <div className="flex items-center bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-md px-2 py-1 border">
+                <Search className="h-3 w-3 mr-1.5 text-muted-foreground" />
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => navigateToMatch('prev')}
                   data-testid="prev-match"
-                  className="h-7 w-7 p-0"
+                  className="h-5 w-5 p-0"
                 >
-                  <ChevronUp className="h-4 w-4" />
+                  <ChevronUp className="h-3 w-3" />
                 </Button>
-                <span className="text-xs text-muted-foreground px-2">
+                <span className="text-[10px] text-muted-foreground px-1.5 font-light tracking-wide">
                   {currentMatchIndex + 1}/{matches.length}
                 </span>
                 <Button
@@ -459,9 +443,9 @@ export function DocumentModal({
                   size="sm"
                   onClick={() => navigateToMatch('next')}
                   data-testid="next-match"
-                  className="h-7 w-7 p-0"
+                  className="h-5 w-5 p-0"
                 >
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-3 w-3" />
                 </Button>
               </div>
             )}
@@ -471,6 +455,7 @@ export function DocumentModal({
                 size="sm"
                 onClick={() => setContentExpanded(!contentExpanded)}
                 data-testid="toggle-content-expansion"
+                className="h-6 px-2 text-[10px] font-light tracking-wide"
               >
                 {contentExpanded ? 'Show Less' : 'Show More'}
               </Button>
@@ -478,99 +463,98 @@ export function DocumentModal({
           </div>
         </div>
         
-        <ScrollArea ref={scrollAreaRef} className="h-64 w-full border rounded-lg p-4 bg-muted/50">
-          <div className="text-sm leading-relaxed whitespace-pre-wrap font-mono">
+        <ScrollArea ref={scrollAreaRef} className="h-48 w-full border rounded-md p-3 bg-muted/30">
+          <div className="text-[11px] leading-relaxed whitespace-pre-wrap font-mono font-light">
             <HighlightedText text={displayContent} searchQuery={searchQuery} />
           </div>
         </ScrollArea>
         
-        <div className="text-xs text-muted-foreground">
-          Content length: {content.length.toLocaleString()} characters
-          {document.contentExtractedAt && (
-            <> • Extracted: {formatDate(document.contentExtractedAt)}</>
-          )}
-        </div>
+        {document.contentExtractedAt && (
+          <div className="text-[10px] text-muted-foreground font-light tracking-wide">
+            {content.length.toLocaleString()} characters • Extracted: {formatDate(document.contentExtractedAt)}
+          </div>
+        )}
       </div>
     );
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-        <div className="flex-shrink-0 px-6 pt-6">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+        <div className="flex-shrink-0 px-4 pt-4">
           <DialogHeader>
-            <DialogTitle className="flex items-center text-lg" title={getDocumentTooltip(document)} data-testid={`document-name-modal-${document.id}`}>
-              <FileText className="h-5 w-5 mr-2" />
+            <DialogTitle className="flex items-center text-base font-light tracking-wide" title={getDocumentTooltip(document)} data-testid={`document-name-modal-${document.id}`}>
+              <FileText className="h-4 w-4 mr-2" />
               <HighlightedText text={getDocumentDisplayName(document)} searchQuery={searchQuery} />
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs font-light tracking-wide">
               Document details and content preview
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 px-6 py-4">
-          <div className="space-y-6">
+        <ScrollArea className="flex-1 min-h-0 px-4 py-3">
+          <div className="space-y-4">
             {/* Basic Information */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">File Name</div>
-                <div className="text-sm font-medium">
+            <div className="grid grid-cols-2 gap-2 text-xs font-light tracking-wide">
+              <div className="space-y-1">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">File Name</div>
+                <div className="text-xs">
                   <HighlightedText text={document.originalName} searchQuery={searchQuery} />
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">File Size</div>
-                <div className="text-sm">{formatFileSize(document.fileSize)}</div>
+              <div className="space-y-1">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">File Size</div>
+                <div className="text-xs">{formatFileSize(document.fileSize)}</div>
               </div>
 
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">File Type</div>
-                <Badge variant="outline">{document.fileType}</Badge>
+              <div className="space-y-1">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">File Type</div>
+                <Badge variant="outline" className="text-[10px] h-5 px-1.5">{document.fileType}</Badge>
               </div>
 
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">Uploaded</div>
-                <div className="text-sm flex items-center">
-                  <Calendar className="h-4 w-4 mr-1" />
+              <div className="space-y-1">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Uploaded</div>
+                <div className="text-xs flex items-center">
+                  <Calendar className="h-3 w-3 mr-1" />
                   {formatDate(document.uploadedAt)}
                 </div>
               </div>
             </div>
 
-            <Separator />
+            <Separator className="my-3" />
 
             {/* Organization */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium">Organization</h4>
+            <div className="space-y-3">
+              <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground flex items-center">
+                <Folder className="h-3.5 w-3.5 mr-1.5" />
+                Organization
+              </h4>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground flex items-center">
-                    <Folder className="h-4 w-4 mr-1" />
-                    Folder
-                  </div>
-                  <div className="text-sm">
+              <div className="grid grid-cols-2 gap-3 text-xs font-light tracking-wide">
+                <div className="space-y-1.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Folder</div>
+                  <div>
                     {document.folder ? (
                       <Badge 
                         variant="secondary" 
                         style={{ backgroundColor: `${document.folder.color}20`, color: document.folder.color }}
+                        className="text-[10px] h-5 px-1.5"
                       >
                         {document.folder.name}
                       </Badge>
                     ) : (
-                      <span className="text-muted-foreground">No folder</span>
+                      <span className="text-[10px] text-muted-foreground">No folder</span>
                     )}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground flex items-center">
-                    <Tag className="h-4 w-4 mr-1" />
-                    Tags
+                <div className="space-y-1.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                    <span>Tags</span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {/* Existing Tags */}
                     <div className="flex flex-wrap gap-1">
                       {document.tags.length > 0 ? (
@@ -578,7 +562,7 @@ export function DocumentModal({
                           <Badge 
                             key={tag.id} 
                             variant="secondary"
-                            className="flex items-center gap-1"
+                            className="flex items-center gap-1 text-[10px] h-5 px-1.5"
                             style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
                             data-testid={`tag-${tag.id}`}
                           >
@@ -593,30 +577,30 @@ export function DocumentModal({
                               title="Remove tag"
                               data-testid={`remove-tag-${tag.id}`}
                             >
-                              <X className="h-3 w-3" />
+                              <X className="h-2.5 w-2.5" />
                             </button>
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-sm text-muted-foreground">No tags</span>
+                        <span className="text-[10px] text-muted-foreground">No tags</span>
                       )}
                     </div>
                     
                     {/* Add Tag Section */}
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1.5">
                       {!isAddingTag ? (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => setIsAddingTag(true)}
                           disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
-                          className="text-xs h-7"
+                          className="text-[10px] h-5 px-2 font-light tracking-wide"
                           data-testid="add-tag-button"
                         >
                           {(createTagMutation.isPending || addTagToDocumentMutation.isPending) ? 'Adding...' : '+ Add Tag'}
                         </Button>
                       ) : (
-                        <div className="flex items-center space-x-2 flex-1">
+                        <div className="flex items-center space-x-1.5 flex-1">
                           <AutocompleteCombobox
                             value={newTagName}
                             onValueChange={setNewTagName}
@@ -624,7 +608,7 @@ export function DocumentModal({
                             placeholder="Select or create tag..."
                             searchPlaceholder="Search tags..."
                             allowCustom={true}
-                            className="flex-1 h-7 text-xs"
+                            className="flex-1 h-6 text-[10px]"
                             disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
                             testId="tag-combobox"
                           />
@@ -637,7 +621,7 @@ export function DocumentModal({
                               }
                             }}
                             disabled={!newTagName.trim() || createTagMutation.isPending || addTagToDocumentMutation.isPending}
-                            className="h-7 px-3 text-xs"
+                            className="h-6 px-2 text-[10px] font-light tracking-wide"
                             data-testid="confirm-add-tag"
                           >
                             {(createTagMutation.isPending || addTagToDocumentMutation.isPending) ? 'Adding...' : 'Add'}
@@ -650,7 +634,7 @@ export function DocumentModal({
                               setNewTagName("");
                             }}
                             disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
-                            className="h-7 px-2"
+                            className="h-6 px-1.5"
                             data-testid="cancel-add-tag"
                           >
                             <X className="h-3 w-3" />
@@ -663,29 +647,29 @@ export function DocumentModal({
               </div>
             </div>
 
-            <Separator />
+            <Separator className="my-3" />
 
             {/* AI Analysis */}
             {(document.aiSummary || document.aiKeyTopics?.length || document.aiCategory || document.aiDocumentType) && (
               <>
-                <div className="space-y-4">
-                  <h4 className="text-sm font-medium">AI Analysis</h4>
+                <div className="space-y-3">
+                  <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">AI Analysis</h4>
                   
                   {document.aiSummary && (
-                    <div className="space-y-2">
-                      <div className="text-sm text-muted-foreground">Summary</div>
-                      <div className="text-sm p-3 bg-muted/50 rounded-lg">
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Summary</div>
+                      <div className="text-xs p-2.5 bg-muted/30 rounded-md font-light tracking-wide leading-relaxed">
                         <HighlightedText text={document.aiSummary} searchQuery={searchQuery} />
                       </div>
                     </div>
                   )}
 
                   {document.aiKeyTopics?.length && (
-                    <div className="space-y-2">
-                      <div className="text-sm text-muted-foreground">Key Topics</div>
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Key Topics</div>
                       <div className="flex flex-wrap gap-1">
                         {document.aiKeyTopics.map((topic, index) => (
-                          <Badge key={index} variant="outline" className="text-xs">
+                          <Badge key={index} variant="outline" className="text-[10px] h-5 px-1.5">
                             <HighlightedText text={topic} searchQuery={searchQuery} />
                           </Badge>
                         ))}
@@ -695,18 +679,18 @@ export function DocumentModal({
 
                   {/* Classification Section with Edit Functionality */}
                   {(document.aiDocumentType || document.aiCategory) && (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="text-sm text-muted-foreground">Classification</div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Classification</div>
                         {!isEditingClassification && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={handleStartEdit}
-                            className="h-7 px-2 text-xs"
+                            className="h-5 px-2 text-[10px] font-light tracking-wide"
                             data-testid="edit-classification"
                           >
-                            <Edit2 className="h-3 w-3 mr-1" />
+                            <Edit2 className="h-2.5 w-2.5 mr-1" />
                             Edit
                           </Button>
                         )}
@@ -714,38 +698,39 @@ export function DocumentModal({
 
                       {!isEditingClassification ? (
                         /* Display Mode */
-                        <div className="space-y-2">
+                        <div className="space-y-1.5 text-xs font-light tracking-wide">
+                          {document.aiCategory && (
+                            <div className="flex items-center justify-between">
+                              <span>
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1.5">Folder:</span> 
+                                {document.overrideCategory || document.aiCategory}
+                                {document.classificationOverridden && document.overrideCategory && (
+                                  <Badge variant="secondary" className="ml-1.5 text-[9px] h-4 px-1">Edited</Badge>
+                                )}
+                              </span>
+                              {formatConfidence(document.aiCategoryConfidence) && (
+                                <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide" data-testid={`modal-confidence-category-${document.id}`}>
+                                  {formatConfidence(document.aiCategoryConfidence)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {document.aiDocumentType && (
                             <div className="flex items-center justify-between">
-                              <span className="text-sm">
-                                <span className="text-muted-foreground">Sub-folder:</span> {
+                              <span>
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1.5">Sub-folder:</span> {
                                   // Prioritize actual folder name from Smart Organization
                                   (document.folder?.parentId ? document.folder.name : null) ||
                                   document.overrideDocumentType || 
                                   document.aiDocumentType
                                 }
                                 {document.classificationOverridden && document.overrideDocumentType && (
-                                  <Badge variant="secondary" className="ml-2 text-xs">Edited</Badge>
+                                  <Badge variant="secondary" className="ml-1.5 text-[9px] h-4 px-1">Edited</Badge>
                                 )}
                               </span>
                               {formatConfidence(document.aiDocumentTypeConfidence) && (
-                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`modal-confidence-type-${document.id}`}>
-                                  Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {document.aiCategory && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">
-                                <span className="text-muted-foreground">Folder:</span> {document.overrideCategory || document.aiCategory}
-                                {document.classificationOverridden && document.overrideCategory && (
-                                  <Badge variant="secondary" className="ml-2 text-xs">Edited</Badge>
-                                )}
-                              </span>
-                              {formatConfidence(document.aiCategoryConfidence) && (
-                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded font-medium" data-testid={`modal-confidence-category-${document.id}`}>
-                                  Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
+                                <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide" data-testid={`modal-confidence-type-${document.id}`}>
+                                  {formatConfidence(document.aiDocumentTypeConfidence)}
                                 </span>
                               )}
                             </div>
@@ -753,9 +738,9 @@ export function DocumentModal({
                         </div>
                       ) : (
                         /* Edit Mode */
-                        <div className="space-y-3">
-                          <div className="space-y-2">
-                            <label className="text-sm text-muted-foreground">Folder</label>
+                        <div className="space-y-2">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Folder</label>
                             <AutocompleteCombobox
                               value={editCategory}
                               onValueChange={handleCategoryChange}
@@ -763,14 +748,14 @@ export function DocumentModal({
                               placeholder="Select or type category..."
                               searchPlaceholder="Search categories..."
                               emptyMessage="No category found."
-                              className="h-8"
+                              className="h-7 text-xs"
                               allowCustom={true}
                               testId="category"
                             />
                           </div>
                           
-                          <div className="space-y-2">
-                            <label className="text-sm text-muted-foreground">Sub-folder</label>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Sub-folder</label>
                             <AutocompleteCombobox
                               value={editDocumentType}
                               onValueChange={setEditDocumentType}
@@ -778,19 +763,19 @@ export function DocumentModal({
                               placeholder="Select or type document type..."
                               searchPlaceholder="Search document types..."
                               emptyMessage="No document type found."
-                              className="h-8"
+                              className="h-7 text-xs"
                               allowCustom={true}
                               disabled={!editCategory}
                               testId="document-type"
                             />
                           </div>
 
-                          <div className="flex gap-2 pt-2">
+                          <div className="flex gap-1.5 pt-1">
                             <Button
                               size="sm"
                               onClick={handleSaveEdit}
                               disabled={!editCategory || !editDocumentType || updateClassificationMutation.isPending}
-                              className="h-7 px-3 text-xs"
+                              className="h-6 px-2 text-[10px] font-light tracking-wide"
                               data-testid="save-classification"
                             >
                               <Check className="h-3 w-3 mr-1" />
@@ -801,7 +786,7 @@ export function DocumentModal({
                               size="sm"
                               onClick={handleCancelEdit}
                               disabled={updateClassificationMutation.isPending}
-                              className="h-7 px-3 text-xs"
+                              className="h-6 px-2 text-[10px] font-light tracking-wide"
                               data-testid="cancel-classification"
                             >
                               <X className="h-3 w-3 mr-1" />
@@ -815,13 +800,13 @@ export function DocumentModal({
 
                   {/* Word Count */}
                   {document.aiWordCount && (
-                    <div className="pt-2">
-                      <div className="text-sm text-muted-foreground">Word Count</div>
-                      <div className="text-sm font-medium">{document.aiWordCount.toLocaleString()}</div>
+                    <div className="pt-1">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Word Count</div>
+                      <div className="text-xs font-light tracking-wide">{document.aiWordCount.toLocaleString()}</div>
                     </div>
                   )}
                 </div>
-                <Separator />
+                <Separator className="my-3" />
               </>
             )}
 
@@ -831,29 +816,30 @@ export function DocumentModal({
         </ScrollArea>
 
         {/* Actions */}
-        <div className="flex justify-between items-center px-6 py-4 border-t flex-shrink-0">
-          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+        <div className="flex justify-between items-center px-4 py-2.5 border-t flex-shrink-0">
+          <div className="flex items-center space-x-1.5 text-[10px] text-muted-foreground font-light tracking-wide">
             {document.isFromDrive && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-[9px] h-4 px-1.5">
                 Google Drive
               </Badge>
             )}
             {document.contentExtracted && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">
                 ✓ Content Indexed
               </Badge>
             )}
           </div>
           
-          <div className="flex space-x-2">
+          <div className="flex space-x-1.5">
             {document.driveWebViewLink && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => window.open(document.driveWebViewLink!, '_blank')}
                 data-testid="open-in-drive"
+                className="h-7 px-2.5 text-[10px] font-light tracking-wide"
               >
-                <ExternalLink className="h-4 w-4 mr-2" />
+                <ExternalLink className="h-3 w-3 mr-1.5" />
                 Open in Drive
               </Button>
             )}
@@ -864,8 +850,9 @@ export function DocumentModal({
                 size="sm"
                 onClick={() => onDownload(document)}
                 data-testid="download-document"
+                className="h-7 px-2.5 text-[10px] font-light tracking-wide"
               >
-                <Download className="h-4 w-4 mr-2" />
+                <Download className="h-3 w-3 mr-1.5" />
                 Download
               </Button>
             )}
