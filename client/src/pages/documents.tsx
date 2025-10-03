@@ -1610,23 +1610,23 @@ export default function Documents() {
                       </span>
                     </button>
                     {category.subFolders && category.subFolders.length > 0 && (
-                      <div className="flex-1 overflow-hidden rounded-lg bg-slate-50/40 dark:bg-gray-900/40 px-3 py-2">
-                        <div className="h-[826px] space-y-2 overflow-y-auto pr-2">
+                      <div className="flex-1 overflow-hidden rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 px-2 py-3">
+                        <div className="h-[826px] space-y-1.5 overflow-y-auto pr-1">
                           {category.subFolders.map((subFolder) => (
                             <button
                               key={subFolder.id}
-                              className="w-full flex items-center justify-between text-left px-2.5 rounded-lg hover:bg-purple-100 dark:hover:bg-gray-700 h-11 transition-colors"
+                              className="w-full flex items-center justify-between text-left px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-gray-700/50 hover:bg-purple-100 dark:hover:bg-purple-900/30 border border-slate-200/50 dark:border-gray-600/50 transition-all shadow-sm hover:shadow-md"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedFolderId(selectedFolderId === subFolder.id ? "all" : subFolder.id);
                               }}
                               data-testid={`button-subfolder-${subFolder.id}`}
                             >
-                              <div className="flex items-center flex-1 min-w-0">
-                                <div className="mr-2 h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
-                                <span className="text-xs truncate leading-normal font-medium text-gray-700 dark:text-gray-300">{subFolder.name}</span>
+                              <div className="flex items-center flex-1 min-w-0 gap-2.5">
+                                <div className="h-3 w-3 rounded-full shrink-0 shadow-sm border-2 border-white dark:border-gray-900" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
+                                <span className="text-sm truncate leading-snug font-medium text-gray-900 dark:text-gray-100">{subFolder.name}</span>
                               </div>
-                              <span className="text-xs text-muted-foreground ml-2 shrink-0 font-medium">
+                              <span className="text-xs bg-slate-200/80 dark:bg-gray-600/80 px-2 py-1 rounded-full ml-2 shrink-0 font-semibold text-gray-700 dark:text-gray-200">
                                 {subFolder.documentCount || 0}
                               </span>
                             </button>
