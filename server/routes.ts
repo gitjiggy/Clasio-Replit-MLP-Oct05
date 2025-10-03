@@ -2416,12 +2416,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const documentId = req.params.id;
       
+      // Log incoming request for debugging
+      logger.info("Classification update request", {
+        documentId,
+        body: req.body,
+        bodyKeys: Object.keys(req.body),
+        category: req.body.category,
+        categoryType: typeof req.body.category,
+        categoryLength: req.body.category?.length,
+        documentType: req.body.documentType,
+        documentTypeType: typeof req.body.documentType,
+        documentTypeLength: req.body.documentType?.length
+      });
+      
       // Validate input
       const validationResult = classificationUpdateSchema.safeParse(req.body);
       if (!validationResult.success) {
-        console.error("Classification validation failed:", {
+        logger.error("Classification validation failed", {
           body: req.body,
-          errors: validationResult.error.issues
+          errors: validationResult.error.issues,
+          formattedErrors: validationResult.error.format()
         });
         return res.status(400).json({ 
           error: "Invalid classification parameters",

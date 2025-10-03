@@ -259,17 +259,9 @@ export function DocumentModal({
 
   const handleSaveEdit = () => {
     if (editCategory && editDocumentType) {
-      console.log('Saving classification:', { 
-        category: editCategory, 
-        categoryLength: editCategory.length,
-        categoryChars: editCategory.split('').map(c => `${c} (${c.charCodeAt(0)})`),
-        documentType: editDocumentType,
-        documentTypeLength: editDocumentType.length,
-        documentTypeChars: editDocumentType.split('').map(c => `${c} (${c.charCodeAt(0)})`)
-      });
       updateClassificationMutation.mutate({
-        category: editCategory,
-        documentType: editDocumentType,
+        category: editCategory.trim(),
+        documentType: editDocumentType.trim(),
       });
     }
   };
