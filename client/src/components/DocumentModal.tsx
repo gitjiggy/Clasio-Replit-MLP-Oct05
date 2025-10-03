@@ -182,7 +182,7 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
       return response;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['/api/tags'] });
       setIsAddingTag(false);
       setNewTagName("");
@@ -672,9 +672,6 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                             onClick={() => {
                               if (newTagName.trim()) {
                                 handleAddTag(newTagName.trim());
-                                // Clear input immediately for better UX
-                                setNewTagName("");
-                                setIsAddingTag(false);
                               }
                             }}
                             disabled={!newTagName.trim() || createTagMutation.isPending || addTagToDocumentMutation.isPending}
