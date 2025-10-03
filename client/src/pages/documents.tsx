@@ -1226,57 +1226,9 @@ export default function Documents() {
   }, [searchQuery, selectedFileType, selectedFolderId, selectedTagId]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Filters Strip - Positioned below navigation, above content */}
-      <div className="border-b bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 shadow-sm">
-        <div className="container mx-auto px-6 py-3">
-          <div className="flex items-center gap-3 max-w-4xl">
-            <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-              <SelectTrigger className="w-40 text-sm h-10 bg-white dark:bg-gray-800 border-border/40 rounded-lg shadow-sm" data-testid="filter-type">
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="pdf">PDF</SelectItem>
-                <SelectItem value="docx">Word</SelectItem>
-                <SelectItem value="xlsx">Excel</SelectItem>
-                <SelectItem value="image">Images</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-              <SelectTrigger className="w-52 text-sm h-10 bg-white dark:bg-gray-800 border-border/40 rounded-lg shadow-sm" data-testid="filter-folder">
-                <SelectValue placeholder="All Folders" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Folders</SelectItem>
-                {folders
-                  .filter(folder => folder.isAutoCreated && !folder.parentId)
-                  .map((folder) => (
-                  <SelectItem key={folder.id} value={folder.id}>
-                    {folder.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Button 
-              variant="ghost" 
-              onClick={clearFilters}
-              size="sm"
-              className="h-10 px-5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg border border-blue-200/50 dark:border-blue-700/50 font-semibold"
-              data-testid="clear-filters"
-            >
-              Clear
-            </Button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Main Content Container */}
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-        {/* Sidebar - Hidden on mobile, visible on md+ */}
-        <aside className="hidden md:flex w-80 bg-card/80 backdrop-blur-sm border-r border-border flex-col overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      {/* Sidebar - Hidden on mobile, visible on md+ */}
+      <aside className="hidden md:flex w-80 bg-card/80 backdrop-blur-sm border-r border-border flex-col overflow-hidden">
         
         <nav className="flex-1 p-4 overflow-y-auto">
           <ul className="space-y-2">
@@ -1435,6 +1387,46 @@ export default function Documents() {
                   }
                 </span>
               </div>
+              
+              {/* Filters */}
+              <Select value={selectedFileType} onValueChange={setSelectedFileType}>
+                <SelectTrigger className="w-32 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-type">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="pdf">PDF</SelectItem>
+                  <SelectItem value="docx">Word</SelectItem>
+                  <SelectItem value="xlsx">Excel</SelectItem>
+                  <SelectItem value="image">Images</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+                <SelectTrigger className="flex-1 max-w-[200px] text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-folder">
+                  <SelectValue placeholder="All Folders" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Folders</SelectItem>
+                  {folders
+                    .filter(folder => folder.isAutoCreated && !folder.parentId)
+                    .map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Button 
+                variant="ghost" 
+                onClick={clearFilters}
+                size="sm"
+                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground bg-slate-50/50 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 rounded-lg border border-slate-200/50 dark:border-slate-700/50"
+                data-testid="clear-filters"
+              >
+                Clear
+              </Button>
               
               {/* Search Mode Toggle */}
               <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg w-[140px]">
@@ -2088,7 +2080,6 @@ export default function Documents() {
           )}
         </div>
       </main>
-      </div> {/* Close Main Content Container */}
       
       {/* Document Modal */}
       <DocumentModal
