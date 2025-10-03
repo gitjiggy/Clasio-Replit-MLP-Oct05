@@ -185,7 +185,7 @@ export default function Trash() {
       <div className="container mx-auto px-6 py-8">
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold tracking-tight">Trash</h1>
+            <h1 className="text-3xl font-light tracking-wide">Trash</h1>
           </div>
           <div className="grid gap-4">
             {[1, 2, 3].map((i) => (
@@ -201,11 +201,11 @@ export default function Trash() {
     return (
       <div className="container mx-auto px-6 py-8">
         <div className="space-y-6">
-          <h1 className="text-3xl font-bold tracking-tight">Trash</h1>
+          <h1 className="text-3xl font-light tracking-wide">Trash</h1>
           <div className="text-center py-12">
             <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-lg text-muted-foreground">Failed to load trash</p>
-            <p className="text-sm text-muted-foreground mt-2">Please try again later</p>
+            <p className="text-lg text-muted-foreground font-light tracking-wide">Failed to load trash</p>
+            <p className="text-sm text-muted-foreground mt-2 font-light tracking-wide">Please try again later</p>
           </div>
         </div>
       </div>
@@ -219,15 +219,15 @@ export default function Trash() {
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="min-w-0 flex-shrink">
-              <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-700 via-slate-600 to-indigo-600 dark:from-slate-200 dark:via-slate-300 dark:to-indigo-400 bg-clip-text text-transparent">Trash</h1>
-              <p className="text-muted-foreground mt-1 text-sm">
+              <h1 className="text-3xl font-light tracking-wide bg-gradient-to-r from-slate-700 via-slate-600 to-indigo-600 dark:from-slate-200 dark:via-slate-300 dark:to-indigo-400 bg-clip-text text-transparent">Trash</h1>
+              <p className="text-muted-foreground mt-1 text-sm font-light tracking-wide">
                 {trashConfig?.policy || `Documents are automatically deleted after ${retentionDays} days`}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {trashedDocuments.length > 0 && (
                 <>
-                  <Badge variant="secondary" className="text-xs md:text-sm flex-shrink-0">
+                  <Badge variant="secondary" className="text-xs md:text-sm flex-shrink-0 font-light tracking-wide">
                     {trashedDocuments.length} {trashedDocuments.length === 1 ? 'item' : 'items'}
                   </Badge>
                   <div className="flex gap-2">
@@ -237,14 +237,14 @@ export default function Trash() {
                       onClick={() => restoreAllMutation.mutate()}
                       disabled={restoreAllMutation.isPending}
                       data-testid="button-restore-all"
-                      className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-sm text-xs md:text-sm"
+                      className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-sm text-xs md:text-sm font-light tracking-wide"
                     >
                       <RotateCcw className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                       Restore All
                     </Button>
                     <Dialog open={showEmptyTrashDialog} onOpenChange={setShowEmptyTrashDialog}>
                       <DialogTrigger asChild>
-                        <Button variant="destructive" size="sm" data-testid="button-empty-trash" className="text-xs md:text-sm">
+                        <Button variant="destructive" size="sm" data-testid="button-empty-trash" className="text-xs md:text-sm font-light tracking-wide">
                           <Trash2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                           Empty
                         </Button>
@@ -293,8 +293,8 @@ export default function Trash() {
         {trashedDocuments.length === 0 ? (
           <div className="text-center py-12">
             <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-lg text-muted-foreground">Trash is empty</p>
-            <p className="text-sm text-muted-foreground mt-2">
+            <p className="text-lg text-muted-foreground font-light tracking-wide">Trash is empty</p>
+            <p className="text-sm text-muted-foreground mt-2 font-light tracking-wide">
               Deleted documents will appear here for {retentionDays} days before being permanently removed
             </p>
           </div>
@@ -318,15 +318,15 @@ export default function Trash() {
 
                         {/* Document Info */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium truncate" data-testid={`text-document-name-${document.id}`}>
+                          <h3 className="font-light tracking-wide truncate" data-testid={`text-document-name-${document.id}`}>
                             {getDocumentDisplayName(document)}
                           </h3>
                           {document.folder && (
-                            <Badge variant="outline" className="text-xs mt-1">
+                            <Badge variant="outline" className="text-xs mt-1 font-light tracking-wide">
                               {document.folder.name}
                             </Badge>
                           )}
-                          <div className="space-y-1 mt-2 text-sm text-muted-foreground">
+                          <div className="space-y-1 mt-2 text-sm text-muted-foreground font-light tracking-wide">
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               Deleted {new Date(document.deletedAt!).toLocaleDateString()}
@@ -347,7 +347,7 @@ export default function Trash() {
                           onClick={() => restoreMutation.mutate(document.id)}
                           disabled={restoreMutation.isPending}
                           data-testid={`button-restore-${document.id}`}
-                          className="flex items-center gap-1 flex-1"
+                          className="flex items-center gap-1 flex-1 font-light tracking-wide"
                         >
                           <RotateCcw className="h-3 w-3" />
                           Restore
@@ -383,17 +383,17 @@ export default function Trash() {
                         {/* Document Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-medium truncate" data-testid={`text-document-name-${document.id}`}>
+                            <h3 className="font-light tracking-wide truncate" data-testid={`text-document-name-${document.id}`}>
                               {getDocumentDisplayName(document)}
                             </h3>
                             {document.folder && (
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="text-xs font-light tracking-wide">
                                 {document.folder.name}
                               </Badge>
                             )}
                           </div>
                           
-                          <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground font-light tracking-wide">
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               Deleted {new Date(document.deletedAt!).toLocaleDateString()}
@@ -415,7 +415,7 @@ export default function Trash() {
                           onClick={() => restoreMutation.mutate(document.id)}
                           disabled={restoreMutation.isPending}
                           data-testid={`button-restore-${document.id}`}
-                          className="flex items-center gap-1"
+                          className="flex items-center gap-1 font-light tracking-wide"
                         >
                           <RotateCcw className="h-3 w-3" />
                           Restore

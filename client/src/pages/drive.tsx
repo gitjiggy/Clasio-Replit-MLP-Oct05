@@ -257,8 +257,8 @@ export default function Drive() {
         <div className="flex items-center gap-3">
           <HardDrive className="h-8 w-8 text-blue-600" />
           <div>
-            <h1 className="text-3xl font-bold">Google Drive</h1>
-            <p className="text-muted-foreground">Import and organize your Drive documents with AI</p>
+            <h1 className="text-3xl font-light tracking-wide">Google Drive</h1>
+            <p className="text-muted-foreground font-light tracking-wide">Import and organize your Drive documents with AI</p>
           </div>
         </div>
         <Button 
@@ -446,8 +446,8 @@ export default function Drive() {
                               <div className="flex items-center gap-3 flex-1 min-w-0">
                                 <IconComponent className="h-5 w-5 text-blue-600 flex-shrink-0" />
                                 <div className="min-w-0 flex-1">
-                                  <h3 className="font-medium truncate" title={file.name}>{file.name}</h3>
-                                  <p className="text-sm text-muted-foreground">
+                                  <h3 className="font-light tracking-wide truncate" title={file.name}>{file.name}</h3>
+                                  <p className="text-sm text-muted-foreground font-light tracking-wide">
                                     {file.size && formatFileSize(file.size)} • {formatDate(file.modifiedTime)}
                                   </p>
                                 </div>
@@ -460,6 +460,7 @@ export default function Drive() {
                                 variant="outline"
                                 onClick={() => window.open(file.webViewLink, '_blank')}
                                 data-testid={`button-view-${file.id}`}
+                                className="font-light tracking-wide"
                               >
                                 <ExternalLink className="h-3 w-3 mr-1" />
                                 View
@@ -469,6 +470,7 @@ export default function Drive() {
                                 onClick={() => handleSyncDocument(file, false)}
                                 disabled={syncDocumentMutation.isPending}
                                 data-testid={`button-sync-${file.id}`}
+                                className="font-light tracking-wide"
                               >
                                 <Download className="h-3 w-3 mr-1" />
                                 Sync
@@ -479,6 +481,7 @@ export default function Drive() {
                                 onClick={() => handleSyncDocument(file, true)}
                                 disabled={syncDocumentMutation.isPending}
                                 data-testid={`button-sync-ai-${file.id}`}
+                                className="font-light tracking-wide"
                               >
                                 <Brain className="h-3 w-3 mr-1" />
                                 Sync + AI
@@ -492,8 +495,8 @@ export default function Drive() {
                 ) : (
                   <div className="text-center py-12">
                     <HardDrive className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No documents found</h3>
-                    <p className="text-muted-foreground">
+                    <h3 className="text-lg font-light tracking-wide mb-2">No documents found</h3>
+                    <p className="text-muted-foreground font-light tracking-wide">
                       {searchQuery ? 'Try a different search term' : 'No supported documents in your Drive'}
                     </p>
                   </div>
