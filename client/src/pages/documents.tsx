@@ -1428,63 +1428,59 @@ export default function Documents() {
                 Clear
               </Button>
               
-              {/* Search Mode Toggle */}
-              <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg w-[140px]">
-                <Button
-                  variant={searchMode === "simple" ? "default" : "ghost"}
-                  size="sm"
-                  className={`rounded-none text-xs font-semibold h-full border-0 gap-0.5 flex flex-col items-center justify-center ${
-                    searchMode === "simple" 
-                      ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
-                  }`}
-                  style={{ width: '46px' }}
-                  onClick={() => setSearchMode("simple")}
-                  data-testid="search-mode-simple"
-                >
-                  <span>Simple</span>
-                  <Search className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant={searchMode === "ai" ? "default" : "ghost"}
-                  size="sm"
-                  className={`rounded-none text-xs font-semibold h-full border-0 gap-1 flex items-center justify-center ${
-                    searchMode === "ai" 
-                      ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
-                  }`}
-                  style={{ width: '92px' }}
-                  onClick={() => setSearchMode("ai")}
-                  data-testid="search-mode-ai"
-                >
-                  <span>AI</span>
-                  <Search className="h-4 w-4" />
-                </Button>
+              {/* Search Components - Grouped with subtle bounding box */}
+              <div className="flex items-center gap-2 p-2 rounded-2xl border-2 border-slate-200/40 dark:border-slate-700/40 bg-slate-50/30 dark:bg-slate-800/20">
+                {/* Search Mode Toggle */}
+                <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg w-[140px]">
+                  <Button
+                    variant={searchMode === "simple" ? "default" : "ghost"}
+                    size="sm"
+                    className={`rounded-none text-xs font-semibold h-full border-0 gap-0.5 flex flex-col items-center justify-center ${
+                      searchMode === "simple" 
+                        ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                    }`}
+                    style={{ width: '46px' }}
+                    onClick={() => setSearchMode("simple")}
+                    data-testid="search-mode-simple"
+                  >
+                    <span>Simple</span>
+                    <Search className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant={searchMode === "ai" ? "default" : "ghost"}
+                    size="sm"
+                    className={`rounded-none text-xs font-semibold h-full border-0 gap-1 flex items-center justify-center ${
+                      searchMode === "ai" 
+                        ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                    }`}
+                    style={{ width: '92px' }}
+                    onClick={() => setSearchMode("ai")}
+                    data-testid="search-mode-ai"
+                  >
+                    <span>AI</span>
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                {/* Compact Search Input */}
+                <div className="relative w-48">
+                  <Input
+                    type="text"
+                    placeholder={searchMode === "ai" ? "Ask AI..." : "Ask.."}
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchMode === "ai" && searchQuery.trim()) {
+                        handleAISearch();
+                      }
+                    }}
+                    className="w-full px-3 text-sm h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
+                    data-testid="search-input"
+                  />
+                </div>
               </div>
-              
-              {/* Compact Search Input */}
-              <div className="relative w-48">
-                <Input
-                  type="text"
-                  placeholder={searchMode === "ai" ? "Ask AI..." : "Ask.."}
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="w-full px-3 text-sm h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
-                  data-testid="search-input"
-                />
-              </div>
-              
-              {/* AI Search Go Button */}
-              {searchMode === "ai" && searchQuery.trim() && (
-                <Button
-                  onClick={handleAISearch}
-                  disabled={aiSearchLoading}
-                  className="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-xs font-medium rounded-xl shadow-lg hover:shadow-xl transition-all"
-                  data-testid="ai-search-go"
-                >
-                  {aiSearchLoading ? "..." : "Go"}
-                </Button>
-              )}
               
               {/* Upload Button */}
               <ObjectUploader
