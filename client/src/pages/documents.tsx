@@ -1595,7 +1595,7 @@ export default function Documents() {
                 const remainingCount = (category.subFolders?.length || 0) - 2;
                 
                 return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-48 h-44 flex flex-col">
+                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-60 h-44 flex flex-col">
                     <button
                       className="w-full flex items-center justify-between text-left mb-2 min-h-[44px] shrink-0"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
