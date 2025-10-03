@@ -716,7 +716,12 @@ export function DocumentModal({
                           {document.aiDocumentType && (
                             <div className="flex items-center justify-between">
                               <span className="text-sm">
-                                <span className="text-muted-foreground">Sub-folder:</span> {document.overrideDocumentType || document.aiDocumentType}
+                                <span className="text-muted-foreground">Sub-folder:</span> {
+                                  // Prioritize actual folder name from Smart Organization
+                                  (document.folder?.parentId ? document.folder.name : null) ||
+                                  document.overrideDocumentType || 
+                                  document.aiDocumentType
+                                }
                                 {document.classificationOverridden && document.overrideDocumentType && (
                                   <Badge variant="secondary" className="ml-2 text-xs">Edited</Badge>
                                 )}

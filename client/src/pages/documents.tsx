@@ -1944,7 +1944,11 @@ export default function Documents() {
                             </div>
                             {(document.overrideDocumentType || document.aiDocumentType) && (
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                                <span className="text-xs truncate">Sub-folder: {document.overrideDocumentType || document.aiDocumentType}</span>
+                                <span className="text-xs truncate">Sub-folder: {
+                                  (document.folder?.parentId ? document.folder.name : null) ||
+                                  document.overrideDocumentType || 
+                                  document.aiDocumentType
+                                }</span>
                                 <div className="flex items-center gap-1 flex-wrap">
                                   {document.overrideDocumentType && (
                                     <span className="text-xs bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded font-medium" data-testid={`override-type-${document.id}`}>
