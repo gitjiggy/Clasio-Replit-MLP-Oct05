@@ -299,147 +299,134 @@ export default function Trash() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
             {trashedDocuments.map((document) => {
               const daysRemaining = getDaysRemaining(document.deletedAt!.toString(), retentionDays);
               const countdownMessage = getCountdownMessage(daysRemaining);
               const isExpiringSoon = daysRemaining <= 1;
 
               return (
-                <Card key={document.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    {/* Mobile Layout */}
-                    <div className="md:hidden space-y-3">
-                      <div className="flex items-start space-x-3">
-                        {/* File Icon */}
-                        <div className="text-muted-foreground flex-shrink-0">
+                <Card 
+                  key={document.id} 
+                  className="group hover:shadow-xl hover:border-red-300 dark:hover:border-red-500 transition-all duration-300 border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[390px] flex flex-col" 
+                  data-testid={`trash-document-card-${document.id}`}
+                >
+                  <CardContent className="px-4 pt-4 pb-0 flex flex-col h-full overflow-hidden">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                        <div className="flex-shrink-0 text-muted-foreground">
                           {getFileIcon(document.fileType)}
                         </div>
-
-                        {/* Document Info */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-light tracking-wide truncate" data-testid={`text-document-name-${document.id}`}>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-light tracking-wide text-foreground truncate mb-0.5 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors" title={getDocumentDisplayName(document)} data-testid={`text-document-name-${document.id}`}>
                             {getDocumentDisplayName(document)}
                           </h3>
-                          {document.folder && (
-                            <Badge variant="outline" className="text-xs mt-1 font-light tracking-wide">
-                              {document.folder.name}
-                            </Badge>
+                          <p className="text-xs text-muted-foreground font-light tracking-wide">
+                            {document.fileSize ? `${(document.fileSize / 1024).toFixed(1)} KB` : 'Unknown size'}
+                          </p>
+                          {document.originalName && (
+                            <p className="text-xs text-muted-foreground/80 truncate mt-1 font-light tracking-wide" title={document.originalName}>
+                              {document.originalName}
+                            </p>
                           )}
-                          <div className="space-y-1 mt-2 text-sm text-muted-foreground font-light tracking-wide">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              Deleted {new Date(document.deletedAt!).toLocaleDateString()}
-                            </div>
-                            <div className={`flex items-center gap-1 ${isExpiringSoon ? 'text-red-600 dark:text-red-400' : ''}`}>
-                              <Clock className="h-3 w-3" />
-                              {countdownMessage}
-                            </div>
-                          </div>
                         </div>
                       </div>
-                      
-                      {/* Actions Row */}
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => restoreMutation.mutate(document.id)}
-                          disabled={restoreMutation.isPending}
-                          data-testid={`button-restore-${document.id}`}
-                          className="flex items-center gap-1 flex-1 font-light tracking-wide"
-                        >
-                          <RotateCcw className="h-3 w-3" />
-                          Restore
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" data-testid={`button-menu-${document.id}`}>
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => restoreMutation.mutate(document.id)}
-                              disabled={restoreMutation.isPending}
-                              data-testid={`menu-restore-${document.id}`}
-                            >
-                              <RotateCcw className="mr-2 h-4 w-4" />
-                              Restore Document
-                            </DropdownMenuItem>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-auto p-1" 
+                            data-testid={`menu-${document.id}`}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => restoreMutation.mutate(document.id)}
+                            disabled={restoreMutation.isPending}
+                            data-testid={`menu-restore-${document.id}`}
+                          >
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            Restore Document
+                          </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                    </div>
+                    
+                    {document.tags && document.tags.length > 0 && (
+                      <div className="mb-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          {document.tags.map((tag) => (
+                            <Badge
+                              key={tag.id}
+                              variant="secondary"
+                              className="text-xs font-light tracking-wide"
+                              style={{ backgroundColor: `${tag.color || '#8b5cf6'}15`, color: tag.color || '#8b5cf6', border: `1px solid ${tag.color || '#8b5cf6'}30` }}
+                            >
+                              {tag.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between text-xs text-muted-foreground/80 mb-2 font-light tracking-wide">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(document.deletedAt!).toLocaleDateString()}
+                      </span>
+                      {document.folder?.name && (
+                        <span className="flex items-center gap-1 truncate max-w-[120px]" title={document.folder.name}>
+                          <FileText className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{document.folder.name}</span>
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Countdown Message - Styled Like AI Analysis */}
+                    <div className={`mb-0 p-2.5 rounded-lg border flex-shrink-0 ${
+                      isExpiringSoon 
+                        ? 'bg-red-50/40 dark:from-red-950/10 dark:to-red-950/10 border-red-200/30 dark:border-red-500/20' 
+                        : 'bg-amber-50/40 dark:from-amber-950/10 dark:to-amber-950/10 border-amber-200/30 dark:border-amber-500/20'
+                    }`}>
+                      <div className="flex items-center gap-1.5">
+                        <Clock className={`h-3 w-3 ${isExpiringSoon ? 'text-red-500 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`} />
+                        <span className={`text-xs font-light tracking-wide ${isExpiringSoon ? 'text-red-600 dark:text-red-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                          {countdownMessage}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Desktop Layout */}
-                    <div className="hidden md:flex items-center justify-between">
-                      <div className="flex items-center space-x-3 flex-1 min-w-0">
-                        {/* File Icon */}
-                        <div className="text-muted-foreground">
-                          {getFileIcon(document.fileType)}
-                        </div>
-
-                        {/* Document Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-light tracking-wide truncate" data-testid={`text-document-name-${document.id}`}>
-                              {getDocumentDisplayName(document)}
-                            </h3>
-                            {document.folder && (
-                              <Badge variant="outline" className="text-xs font-light tracking-wide">
-                                {document.folder.name}
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground font-light tracking-wide">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              Deleted {new Date(document.deletedAt!).toLocaleDateString()}
-                            </div>
-                            <div className={`flex items-center gap-1 ${isExpiringSoon ? 'text-red-600 dark:text-red-400' : ''}`}>
-                              <Clock className="h-3 w-3" />
-                              {countdownMessage}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2">
-                        {/* Restore Button */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => restoreMutation.mutate(document.id)}
-                          disabled={restoreMutation.isPending}
-                          data-testid={`button-restore-${document.id}`}
-                          className="flex items-center gap-1 font-light tracking-wide"
-                        >
-                          <RotateCcw className="h-3 w-3" />
-                          Restore
-                        </Button>
-
-                        {/* More Actions Menu */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" data-testid={`button-menu-${document.id}`}>
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => restoreMutation.mutate(document.id)}
-                              disabled={restoreMutation.isPending}
-                              data-testid={`menu-restore-${document.id}`}
-                            >
-                              <RotateCcw className="mr-2 h-4 w-4" />
-                              Restore Document
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+                    {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
+                    <div className="grid grid-cols-2 gap-1.5 mt-2 -mb-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-1.5 transition-all flex-col gap-0.5"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          restoreMutation.mutate(document.id);
+                        }}
+                        disabled={restoreMutation.isPending}
+                        data-testid={`button-restore-${document.id}`}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-light tracking-wide">Restore</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-11 bg-slate-100/50 hover:bg-slate-200/70 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 px-1.5 transition-all flex-col gap-0.5"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        data-testid={`view-info-${document.id}`}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-light tracking-wide">Info</span>
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
