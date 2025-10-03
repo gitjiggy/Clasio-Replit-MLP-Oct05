@@ -1473,7 +1473,7 @@ export default function Documents() {
           </div>
 
           {/* Search & Filters - Clean Layout */}
-          <div className="px-4 md:px-6 py-2.5 space-y-2.5">
+          <div className="px-4 md:px-6 py-2.5 space-y-2.5 overflow-x-hidden">
             {/* Search Row */}
             <div className="flex items-center gap-2">
               {/* Search Mode Toggle - Premium Design */}
@@ -1549,7 +1549,7 @@ export default function Documents() {
               </Select>
               
               <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                <SelectTrigger className="flex-1 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-folder">
+                <SelectTrigger className="flex-1 max-w-[200px] text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-folder">
                   <SelectValue placeholder="All Folders" />
                 </SelectTrigger>
                 <SelectContent>
