@@ -445,10 +445,10 @@ export default function Drive() {
                             <div className="flex gap-2 mt-3">
                               <Button
                                 size="sm"
-                                variant="outline"
+                                variant="ghost"
                                 onClick={() => window.open(file.webViewLink, '_blank')}
                                 data-testid={`button-view-${file.id}`}
-                                className="font-light tracking-wide"
+                                className="bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 font-light tracking-wide transition-all"
                               >
                                 <ExternalLink className="h-3 w-3 mr-1" />
                                 View
@@ -458,18 +458,18 @@ export default function Drive() {
                                 onClick={() => handleSyncDocument(file, false)}
                                 disabled={syncDocumentMutation.isPending}
                                 data-testid={`button-sync-${file.id}`}
-                                className="font-light tracking-wide"
+                                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-light tracking-wide transition-all"
                               >
                                 <Download className="h-3 w-3 mr-1" />
                                 Sync
                               </Button>
                               <Button
                                 size="sm"
-                                variant="secondary"
+                                variant="ghost"
                                 onClick={() => handleSyncDocument(file, true)}
                                 disabled={syncDocumentMutation.isPending}
                                 data-testid={`button-sync-ai-${file.id}`}
-                                className="font-light tracking-wide"
+                                className="bg-purple-100/50 hover:bg-purple-200/70 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-700/50 font-light tracking-wide transition-all"
                               >
                                 <Brain className="h-3 w-3 mr-1" />
                                 Sync + AI
