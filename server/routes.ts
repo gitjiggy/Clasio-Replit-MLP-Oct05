@@ -2419,6 +2419,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate input
       const validationResult = classificationUpdateSchema.safeParse(req.body);
       if (!validationResult.success) {
+        console.error("Classification validation failed:", {
+          body: req.body,
+          errors: validationResult.error.issues
+        });
         return res.status(400).json({ 
           error: "Invalid classification parameters",
           details: validationResult.error.issues
