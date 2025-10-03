@@ -469,12 +469,12 @@ const classificationUpdateSchema = z.object({
     .min(1, "Category cannot be empty")
     .max(100, "Category name too long")
     .trim()
-    .regex(/^[^<>:"/\\|?*\u0000-\u001F]+$/, "Category contains invalid characters"),
+    .regex(/^[^\/<>:"|?*\x00-\x1F]+$/, "Category contains invalid path characters"),
   documentType: z.string()
     .min(1, "Document type cannot be empty")
     .max(100, "Document type name too long")
     .trim()
-    .regex(/^[^<>:"/\\|?*\u0000-\u001F]+$/, "Document type contains invalid characters")
+    .regex(/^[^\/<>:"|?*\x00-\x1F]+$/, "Document type contains invalid path characters")
 });
 
 // Zod schemas for Drive API validation
@@ -2416,27 +2416,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const documentId = req.params.id;
       
-      // Log incoming request for debugging
-      logger.info("Classification update request", {
-        documentId,
-        body: req.body,
-        bodyKeys: Object.keys(req.body),
-        category: req.body.category,
-        categoryType: typeof req.body.category,
-        categoryLength: req.body.category?.length,
-        documentType: req.body.documentType,
-        documentTypeType: typeof req.body.documentType,
-        documentTypeLength: req.body.documentType?.length
-      });
-      
       // Validate input
       const validationResult = classificationUpdateSchema.safeParse(req.body);
       if (!validationResult.success) {
-        logger.error("Classification validation failed", {
-          body: req.body,
-          errors: validationResult.error.issues,
-          formattedErrors: validationResult.error.format()
-        });
         return res.status(400).json({ 
           error: "Invalid classification parameters",
           details: validationResult.error.issues
