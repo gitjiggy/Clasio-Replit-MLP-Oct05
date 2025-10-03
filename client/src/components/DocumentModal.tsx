@@ -289,7 +289,16 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
   };
 
   const getTagOptions = () => {
-    return availableTags.map(tag => tag.name);
+    // Common default tag suggestions
+    const commonTags = ['Draft', 'Important', 'Urgent', 'Review', 'Confidential', 'Archive', 'To-Do', 'Completed'];
+    
+    // Get existing tag names
+    const existingTagNames = availableTags.map(tag => tag.name);
+    
+    // Combine common tags with existing tags, removing duplicates
+    const allTags = [...new Set([...commonTags, ...existingTagNames])];
+    
+    return allTags;
   };
 
   // Use existing content or fetched content (API returns { content })
@@ -590,11 +599,10 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                     <div className="flex items-center space-x-1.5">
                       {!isAddingTag ? (
                         <Button
-                          variant="outline"
                           size="sm"
                           onClick={() => setIsAddingTag(true)}
                           disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
-                          className="text-[10px] h-5 px-2 font-light tracking-wide"
+                          className="text-[10px] h-5 px-2 font-light tracking-wide bg-blue-500 hover:bg-blue-600 text-white"
                           data-testid="add-tag-button"
                         >
                           {(createTagMutation.isPending || addTagToDocumentMutation.isPending) ? 'Adding...' : '+ Add Tag'}
