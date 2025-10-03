@@ -1379,12 +1379,12 @@ export default function Documents() {
       {/* Main Content - Mobile Grid Layout */}
       <main className="flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[22vh_16vh_auto] md:grid-rows-none overflow-hidden">
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
-        <div className="overflow-y-auto md:overflow-visible bg-gradient-to-b from-white to-slate-50/50 md:bg-gradient-to-r md:from-slate-600 md:via-indigo-500 md:to-purple-500 dark:from-gray-900 dark:to-gray-900/80 dark:md:from-slate-700 dark:md:via-indigo-600 dark:md:to-purple-600 border-b border-border/30">
+        <div className="overflow-y-auto md:overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 border-b border-border/30">
           {/* Header - Clean Premium */}
-          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border/20 md:border-white/10">
+          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border/20">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="flex items-baseline gap-3">
-                <h2 className="text-base md:text-lg font-medium text-foreground md:text-white">
+                <h2 className="text-base md:text-lg font-medium text-foreground">
                   {isMainCategorySelected 
                     ? `${selectedFolder?.name} Sub-folders`
                     : isSubFolderSelected 
@@ -1392,7 +1392,7 @@ export default function Documents() {
                       : "Documents"
                   }
                 </h2>
-                <span className="text-xs text-muted-foreground/70 md:text-white/70" data-testid="document-count">
+                <span className="text-xs text-muted-foreground/70" data-testid="document-count">
                   {isMainCategorySelected 
                     ? `${selectedCategorySubFolders.length} folders`
                     : `${documentsData?.pagination.total || 0}`
