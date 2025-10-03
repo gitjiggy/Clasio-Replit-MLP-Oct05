@@ -599,10 +599,14 @@ export default function Documents() {
     if (selectedDocument && documentsData?.documents) {
       const updatedDocument = documentsData.documents.find(doc => doc.id === selectedDocument.id);
       if (updatedDocument) {
+        console.log('📝 Updating selected document in modal:', {
+          oldTags: selectedDocument.tags.length,
+          newTags: updatedDocument.tags.length
+        });
         setSelectedDocument(updatedDocument);
       }
     }
-  }, [documentsData, selectedDocument?.id]);
+  }, [documentsData?.documents, selectedDocument]);
 
   // Check for AI analysis completion and manage polling
   useEffect(() => {

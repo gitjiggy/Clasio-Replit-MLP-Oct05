@@ -119,6 +119,10 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
     },
     onSuccess: (data, tagName) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tags'] });
+      toast({
+        title: "Tag Created",
+        description: `"${tagName}" tag has been created successfully.`,
+      });
       // Add the newly created tag to the document
       if (data.tag?.id) {
         addTagToDocumentMutation.mutate(data.tag.id);
