@@ -77,7 +77,7 @@ function HighlightedText({ text, searchQuery }: { text: string; searchQuery?: st
 export function DocumentModal({ document: initialDocument, open, onOpenChange, searchQuery, onDownload }: DocumentModalProps) {
   if (!initialDocument) return null;
 
-  const [document] = useState(initialDocument);
+  const document = initialDocument;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -120,8 +120,8 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
     onSuccess: (data, tagName) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tags'] });
       // Add the newly created tag to the document
-      if (data.id) {
-        addTagToDocumentMutation.mutate(data.id);
+      if (data.tag?.id) {
+        addTagToDocumentMutation.mutate(data.tag.id);
       }
     },
     onError: (error: any) => {
