@@ -13,9 +13,7 @@ import {
   Clock,
   Sparkles,
   FileText,
-  HardDrive,
-  Lightbulb,
-  Package
+  HardDrive
 } from "lucide-react";
 
 interface FunFactsResponse {
@@ -135,7 +133,7 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false }: Queue
                 Fun Facts
               </CardTitle>
               <CardDescription className="mt-2 text-sm font-light tracking-wide">
-                Your document management journey in numbers ✨
+                Your Clasio journey in numbers ✨
               </CardDescription>
             </div>
             <Button
@@ -319,44 +317,6 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false }: Queue
                 </Card>
               </div>
 
-              {/* Smart Recommendations & Storage Optimization */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Smart Recommendations */}
-                <Card className="border-amber-200/50 dark:border-amber-800/50 bg-gradient-to-br from-amber-50/50 to-white dark:from-amber-950/20 dark:to-gray-900/70">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                      Smart Recommendations
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                      <Tags className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
-                      <p className="text-sm font-light tracking-wide" data-testid="text-untagged-docs">
-                        {data?.insights.smartRecommendations.untaggedDocs}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Storage Optimization */}
-                <Card className="border-blue-200/50 dark:border-blue-800/50 bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-950/20 dark:to-gray-900/70">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
-                      <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      Storage Optimization
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                      <HardDrive className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <p className="text-sm font-light tracking-wide" data-testid="text-storage-optimization">
-                        {data?.insights.smartRecommendations.storageOptimization}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
             </>
           )}
         </CardContent>
