@@ -1368,155 +1368,149 @@ export default function Documents() {
         <div className="overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80">
           {/* Header - Clean Premium */}
           <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border/20">
-            <div className="flex flex-col gap-3">
-              {/* Top Row: Title, Document Count, Upload, Search Toggle, Delete */}
-              <div className="flex items-center gap-3">
-                <div className="flex items-baseline gap-3 flex-1 min-w-0">
-                  <h2 className="text-base md:text-lg font-medium text-foreground">
-                    {isMainCategorySelected 
-                      ? `${selectedFolder?.name} Sub-folders`
-                      : isSubFolderSelected 
-                        ? selectedFolder?.name 
-                        : "Documents"
-                    }
-                  </h2>
-                  <span className="text-xs text-muted-foreground/70" data-testid="document-count">
-                    {isMainCategorySelected 
-                      ? `${selectedCategorySubFolders.length} folders`
-                      : `${documentsData?.pagination.total || 0}`
-                    }
-                  </span>
-                </div>
-                
-                {/* Primary Actions - Aligned Right */}
-                <div className="flex items-center gap-2">
-                  {/* Upload Button */}
-                  <ObjectUploader
-                    maxNumberOfFiles={5}
-                    maxFileSize={50 * 1024 * 1024}
-                    enableBulkUpload={true}
-                    onGetUploadParameters={getUploadParameters}
-                    onGetBulkUploadParameters={getBulkUploadParameters}
-                    onComplete={handleUploadComplete}
-                    onBulkUploadComplete={handleBulkUploadComplete}
-                    onSuccess={handleUploadSuccess}
-                    buttonClassName="h-11 px-5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5"
-                  >
-                    <Upload className="h-5 w-5" />
-                    <span className="hidden sm:inline">Upload</span>
-                  </ObjectUploader>
-                  
-                  {/* Search Mode Toggle */}
-                  <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg">
-                    <Button
-                      variant={searchMode === "simple" ? "default" : "ghost"}
-                      size="sm"
-                      className={`rounded-none text-sm font-semibold h-full px-5 border-0 gap-2 ${
-                        searchMode === "simple" 
-                          ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
-                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
-                      }`}
-                      onClick={() => setSearchMode("simple")}
-                      data-testid="search-mode-simple"
-                    >
-                      <span>Simple</span>
-                      <Search className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant={searchMode === "ai" ? "default" : "ghost"}
-                      size="sm"
-                      className={`rounded-none text-sm font-semibold h-full px-5 border-0 gap-2 ${
-                        searchMode === "ai" 
-                          ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
-                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
-                      }`}
-                      onClick={() => setSearchMode("ai")}
-                      data-testid="search-mode-ai"
-                    >
-                      <span>AI</span>
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  
-                  {/* Smart Organization Button - Mobile only */}
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      userToggledSmartOrgRef.current = true;
-                      setShowSmartOrg(!showSmartOrg);
-                    }}
-                    className="md:hidden h-11 px-4 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all"
-                    data-testid="button-smart-org-mobile"
-                  >
-                    <Sparkles className="h-5 w-5" />
-                    {hierarchicalFolders.length > 0 && (
-                      <span className="ml-1.5 text-xs font-semibold">{hierarchicalFolders.length}</span>
-                    )}
-                  </Button>
-                  
-                  {/* Desktop Smart Organization */}
-                  <Button
-                    variant="ghost"
-                    onClick={() => organizeAllMutation.mutate()}
-                    disabled={organizeAllMutation.isPending}
-                    className="hidden md:flex h-11 px-5 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all gap-2"
-                    data-testid="button-organize-all"
-                  >
-                    <Sparkles className="h-5 w-5" />
-                    <span className="text-sm font-medium">{organizeAllMutation.isPending ? 'Organizing...' : 'Smart Org'}</span>
-                  </Button>
-                  
-                  {/* AI Queue Status */}
-                  <Button
-                    variant="ghost"
-                    onClick={() => setQueueDashboardOpen(true)}
-                    className="h-11 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all"
-                    data-testid="button-queue-status"
-                  >
-                    <Brain className="h-5 w-5" />
-                  </Button>
-                  
-                  {/* Delete All */}
-                  {documentsData?.documents && documentsData.documents.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      onClick={() => deleteAllDocumentsMutation.mutate()}
-                      disabled={deleteAllDocumentsMutation.isPending}
-                      className="h-11 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all"
-                      data-testid="button-delete-all"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </Button>
-                  )}
-                </div>
+            {/* Single Row: All Controls */}
+            <div className="flex items-center gap-2">
+              {/* Title + Document Count */}
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-base md:text-lg font-medium text-foreground">
+                  {isMainCategorySelected 
+                    ? `${selectedFolder?.name} Sub-folders`
+                    : isSubFolderSelected 
+                      ? selectedFolder?.name 
+                      : "Documents"
+                  }
+                </h2>
+                <span className="text-xs text-muted-foreground/70" data-testid="document-count">
+                  {isMainCategorySelected 
+                    ? `${selectedCategorySubFolders.length} folders`
+                    : `${documentsData?.pagination.total || 0}`
+                  }
+                </span>
               </div>
               
-              {/* Second Row: Search Input */}
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1 max-w-md">
-                  <Input
-                    type="text"
-                    placeholder={searchMode === "ai" ? "Ask AI about your documents..." : "Search documents..."}
-                    value={searchQuery}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    className="w-full pl-10 pr-4 text-sm h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
-                    data-testid="search-input"
-                  />
-                  <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground/60" />
-                </div>
-                
-                {/* AI Search Go Button */}
-                {searchMode === "ai" && (
-                  <Button
-                    onClick={handleAISearch}
-                    disabled={!searchQuery.trim() || aiSearchLoading}
-                    className="h-11 px-6 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-xl shadow-lg hover:shadow-xl transition-all"
-                    data-testid="ai-search-go"
-                  >
-                    {aiSearchLoading ? "..." : "Search"}
-                  </Button>
-                )}
+              {/* Search Mode Toggle */}
+              <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg">
+                <Button
+                  variant={searchMode === "simple" ? "default" : "ghost"}
+                  size="sm"
+                  className={`rounded-none text-sm font-semibold h-full px-4 border-0 gap-1.5 ${
+                    searchMode === "simple" 
+                      ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                  }`}
+                  onClick={() => setSearchMode("simple")}
+                  data-testid="search-mode-simple"
+                >
+                  <span>Simple</span>
+                  <Search className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={searchMode === "ai" ? "default" : "ghost"}
+                  size="sm"
+                  className={`rounded-none text-sm font-semibold h-full px-4 border-0 gap-1.5 ${
+                    searchMode === "ai" 
+                      ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                  }`}
+                  onClick={() => setSearchMode("ai")}
+                  data-testid="search-mode-ai"
+                >
+                  <span>AI</span>
+                  <Search className="h-4 w-4" />
+                </Button>
               </div>
+              
+              {/* Compact Search Input */}
+              <div className="relative w-48">
+                <Input
+                  type="text"
+                  placeholder={searchMode === "ai" ? "Ask AI..." : "Search..."}
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="w-full pl-9 pr-3 text-xs h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
+                  data-testid="search-input"
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+              </div>
+              
+              {/* AI Search Go Button */}
+              {searchMode === "ai" && searchQuery.trim() && (
+                <Button
+                  onClick={handleAISearch}
+                  disabled={aiSearchLoading}
+                  className="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-xs font-medium rounded-xl shadow-lg hover:shadow-xl transition-all"
+                  data-testid="ai-search-go"
+                >
+                  {aiSearchLoading ? "..." : "Go"}
+                </Button>
+              )}
+              
+              {/* Upload Button */}
+              <ObjectUploader
+                maxNumberOfFiles={5}
+                maxFileSize={50 * 1024 * 1024}
+                enableBulkUpload={true}
+                onGetUploadParameters={getUploadParameters}
+                onGetBulkUploadParameters={getBulkUploadParameters}
+                onComplete={handleUploadComplete}
+                onBulkUploadComplete={handleBulkUploadComplete}
+                onSuccess={handleUploadSuccess}
+                buttonClassName="h-11 px-5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5"
+              >
+                <Upload className="h-5 w-5" />
+                <span className="hidden sm:inline">Upload</span>
+              </ObjectUploader>
+              
+              {/* Smart Organization Button - Mobile only */}
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  userToggledSmartOrgRef.current = true;
+                  setShowSmartOrg(!showSmartOrg);
+                }}
+                className="md:hidden h-11 px-4 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all"
+                data-testid="button-smart-org-mobile"
+              >
+                <Sparkles className="h-5 w-5" />
+                {hierarchicalFolders.length > 0 && (
+                  <span className="ml-1.5 text-xs font-semibold">{hierarchicalFolders.length}</span>
+                )}
+              </Button>
+              
+              {/* Desktop Smart Organization */}
+              <Button
+                variant="ghost"
+                onClick={() => organizeAllMutation.mutate()}
+                disabled={organizeAllMutation.isPending}
+                className="hidden md:flex h-11 px-5 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all gap-2"
+                data-testid="button-organize-all"
+              >
+                <Sparkles className="h-5 w-5" />
+                <span className="text-sm font-medium">{organizeAllMutation.isPending ? 'Organizing...' : 'Smart Org'}</span>
+              </Button>
+              
+              {/* AI Queue Status */}
+              <Button
+                variant="ghost"
+                onClick={() => setQueueDashboardOpen(true)}
+                className="h-11 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all"
+                data-testid="button-queue-status"
+              >
+                <Brain className="h-5 w-5" />
+              </Button>
+              
+              {/* Delete All */}
+              {documentsData?.documents && documentsData.documents.length > 0 && (
+                <Button
+                  variant="ghost"
+                  onClick={() => deleteAllDocumentsMutation.mutate()}
+                  disabled={deleteAllDocumentsMutation.isPending}
+                  className="h-11 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all"
+                  data-testid="button-delete-all"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+              )}
             </div>
           </div>
 
