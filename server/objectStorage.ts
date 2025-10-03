@@ -34,6 +34,75 @@ function initializeGCSClient(): Storage | null {
 // Initialize the GCS client with Clasio's credentials (can be null during development)
 export const objectStorageClient = initializeGCSClient();
 
+// Validation function to check GCS is ready for production use
+export async function validateGCSClient(): Promise<void> {
+  const projectId = process.env.GCP_PROJECT_ID;
+  const serviceAccountKey = process.env.GCP_SERVICE_ACCOUNT_KEY;
+  const bucketName = process.env.GCS_BUCKET_NAME;
+
+  if (!objectStorageClient) {
+    throw new StorageAuthError(
+      'GCS client failed to initialize. Missing required environment variables:\n' +
+      (!projectId ? '  - GCP_PROJECT_ID\n' : '') +
+      (!serviceAccountKey ? '  - GCP_SERVICE_ACCOUNT_KEY\n' : '') +
+      'Please configure these secrets in your Replit deployment.'
+    );
+  }
+
+  if (!bucketName) {
+    throw new StorageAuthError(
+      'GCS_BUCKET_NAME environment variable is missing.\n' +
+      'Please configure this secret in your Replit deployment.'
+    );
+  }
+
+  // Perform actual GCS access test to validate credentials and bucket permissions
+  try {
+    const bucket = objectStorageClient.bucket(bucketName);
+    
+    // Test bucket access with a real network call
+    console.log(`🔍 Testing GCS bucket access: ${bucketName}...`);
+    const [exists] = await bucket.exists();
+    
+    if (!exists) {
+      throw new StorageAuthError(
+        `GCS bucket "${bucketName}" does not exist.\n` +
+        'Verify:\n' +
+        '  1. Bucket name is correct\n' +
+        '  2. Service account has access to the bucket'
+      );
+    }
+    
+    // Try to list files (limited to 1) to verify read permissions
+    await bucket.getFiles({ maxResults: 1 });
+    
+    console.log(`✅ GCS validation passed - bucket "${bucketName}" is accessible`);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    
+    // Provide clear guidance based on error type
+    if (errorMsg.includes('Could not load the default credentials') || errorMsg.includes('ENOTFOUND')) {
+      throw new StorageAuthError(
+        'GCS authentication failed - invalid service account credentials.\n' +
+        'Please verify GCP_SERVICE_ACCOUNT_KEY is correctly configured.'
+      );
+    } else if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
+      throw new StorageAuthError(
+        `GCS bucket access denied for "${bucketName}".\n` +
+        'Service account needs storage.objectAdmin role on this bucket.'
+      );
+    } else {
+      throw new StorageAuthError(
+        `GCS bucket validation failed: ${errorMsg}\n` +
+        'Verify:\n' +
+        '  1. Bucket name is correct\n' +
+        '  2. Service account has storage.objectAdmin role\n' +
+        '  3. Service account credentials are valid'
+      );
+    }
+  }
+}
+
 export class ObjectNotFoundError extends Error {
   constructor() {
     super("Object not found");
