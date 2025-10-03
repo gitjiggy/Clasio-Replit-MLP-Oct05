@@ -609,8 +609,9 @@ export class DatabaseStorage implements IStorage {
     return docsWithTags;
   }
 
-  async getAllActiveDocuments(): Promise<DocumentWithFolderAndTags[]> {
+  async getAllActiveDocuments(userId: string): Promise<DocumentWithFolderAndTags[]> {
     await this.ensureInitialized();
+    ensureTenantContext(userId);
     
     // Get ALL active documents using simple query to avoid relational issues
     const docs = await db
@@ -619,7 +620,8 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(documents.isDeleted, false),
-          eq(documents.status, 'active')
+          eq(documents.status, 'active'),
+          eq(documents.userId, userId)
         )
       )
       .orderBy(desc(documents.uploadedAt));
@@ -640,7 +642,7 @@ export class DatabaseStorage implements IStorage {
         });
 
         // Fetch the actual tag data for each document tag
-        const tags = await Promise.all(
+        const docTagData = await Promise.all(
           docTags.map(async (docTag) => {
             return await db.query.tags.findFirst({
               where: eq(tags.id, docTag.tagId)
@@ -651,7 +653,7 @@ export class DatabaseStorage implements IStorage {
         return {
           ...doc,
           folder,
-          tags: tags.filter(tag => tag !== undefined)
+          tags: docTagData.filter(tag => tag !== undefined)
         };
       })
     );

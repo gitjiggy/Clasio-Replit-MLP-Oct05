@@ -2269,6 +2269,168 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get fun facts and statistics about user's document management patterns
+  app.get("/api/fun-facts", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+
+      // Get all active documents for the user
+      const allDocuments = await storage.getAllActiveDocuments(userId);
+      const folders = await storage.getFolders(userId);
+      const tags = await storage.getTags(userId);
+
+      // Calculate file count quota (200 files)
+      const fileCount = allDocuments.length;
+      const fileQuota = 200;
+      const fileQuotaPercentage = Math.round((fileCount / fileQuota) * 100);
+
+      // Calculate storage quota (1GB = 1073741824 bytes)
+      const totalStorage = allDocuments.reduce((sum, doc) => sum + (doc.fileSize || 0), 0);
+      const storageQuotaBytes = 1073741824; // 1GB in bytes
+      const storageUsedMB = Math.round(totalStorage / 1024 / 1024 * 100) / 100;
+      const storageUsedGB = Math.round(totalStorage / 1024 / 1024 / 1024 * 1000) / 1000;
+      const storageQuotaPercentage = Math.round((totalStorage / storageQuotaBytes) * 100);
+
+      // Organization Patterns
+      const folderCounts = folders.map(folder => ({
+        name: folder.name,
+        count: folder.documentCount
+      })).sort((a, b) => b.count - a.count);
+      const mostActiveFolder = folderCounts[0];
+
+      // Tag usage statistics
+      const tagUsageMap = new Map<string, number>();
+      allDocuments.forEach(doc => {
+        doc.tags?.forEach(tag => {
+          tagUsageMap.set(tag.name, (tagUsageMap.get(tag.name) || 0) + 1);
+        });
+      });
+      const tagUsageArray = Array.from(tagUsageMap.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+      const mostUsedTag = tagUsageArray[0];
+      const tagUsageRatio = mostUsedTag && tagUsageArray[1] ? 
+        Math.round(mostUsedTag.count / tagUsageArray[1].count * 10) / 10 : 0;
+
+      // AI Classification Insights
+      const aiCategorizedDocs = allDocuments.filter(doc => doc.aiCategory);
+      const aiCategorizationRate = fileCount > 0 ? Math.round((aiCategorizedDocs.length / fileCount) * 100) : 0;
+
+      // Document type distribution
+      const typeDistribution = new Map<string, number>();
+      allDocuments.forEach(doc => {
+        const type = doc.aiDocumentType || doc.fileType || 'Unknown';
+        typeDistribution.set(type, (typeDistribution.get(type) || 0) + 1);
+      });
+      const typeArray = Array.from(typeDistribution.entries())
+        .map(([type, count]) => ({ 
+          type, 
+          count, 
+          percentage: Math.round((count / fileCount) * 100) 
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3);
+
+      // Document Lifecycle
+      const now = Date.now();
+      const documentAges = allDocuments.map(doc => ({
+        name: doc.name,
+        age: Math.floor((now - new Date(doc.uploadedAt).getTime()) / (1000 * 60 * 60 * 24))
+      })).sort((a, b) => b.age - a.age);
+      const oldestDoc = documentAges[0];
+
+      // Drive sync stats
+      const driveDocsCount = allDocuments.filter(doc => doc.isFromDrive).length;
+      const directUploadsCount = fileCount - driveDocsCount;
+      const drivePercentage = fileCount > 0 ? Math.round((driveDocsCount / fileCount) * 100) : 0;
+      const directPercentage = 100 - drivePercentage;
+
+      // Time intelligence - documents uploaded this month
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const docsThisMonth = allDocuments.filter(doc => 
+        new Date(doc.uploadedAt) >= startOfMonth
+      ).length;
+
+      // Storage optimization
+      const largeFiles = allDocuments.filter(doc => doc.fileSize > 5 * 1024 * 1024); // > 5MB
+      const largeFilesStorage = largeFiles.reduce((sum, doc) => sum + (doc.fileSize || 0), 0);
+      const largeFilesPercentage = totalStorage > 0 ? Math.round((largeFilesStorage / totalStorage) * 100) : 0;
+      const largeFilesCountPercentage = fileCount > 0 ? Math.round((largeFiles.length / fileCount) * 100) : 0;
+
+      // Untagged documents
+      const untaggedDocs = allDocuments.filter(doc => !doc.tags || doc.tags.length === 0);
+
+      res.json({
+        success: true,
+        quotas: {
+          files: {
+            used: fileCount,
+            limit: fileQuota,
+            percentage: fileQuotaPercentage,
+            remaining: fileQuota - fileCount
+          },
+          storage: {
+            usedBytes: totalStorage,
+            usedMB: storageUsedMB,
+            usedGB: storageUsedGB,
+            limitGB: 1,
+            percentage: storageQuotaPercentage,
+            remainingGB: Math.round((1 - storageUsedGB) * 1000) / 1000
+          }
+        },
+        insights: {
+          organizationPatterns: {
+            mostActiveFolder: mostActiveFolder ? `Your most active folder is '${mostActiveFolder.name}' with ${mostActiveFolder.count} documents` : "Upload more documents to see folder patterns",
+            tagCount: tags.length,
+            mostUsedTag: mostUsedTag ? `You've created ${tags.length} custom tags - '${mostUsedTag.name}' is used ${tagUsageRatio}x more than others` : "Create tags to organize your documents",
+          },
+          aiClassification: {
+            categorizationRate: `AI correctly auto-categorized ${aiCategorizationRate}% of your documents`,
+            documentTypes: typeArray.length > 0 ? 
+              `Most common document types: ${typeArray.map(t => `${t.type} (${t.percentage}%)`).join(', ')}` :
+              "Upload more documents to see type distribution",
+            timeSaved: fileCount > 0 ? 
+              `Time saved: ${Math.round(fileCount * 0.9 / 60 * 10) / 10} hours from automated filing vs manual organization` :
+              "Start uploading to track time savings"
+          },
+          documentLifecycle: {
+            oldestDocument: oldestDoc ? 
+              `Oldest document: '${oldestDoc.name}' (${oldestDoc.age} days old)` :
+              "No documents yet",
+            documentsThisMonth: `You've processed ${docsThisMonth} documents this month`,
+          },
+          productivity: {
+            speedup: `You've processed ${fileCount} documents 5x faster than manual filing`,
+            driveSync: driveDocsCount > 0 ? 
+              `${driveDocsCount} Drive documents organized without opening Drive once` :
+              "Connect Drive to see sync statistics",
+            crossPlatform: fileCount > 0 ?
+              `Cross-platform documents: ${drivePercentage}% Drive, ${directPercentage}% direct uploads` :
+              "Upload documents to see distribution"
+          },
+          smartRecommendations: {
+            untaggedDocs: untaggedDocs.length > 0 ?
+              `${untaggedDocs.length} documents haven't been tagged - want AI to suggest tags?` :
+              "All documents are tagged! 🎉",
+            storageOptimization: largeFilesCountPercentage > 0 ?
+              `Large files comprise ${largeFilesPercentage}% of storage but only ${largeFilesCountPercentage}% of documents` :
+              "No large files detected"
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching fun facts:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch fun facts"
+      });
+    }
+  });
+
   // Get system-wide analytics metrics - for tracking platform growth and usage! 📊
   app.get("/api/analytics/system-metrics", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {

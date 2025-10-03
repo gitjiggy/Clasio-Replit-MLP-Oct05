@@ -1,57 +1,66 @@
-import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Brain, 
-  Clock, 
-  CheckCircle, 
-  AlertTriangle, 
-  Coffee, 
-  Sparkles, 
-  TrendingUp,
-  RefreshCw,
   X,
   BarChart3,
-  Timer,
-  Zap
+  FolderOpen,
+  Tags,
+  TrendingUp,
+  Clock,
+  Sparkles,
+  FileText,
+  HardDrive,
+  Lightbulb,
+  Package
 } from "lucide-react";
 
-interface QueueStatus {
-  pending: number;
-  processing: number;
-  completed: number;
-  failed: number;
-}
-
-interface QueueStatusResponse {
+interface FunFactsResponse {
   success: boolean;
-  queueStatus: QueueStatus;
-  dailyQuota: {
-    used: number;
-    limit: number;
-    percentage: number;
-    remaining: number;
-  };
-  statistics: {
-    totalRequests: number;
-    completionRate: number;
-    funnyStats: {
-      coffeeBreaksNeeded: number;
-      aiHappinessLevel: number;
-      digitalMagicLevel: string;
+  quotas: {
+    files: {
+      used: number;
+      limit: number;
+      percentage: number;
+      remaining: number;
+    };
+    storage: {
+      usedBytes: number;
+      usedMB: number;
+      usedGB: number;
+      limitGB: number;
+      percentage: number;
+      remainingGB: number;
     };
   };
-  messages: {
-    statusMessage: string;
-    priorityTip: string;
-    quotaWarning?: string | null;
-    encouragement: string;
+  insights: {
+    organizationPatterns: {
+      mostActiveFolder: string;
+      tagCount: number;
+      mostUsedTag: string;
+    };
+    aiClassification: {
+      categorizationRate: string;
+      documentTypes: string;
+      timeSaved: string;
+    };
+    documentLifecycle: {
+      oldestDocument: string;
+      documentsThisMonth: string;
+    };
+    productivity: {
+      speedup: string;
+      driveSync: string;
+      crossPlatform: string;
+    };
+    smartRecommendations: {
+      untaggedDocs: string;
+      storageOptimization: string;
+    };
   };
-  tips: string[];
 }
 
 interface QueueStatusDashboardProps {
@@ -61,40 +70,12 @@ interface QueueStatusDashboardProps {
 }
 
 export function QueueStatusDashboard({ isOpen, onClose, compact = false }: QueueStatusDashboardProps) {
-  const [autoRefresh, setAutoRefresh] = useState(true);
-
-  const { data, isLoading, error, refetch } = useQuery<QueueStatusResponse>({
-    queryKey: ["/api/queue/status"],
-    refetchInterval: autoRefresh ? 30000 : false, // Refresh every 30 seconds if enabled
+  const { data, isLoading, error, refetch } = useQuery<FunFactsResponse>({
+    queryKey: ["/api/fun-facts"],
+    refetchInterval: false,
   });
 
-  // Auto-refresh effect
-  useEffect(() => {
-    if (!isOpen) {
-      setAutoRefresh(false);
-    } else {
-      setAutoRefresh(true);
-    }
-  }, [isOpen]);
-
   if (!isOpen) return null;
-
-  const getQueueStatusColor = (status: keyof QueueStatus, count: number) => {
-    if (count === 0) return "bg-gray-100 text-gray-600";
-    
-    switch (status) {
-      case "pending":
-        return count > 10 ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700";
-      case "processing":
-        return "bg-yellow-100 text-yellow-700";
-      case "completed":
-        return "bg-green-100 text-green-700";
-      case "failed":
-        return "bg-red-100 text-red-700";
-      default:
-        return "bg-gray-100 text-gray-600";
-    }
-  };
 
   const getQuotaColor = (percentage: number) => {
     if (percentage >= 90) return "bg-red-500";
@@ -111,64 +92,28 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false }: Queue
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <Brain className="h-5 w-5" />
-              AI Queue Status
+              Fun Facts
             </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isLoading}
-              data-testid="button-refresh-queue"
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
           {error ? (
             <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Oops!</AlertTitle>
               <AlertDescription>
-                Failed to load queue status. Our dashboard might be taking a coffee break! ☕
+                Failed to load fun facts. Please try again! 
               </AlertDescription>
             </Alert>
           ) : (
             <div className="space-y-3">
-              {data?.messages.statusMessage && (
-                <p className="text-sm text-muted-foreground" data-testid="text-status-message">
-                  {data.messages.statusMessage}
-                </p>
-              )}
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-yellow-600" data-testid="text-pending-count">
-                    {data?.queueStatus.pending || 0}
-                  </div>
-                  <div className="text-xs text-muted-foreground">Pending</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-green-600" data-testid="text-completed-count">
-                    {data?.queueStatus.completed || 0}
-                  </div>
-                  <div className="text-xs text-muted-foreground">Completed</div>
-                </div>
-              </div>
-
-              {data?.dailyQuota && (
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span>Daily Quota</span>
-                    <span data-testid="text-quota-usage">
-                      {data.dailyQuota.used}/{data.dailyQuota.limit}
+              {data?.quotas && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span>Files</span>
+                    <span data-testid="text-file-quota">
+                      {data.quotas.files.used}/{data.quotas.files.limit}
                     </span>
                   </div>
-                  <Progress 
-                    value={data.dailyQuota.percentage} 
-                    className="h-2"
-                    data-testid="progress-daily-quota"
-                  />
+                  <Progress value={data.quotas.files.percentage} className="h-2" />
                 </div>
               )}
             </div>
@@ -181,281 +126,237 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false }: Queue
   // Full dashboard view
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="card-queue-dashboard">
-        <CardHeader>
+      <Card className="w-full max-w-6xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/40 dark:border-purple-800/40" data-testid="card-queue-dashboard">
+        <CardHeader className="border-b border-purple-200/40 dark:border-purple-800/40">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl flex items-center gap-2">
-                <Brain className="h-6 w-6" />
-                AI Queue Status Dashboard
+              <CardTitle className="text-3xl font-light tracking-wide flex items-center gap-3 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400">
+                <Brain className="h-7 w-7 text-purple-600 dark:text-purple-400" />
+                Fun Facts
               </CardTitle>
-              <CardDescription>
-                Your personal window into our digital brain's activities! 🧠✨
+              <CardDescription className="mt-2 text-sm font-light tracking-wide">
+                Your document management journey in numbers ✨
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={isLoading}
-                data-testid="button-refresh-full"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                data-testid="button-close-dashboard"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="hover:bg-purple-100 dark:hover:bg-purple-900/30"
+              data-testid="button-close-dashboard"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 mt-6">
           {error ? (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Dashboard Hiccup!</AlertTitle>
-              <AlertDescription>
-                Our queue status dashboard seems to be having a coffee break! ☕ Please try refreshing.
+            <Alert className="border-purple-200 dark:border-purple-800">
+              <AlertDescription className="font-light tracking-wide">
+                Failed to load fun facts. Please try refreshing!
               </AlertDescription>
             </Alert>
+          ) : isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+            </div>
           ) : (
             <>
-              {/* Status Message */}
-              {data?.messages.statusMessage && (
-                <Alert>
-                  <Sparkles className="h-4 w-4" />
-                  <AlertTitle>Current Status</AlertTitle>
-                  <AlertDescription data-testid="text-main-status">
-                    {data.messages.statusMessage}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Quota Warning */}
-              {data?.messages.quotaWarning && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Quota Alert</AlertTitle>
-                  <AlertDescription data-testid="text-quota-warning">
-                    {data.messages.quotaWarning}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Queue Status Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Pending</CardTitle>
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-orange-600" data-testid="text-pending-full">
-                      {data?.queueStatus.pending || 0}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Waiting for analysis
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Processing</CardTitle>
-                    <Zap className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-yellow-600" data-testid="text-processing-full">
-                      {data?.queueStatus.processing || 0}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      AI magic in progress
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Completed</CardTitle>
-                    <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600" data-testid="text-completed-full">
-                      {data?.queueStatus.completed || 0}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Successfully analyzed
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Failed</CardTitle>
-                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-red-600" data-testid="text-failed-full">
-                      {data?.queueStatus.failed || 0}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Need attention
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Daily Quota */}
-              {data?.dailyQuota && (
-                <Card>
+              {/* Quota Usage Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Files Quota */}
+                <Card className="border-purple-200/50 dark:border-purple-800/50 bg-white/70 dark:bg-gray-900/70">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5" />
-                      Daily Quota Usage
+                    <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      File Count
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Used Today</span>
-                        <span data-testid="text-quota-details">
-                          {data.dailyQuota.used} / {data.dailyQuota.limit} requests ({data.dailyQuota.percentage}%)
+                      <div className="flex justify-between text-sm font-light tracking-wide">
+                        <span>Files Used</span>
+                        <span className="font-normal" data-testid="text-file-quota-full">
+                          {data?.quotas.files.used} / {data?.quotas.files.limit}
                         </span>
                       </div>
                       <Progress 
-                        value={data.dailyQuota.percentage} 
+                        value={data?.quotas.files.percentage || 0} 
                         className="h-3"
-                        data-testid="progress-quota-full"
+                        data-testid="progress-file-quota"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        {data.dailyQuota.remaining} requests remaining today
+                      <p className="text-xs text-muted-foreground font-light tracking-wide">
+                        {data?.quotas.files.remaining} files remaining in your quota
                       </p>
                     </div>
                   </CardContent>
                 </Card>
-              )}
 
-              {/* Fun Statistics */}
-              {data?.statistics && (
-                <Card>
+                {/* Storage Quota */}
+                <Card className="border-indigo-200/50 dark:border-indigo-800/50 bg-white/70 dark:bg-gray-900/70">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5" />
-                      Fun Statistics
+                    <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
+                      <HardDrive className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                      Storage Used
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <div className="text-lg font-semibold" data-testid="text-completion-rate">
-                          {data.statistics.completionRate}%
-                        </div>
-                        <p className="text-sm text-muted-foreground">Success Rate</p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm font-light tracking-wide">
+                        <span>Storage Used</span>
+                        <span className="font-normal" data-testid="text-storage-quota-full">
+                          {data?.quotas.storage.usedGB} GB / {data?.quotas.storage.limitGB} GB
+                        </span>
                       </div>
-                      <div className="text-center">
-                        <div className="text-lg font-semibold flex items-center justify-center gap-1">
-                          <Coffee className="h-4 w-4" />
-                          <span data-testid="text-coffee-breaks">
-                            {data.statistics.funnyStats.coffeeBreaksNeeded}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">Coffee Breaks Needed</p>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-semibold" data-testid="text-digital-magic">
-                          {data.statistics.funnyStats.digitalMagicLevel}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Digital Magic Level</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 text-center">
-                      <Badge variant="outline" className="text-sm" data-testid="badge-ai-happiness">
-                        AI Happiness: {data.statistics.funnyStats.aiHappinessLevel}% 😊
-                      </Badge>
+                      <Progress 
+                        value={data?.quotas.storage.percentage || 0} 
+                        className="h-3"
+                        data-testid="progress-storage-quota"
+                      />
+                      <p className="text-xs text-muted-foreground font-light tracking-wide">
+                        {data?.quotas.storage.remainingGB} GB remaining ({data?.quotas.storage.usedMB} MB used)
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
-              )}
-
-              {/* Messages and Tips */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Priority Tip */}
-                {data?.messages.priorityTip && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Priority Tips</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm" data-testid="text-priority-tip">
-                        {data.messages.priorityTip}
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Encouragement */}
-                {data?.messages.encouragement && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Encouragement</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm" data-testid="text-encouragement">
-                        {data.messages.encouragement}
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
 
-              {/* Tips */}
-              {data?.tips && data.tips.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5" />
-                      Pro Tips
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {data.tips.map((tip, index) => (
-                        <li key={index} className="text-sm flex items-start gap-2" data-testid={`tip-${index}`}>
-                          <span className="text-muted-foreground">•</span>
-                          <span>{tip}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Auto-refresh Toggle */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Timer className="h-4 w-4" />
-                      <span className="text-sm">Auto-refresh every 30 seconds</span>
-                    </div>
-                    <Button
-                      variant={autoRefresh ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setAutoRefresh(!autoRefresh)}
-                      data-testid="button-toggle-refresh"
-                    >
-                      {autoRefresh ? "Enabled" : "Disabled"}
-                    </Button>
+              {/* Document Intelligence Analytics */}
+              <Card className="border-purple-200/50 dark:border-purple-800/50 bg-gradient-to-br from-purple-50/50 to-white dark:from-purple-950/20 dark:to-gray-900/70">
+                <CardHeader>
+                  <CardTitle className="text-xl font-light tracking-wide flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    Document Intelligence Analytics
+                  </CardTitle>
+                  <CardDescription className="font-light tracking-wide">Organization Patterns</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                    <FolderOpen className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm font-light tracking-wide" data-testid="text-active-folder">
+                      {data?.insights.organizationPatterns.mostActiveFolder}
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                    <Tags className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm font-light tracking-wide" data-testid="text-tag-usage">
+                      {data?.insights.organizationPatterns.mostUsedTag}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* AI Classification Insights */}
+              <Card className="border-indigo-200/50 dark:border-indigo-800/50 bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/20 dark:to-gray-900/70">
+                <CardHeader>
+                  <CardTitle className="text-xl font-light tracking-wide flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    AI Classification Insights
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                    <TrendingUp className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm font-light tracking-wide" data-testid="text-categorization-rate">
+                      {data?.insights.aiClassification.categorizationRate}
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                    <FileText className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm font-light tracking-wide" data-testid="text-document-types">
+                      {data?.insights.aiClassification.documentTypes}
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                    <Clock className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm font-light tracking-wide" data-testid="text-time-saved">
+                      {data?.insights.aiClassification.timeSaved}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Document Lifecycle & Productivity */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Document Lifecycle */}
+                <Card className="border-slate-200/50 dark:border-slate-800/50 bg-white/70 dark:bg-gray-900/70">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                      Document Lifecycle
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm font-light tracking-wide" data-testid="text-oldest-document">
+                      {data?.insights.documentLifecycle.oldestDocument}
+                    </p>
+                    <p className="text-sm font-light tracking-wide" data-testid="text-docs-this-month">
+                      {data?.insights.documentLifecycle.documentsThisMonth}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Productivity Metrics */}
+                <Card className="border-green-200/50 dark:border-green-800/50 bg-white/70 dark:bg-gray-900/70">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      Productivity Metrics
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm font-light tracking-wide" data-testid="text-speedup">
+                      {data?.insights.productivity.speedup}
+                    </p>
+                    <p className="text-sm font-light tracking-wide" data-testid="text-drive-sync">
+                      {data?.insights.productivity.driveSync}
+                    </p>
+                    <p className="text-sm font-light tracking-wide" data-testid="text-cross-platform">
+                      {data?.insights.productivity.crossPlatform}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Smart Recommendations & Storage Optimization */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Smart Recommendations */}
+                <Card className="border-amber-200/50 dark:border-amber-800/50 bg-gradient-to-br from-amber-50/50 to-white dark:from-amber-950/20 dark:to-gray-900/70">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
+                      <Lightbulb className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                      Smart Recommendations
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                      <Tags className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm font-light tracking-wide" data-testid="text-untagged-docs">
+                        {data?.insights.smartRecommendations.untaggedDocs}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Storage Optimization */}
+                <Card className="border-blue-200/50 dark:border-blue-800/50 bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-950/20 dark:to-gray-900/70">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
+                      <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      Storage Optimization
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                      <HardDrive className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm font-light tracking-wide" data-testid="text-storage-optimization">
+                        {data?.insights.smartRecommendations.storageOptimization}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </>
           )}
         </CardContent>
