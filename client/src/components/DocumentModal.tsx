@@ -684,10 +684,9 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Classification</div>
                         {!isEditingClassification && (
                           <Button
-                            variant="outline"
                             size="sm"
                             onClick={handleStartEdit}
-                            className="h-5 px-2 text-[10px] font-light tracking-wide"
+                            className="h-5 px-2 text-[10px] font-light tracking-wide bg-blue-500 hover:bg-blue-600 text-white"
                             data-testid="edit-classification"
                           >
                             <Edit2 className="h-2.5 w-2.5 mr-1" />
@@ -698,9 +697,9 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
 
                       {!isEditingClassification ? (
                         /* Display Mode */
-                        <div className="space-y-1.5 text-xs font-light tracking-wide">
+                        <div className="space-y-0.5 text-xs font-light tracking-wide">
                           {document.aiCategory && (
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-2">
                               <span>
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1.5">Folder:</span> 
                                 {document.overrideCategory || document.aiCategory}
@@ -709,14 +708,14 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                                 )}
                               </span>
                               {formatConfidence(document.aiCategoryConfidence) && (
-                                <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide" data-testid={`modal-confidence-category-${document.id}`}>
-                                  {formatConfidence(document.aiCategoryConfidence)}
+                                <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide whitespace-nowrap" data-testid={`modal-confidence-category-${document.id}`}>
+                                  Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
                                 </span>
                               )}
                             </div>
                           )}
                           {document.aiDocumentType && (
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-2">
                               <span>
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1.5">Sub-folder:</span> {
                                   // Prioritize actual folder name from Smart Organization
@@ -729,8 +728,8 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                                 )}
                               </span>
                               {formatConfidence(document.aiDocumentTypeConfidence) && (
-                                <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide" data-testid={`modal-confidence-type-${document.id}`}>
-                                  {formatConfidence(document.aiDocumentTypeConfidence)}
+                                <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide whitespace-nowrap" data-testid={`modal-confidence-type-${document.id}`}>
+                                  Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
                                 </span>
                               )}
                             </div>
