@@ -1471,7 +1471,7 @@ export default function Documents() {
                   <Button
                     variant={searchMode === "simple" ? "default" : "ghost"}
                     size="sm"
-                    className={`rounded-none text-xs font-semibold h-full border-0 gap-0.5 flex flex-col items-center justify-center ${
+                    className={`rounded-none text-xs font-semibold h-full border-0 gap-1 flex flex-row items-center justify-center ${
                       searchMode === "simple" 
                         ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
                         : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
