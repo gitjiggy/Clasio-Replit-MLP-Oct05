@@ -1380,7 +1380,7 @@ export default function Documents() {
             <div className="flex items-center gap-2 min-w-max">
               {/* Title + Document Count */}
               <div className="flex items-baseline gap-2 pr-2">
-                <h2 className="text-base font-medium text-foreground whitespace-nowrap">
+                <h2 className="text-base font-light tracking-wide text-foreground whitespace-nowrap">
                   {isMainCategorySelected 
                     ? `${selectedFolder?.name} Sub-folders`
                     : isSubFolderSelected 
@@ -1388,7 +1388,7 @@ export default function Documents() {
                       : "Documents"
                   }
                 </h2>
-                <span className="text-sm text-muted-foreground/70 whitespace-nowrap" data-testid="document-count">
+                <span className="text-sm text-muted-foreground/70 font-light tracking-wide whitespace-nowrap" data-testid="document-count">
                   {isMainCategorySelected 
                     ? `${selectedCategorySubFolders.length} folders`
                     : `${documentsData?.pagination.total || 0}`
@@ -1500,7 +1500,7 @@ export default function Documents() {
                 onComplete={handleUploadComplete}
                 onBulkUploadComplete={handleBulkUploadComplete}
                 onSuccess={handleUploadSuccess}
-                buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 flex-shrink-0"
+                buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 flex-shrink-0"
               >
                 <Upload className="h-5 w-5" />
                 <span>Upload</span>
@@ -1517,9 +1517,9 @@ export default function Documents() {
                 data-testid="button-smart-org-mobile"
               >
                 <Sparkles className="h-5 w-5" />
-                <span className="text-sm font-medium">Smart Org</span>
+                <span className="text-sm font-light tracking-wide">Smart Org</span>
                 {hierarchicalFolders.length > 0 && (
-                  <span className="ml-auto text-xs font-semibold bg-purple-200/50 dark:bg-purple-800/50 px-2 py-0.5 rounded-full">{hierarchicalFolders.length}</span>
+                  <span className="ml-auto text-xs font-light tracking-wide bg-purple-200/50 dark:bg-purple-800/50 px-2 py-0.5 rounded-full">{hierarchicalFolders.length}</span>
                 )}
               </Button>
               
@@ -1531,7 +1531,7 @@ export default function Documents() {
                 data-testid="button-queue-status"
               >
                 <Brain className="h-5 w-5" />
-                <span className="text-sm font-medium">AI Queue</span>
+                <span className="text-sm font-light tracking-wide">AI Queue</span>
               </Button>
               
               {/* Delete All */}
@@ -1544,7 +1544,7 @@ export default function Documents() {
                   data-testid="button-delete-all"
                 >
                   <Trash2 className="h-5 w-5" />
-                  <span className="text-sm font-medium">Delete All</span>
+                  <span className="text-sm font-light tracking-wide">Delete All</span>
                 </Button>
               )}
             </div>
@@ -1776,14 +1776,14 @@ export default function Documents() {
                           {getFileIcon(document.fileType)}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-semibold text-foreground truncate mb-0.5 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
+                          <h3 className="text-sm font-light tracking-wide text-foreground truncate mb-0.5 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
                             {getDocumentDisplayName(document)}
                           </h3>
-                          <p className="text-xs text-muted-foreground font-light">
+                          <p className="text-xs text-muted-foreground font-light tracking-wide">
                             {formatFileSize(document.fileSize || 0)}
                           </p>
                           {document.originalName && (
-                            <p className="text-xs text-muted-foreground/80 truncate mt-1 font-light" title={document.originalName} data-testid={`original-name-${document.id}`}>
+                            <p className="text-xs text-muted-foreground/80 truncate mt-1 font-light tracking-wide" title={document.originalName} data-testid={`original-name-${document.id}`}>
                               {document.originalName}
                             </p>
                           )}
@@ -1852,7 +1852,7 @@ export default function Documents() {
                             <Badge
                               key={tag.id}
                               variant="secondary"
-                              className="text-xs font-light"
+                              className="text-xs font-light tracking-wide"
                               style={{ backgroundColor: `${tag.color || '#8b5cf6'}15`, color: tag.color || '#8b5cf6', border: `1px solid ${tag.color || '#8b5cf6'}30` }}
                             >
                               {tag.name}
@@ -1862,7 +1862,7 @@ export default function Documents() {
                       </div>
                     )}
                     
-                    <div className="flex items-center justify-between text-xs text-muted-foreground/80 mb-2 font-light">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground/80 mb-2 font-light tracking-wide">
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {formatDate(document.uploadedAt)}
@@ -1880,12 +1880,12 @@ export default function Documents() {
                       <div className="mb-0 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
                         <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-purple-50/40 dark:bg-purple-950/10 pb-1">
                           <Sparkles className="h-3 w-3 text-purple-500 dark:text-purple-400" />
-                          <span className="text-xs font-medium text-purple-600 dark:text-purple-300">
+                          <span className="text-xs font-light tracking-wide text-purple-600 dark:text-purple-300">
                             {document.aiSummary ? 'AI Analysis' : 'Classification'}
                           </span>
                         </div>
                         {document.aiSummary && (
-                          <p className="text-xs text-purple-600/90 dark:text-purple-400/90 mb-2 leading-relaxed font-light">{document.aiSummary}</p>
+                          <p className="text-xs text-purple-600/90 dark:text-purple-400/90 mb-2 leading-relaxed font-light tracking-wide">{document.aiSummary}</p>
                         )}
                         {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
                           <div className="text-xs text-purple-500/80 dark:text-purple-400/80 mb-2 space-y-1">
@@ -1972,33 +1972,33 @@ export default function Documents() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-11 bg-slate-100/50 hover:bg-slate-200/70 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 px-2 transition-all"
+                        className="h-11 bg-slate-100/50 hover:bg-slate-200/70 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 px-1.5 transition-all flex-col gap-0.5"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDownload(document);
                         }}
                         data-testid={`download-${document.id}`}
                       >
-                        <Download className="h-3.5 w-3.5 sm:mr-1" />
-                        <span className="text-xs hidden sm:inline">Get</span>
+                        <Download className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-light tracking-wide">Get</span>
                       </Button>
                       <Button 
                         size="sm"
                         variant="ghost"
-                        className="h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-2 transition-all"
+                        className="h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-1.5 transition-all flex-col gap-0.5"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenDocumentFile(document);
                         }}
                         data-testid={`preview-${document.id}`}
                       >
-                        <Eye className="h-3.5 w-3.5 sm:mr-1" />
-                        <span className="text-xs hidden sm:inline">View</span>
+                        <Eye className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-light tracking-wide">View</span>
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-11 bg-purple-100/50 hover:bg-purple-200/70 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-700/50 px-2 transition-all"
+                        className="h-11 bg-purple-100/50 hover:bg-purple-200/70 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-700/50 px-1.5 transition-all flex-col gap-0.5"
                         onClick={(e) => {
                           e.stopPropagation();
                           analyzeDocumentMutation.mutate(document.id);
@@ -2006,13 +2006,13 @@ export default function Documents() {
                         disabled={analyzeDocumentMutation.isPending}
                         data-testid={`analyze-ai-${document.id}`}
                       >
-                        <Brain className="h-3.5 w-3.5 sm:mr-1" />
-                        <span className="text-xs hidden sm:inline">AI</span>
+                        <Brain className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-light tracking-wide">AI</span>
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-11 bg-rose-100/50 hover:bg-rose-200/70 dark:bg-rose-900/20 dark:hover:bg-rose-800/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-700/50 px-2 transition-all"
+                        className="h-11 bg-rose-100/50 hover:bg-rose-200/70 dark:bg-rose-900/20 dark:hover:bg-rose-800/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-700/50 px-1.5 transition-all flex-col gap-0.5"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteDocumentMutation.mutate(document.id);
@@ -2020,8 +2020,8 @@ export default function Documents() {
                         disabled={deleteDocumentMutation.isPending}
                         data-testid={`delete-${document.id}`}
                       >
-                        <Trash2 className="h-3.5 w-3.5 sm:mr-1" />
-                        <span className="text-xs hidden sm:inline">Del</span>
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-light tracking-wide">Del</span>
                       </Button>
                     </div>
                   </CardContent>
