@@ -1389,11 +1389,11 @@ export default function Documents() {
               </div>
               
               {/* Search Mode Toggle */}
-              <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg">
+              <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg w-[140px]">
                 <Button
                   variant={searchMode === "simple" ? "default" : "ghost"}
                   size="sm"
-                  className={`rounded-none text-sm font-semibold h-full w-24 border-0 gap-1.5 ${
+                  className={`rounded-none text-xs font-semibold h-full flex-1 border-0 gap-1 ${
                     searchMode === "simple" 
                       ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
@@ -1407,7 +1407,7 @@ export default function Documents() {
                 <Button
                   variant={searchMode === "ai" ? "default" : "ghost"}
                   size="sm"
-                  className={`rounded-none text-sm font-semibold h-full w-24 border-0 gap-1.5 ${
+                  className={`rounded-none text-xs font-semibold h-full flex-1 border-0 gap-1 ${
                     searchMode === "ai" 
                       ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
