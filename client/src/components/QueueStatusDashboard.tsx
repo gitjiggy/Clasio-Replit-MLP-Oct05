@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { EmptyStateDashboard } from "@/components/EmptyStateDashboard";
 import { 
   Brain, 
   X,
@@ -74,6 +75,11 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false }: Queue
   });
 
   if (!isOpen) return null;
+
+  // Show empty state if user has 0 documents
+  if (data?.quotas.files.used === 0 && !isLoading) {
+    return <EmptyStateDashboard isOpen={isOpen} onClose={onClose} />;
+  }
 
   const getQuotaColor = (percentage: number) => {
     if (percentage >= 90) return "bg-red-500";
