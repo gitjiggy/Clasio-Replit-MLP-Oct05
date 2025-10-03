@@ -672,6 +672,9 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                             onClick={() => {
                               if (newTagName.trim()) {
                                 handleAddTag(newTagName.trim());
+                                // Clear input immediately for better UX
+                                setNewTagName("");
+                                setIsAddingTag(false);
                               }
                             }}
                             disabled={!newTagName.trim() || createTagMutation.isPending || addTagToDocumentMutation.isPending}
