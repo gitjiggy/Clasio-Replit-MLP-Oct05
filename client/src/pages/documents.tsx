@@ -1299,35 +1299,38 @@ export default function Documents() {
                     {/* Main Category Folder */}
                     <Button
                       variant="ghost"
-                      className="w-full justify-between px-3 py-2 text-sm text-foreground hover:bg-accent"
+                      className="w-full justify-between px-3 py-2.5 text-sm text-foreground hover:bg-accent/50 transition-all duration-200"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "" : category.id)}
                       data-testid={`folder-${category.name.toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <div className="flex items-center">
-                        <FolderOpen className="mr-3 h-4 w-4" style={{ color: category.color || '#3b82f6' }} />
-                        <span className="font-medium">{category.name}</span>
+                      <div className="flex items-center gap-3">
+                        <FolderOpen className="h-4 w-4 flex-shrink-0" style={{ color: category.color || '#3b82f6' }} />
+                        <span className="font-medium tracking-wide">{category.name}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[10px] bg-muted/50 px-2 py-0.5 rounded-full font-medium">
                         {category.documentCount || 0}
                       </span>
                     </Button>
                     
                     {/* Sub-folders */}
                     {category.subFolders && category.subFolders.length > 0 && (
-                      <ul className="ml-6 mt-1 space-y-1">
+                      <ul className="ml-7 mt-0.5 space-y-0.5">
                         {category.subFolders.map((subFolder) => (
                           <li key={subFolder.id}>
                             <Button
                               variant="ghost"
-                              className="w-full justify-between px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground h-auto min-h-[32px]"
+                              className="w-full justify-between px-3 py-2 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-200 h-auto"
                               onClick={() => setSelectedFolderId(selectedFolderId === subFolder.id ? "" : subFolder.id)}
                               data-testid={`subfolder-${subFolder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                              title={subFolder.name}
                             >
-                              <div className="flex items-center flex-1 min-w-0 pr-2">
-                                <div className="mr-3 h-3 w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
-                                <span className="break-words text-left leading-tight">{subFolder.name}</span>
+                              <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                                <div className="h-2 w-2 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
+                                <span className="truncate text-left font-light tracking-wide">
+                                  {subFolder.name.split(' ').slice(0, 3).join(' ')}{subFolder.name.split(' ').length > 3 ? '...' : ''}
+                                </span>
                               </div>
-                              <span className="text-xs text-muted-foreground flex-shrink-0">
+                              <span className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ml-2">
                                 {subFolder.documentCount || 0}
                               </span>
                             </Button>
