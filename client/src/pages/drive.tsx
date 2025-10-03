@@ -261,139 +261,150 @@ export default function Drive() {
         </div>
       </div>
 
-      {/* Connection Status - Compact & Stylish */}
-      <div className="mb-4 inline-flex items-center gap-6 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-2">
-          <Cloud className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-light tracking-wide text-foreground">Drive Connection Status</span>
-        </div>
-        
-        {!connectionStatus?.connected ? (
-          <Button 
-            onClick={async () => {
-              try {
-                toast({
-                  title: "Opening authorization window",
-                  description: "A new window will open for Google Drive authorization...",
-                });
-                
-                console.log('[Drive Auth Flow] Starting Google Drive authentication...');
-                const success = await connectGoogleDrive();
-                console.log('[Drive Auth Flow] Authentication result:', success);
-                
-                if (success) {
-                  console.log('[Drive Auth Flow] ✅ Authentication successful, refreshing connection status...');
-                  
-                  console.log('[Drive Auth Flow] Browser cookies after auth:', {
-                    allCookies: document.cookie,
-                    hasDriveToken: document.cookie.includes('drive_access_token')
-                  });
-                  
-                  setIsDriveAuthenticated(true);
-                  queryClient.invalidateQueries({ queryKey: ['drive-connection'] });
-                  queryClient.invalidateQueries({ queryKey: ['drive-documents'] });
-                  
-                  toast({
-                    title: "Drive Connected!",
-                    description: "Successfully connected to Google Drive. You can now sync your documents.",
-                  });
-                }
-              } catch (error: any) {
-                console.error('[Drive Auth Flow] Drive connection error:', error);
-                console.error('[Drive Auth Flow] Error details:', {
-                  message: error?.message,
-                  stack: error?.stack,
-                  name: error?.name
-                });
-                
-                if (error.message.includes("Popup was blocked")) {
-                  toast({
-                    title: "Popup Blocked",
-                    description: "Please allow popups for this site and try again.",
-                    variant: "destructive"
-                  });
-                } else if (error.message.includes("cancelled") || error.message.includes("Authorization was cancelled")) {
-                  toast({
-                    title: "Drive Connection",
-                    description: "You can connect to Google Drive anytime to access your documents.",
-                  });
-                } else {
-                  toast({
-                    title: "Connection Issue",
-                    description: "Unable to connect to Google Drive. Please try again.",
-                    variant: "destructive"
-                  });
-                }
-              }
-            }}
-            size="sm"
-            variant="outline"
-            className="h-8 font-light tracking-wide"
-            data-testid="button-connect-drive"
-          >
-            <Cloud className="h-3.5 w-3.5 mr-1.5" />
-            Connect
-          </Button>
-        ) : connectionLoading ? (
+      {/* Connection Status & Search - All in One Line */}
+      <div className="mb-6 flex items-center gap-4">
+        {/* Connection Status Box */}
+        <div className="inline-flex items-center gap-6 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2">
-            <RefreshCw className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-            <span className="text-sm font-light tracking-wide text-muted-foreground">Checking...</span>
+            <Cloud className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-light tracking-wide text-foreground">Drive Connection Status</span>
           </div>
-        ) : connectionError ? (
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertCircle className="h-3.5 w-3.5" />
-            <span className="text-sm font-light tracking-wide">Connection failed</span>
-          </div>
-        ) : connectionStatus?.connected ? (
-          <div className="flex items-center gap-3">
+          
+          {!connectionStatus?.connected ? (
+            <Button 
+              onClick={async () => {
+                try {
+                  toast({
+                    title: "Opening authorization window",
+                    description: "A new window will open for Google Drive authorization...",
+                  });
+                  
+                  console.log('[Drive Auth Flow] Starting Google Drive authentication...');
+                  const success = await connectGoogleDrive();
+                  console.log('[Drive Auth Flow] Authentication result:', success);
+                  
+                  if (success) {
+                    console.log('[Drive Auth Flow] ✅ Authentication successful, refreshing connection status...');
+                    
+                    console.log('[Drive Auth Flow] Browser cookies after auth:', {
+                      allCookies: document.cookie,
+                      hasDriveToken: document.cookie.includes('drive_access_token')
+                    });
+                    
+                    setIsDriveAuthenticated(true);
+                    queryClient.invalidateQueries({ queryKey: ['drive-connection'] });
+                    queryClient.invalidateQueries({ queryKey: ['drive-documents'] });
+                    
+                    toast({
+                      title: "Drive Connected!",
+                      description: "Successfully connected to Google Drive. You can now sync your documents.",
+                    });
+                  }
+                } catch (error: any) {
+                  console.error('[Drive Auth Flow] Drive connection error:', error);
+                  console.error('[Drive Auth Flow] Error details:', {
+                    message: error?.message,
+                    stack: error?.stack,
+                    name: error?.name
+                  });
+                  
+                  if (error.message.includes("Popup was blocked")) {
+                    toast({
+                      title: "Popup Blocked",
+                      description: "Please allow popups for this site and try again.",
+                      variant: "destructive"
+                    });
+                  } else if (error.message.includes("cancelled") || error.message.includes("Authorization was cancelled")) {
+                    toast({
+                      title: "Drive Connection",
+                      description: "You can connect to Google Drive anytime to access your documents.",
+                    });
+                  } else {
+                    toast({
+                      title: "Connection Issue",
+                      description: "Unable to connect to Google Drive. Please try again.",
+                      variant: "destructive"
+                    });
+                  }
+                }
+              }}
+              size="sm"
+              variant="outline"
+              className="h-8 font-light tracking-wide"
+              data-testid="button-connect-drive"
+            >
+              <Cloud className="h-3.5 w-3.5 mr-1.5" />
+              Connect
+            </Button>
+          ) : connectionLoading ? (
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-              <span className="text-sm font-light tracking-wide text-green-600 dark:text-green-400">Connected to Google Drive</span>
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              <span className="text-sm font-light tracking-wide text-muted-foreground">Checking...</span>
             </div>
-            {connectionStatus.quota && (
-              <span className="text-xs font-light tracking-wide text-muted-foreground border-l border-border pl-3">
-                Storage: {formatFileSize(connectionStatus.quota.usageInDrive)} used of {formatFileSize(connectionStatus.quota.limit)}
-              </span>
-            )}
+          ) : connectionError ? (
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-3.5 w-3.5" />
+              <span className="text-sm font-light tracking-wide">Connection failed</span>
+            </div>
+          ) : connectionStatus?.connected ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <span className="text-sm font-light tracking-wide text-green-600 dark:text-green-400">Connected to Google Drive</span>
+              </div>
+              {connectionStatus.quota && (
+                <span className="text-xs font-light tracking-wide text-muted-foreground border-l border-border pl-3">
+                  Storage: {formatFileSize(connectionStatus.quota.usageInDrive)} used of {formatFileSize(connectionStatus.quota.limit)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-3.5 w-3.5" />
+              <span className="text-sm font-light tracking-wide">{connectionStatus?.message || 'Drive connection failed'}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Search Box */}
+        {connectionStatus?.connected && (
+          <div className="inline-flex items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-2.5 shadow-sm flex-1 max-w-md">
+            <Search className="h-4 w-4 text-muted-foreground mr-3 flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Search Drive documents..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="bg-transparent border-none outline-none text-sm font-light tracking-wide text-foreground placeholder:text-muted-foreground w-full"
+              data-testid="input-drive-search"
+            />
           </div>
-        ) : (
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertCircle className="h-3.5 w-3.5" />
-            <span className="text-sm font-light tracking-wide">{connectionStatus?.message || 'Drive connection failed'}</span>
-          </div>
+        )}
+
+        {/* Spacer to push refresh to the right */}
+        {connectionStatus?.connected && <div className="flex-1" />}
+
+        {/* Refresh Button */}
+        {connectionStatus?.connected && (
+          <Button 
+            onClick={() => {
+              refetchConnection();
+              refetch();
+            }} 
+            variant="outline" 
+            size="sm" 
+            className="font-light tracking-wide"
+            data-testid="button-refresh-drive"
+            disabled={connectionLoading || documentsLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${(connectionLoading || documentsLoading) ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         )}
       </div>
 
       {connectionStatus?.connected && (
         <>
-          {/* Search & Refresh - Compact & Stylish */}
-          <div className="mb-6 flex items-center justify-between gap-4">
-            <div className="inline-flex items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-2.5 shadow-sm max-w-md">
-              <Search className="h-4 w-4 text-muted-foreground mr-3 flex-shrink-0" />
-              <input
-                type="text"
-                placeholder="Search Drive documents..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="bg-transparent border-none outline-none text-sm font-light tracking-wide text-foreground placeholder:text-muted-foreground w-full"
-                data-testid="input-drive-search"
-              />
-            </div>
-            <Button 
-              onClick={() => {
-                refetchConnection();
-                refetch();
-              }} 
-              variant="outline" 
-              size="sm" 
-              className="font-light tracking-wide"
-              data-testid="button-refresh-drive"
-              disabled={connectionLoading || documentsLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${(connectionLoading || documentsLoading) ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
 
           {/* Documents Grid */}
           <div className="space-y-4">
