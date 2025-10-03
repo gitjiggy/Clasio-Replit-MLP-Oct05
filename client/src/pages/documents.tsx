@@ -1366,13 +1366,13 @@ export default function Documents() {
       <main className="flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[18vh_28vh_auto] md:grid-rows-none overflow-hidden">
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
         <div className="overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80">
-          {/* Header - Clean Premium */}
-          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border/20">
-            {/* Single Row: All Controls */}
-            <div className="flex items-center gap-2">
+          {/* Header - Clean Premium Single Row with Horizontal Scroll */}
+          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border/20 overflow-x-auto">
+            {/* Single Row: All Controls - Scrollable */}
+            <div className="flex items-center gap-2 min-w-max">
               {/* Title + Document Count */}
-              <div className="flex items-baseline gap-3">
-                <h2 className="text-base font-medium text-foreground">
+              <div className="flex items-baseline gap-3 pr-2">
+                <h2 className="text-base font-medium text-foreground whitespace-nowrap">
                   {isMainCategorySelected 
                     ? `${selectedFolder?.name} Sub-folders`
                     : isSubFolderSelected 
@@ -1380,7 +1380,7 @@ export default function Documents() {
                       : "Documents"
                   }
                 </h2>
-                <span className="text-base text-muted-foreground/70" data-testid="document-count">
+                <span className="text-base text-muted-foreground/70 whitespace-nowrap" data-testid="document-count">
                   {isMainCategorySelected 
                     ? `${selectedCategorySubFolders.length} folders`
                     : `${documentsData?.pagination.total || 0}`
@@ -1390,7 +1390,7 @@ export default function Documents() {
               
               {/* Filters */}
               <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-                <SelectTrigger className="w-32 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-type">
+                <SelectTrigger className="w-32 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-type">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1403,7 +1403,7 @@ export default function Documents() {
               </Select>
               
               <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                <SelectTrigger className="flex-1 max-w-[200px] text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-folder">
+                <SelectTrigger className="w-40 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-folder">
                   <SelectValue placeholder="All Folders" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1422,14 +1422,14 @@ export default function Documents() {
                 variant="ghost" 
                 onClick={clearFilters}
                 size="sm"
-                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground bg-slate-50/50 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 rounded-lg border border-slate-200/50 dark:border-slate-700/50"
+                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground bg-slate-50/50 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 rounded-lg border border-slate-200/50 dark:border-slate-700/50 flex-shrink-0"
                 data-testid="clear-filters"
               >
                 Clear
               </Button>
               
               {/* Search Components - Grouped with subtle bounding box */}
-              <div className="flex items-center gap-2 p-2 rounded-2xl border-2 border-slate-200/40 dark:border-slate-700/40 bg-slate-50/30 dark:bg-slate-800/20">
+              <div className="flex items-center gap-2 p-2 rounded-2xl border-2 border-slate-200/40 dark:border-slate-700/40 bg-slate-50/30 dark:bg-slate-800/20 flex-shrink-0">
                 {/* Search Mode Toggle */}
                 <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg w-[140px]">
                   <Button
@@ -1492,7 +1492,7 @@ export default function Documents() {
                 onComplete={handleUploadComplete}
                 onBulkUploadComplete={handleBulkUploadComplete}
                 onSuccess={handleUploadSuccess}
-                buttonClassName="h-11 px-5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5"
+                buttonClassName="h-11 px-5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 flex-shrink-0"
               >
                 <Upload className="h-5 w-5" />
                 <span className="hidden sm:inline">Upload</span>
@@ -1505,7 +1505,7 @@ export default function Documents() {
                   userToggledSmartOrgRef.current = true;
                   setShowSmartOrg(!showSmartOrg);
                 }}
-                className="md:hidden h-11 px-4 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all"
+                className="md:hidden h-11 px-4 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0"
                 data-testid="button-smart-org-mobile"
               >
                 <Sparkles className="h-5 w-5" />
@@ -1519,18 +1519,18 @@ export default function Documents() {
                 variant="ghost"
                 onClick={() => organizeAllMutation.mutate()}
                 disabled={organizeAllMutation.isPending}
-                className="hidden md:flex h-11 px-5 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all gap-2"
+                className="hidden md:flex h-11 px-5 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all gap-2 flex-shrink-0"
                 data-testid="button-organize-all"
               >
                 <Sparkles className="h-5 w-5" />
-                <span className="text-sm font-medium">{organizeAllMutation.isPending ? 'Organizing...' : 'Smart Org'}</span>
+                <span className="text-sm font-medium whitespace-nowrap">{organizeAllMutation.isPending ? 'Organizing...' : 'Smart Org'}</span>
               </Button>
               
               {/* AI Queue Status */}
               <Button
                 variant="ghost"
                 onClick={() => setQueueDashboardOpen(true)}
-                className="h-11 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all"
+                className="h-11 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0"
                 data-testid="button-queue-status"
               >
                 <Brain className="h-5 w-5" />
@@ -1542,7 +1542,7 @@ export default function Documents() {
                   variant="ghost"
                   onClick={() => deleteAllDocumentsMutation.mutate()}
                   disabled={deleteAllDocumentsMutation.isPending}
-                  className="h-11 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all"
+                  className="h-11 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0"
                   data-testid="button-delete-all"
                 >
                   <Trash2 className="h-5 w-5" />
