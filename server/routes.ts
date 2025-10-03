@@ -3782,10 +3782,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
         
         // Update existing document sync status
-        const updatedDocument = await storage.updateDocument(existingDocument.id, {
-          driveSyncStatus: "synced",
-          driveSyncedAt: new Date(),
-        });
+        const updatedDocument = await storage.updateDocument(
+          existingDocument.id, 
+          {
+            driveSyncStatus: "synced",
+            driveSyncedAt: new Date(),
+          },
+          userId!, // Pass userId for tenant context
+          reqId
+        );
         
         console.info(JSON.stringify({
           evt: "drive_sync.completed_existing",
