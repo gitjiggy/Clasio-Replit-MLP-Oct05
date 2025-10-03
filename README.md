@@ -26,7 +26,83 @@
 Clasio is a comprehensive document management system that leverages AI to automatically organize, analyze, and retrieve documents. The platform features intelligent categorization, Smart Organization folders, advanced search capabilities, and seamless cloud storage integration.
 
 **Live Demo:** [clasio.ai](https://clasio.ai)
-**Latest Repository:** [Clasio-Replit-MLP-Oct02](https://github.com/gitjiggy/Clasio-Replit-MLP-Oct02)
+**Latest Repository:** [Clasio-Replit-MLP-Oct03](https://github.com/gitjiggy/Clasio-Replit-MLP-Oct03)
+
+---
+
+## What's New for October 03, 2025
+
+### 🎨 Premium UI/UX Refinement - Mobile & Desktop Optimization
+
+#### **Mobile Smart Organization Section**
+- **Enhanced Visibility**: Redesigned mobile Smart Organization for premium look and feel
+  - Increased section height from 16vh → 28vh to show ~2 subfolders by default
+  - Changed cards from fixed 896px to flexible `h-full` for responsive layout
+  - Added vertical scrolling within cards to access all subfolders
+  - Removed container borders to eliminate visual artifacts
+
+- **Subfolder Design Overhaul**: Complete visual redesign for better readability
+  - Changed from barely-visible transparent backgrounds to solid white/gray backgrounds
+  - Upgraded text from xs to sm size for better legibility
+  - Changed color indicators from small squares to prominent circular dots (h-3 w-3)
+  - Added white borders to color indicators for depth and definition
+  - Implemented solid count badges with dark backgrounds for contrast
+  - Applied subtle shadows and borders for card-like appearance
+  - Enhanced hover states with purple tint transitions
+
+- **Spacing Optimizations**: Refined vertical spacing throughout mobile layout
+  - Added 48px margin (`mt-12`) between filters and Smart Organization
+  - Reduced gap from Smart Organization to documents from 48px → 24px (`mt-6`)
+  - Removed unnecessary scrollbar from header section
+  - Eliminated horizontal dividing line for cleaner appearance
+
+#### **Desktop Sidebar Refinement**
+- **Logo Section**: Applied solid black background for optimal white logo contrast
+  - Replaced gradient background with `bg-black` for premium appearance
+  - Ensures Clasio logo is always clearly visible
+
+- **Sidebar Width**: Expanded from 256px (w-64) to 320px (w-80)
+  - Prevents subfolder name overflow with longer titles
+  - Provides more breathing room for content
+
+- **Subfolder Display**: Implemented premium 3-word truncation system
+  - Smart truncation: Shows first 3 words + ellipsis for long names
+  - Full subfolder name visible on hover via title attribute
+  - Example: "Product Development And Launch Analysis" → "Product Development And..."
+  - Maintains clean, uncluttered sidebar appearance
+
+- **Typography & Spacing**: Enhanced for classy, sophisticated feel
+  - Changed indicators from rounded squares to small circular dots (h-2 w-2 rounded-full)
+  - Applied light font weights with wider tracking for elegance
+  - Implemented pill-shaped count badges with muted backgrounds
+  - Refined spacing (ml-7, space-y-0.5) for polished look
+  - Softer hover states (accent/50) with smooth transitions
+
+- **Category Button Enhancement**: Improved main folder buttons
+  - Increased padding (py-2.5) for better touch targets
+  - Applied matching pill-shaped badges for document counts
+  - Better gap spacing between icons and text (gap-3)
+  - Consistent styling with subfolder design
+
+#### **Document Cards Optimization**
+- **Vertical Spacing Reduction**: Tightened gaps throughout cards
+  - Reduced AI Analysis → buttons gap by 70% (mt-auto → mt-2)
+  - Reduced buttons → card bottom gap by 75% (pb-[3px] → pb-0, added -mb-2)
+  - Decreased card height from 420px → 390px for compact display
+  - Result: More documents visible per screen, less scrolling required
+
+- **AI Analysis Text Visibility**: Improved readability of AI summaries
+  - Removed text truncation (`line-clamp-3`) to show complete summaries
+  - No "..." truncation - full text always visible
+  - Maintained scrollable overflow for very long summaries
+  - Enhanced contrast and legibility
+
+#### **Design Philosophy Applied**
+- **Premium & Classy**: Light font weights, refined spacing, sophisticated color palettes
+- **High Contrast**: Ensuring visibility of all UI elements (white text on dark, dark text on light)
+- **Optimal Spacing**: Strategic use of margins and padding for visual hierarchy
+- **Performance**: Efficient viewport usage - more content, less scrolling
+- **Consistency**: Unified design language across mobile and desktop
 
 ---
 
@@ -250,8 +326,8 @@ Clasio is a comprehensive document management system that leverages AI to automa
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/gitjiggy/Clasio-Replit-MLP-Oct01.git
-   cd Clasio-Replit-MLP-Oct01
+   git clone https://github.com/gitjiggy/Clasio-Replit-MLP-Oct03.git
+   cd Clasio-Replit-MLP-Oct03
    ```
 
 2. **Install dependencies**
@@ -324,7 +400,7 @@ VITE_FIREBASE_APP_ID=1:123456789:web:abcdef
 ### Project Structure
 
 ```
-Clasio-Replit-MLP-Oct01/
+Clasio-Replit-MLP-Oct03/
 ├── client/                # Frontend React application
 │   ├── src/
 │   │   ├── components/    # Reusable UI components
