@@ -1228,16 +1228,9 @@ export default function Documents() {
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       {/* Sidebar - Hidden on mobile, visible on md+ */}
-      <aside className="hidden md:flex w-80 bg-card/80 backdrop-blur-sm border-r border-border flex-col">
-        <div className="p-4 md:p-6 border-b border-border flex items-center justify-center bg-black">
-          <img 
-            src="/attached_assets/noBgColor (1)_1759471370484.png" 
-            alt="Clasio AI Documents" 
-            className="max-w-[160px] h-auto drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"
-          />
-        </div>
+      <aside className="hidden md:flex w-80 bg-card/80 backdrop-blur-sm border-r border-border flex-col overflow-hidden">
         
-        <nav className="flex-1 p-4">
+        <nav className="flex-1 p-4 overflow-y-auto">
           <ul className="space-y-2">
             <li>
               <Button 
@@ -1269,22 +1262,12 @@ export default function Documents() {
                 Favorites
               </Button>
             </li>
-            <li>
-              <Button 
-                variant="ghost" 
-                className="w-full justify-start text-foreground hover:bg-accent"
-                data-testid="nav-deleted"
-              >
-                <Trash2 className="mr-3 h-4 w-4" />
-                Deleted
-              </Button>
-            </li>
           </ul>
           
           {/* Automatic Organization Folders - Always visible */}
-          <div className="mt-8">
+          <div className="mt-6">
             <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center">
-              <Sparkles className="mr-1 h-3 w-3" />
+              <Brain className="mr-2 h-4 w-4" />
               Smart Organization
             </h3>
             
@@ -1349,7 +1332,7 @@ export default function Documents() {
           </div>
 
           
-          <div className="mt-8">
+          <div className="mt-6">
             <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tags</h3>
             <div className="mt-2 px-3 space-y-2">
               {tags.map((tag) => (
@@ -1368,7 +1351,7 @@ export default function Documents() {
           </div>
         </nav>
         
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border flex-shrink-0">
           <div className="text-xs text-muted-foreground">
             <p>Storage Used</p>
             <div className="w-full bg-muted rounded-full h-2 mt-1">

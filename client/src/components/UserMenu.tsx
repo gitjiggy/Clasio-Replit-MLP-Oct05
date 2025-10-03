@@ -65,7 +65,7 @@ export function UserMenu() {
           </Avatar>
           <div className="hidden md:flex md:flex-col md:items-start">
             <span className="text-sm font-medium">{user.displayName}</span>
-            <span className="text-xs text-muted-foreground">{user.email}</span>
+            <span className="text-xs" style={{ color: '#facf39' }}>{user.email}</span>
           </div>
           <ChevronDown className="h-4 w-4" />
         </Button>
@@ -74,7 +74,7 @@ export function UserMenu() {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user.displayName}</p>
-            <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+            <p className="text-xs leading-none" style={{ color: '#facf39' }}>{user.email}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
