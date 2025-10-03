@@ -1376,279 +1376,286 @@ export default function Documents() {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-hidden flex flex-col">
-        {/* Header - Mobile First */}
-        <header className="bg-card/80 backdrop-blur-sm border-b border-border px-3 md:px-6 py-3 md:py-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="flex items-center gap-2 md:gap-4">
-              <h2 className="text-base md:text-lg font-light text-foreground tracking-wide">
-                {isMainCategorySelected 
-                  ? `${selectedFolder?.name} Sub-folders`
-                  : isSubFolderSelected 
-                    ? selectedFolder?.name 
-                    : "All Documents"
-                }
-              </h2>
-              <span className="text-xs md:text-sm text-muted-foreground font-light" data-testid="document-count">
-                {isMainCategorySelected 
-                  ? `${selectedCategorySubFolders.length} sub-folders`
-                  : `${documentsData?.pagination.total || 0} documents`
-                }
-              </span>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-2 md:gap-3">
-              {/* Search - Mobile Responsive */}
-              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                {/* Search Mode Toggle */}
-                <div className="flex items-center border border-border rounded-md">
-                  <Button
-                    variant={searchMode === "simple" ? "default" : "ghost"}
-                    size="sm"
-                    className="rounded-r-none text-xs"
-                    onClick={() => setSearchMode("simple")}
-                    data-testid="search-mode-simple"
-                  >
-                    Simple Search
-                  </Button>
-                  <Button
-                    variant={searchMode === "ai" ? "default" : "ghost"}
-                    size="sm"
-                    className="rounded-l-none text-xs"
-                    onClick={() => setSearchMode("ai")}
-                    data-testid="search-mode-ai"
-                  >
-                    AI Search
-                  </Button>
-                </div>
-                
-                {/* Search Input */}
-                <div className="relative flex-1 md:flex-none">
-                  <Input
-                    type="text"
-                    placeholder={searchMode === "ai" ? "Ask AI..." : "Search..."}
-                    value={searchQuery}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    className="w-full md:w-48 lg:w-64 pl-10 text-sm"
-                    data-testid="search-input"
-                  />
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                </div>
-                
-                {/* AI Search Go Button */}
-                {searchMode === "ai" && (
-                  <Button
-                    onClick={handleAISearch}
-                    disabled={!searchQuery.trim() || aiSearchLoading}
-                    className="bg-purple-500 hover:bg-purple-600 text-xs md:text-sm"
-                    data-testid="ai-search-go"
-                  >
-                    {aiSearchLoading ? "Searching..." : "Go!"}
-                  </Button>
-                )}
+      {/* Main Content - Mobile Grid Layout */}
+      <main className="md:flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[25vh_25vh_auto] md:grid-rows-none">
+        {/* Section 1 (Mobile): Controls + Filters Combined - 25vh with overflow */}
+        <div className="overflow-y-auto md:overflow-visible bg-card/80 backdrop-blur-sm border-b border-border">
+          {/* Header - Mobile Compact */}
+          <div className="px-3 md:px-6 py-2 md:py-4 border-b md:border-b-0 border-border/50">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-3">
+              <div className="flex items-center gap-2 md:gap-4">
+                <h2 className="text-sm md:text-lg font-light text-foreground tracking-wide">
+                  {isMainCategorySelected 
+                    ? `${selectedFolder?.name} Sub-folders`
+                    : isSubFolderSelected 
+                      ? selectedFolder?.name 
+                      : "All Documents"
+                  }
+                </h2>
+                <span className="text-xs md:text-sm text-muted-foreground font-light" data-testid="document-count">
+                  {isMainCategorySelected 
+                    ? `${selectedCategorySubFolders.length} sub-folders`
+                    : `${documentsData?.pagination.total || 0} documents`
+                  }
+                </span>
               </div>
               
-              {/* Queue Status Button - Icon only on mobile */}
-              <Button
-                variant="outline"
-                onClick={() => setQueueDashboardOpen(true)}
-                className="flex items-center gap-1 md:gap-2"
-                size="sm"
-                data-testid="button-queue-status"
-              >
-                <Brain className="h-4 w-4" />
-                <span className="hidden sm:inline text-xs md:text-sm">AI Queue</span>
-              </Button>
-              
-              {/* Smart Organization Button - Opens mobile menu on small screens */}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  userToggledSmartOrgRef.current = true; // Mark that user has manually toggled
-                  setShowSmartOrg(!showSmartOrg);
-                }}
-                className="flex items-center gap-1 md:gap-2 md:hidden relative"
-                size="sm"
-                data-testid="button-smart-org-mobile"
-              >
-                <Sparkles className="h-4 w-4" />
-                <span className="text-xs">Smart Org</span>
-                {hierarchicalFolders.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0 h-4 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300">
-                    {hierarchicalFolders.length}
-                  </Badge>
-                )}
-              </Button>
-              
-              {/* Desktop Smart Organization - Run All */}
-              <Button
-                variant="outline"
-                onClick={() => organizeAllMutation.mutate()}
-                disabled={organizeAllMutation.isPending}
-                className="hidden md:flex items-center gap-2"
-                size="sm"
-                data-testid="button-organize-all"
-              >
-                <Sparkles className="h-4 w-4" />
-                <span className="text-xs md:text-sm">{organizeAllMutation.isPending ? 'Organizing...' : 'Run Smart Org'}</span>
-              </Button>
-              
-              {/* Delete All Button (for testing) - Icon only on mobile */}
-              {documentsData?.documents && documentsData.documents.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 md:gap-3">
+                {/* Search - Mobile Responsive */}
+                <div className="flex flex-wrap items-center gap-1.5 md:gap-2 w-full md:w-auto">
+                  {/* Search Mode Toggle */}
+                  <div className="flex items-center border border-border rounded-md h-11 md:h-auto">
+                    <Button
+                      variant={searchMode === "simple" ? "default" : "ghost"}
+                      size="sm"
+                      className="rounded-r-none text-xs h-full"
+                      onClick={() => setSearchMode("simple")}
+                      data-testid="search-mode-simple"
+                    >
+                      Simple
+                    </Button>
+                    <Button
+                      variant={searchMode === "ai" ? "default" : "ghost"}
+                      size="sm"
+                      className="rounded-l-none text-xs h-full"
+                      onClick={() => setSearchMode("ai")}
+                      data-testid="search-mode-ai"
+                    >
+                      AI
+                    </Button>
+                  </div>
+                  
+                  {/* Search Input */}
+                  <div className="relative flex-1 md:flex-none">
+                    <Input
+                      type="text"
+                      placeholder={searchMode === "ai" ? "Ask AI..." : "Search..."}
+                      value={searchQuery}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      className="w-full md:w-48 lg:w-64 pl-10 text-sm h-11"
+                      data-testid="search-input"
+                    />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  </div>
+                  
+                  {/* AI Search Go Button */}
+                  {searchMode === "ai" && (
+                    <Button
+                      onClick={handleAISearch}
+                      disabled={!searchQuery.trim() || aiSearchLoading}
+                      className="bg-purple-500 hover:bg-purple-600 text-xs md:text-sm h-11"
+                      data-testid="ai-search-go"
+                    >
+                      {aiSearchLoading ? "..." : "Go!"}
+                    </Button>
+                  )}
+                </div>
+                
+                {/* Queue Status Button - Touch friendly */}
                 <Button
-                  variant="destructive"
-                  onClick={() => deleteAllDocumentsMutation.mutate()}
-                  disabled={deleteAllDocumentsMutation.isPending}
-                  className="flex items-center gap-1 md:gap-2"
+                  variant="outline"
+                  onClick={() => setQueueDashboardOpen(true)}
+                  className="flex items-center gap-1 md:gap-2 h-11 min-w-[44px]"
                   size="sm"
-                  data-testid="button-delete-all"
+                  data-testid="button-queue-status"
                 >
-                  <Trash2 className="h-4 w-4" />
-                  <span className="hidden sm:inline text-xs md:text-sm">{deleteAllDocumentsMutation.isPending ? 'Deleting...' : 'Delete All'}</span>
+                  <Brain className="h-5 w-5 md:h-4 md:w-4" />
+                  <span className="hidden sm:inline text-xs md:text-sm">AI Queue</span>
                 </Button>
-              )}
-              
-              {/* Upload Button - Icon only on mobile */}
-              <ObjectUploader
-                maxNumberOfFiles={5}
-                maxFileSize={50 * 1024 * 1024} // 50MB
-                enableBulkUpload={true}
-                onGetUploadParameters={getUploadParameters}
-                onGetBulkUploadParameters={getBulkUploadParameters}
-                onComplete={handleUploadComplete}
-                onBulkUploadComplete={handleBulkUploadComplete}
-                onSuccess={handleUploadSuccess}
-                buttonClassName="bg-purple-500 hover:bg-purple-600 text-white text-xs md:text-sm"
-              >
-                <Upload className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">Upload</span>
-              </ObjectUploader>
+                
+                {/* Smart Organization Button - Mobile only (opens Section 2) */}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    userToggledSmartOrgRef.current = true;
+                    setShowSmartOrg(!showSmartOrg);
+                  }}
+                  className="flex items-center gap-1 md:gap-2 md:hidden relative h-11 min-w-[44px]"
+                  size="sm"
+                  data-testid="button-smart-org-mobile"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  <span className="text-xs">Smart</span>
+                  {hierarchicalFolders.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0 h-4 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300">
+                      {hierarchicalFolders.length}
+                    </Badge>
+                  )}
+                </Button>
+                
+                {/* Desktop Smart Organization - Run All */}
+                <Button
+                  variant="outline"
+                  onClick={() => organizeAllMutation.mutate()}
+                  disabled={organizeAllMutation.isPending}
+                  className="hidden md:flex items-center gap-2"
+                  size="sm"
+                  data-testid="button-organize-all"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span className="text-xs md:text-sm">{organizeAllMutation.isPending ? 'Organizing...' : 'Run Smart Org'}</span>
+                </Button>
+                
+                {/* Delete All Button - Touch friendly */}
+                {documentsData?.documents && documentsData.documents.length > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => deleteAllDocumentsMutation.mutate()}
+                    disabled={deleteAllDocumentsMutation.isPending}
+                    className="flex items-center gap-1 md:gap-2 h-11 min-w-[44px]"
+                    size="sm"
+                    data-testid="button-delete-all"
+                  >
+                    <Trash2 className="h-5 w-5 md:h-4 md:w-4" />
+                    <span className="hidden sm:inline text-xs md:text-sm">{deleteAllDocumentsMutation.isPending ? 'Del...' : 'Delete All'}</span>
+                  </Button>
+                )}
+                
+                {/* Upload Button - Touch friendly */}
+                <ObjectUploader
+                  maxNumberOfFiles={5}
+                  maxFileSize={50 * 1024 * 1024}
+                  enableBulkUpload={true}
+                  onGetUploadParameters={getUploadParameters}
+                  onGetBulkUploadParameters={getBulkUploadParameters}
+                  onComplete={handleUploadComplete}
+                  onBulkUploadComplete={handleBulkUploadComplete}
+                  onSuccess={handleUploadSuccess}
+                  buttonClassName="bg-purple-500 hover:bg-purple-600 text-white text-xs md:text-sm h-11 min-w-[44px] flex items-center gap-1 md:gap-2"
+                >
+                  <Upload className="h-5 w-5 md:h-4 md:w-4" />
+                  <span className="hidden md:inline">Upload</span>
+                </ObjectUploader>
+              </div>
             </div>
           </div>
-        </header>
 
-        {/* Filters - Mobile First */}
-        <div className="bg-card/80 backdrop-blur-sm border-b border-border px-3 md:px-6 py-2 md:py-3">
-          <div className="flex flex-wrap items-center gap-2 md:gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-xs md:text-sm font-light text-foreground">Filter:</label>
-              <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-                <SelectTrigger className="w-32 md:w-40 text-xs md:text-sm" data-testid="filter-type">
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="pdf">PDF</SelectItem>
-                  <SelectItem value="docx">Word Documents</SelectItem>
-                  <SelectItem value="xlsx">Excel</SelectItem>
-                  <SelectItem value="image">Images</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Filters - Mobile Compact */}
+          <div className="px-3 md:px-6 py-2 md:py-3">
+            <div className="flex flex-wrap items-center gap-2 md:gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-xs md:text-sm font-light text-foreground">Type:</label>
+                <Select value={selectedFileType} onValueChange={setSelectedFileType}>
+                  <SelectTrigger className="w-28 md:w-40 text-xs md:text-sm h-11" data-testid="filter-type">
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="docx">Word Documents</SelectItem>
+                    <SelectItem value="xlsx">Excel</SelectItem>
+                    <SelectItem value="image">Images</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label className="text-xs md:text-sm font-light text-foreground">Folder:</label>
+                <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+                  <SelectTrigger className="w-28 md:w-40 text-xs md:text-sm h-11" data-testid="filter-folder">
+                    <SelectValue placeholder="All Folders" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Folders</SelectItem>
+                    {folders
+                      .filter(folder => folder.isAutoCreated && !folder.parentId)
+                      .map((folder) => (
+                      <SelectItem key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <Button 
+                variant="ghost" 
+                onClick={clearFilters}
+                size="sm"
+                className="text-xs md:text-sm text-muted-foreground hover:text-foreground font-light h-11 min-w-[44px]"
+                data-testid="clear-filters"
+              >
+                Clear
+              </Button>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <label className="text-xs md:text-sm font-light text-foreground">Folder:</label>
-              <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                <SelectTrigger className="w-32 md:w-40 text-xs md:text-sm" data-testid="filter-folder">
-                  <SelectValue placeholder="All Folders" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Folders</SelectItem>
-                  {folders
-                    .filter(folder => folder.isAutoCreated && !folder.parentId) // Only Smart Organization main categories
-                    .map((folder) => (
-                    <SelectItem key={folder.id} value={folder.id}>
-                      {folder.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <Button 
-              variant="ghost" 
-              onClick={clearFilters}
-              size="sm"
-              className="text-xs md:text-sm text-muted-foreground hover:text-foreground font-light"
-              data-testid="clear-filters"
-            >
-              Clear Filters
-            </Button>
           </div>
         </div>
 
-        {/* Mobile Smart Organization Section - Collapsible */}
-        {showSmartOrg && (
-          <div className="md:hidden bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border px-3 py-3">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-purple-600 dark:text-purple-400 flex items-center">
-                <Sparkles className="mr-2 h-4 w-4" />
-                Smart Organization
-              </h3>
+        {/* Section 2 (Mobile): Smart Organization - 25vh Horizontal Scroll */}
+        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-hidden snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border`}>
+          <div className="h-full px-3 py-3 flex items-start gap-3 min-w-max">
+            {/* Run Smart Org Card */}
+            <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm w-48 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-purple-600 dark:text-purple-400 flex items-center">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Smart Org
+                </h3>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => organizeAllMutation.mutate()}
                 disabled={organizeAllMutation.isPending}
-                className="text-xs"
+                className="text-xs mt-auto h-11 min-w-[44px]"
               >
                 {organizeAllMutation.isPending ? 'Organizing...' : 'Run All'}
               </Button>
             </div>
             
+            {/* Category Cards */}
             {foldersLoading ? (
-              <div className="text-xs text-muted-foreground text-center py-2">
-                Loading folders...
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm w-48 h-full flex items-center justify-center">
+                <div className="text-xs text-muted-foreground">Loading...</div>
               </div>
             ) : hierarchicalFolders.length > 0 ? (
-              <div className="space-y-2">
-                {hierarchicalFolders.map((category) => (
-                  <div key={category.id} className="bg-white dark:bg-gray-800 rounded-lg p-2 shadow-sm">
-                    <button
-                      className="w-full flex items-center justify-between text-left"
-                      onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
-                    >
-                      <div className="flex items-center">
-                        <FolderOpen className="mr-2 h-4 w-4" style={{ color: category.color || '#8b5cf6' }} />
-                        <span className="text-sm font-medium">{category.name}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground px-2 py-0.5 bg-purple-100 dark:bg-gray-700 rounded-full">
-                        {category.documentCount || 0}
-                      </span>
-                    </button>
-                    {category.subFolders && category.subFolders.length > 0 && (
-                      <div className="ml-6 mt-1 space-y-1">
-                        {category.subFolders.map((subFolder) => (
-                          <button
-                            key={subFolder.id}
-                            className="w-full flex items-center justify-between text-left py-1"
-                            onClick={() => setSelectedFolderId(selectedFolderId === subFolder.id ? "all" : subFolder.id)}
-                          >
-                            <div className="flex items-center">
-                              <div className="mr-2 h-2 w-2 rounded-sm" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
-                              <span className="text-xs">{subFolder.name}</span>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {subFolder.documentCount || 0}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              hierarchicalFolders.map((category) => (
+                <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm w-56 h-full flex flex-col overflow-y-auto">
+                  <button
+                    className="w-full flex items-center justify-between text-left mb-2 min-h-[44px]"
+                    onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
+                  >
+                    <div className="flex items-center flex-1 min-w-0">
+                      <FolderOpen className="mr-2 h-5 w-5 shrink-0" style={{ color: category.color || '#8b5cf6' }} />
+                      <span className="text-sm font-medium truncate">{category.name}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground px-2 py-0.5 bg-purple-100 dark:bg-gray-700 rounded-full ml-2 shrink-0">
+                      {category.documentCount || 0}
+                    </span>
+                  </button>
+                  {category.subFolders && category.subFolders.length > 0 && (
+                    <div className="space-y-1 flex-1 overflow-y-auto">
+                      {category.subFolders.map((subFolder) => (
+                        <button
+                          key={subFolder.id}
+                          className="w-full flex items-center justify-between text-left py-1.5 min-h-[44px]"
+                          onClick={() => setSelectedFolderId(selectedFolderId === subFolder.id ? "all" : subFolder.id)}
+                        >
+                          <div className="flex items-center flex-1 min-w-0">
+                            <div className="mr-2 h-3 w-3 rounded-sm shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
+                            <span className="text-xs truncate">{subFolder.name}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground ml-2 shrink-0">
+                            {subFolder.documentCount || 0}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
             ) : (
-              <div className="text-xs text-muted-foreground text-center py-2">
-                Upload documents to see smart folders
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm w-48 h-full flex items-center justify-center">
+                <div className="text-xs text-muted-foreground text-center">
+                  Upload documents to see smart folders
+                </div>
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {/* Documents Grid - Mobile First Padding */}
-        <div className="flex-1 overflow-auto p-3 md:p-6">
+        {/* Section 3 (Mobile): Documents Grid - auto height with overflow-y */}
+        <div className="overflow-y-auto md:flex-1 md:overflow-auto p-3 md:p-6">
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">
