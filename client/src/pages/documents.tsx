@@ -877,7 +877,7 @@ export default function Documents() {
     mutationFn: async ({ documentId, isFavorite }: { documentId: string; isFavorite: boolean }) => {
       return await apiRequest(`/api/documents/${documentId}`, {
         method: "PUT",
-        body: JSON.stringify({ isFavorite: !isFavorite }),
+        body: JSON.stringify({ isFavorite }),
         headers: { "Content-Type": "application/json" },
       });
     },
@@ -1859,7 +1859,7 @@ export default function Documents() {
                             {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => toggleFavoriteMutation.mutate({ documentId: document.id, isFavorite: document.isFavorite })}
+                            onClick={() => toggleFavoriteMutation.mutate({ documentId: document.id, isFavorite: !document.isFavorite })}
                             disabled={toggleFavoriteMutation.isPending}
                             data-testid={`menu-favorite-${document.id}`}
                           >
