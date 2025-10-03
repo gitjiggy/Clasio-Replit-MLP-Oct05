@@ -1902,7 +1902,7 @@ export default function Documents() {
                     
                     {/* AI Analysis Results - Scrollable */}
                     {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
-                      <div className="mb-3 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0 max-h-[140px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
+                      <div className="mb-2 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0 max-h-[140px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
                         <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-purple-50/40 dark:bg-purple-950/10 pb-1">
                           <Sparkles className="h-3 w-3 text-purple-500 dark:text-purple-400" />
                           <span className="text-xs font-medium text-purple-600 dark:text-purple-300">
@@ -1964,7 +1964,7 @@ export default function Documents() {
                     
                     {/* AI Search Score Display - Mobile Responsive */}
                     {searchMode === "ai" && aiSearchResults && document.aiScore !== undefined && (
-                      <div className="mb-3 p-2 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-900 rounded-md border border-purple-200 dark:border-purple-500">
+                      <div className="mb-2 p-2 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-900 rounded-md border border-purple-200 dark:border-purple-500">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <Brain className="h-4 w-4 text-purple-500" />
@@ -1993,7 +1993,7 @@ export default function Documents() {
                     )}
 
                     {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
-                    <div className="grid grid-cols-4 gap-1.5 mt-auto">
+                    <div className="grid grid-cols-4 gap-1.5 mt-2">
                       <Button
                         size="sm"
                         variant="ghost"
