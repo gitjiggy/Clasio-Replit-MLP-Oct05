@@ -1429,10 +1429,9 @@ export default function Documents() {
                   placeholder={searchMode === "ai" ? "Ask AI..." : "Search..."}
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  className="w-full pl-9 pr-3 text-sm h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
+                  className="w-full px-3 text-sm h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
                   data-testid="search-input"
                 />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
               </div>
               
               {/* AI Search Go Button */}
