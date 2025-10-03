@@ -1339,35 +1339,7 @@ export default function Documents() {
             )}
           </div>
 
-          
-          <div className="mt-6">
-            <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tags</h3>
-            <div className="mt-2 px-3 space-y-2">
-              {tags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  variant="secondary"
-                  className="cursor-pointer mr-2 mb-2"
-                  style={{ backgroundColor: `${tag.color || '#3b82f6'}20`, color: tag.color || '#3b82f6' }}
-                  onClick={() => setSelectedTagId(selectedTagId === tag.id ? "" : tag.id)}
-                  data-testid={`tag-${tag.name.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  {tag.name}
-                </Badge>
-              ))}
-            </div>
-          </div>
         </nav>
-        
-        <div className="p-4 border-t border-border flex-shrink-0">
-          <div className="text-xs text-muted-foreground">
-            <p>Storage Used</p>
-            <div className="w-full bg-muted rounded-full h-2 mt-1">
-              <div className="bg-primary h-2 rounded-full" style={{width: "65%"}}></div>
-            </div>
-            <p className="mt-1">6.5GB of 10GB</p>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content - Mobile Grid Layout */}
