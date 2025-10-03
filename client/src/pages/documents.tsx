@@ -1230,6 +1230,50 @@ export default function Documents() {
       {/* Sidebar - Hidden on mobile, visible on md+ */}
       <aside className="hidden md:flex w-80 bg-card/80 backdrop-blur-sm border-r border-border flex-col overflow-hidden">
         
+        {/* Filters Section - At top of sidebar */}
+        <div className="p-4 pb-2 border-b border-border/30">
+          <div className="space-y-2">
+            <Select value={selectedFileType} onValueChange={setSelectedFileType}>
+              <SelectTrigger className="w-full text-sm h-10 bg-white dark:bg-gray-800 border-border/40 rounded-lg shadow-sm" data-testid="filter-type">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="pdf">PDF</SelectItem>
+                <SelectItem value="docx">Word</SelectItem>
+                <SelectItem value="xlsx">Excel</SelectItem>
+                <SelectItem value="image">Images</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+              <SelectTrigger className="w-full text-sm h-10 bg-white dark:bg-gray-800 border-border/40 rounded-lg shadow-sm" data-testid="filter-folder">
+                <SelectValue placeholder="All Folders" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Folders</SelectItem>
+                {folders
+                  .filter(folder => folder.isAutoCreated && !folder.parentId)
+                  .map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Button 
+              variant="ghost" 
+              onClick={clearFilters}
+              size="sm"
+              className="w-full h-9 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg border border-blue-200/50 dark:border-blue-700/50"
+              data-testid="clear-filters"
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+        
         <nav className="flex-1 p-4 overflow-y-auto">
           <ul className="space-y-2">
             <li>
@@ -1512,51 +1556,6 @@ export default function Documents() {
                   <Trash2 className="h-5 w-5" />
                 </Button>
               )}
-            </div>
-          </div>
-
-          {/* Filters - Clean Layout */}
-          <div className="px-4 md:px-6 pb-2.5 space-y-2.5 overflow-x-hidden">
-            {/* Filters Row */}
-            <div className="flex items-center gap-2">
-              <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-                <SelectTrigger className="w-32 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-type">
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="pdf">PDF</SelectItem>
-                  <SelectItem value="docx">Word</SelectItem>
-                  <SelectItem value="xlsx">Excel</SelectItem>
-                  <SelectItem value="image">Images</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                <SelectTrigger className="flex-1 max-w-[200px] text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg" data-testid="filter-folder">
-                  <SelectValue placeholder="All Folders" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Folders</SelectItem>
-                  {folders
-                    .filter(folder => folder.isAutoCreated && !folder.parentId)
-                    .map((folder) => (
-                    <SelectItem key={folder.id} value={folder.id}>
-                      {folder.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Button 
-                variant="ghost" 
-                onClick={clearFilters}
-                size="sm"
-                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground bg-slate-50/50 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 rounded-lg border border-slate-200/50 dark:border-slate-700/50"
-                data-testid="clear-filters"
-              >
-                Clear
-              </Button>
             </div>
           </div>
         </div>
