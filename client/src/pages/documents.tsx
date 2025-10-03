@@ -594,6 +594,16 @@ export default function Documents() {
     queryKey: ['/api/tags'],
   });
 
+  // Sync selected document with updated data when documents refetch
+  useEffect(() => {
+    if (selectedDocument && documentsData?.documents) {
+      const updatedDocument = documentsData.documents.find(doc => doc.id === selectedDocument.id);
+      if (updatedDocument) {
+        setSelectedDocument(updatedDocument);
+      }
+    }
+  }, [documentsData, selectedDocument?.id]);
+
   // Check for AI analysis completion and manage polling
   useEffect(() => {
     if (!documentsData?.documents || !isPollingForAI || recentUploads.documentIds.length === 0) {
