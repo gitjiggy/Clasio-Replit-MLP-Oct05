@@ -390,15 +390,20 @@ app.get('/dashboard', (req, res) => {
     throw new Error('Cannot start server without Firebase authentication');
   }
 
-  // Validate Google Cloud Storage is properly configured
-  console.log('☁️  Validating Google Cloud Storage configuration...');
-  try {
-    const { validateGCSClient } = await import('./objectStorage.js');
-    await validateGCSClient();
-    console.log('✅ Google Cloud Storage ready');
-  } catch (gcsError) {
-    console.error('❌ GCS validation failed:', gcsError);
-    throw new Error('Cannot start server without Google Cloud Storage access');
+  // Validate Google Cloud Storage is properly configured (production only)
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    console.log('☁️  Validating Google Cloud Storage configuration...');
+    try {
+      const { validateGCSClient } = await import('./objectStorage.js');
+      await validateGCSClient();
+      console.log('✅ Google Cloud Storage ready');
+    } catch (gcsError) {
+      console.error('❌ GCS validation failed:', gcsError);
+      throw new Error('Cannot start server without Google Cloud Storage access');
+    }
+  } else {
+    console.log('⚠️  Skipping GCS validation in development mode');
   }
 
   // Start AI Queue Processor for background document analysis (can be disabled for standalone worker deployment)
