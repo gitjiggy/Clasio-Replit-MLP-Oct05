@@ -1400,8 +1400,8 @@ export default function Documents() {
                 </span>
               </div>
               
-              {/* Primary Actions Row */}
-              <div className="flex items-center gap-2">
+              {/* Primary Actions Row - Evenly Spaced Premium Design */}
+              <div className="flex items-center justify-between md:justify-end gap-2 w-full md:w-auto">
                 {/* Upload Button - Primary CTA */}
                 <ObjectUploader
                   maxNumberOfFiles={5}
@@ -1412,10 +1412,10 @@ export default function Documents() {
                   onComplete={handleUploadComplete}
                   onBulkUploadComplete={handleBulkUploadComplete}
                   onSuccess={handleUploadSuccess}
-                  buttonClassName="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-xs md:text-sm h-9 px-3 md:px-4 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2"
+                  buttonClassName="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-xs md:text-sm h-10 px-4 md:px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 font-medium"
                 >
                   <Upload className="h-4 w-4" />
-                  <span className="hidden sm:inline font-medium">Upload</span>
+                  <span className="hidden sm:inline">Upload</span>
                 </ObjectUploader>
                 
                 {/* Smart Organization Button - Mobile only */}
@@ -1425,12 +1425,12 @@ export default function Documents() {
                     userToggledSmartOrgRef.current = true;
                     setShowSmartOrg(!showSmartOrg);
                   }}
-                  className="md:hidden h-9 px-3 bg-purple-50/80 hover:bg-purple-100/80 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 rounded-lg border border-purple-200/50 dark:border-purple-700/50"
+                  className="md:hidden h-10 px-4 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-sm hover:shadow-md transition-all"
                   data-testid="button-smart-org-mobile"
                 >
                   <Sparkles className="h-4 w-4" />
                   {hierarchicalFolders.length > 0 && (
-                    <span className="ml-1.5 text-xs font-medium">{hierarchicalFolders.length}</span>
+                    <span className="ml-1.5 text-xs font-semibold">{hierarchicalFolders.length}</span>
                   )}
                 </Button>
                 
@@ -1439,7 +1439,7 @@ export default function Documents() {
                   variant="ghost"
                   onClick={() => organizeAllMutation.mutate()}
                   disabled={organizeAllMutation.isPending}
-                  className="hidden md:flex h-9 px-3 bg-purple-50/80 hover:bg-purple-100/80 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 rounded-lg border border-purple-200/50 dark:border-purple-700/50"
+                  className="hidden md:flex h-10 px-4 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-sm hover:shadow-md transition-all"
                   data-testid="button-organize-all"
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
@@ -1450,7 +1450,7 @@ export default function Documents() {
                 <Button
                   variant="ghost"
                   onClick={() => setQueueDashboardOpen(true)}
-                  className="h-9 px-3 bg-slate-50/80 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 rounded-lg border border-slate-200/50 dark:border-slate-700/50"
+                  className="h-10 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-all"
                   data-testid="button-queue-status"
                 >
                   <Brain className="h-4 w-4" />
@@ -1462,7 +1462,7 @@ export default function Documents() {
                     variant="ghost"
                     onClick={() => deleteAllDocumentsMutation.mutate()}
                     disabled={deleteAllDocumentsMutation.isPending}
-                    className="h-9 px-3 bg-rose-50/80 hover:bg-rose-100/80 dark:bg-rose-900/20 dark:hover:bg-rose-800/30 text-rose-600 dark:text-rose-400 rounded-lg border border-rose-200/50 dark:border-rose-700/50"
+                    className="h-10 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-sm hover:shadow-md transition-all"
                     data-testid="button-delete-all"
                   >
                     <Trash2 className="h-4 w-4" />
