@@ -2,21 +2,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { 
   Upload,
-  FolderOpen,
-  Mail,
-  HardDrive,
-  Image,
   X,
-  Calendar
+  Camera,
+  FileDown,
+  Link2,
+  AlertCircle,
+  FileWarning,
+  FileCheck
 } from "lucide-react";
 
 interface EmptyStateDashboardProps {
   isOpen: boolean;
   onClose: () => void;
+  onUpload?: () => void;
 }
 
-export function EmptyStateDashboard({ isOpen, onClose }: EmptyStateDashboardProps) {
+export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDashboardProps) {
   if (!isOpen) return null;
+
+  const handleUploadClick = () => {
+    onClose();
+    if (onUpload) {
+      // Small delay to ensure modal closes before opening upload
+      setTimeout(() => onUpload(), 100);
+    }
+  };
 
   // Time-aware context
   const getTimeContext = () => {
@@ -42,40 +52,58 @@ export function EmptyStateDashboard({ isOpen, onClose }: EmptyStateDashboardProp
     return "Start organizing your documents today";
   };
 
-  // Documents you'll need this month
-  const getMonthlyDocuments = () => {
-    const month = new Date().getMonth();
-    
-    if (month === 2) { // March
-      return "Tax documents checklist";
-    }
-    if (month === 8) { // September
-      return "Back-to-school forms";
-    }
-    if (month === 11) { // December
-      return "Year-end expense reports";
-    }
-    return "Monthly document organization";
-  };
+  const quickActions = [
+    { 
+      icon: Camera, 
+      title: "Snap a photo of any receipt", 
+      subtitle: "AI extracts and categorizes everything",
+      color: "text-indigo-600 dark:text-indigo-400"
+    },
+    { 
+      icon: FileDown, 
+      title: "Drop that PDF you just downloaded", 
+      subtitle: "Drag and drop anywhere",
+      color: "text-purple-600 dark:text-purple-400"
+    },
+    { 
+      icon: Link2, 
+      title: "Connect Drive - organize without uploading", 
+      subtitle: "Sync existing documents instantly",
+      color: "text-blue-600 dark:text-blue-400"
+    },
+  ];
 
-  const documentLocations = [
-    { icon: FolderOpen, title: "Downloads folder", subtitle: "usually 50+ forgotten files" },
-    { icon: FolderOpen, title: "Desktop", subtitle: "those \"temporary\" PDFs" },
-    { icon: Mail, title: "Email attachments", subtitle: "receipts, invoices" },
-    { icon: HardDrive, title: "Google Drive", subtitle: "unorganized chaos" },
-    { icon: Image, title: "Photos app", subtitle: "pictures of documents" },
+  const auditQuestions = [
+    {
+      icon: AlertCircle,
+      question: "Do you have documents older than 2019?",
+      solution: "Auto-archive with smart date detection",
+      color: "text-amber-600 dark:text-amber-400"
+    },
+    {
+      icon: FileWarning,
+      question: "Any unsigned contracts floating around?",
+      solution: "Track signatures & missing approvals",
+      color: "text-orange-600 dark:text-orange-400"
+    },
+    {
+      icon: FileCheck,
+      question: "Receipts without warranty info attached?",
+      solution: "Link related docs automatically",
+      color: "text-teal-600 dark:text-teal-400"
+    },
   ];
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-3xl max-h-[85vh] overflow-y-auto bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/40 dark:border-purple-800/40">
-        <CardHeader className="border-b border-purple-200/40 dark:border-purple-800/40 pb-3">
+      <Card className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/40 dark:border-purple-800/40">
+        <CardHeader className="border-b border-purple-200/40 dark:border-purple-800/40 pb-2.5">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl font-light tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400">
+              <CardTitle className="text-xl font-light tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400">
                 Welcome to Clasio ✨
               </CardTitle>
-              <CardDescription className="mt-1 text-sm font-light tracking-wide">
+              <CardDescription className="mt-0.5 text-xs font-light tracking-wide">
                 {getTimeContext()}
               </CardDescription>
             </div>
@@ -91,104 +119,68 @@ export function EmptyStateDashboard({ isOpen, onClose }: EmptyStateDashboardProp
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4 mt-4 pb-4">
-          {/* Quick Win Scenarios - First */}
-          <Card className="border-indigo-200/50 dark:border-indigo-800/50 bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/20 dark:to-gray-900/70">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
-                <Upload className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                Got 30 seconds? Try this:
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex items-start gap-3 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                <span className="text-xl">📱</span>
-                <div>
-                  <p className="text-sm font-normal tracking-wide">Snap a photo of any receipt</p>
-                  <p className="text-xs text-muted-foreground font-light tracking-wide">
-                    AI will extract and categorize everything
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                <span className="text-xl">📎</span>
-                <div>
-                  <p className="text-sm font-normal tracking-wide">Drop that PDF you just downloaded</p>
-                  <p className="text-xs text-muted-foreground font-light tracking-wide">
-                    Drag and drop anywhere on this page
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                <span className="text-xl">🔗</span>
-                <div>
-                  <p className="text-sm font-normal tracking-wide">Connect Drive - organize without uploading</p>
-                  <p className="text-xs text-muted-foreground font-light tracking-wide">
-                    Sync your existing documents instantly
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Documents You'll Need This Month */}
-          <Card className="border-purple-200/50 dark:border-purple-800/50 bg-gradient-to-br from-purple-50/50 to-white dark:from-purple-950/20 dark:to-gray-900/70">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-light tracking-wide flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                Documents You'll Need This Month
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm font-normal tracking-wide">{getMonthlyDocuments()}</p>
-            </CardContent>
-          </Card>
-
-          {/* Document Graveyard */}
-          <Card className="border-amber-200/50 dark:border-amber-800/50 bg-gradient-to-br from-amber-50/50 to-white dark:from-amber-950/20 dark:to-gray-900/70">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-light tracking-wide">
-                Documents Living in Digital Purgatory
-              </CardTitle>
-              <CardDescription className="text-xs font-light tracking-wide">
-                Where are your documents hiding?
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-1.5">
-              {documentLocations.map((location, index) => {
-                const Icon = location.icon;
+        <CardContent className="space-y-3 mt-3 pb-3">
+          {/* Quick Win Scenarios */}
+          <div className="space-y-1.5">
+            <h3 className="text-sm font-normal tracking-wide text-muted-foreground px-1">
+              Got 30 seconds? Try this:
+            </h3>
+            <div className="grid grid-cols-1 gap-1.5">
+              {quickActions.map((action, index) => {
+                const Icon = action.icon;
                 return (
                   <div
                     key={index}
-                    className="flex items-center gap-2.5 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg opacity-70 hover:opacity-100 transition-opacity"
+                    className="flex items-center gap-2.5 p-2.5 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30 hover:border-purple-200 dark:hover:border-purple-700 transition-colors"
                   >
-                    <Icon className="h-4 w-4 text-amber-500" />
-                    <div className="flex-1">
-                      <p className="text-sm font-normal tracking-wide">{location.title}</p>
-                      <p className="text-xs text-muted-foreground font-light italic">
-                        {location.subtitle}
+                    <Icon className={`h-4 w-4 ${action.color} flex-shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-normal tracking-wide truncate">{action.title}</p>
+                      <p className="text-[10px] text-muted-foreground font-light tracking-wide truncate">
+                        {action.subtitle}
                       </p>
                     </div>
                   </div>
                 );
               })}
-            </CardContent>
-          </Card>
-
-          {/* CTA Button - Always visible */}
-          <div className="text-center pt-2">
-            <p className="text-sm font-light tracking-wide text-muted-foreground mb-3">
-              Rescue them with Clasio →
-            </p>
-            <Button
-              className="bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-500 dark:to-indigo-500 text-white hover:opacity-90 font-light tracking-wide w-full"
-              onClick={onClose}
-              data-testid="button-start-uploading"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload Your First Document
-            </Button>
+            </div>
           </div>
+
+          {/* Quick Document Audit */}
+          <div className="space-y-1.5">
+            <h3 className="text-sm font-normal tracking-wide text-muted-foreground px-1">
+              Quick Document Audit
+            </h3>
+            <div className="grid grid-cols-1 gap-1.5">
+              {auditQuestions.map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2.5 p-2.5 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30"
+                  >
+                    <Icon className={`h-4 w-4 ${item.color} flex-shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-normal tracking-wide">{item.question}</p>
+                      <p className="text-[10px] text-muted-foreground font-light tracking-wide italic">
+                        → {item.solution}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* CTA Button */}
+          <Button
+            className="bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-500 dark:to-indigo-500 text-white hover:opacity-90 font-light tracking-wide w-full mt-2"
+            onClick={handleUploadClick}
+            data-testid="button-start-uploading"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Your First Document
+          </Button>
         </CardContent>
       </Card>
     </div>

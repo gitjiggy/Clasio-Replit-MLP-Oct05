@@ -422,6 +422,7 @@ export default function Documents() {
   
   // Track if user has manually toggled Smart Org (to prevent auto-reopening)
   const userToggledSmartOrgRef = useRef(false);
+  const uploadButtonRef = useRef<HTMLDivElement>(null);
   
   // State for AI analysis polling
   const [recentUploads, setRecentUploads] = useState<{ timestamp: number; documentIds: string[] }>({ timestamp: 0, documentIds: [] });
@@ -1517,20 +1518,22 @@ export default function Documents() {
               </div>
               
               {/* Upload Button */}
-              <ObjectUploader
-                maxNumberOfFiles={5}
-                maxFileSize={50 * 1024 * 1024}
-                enableBulkUpload={true}
-                onGetUploadParameters={getUploadParameters}
-                onGetBulkUploadParameters={getBulkUploadParameters}
-                onComplete={handleUploadComplete}
-                onBulkUploadComplete={handleBulkUploadComplete}
-                onSuccess={handleUploadSuccess}
-                buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 flex-shrink-0"
-              >
-                <Upload className="h-5 w-5" />
-                <span>Upload</span>
-              </ObjectUploader>
+              <div ref={uploadButtonRef}>
+                <ObjectUploader
+                  maxNumberOfFiles={5}
+                  maxFileSize={50 * 1024 * 1024}
+                  enableBulkUpload={true}
+                  onGetUploadParameters={getUploadParameters}
+                  onGetBulkUploadParameters={getBulkUploadParameters}
+                  onComplete={handleUploadComplete}
+                  onBulkUploadComplete={handleBulkUploadComplete}
+                  onSuccess={handleUploadSuccess}
+                  buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 flex-shrink-0"
+                >
+                  <Upload className="h-5 w-5" />
+                  <span>Upload</span>
+                </ObjectUploader>
+              </div>
               
               {/* Smart Organization Button - Mobile only */}
               <Button
@@ -2135,6 +2138,11 @@ export default function Documents() {
       <QueueStatusDashboard
         isOpen={queueDashboardOpen}
         onClose={() => setQueueDashboardOpen(false)}
+        onUpload={() => {
+          // Trigger upload button click
+          const button = uploadButtonRef.current?.querySelector('button');
+          if (button) button.click();
+        }}
       />
     </div>
   );

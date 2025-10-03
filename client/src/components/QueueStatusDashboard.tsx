@@ -66,9 +66,10 @@ interface QueueStatusDashboardProps {
   isOpen: boolean;
   onClose: () => void;
   compact?: boolean;
+  onUpload?: () => void;
 }
 
-export function QueueStatusDashboard({ isOpen, onClose, compact = false }: QueueStatusDashboardProps) {
+export function QueueStatusDashboard({ isOpen, onClose, compact = false, onUpload }: QueueStatusDashboardProps) {
   const { data, isLoading, error, refetch } = useQuery<FunFactsResponse>({
     queryKey: ["/api/fun-facts"],
     refetchInterval: false,
@@ -78,7 +79,7 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false }: Queue
 
   // Show empty state if user has 0 documents
   if (data?.quotas.files.used === 0 && !isLoading) {
-    return <EmptyStateDashboard isOpen={isOpen} onClose={onClose} />;
+    return <EmptyStateDashboard isOpen={isOpen} onClose={onClose} onUpload={onUpload} />;
   }
 
   const getQuotaColor = (percentage: number) => {
