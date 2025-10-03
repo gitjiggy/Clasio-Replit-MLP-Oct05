@@ -1380,7 +1380,7 @@ export default function Documents() {
       </aside>
 
       {/* Main Content - Mobile Grid Layout */}
-      <main className="flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[22vh_16vh_auto] md:grid-rows-none overflow-hidden">
+      <main className="flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[18vh_50vh_auto] md:grid-rows-none overflow-hidden">
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
         <div className="overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80">
           {/* Header - Clean Premium */}
@@ -1589,13 +1589,13 @@ export default function Documents() {
           <div className="h-full px-6 py-4 flex items-start gap-4 min-w-max">
             {/* Category Cards */}
             {foldersLoading ? (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[896px] flex items-center justify-center">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-full flex items-center justify-center">
                 <div className="text-xs text-muted-foreground">Loading...</div>
               </div>
             ) : hierarchicalFolders.length > 0 ? (
               hierarchicalFolders.map((category) => {
                 return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[896px] flex flex-col p-5 pb-4">
+                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-full flex flex-col p-5 pb-4">
                     <button
                       className="w-full flex items-center justify-between text-left mb-3 h-11 shrink-0"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
@@ -1611,7 +1611,7 @@ export default function Documents() {
                     </button>
                     {category.subFolders && category.subFolders.length > 0 && (
                       <div className="flex-1 overflow-hidden rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 px-2 py-3">
-                        <div className="h-[826px] space-y-1.5 overflow-y-auto pr-1">
+                        <div className="h-full space-y-1.5 overflow-y-auto pr-1">
                           {category.subFolders.map((subFolder) => (
                             <button
                               key={subFolder.id}
@@ -1638,7 +1638,7 @@ export default function Documents() {
                 );
               })
             ) : (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[896px] flex items-center justify-center">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-full flex items-center justify-center">
                 <div className="text-xs text-muted-foreground text-center">
                   Upload documents to see smart folders
                 </div>
