@@ -56,27 +56,18 @@ export async function validateGCSClient(): Promise<void> {
     );
   }
 
-  // Perform actual GCS access test to validate credentials and bucket permissions
+  // Perform actual GCS access test to validate credentials and object permissions
   try {
     const bucket = objectStorageClient.bucket(bucketName);
     
-    // Test bucket access with a real network call
-    console.log(`🔍 Testing GCS bucket access: ${bucketName}...`);
-    const [exists] = await bucket.exists();
+    // Test object access (not bucket metadata) since Storage Object Admin doesn't include storage.buckets.get
+    console.log(`🔍 Testing GCS object access for bucket: ${bucketName}...`);
     
-    if (!exists) {
-      throw new StorageAuthError(
-        `GCS bucket "${bucketName}" does not exist.\n` +
-        'Verify:\n' +
-        '  1. Bucket name is correct\n' +
-        '  2. Service account has access to the bucket'
-      );
-    }
-    
-    // Try to list files (limited to 1) to verify read permissions
+    // List files with maxResults=1 to verify we can read objects
+    // This requires storage.objects.list permission (included in Storage Object Admin)
     await bucket.getFiles({ maxResults: 1 });
     
-    console.log(`✅ GCS validation passed - bucket "${bucketName}" is accessible`);
+    console.log(`✅ GCS validation passed - object access confirmed for "${bucketName}"`);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     
@@ -88,15 +79,20 @@ export async function validateGCSClient(): Promise<void> {
       );
     } else if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
       throw new StorageAuthError(
-        `GCS bucket access denied for "${bucketName}".\n` +
-        'Service account needs storage.objectAdmin role on this bucket.'
+        `GCS object access denied for "${bucketName}".\n` +
+        'Service account needs Storage Object Admin role on this bucket.'
+      );
+    } else if (errorMsg.includes('404') || errorMsg.includes('not found')) {
+      throw new StorageAuthError(
+        `GCS bucket "${bucketName}" does not exist or service account lacks access.\n` +
+        'Verify bucket name is correct in GCS_BUCKET_NAME secret.'
       );
     } else {
       throw new StorageAuthError(
-        `GCS bucket validation failed: ${errorMsg}\n` +
+        `GCS validation failed: ${errorMsg}\n` +
         'Verify:\n' +
         '  1. Bucket name is correct\n' +
-        '  2. Service account has storage.objectAdmin role\n' +
+        '  2. Service account has Storage Object Admin role\n' +
         '  3. Service account credentials are valid'
       );
     }
