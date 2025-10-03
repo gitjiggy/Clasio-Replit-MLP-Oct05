@@ -3271,6 +3271,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) {
         return res.status(401).json({ error: "User authentication required" });
       }
+      
+      // DEBUG: Log request body
+      console.log("📋 POST /api/tags request body:", JSON.stringify(req.body, null, 2));
+      console.log("📋 Body keys:", Object.keys(req.body));
+      console.log("📋 Name value:", req.body.name, "Type:", typeof req.body.name);
+      console.log("📋 Color value:", req.body.color, "Type:", typeof req.body.color);
+      
       // Only validate name and color from request body, userId comes from auth
       const bodySchema = insertTagSchema.omit({ userId: true });
       const validatedData = bodySchema.parse(req.body);
