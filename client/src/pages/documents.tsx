@@ -1380,7 +1380,7 @@ export default function Documents() {
       </aside>
 
       {/* Main Content - Mobile Grid Layout */}
-      <main className="flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[18vh_50vh_auto] md:grid-rows-none overflow-hidden">
+      <main className="flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[18vh_28vh_auto] md:grid-rows-none overflow-hidden">
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
         <div className="overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80">
           {/* Header - Clean Premium */}
