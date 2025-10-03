@@ -872,6 +872,31 @@ export default function Documents() {
     },
   });
 
+  // Toggle favorite mutation
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async ({ documentId, isFavorite }: { documentId: string; isFavorite: boolean }) => {
+      return await apiRequest(`/api/documents/${documentId}`, {
+        method: "PUT",
+        body: JSON.stringify({ isFavorite: !isFavorite }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      toast({
+        title: "Updated",
+        description: "Favorite status updated successfully.",
+        duration: 1000,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Update failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Smart Organization mutation
   const organizeAllMutation = useMutation({
     mutationFn: async () => {
@@ -1832,7 +1857,11 @@ export default function Documents() {
                             <Brain className="mr-2 h-4 w-4" />
                             {analyzeDocumentMutation.isPending ? 'Analyzing...' : 'Analyze with AI'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem data-testid={`menu-favorite-${document.id}`}>
+                          <DropdownMenuItem 
+                            onClick={() => toggleFavoriteMutation.mutate({ documentId: document.id, isFavorite: document.isFavorite })}
+                            disabled={toggleFavoriteMutation.isPending}
+                            data-testid={`menu-favorite-${document.id}`}
+                          >
                             <Star className="mr-2 h-4 w-4" />
                             {document.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
                           </DropdownMenuItem>
