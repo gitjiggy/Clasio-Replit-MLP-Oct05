@@ -1610,7 +1610,7 @@ export default function Documents() {
                       </span>
                     </button>
                     {category.subFolders && category.subFolders.length > 0 && (
-                      <div className="flex-1 overflow-hidden rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 px-2 py-3">
+                      <div className="flex-1 overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-2 py-3">
                         <div className="h-full space-y-1.5 overflow-y-auto pr-1">
                           {category.subFolders.map((subFolder) => (
                             <button
