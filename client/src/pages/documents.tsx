@@ -1823,9 +1823,25 @@ export default function Documents() {
                           <h3 className="text-sm font-light tracking-wide text-foreground truncate mb-0.5 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" title={getDocumentTooltip(document)} data-testid={`document-name-${document.id}`}>
                             {getDocumentDisplayName(document)}
                           </h3>
-                          <p className="text-xs text-muted-foreground font-light tracking-wide">
-                            {formatFileSize(document.fileSize || 0)}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-xs text-muted-foreground font-light tracking-wide">
+                              {formatFileSize(document.fileSize || 0)}
+                            </p>
+                            {document.tags && document.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {document.tags.map((tag) => (
+                                  <Badge
+                                    key={tag.id}
+                                    variant="secondary"
+                                    className="text-[10px] h-4 px-1.5 font-light tracking-wide"
+                                    style={{ backgroundColor: `${tag.color || '#8b5cf6'}15`, color: tag.color || '#8b5cf6', border: `1px solid ${tag.color || '#8b5cf6'}30` }}
+                                  >
+                                    {tag.name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                           {document.originalName && (
                             <p className="text-xs text-muted-foreground/80 truncate mt-1 font-light tracking-wide" title={document.originalName} data-testid={`original-name-${document.id}`}>
                               {document.originalName}
@@ -1892,23 +1908,6 @@ export default function Documents() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    
-                    {document.tags && document.tags.length > 0 && (
-                      <div className="mb-3">
-                        <div className="flex flex-wrap gap-1.5">
-                          {document.tags.map((tag) => (
-                            <Badge
-                              key={tag.id}
-                              variant="secondary"
-                              className="text-xs font-light tracking-wide"
-                              style={{ backgroundColor: `${tag.color || '#8b5cf6'}15`, color: tag.color || '#8b5cf6', border: `1px solid ${tag.color || '#8b5cf6'}30` }}
-                            >
-                              {tag.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                     
                     <div className="flex items-center justify-between text-xs text-muted-foreground/80 mb-2 font-light tracking-wide">
                       <span className="flex items-center gap-1">
