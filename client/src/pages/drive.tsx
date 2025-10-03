@@ -458,7 +458,8 @@ export default function Drive() {
                               </Button>
                               <Button
                                 size="sm"
-                                className="h-11 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white px-1.5 transition-all flex-col gap-0.5"
+                                variant="ghost"
+                                className="h-11 bg-blue-100/50 hover:bg-blue-200/70 dark:bg-blue-900/20 dark:hover:bg-blue-800/30 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-700/50 px-1.5 transition-all flex-col gap-0.5"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleSyncDocument(file, false);
