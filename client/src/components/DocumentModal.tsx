@@ -231,6 +231,7 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
       return await apiRequest(`/api/documents/${document.id}`, {
         method: "PUT",
         body: JSON.stringify({ isFavorite: !document.isFavorite }),
+        headers: { "Content-Type": "application/json" },
       });
     },
     onSuccess: () => {

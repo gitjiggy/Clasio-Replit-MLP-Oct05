@@ -878,6 +878,7 @@ export default function Documents() {
       return await apiRequest(`/api/documents/${documentId}`, {
         method: "PUT",
         body: JSON.stringify({ isFavorite: !isFavorite }),
+        headers: { "Content-Type": "application/json" },
       });
     },
     onSuccess: () => {
