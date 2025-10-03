@@ -1227,23 +1227,14 @@ export default function Documents() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Mobile Premium Header - Only visible on mobile */}
-      <header className="md:hidden bg-gradient-to-r from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-800 dark:via-indigo-900 dark:to-purple-900 px-4 py-3 flex items-center justify-between shadow-lg">
-        <h1 className="text-xl font-light text-white tracking-wide flex items-center">
-          <FolderOpen className="mr-2 h-5 w-5" />
-          Clasio
-        </h1>
-        <p className="text-xs text-white/80 font-light tracking-wide">AI Documents</p>
-      </header>
-      
       {/* Sidebar - Hidden on mobile, visible on md+ */}
       <aside className="hidden md:flex w-64 bg-card/80 backdrop-blur-sm border-r border-border flex-col">
-        <div className="p-4 md:p-6 border-b border-border">
-          <h1 className="text-lg md:text-xl font-light text-foreground flex items-center tracking-wide">
-            <FolderOpen className="mr-2 md:mr-3 text-purple-400" />
-            Clasio
-          </h1>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1 font-light">AI-Powered Document Management</p>
+        <div className="p-4 md:p-6 border-b border-border flex items-center justify-center">
+          <img 
+            src="/attached_assets/noBgColor (1)_1759471370484.png" 
+            alt="Clasio AI Documents" 
+            className="max-w-[180px] h-auto"
+          />
         </div>
         
         <nav className="flex-1 p-4">
@@ -1587,7 +1578,7 @@ export default function Documents() {
         </div>
 
         {/* Section 2 (Mobile): Smart Organization - 16vh Horizontal Scroll */}
-        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-hidden snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-2xl shadow-lg pb-1`}>
+        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-hidden snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-2xl shadow-lg pb-3 mt-4`}>
           {/* Gradient fade indicators */}
           <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
@@ -1604,41 +1595,41 @@ export default function Documents() {
                 const remainingCount = (category.subFolders?.length || 0) - 2;
                 
                 return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-lg p-2.5 shadow-sm w-44 h-32 flex flex-col">
+                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-48 min-h-[140px] flex flex-col">
                     <button
-                      className="w-full flex items-center justify-between text-left mb-1.5 min-h-[44px]"
+                      className="w-full flex items-center justify-between text-left mb-2 min-h-[44px]"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
                     >
                       <div className="flex items-center flex-1 min-w-0">
-                        <FolderOpen className="mr-1.5 h-4 w-4 shrink-0" style={{ color: category.color || '#8b5cf6' }} />
+                        <FolderOpen className="mr-2 h-4 w-4 shrink-0" style={{ color: category.color || '#8b5cf6' }} />
                         <span className="text-xs font-semibold truncate">{category.name}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-purple-100 dark:bg-gray-700 rounded-full ml-1.5 shrink-0">
+                      <span className="text-xs text-muted-foreground px-2 py-1 bg-purple-100 dark:bg-gray-700 rounded-full ml-2 shrink-0">
                         {category.documentCount || 0}
                       </span>
                     </button>
                     {visibleSubFolders.length > 0 && (
-                      <div className="space-y-0.5 flex-1 overflow-hidden">
+                      <div className="space-y-1 flex-1">
                         {visibleSubFolders.map((subFolder) => (
                           <button
                             key={subFolder.id}
-                            className="w-full flex items-center justify-between text-left py-1 px-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 min-h-[36px]"
+                            className="w-full flex items-center justify-between text-left py-1.5 px-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 min-h-[36px]"
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedFolderId(selectedFolderId === subFolder.id ? "all" : subFolder.id);
                             }}
                           >
                             <div className="flex items-center flex-1 min-w-0">
-                              <div className="mr-1.5 h-2 w-2 rounded-sm shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
-                              <span className="text-xs truncate">{subFolder.name}</span>
+                              <div className="mr-2 h-2 w-2 rounded-sm shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
+                              <span className="text-xs truncate leading-normal">{subFolder.name}</span>
                             </div>
-                            <span className="text-xs text-muted-foreground ml-1 shrink-0">
+                            <span className="text-xs text-muted-foreground ml-2 shrink-0">
                               {subFolder.documentCount || 0}
                             </span>
                           </button>
                         ))}
                         {remainingCount > 0 && (
-                          <div className="text-xs text-muted-foreground px-1.5 py-1">
+                          <div className="text-xs text-muted-foreground px-2 py-1.5">
                             +{remainingCount} more
                           </div>
                         )}

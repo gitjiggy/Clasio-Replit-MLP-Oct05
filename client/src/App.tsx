@@ -33,12 +33,13 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
   
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-      <div className="container flex h-16 items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold">Clasio</h1>
-          <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
-            AI-Powered
-          </span>
+      <div className="container flex h-20 items-center justify-between px-4">
+        <div className="flex-1 flex items-center justify-center md:justify-start">
+          <img 
+            src="/attached_assets/noBgColor (1)_1759471370484.png" 
+            alt="Clasio - AI-Powered Document Management" 
+            className="h-12 md:h-14 w-auto"
+          />
         </div>
         
         {!initializing && (
