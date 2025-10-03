@@ -14,13 +14,10 @@ export const getCookieOptions = (req?: Request) => {
   let opts: any;
   
   if (hostname.includes('.replit.dev')) {
-    // Replit staging: force secure=false, sameSite=lax, domain=.janeway.replit.dev
-    const parts = hostname.split('.');
-    const subdomain = parts.length >= 3 ? parts[parts.length - 3] : 'janeway'; // Extract 'janeway' from xyz.janeway.replit.dev
-    const domain = `.${subdomain}.replit.dev`;
-    
+    // Replit staging: Don't use domain attribute to ensure cookies work within the same exact hostname
+    // This fixes issues with cookies not being shared between popup and main window
     opts = {
-      domain,
+      // No domain attribute - cookies will be specific to the exact hostname
       secure: false, // Force false for staging
       sameSite: 'lax' as const, // Force lax for staging
       httpOnly: true,
@@ -30,7 +27,6 @@ export const getCookieOptions = (req?: Request) => {
     
     console.log(`[Cookie Config] Replit staging environment:`, {
       hostname,
-      subdomain,
       opts
     });
   } else if (hostname.includes('.clasio.ai') || hostname === 'clasio.ai') {
@@ -104,6 +100,15 @@ export const clearDriveTokenCookies = (res: Response, req?: Request) => {
 export const getDriveToken = (req: Request): { token: string | null; source: 'cookie' | null } => {
   const cookieToken = req.cookies?.[DRIVE_TOKEN_COOKIE_NAME];
   const cookieTimestamp = req.cookies?.[DRIVE_TOKEN_TIMESTAMP_COOKIE_NAME];
+  
+  console.log('[getDriveToken] Debug:', {
+    hasCookies: !!req.cookies,
+    allCookieKeys: req.cookies ? Object.keys(req.cookies) : [],
+    hasDriveToken: !!cookieToken,
+    hasTimestamp: !!cookieTimestamp,
+    hostname: req.hostname,
+    path: req.path
+  });
   
   if (cookieToken && cookieTimestamp) {
     // Check if token is still valid (not older than 50 minutes)
