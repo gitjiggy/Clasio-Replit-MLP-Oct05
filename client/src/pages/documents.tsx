@@ -1577,8 +1577,8 @@ export default function Documents() {
           </div>
         </div>
 
-        {/* Section 2 (Mobile): Smart Organization - 16vh Horizontal Scroll */}
-        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-hidden snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-2xl shadow-lg pb-3 mt-4`}>
+        {/* Section 2 (Mobile): Smart Organization - Horizontal Scroll */}
+        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-hidden snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-2xl shadow-lg pb-3 mt-6`}>
           {/* Gradient fade indicators */}
           <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
@@ -1595,9 +1595,9 @@ export default function Documents() {
                 const remainingCount = (category.subFolders?.length || 0) - 2;
                 
                 return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-48 min-h-[140px] flex flex-col">
+                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-48 h-44 flex flex-col">
                     <button
-                      className="w-full flex items-center justify-between text-left mb-2 min-h-[44px]"
+                      className="w-full flex items-center justify-between text-left mb-2 min-h-[44px] shrink-0"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
                     >
                       <div className="flex items-center flex-1 min-w-0">
@@ -1608,9 +1608,9 @@ export default function Documents() {
                         {category.documentCount || 0}
                       </span>
                     </button>
-                    {visibleSubFolders.length > 0 && (
-                      <div className="space-y-1 flex-1">
-                        {visibleSubFolders.map((subFolder) => (
+                    {category.subFolders && category.subFolders.length > 0 && (
+                      <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
+                        {category.subFolders.map((subFolder) => (
                           <button
                             key={subFolder.id}
                             className="w-full flex items-center justify-between text-left py-1.5 px-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 min-h-[36px]"
@@ -1628,11 +1628,6 @@ export default function Documents() {
                             </span>
                           </button>
                         ))}
-                        {remainingCount > 0 && (
-                          <div className="text-xs text-muted-foreground px-2 py-1.5">
-                            +{remainingCount} more
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
