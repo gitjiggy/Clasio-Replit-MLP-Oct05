@@ -360,6 +360,25 @@ app.get('/dashboard', (req, res) => {
     serveStatic(app);
   }
 
+  // 🔥 CRITICAL: Initialize all services BEFORE server starts listening
+  // This prevents "Internal Server Error" on cold starts
+  
+  console.log('🔧 Initializing database and services...');
+  
+  // Eagerly initialize DatabaseStorage (triggers ensureInitialized())
+  const storage = new DatabaseStorage();
+  
+  // Pre-warm database connection pool and ensure schema is ready
+  console.log('🔌 Pre-warming database connection pool...');
+  try {
+    // Force initialization by calling a lightweight query
+    await storage.getQueueStatus();
+    console.log('✅ Database connection pool ready');
+  } catch (dbError) {
+    console.error('❌ Database initialization failed:', dbError);
+    throw new Error('Cannot start server without database connection');
+  }
+
   // Start AI Queue Processor for background document analysis (can be disabled for standalone worker deployment)
   const disableInProcessWorker = process.env.DISABLE_INPROCESS_WORKER === 'true';
   if (!disableInProcessWorker) {
@@ -376,7 +395,6 @@ app.get('/dashboard', (req, res) => {
 
   // Start daily auto-cleanup job for expired trashed documents
   console.log('✓ Setting up daily auto-cleanup job for trashed documents...');
-  const storage = new DatabaseStorage();
   
   // Schedule daily cleanup at 2:00 AM to avoid peak usage hours
   cron.schedule('0 2 * * *', async () => {
