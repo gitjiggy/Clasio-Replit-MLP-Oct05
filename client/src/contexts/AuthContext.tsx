@@ -28,57 +28,53 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
-    // DEVELOPMENT ONLY: Check for test authentication
+    // DEVELOPMENT ONLY: Auto-enable test authentication for Replit dev
     const checkTestAuth = () => {
-      if (import.meta.env.DEV) {
-        const testToken = document.cookie
-          .split('; ')
-          .find(row => row.startsWith('test_auth='))
-          ?.split('=')[1];
+      // Auto-detect Replit dev environment
+      const isReplitDev = window.location.hostname.includes('.replit.dev');
+      
+      if (import.meta.env.DEV || isReplitDev) {
+        // Create fake Firebase user for test authentication
+        const testUser: User = {
+          uid: 'test-user-uid',
+          email: 'dev@replit.test',
+          displayName: 'Dev Test User',
+          emailVerified: true,
+          isAnonymous: false,
+          metadata: {
+            creationTime: new Date().toISOString(),
+            lastSignInTime: new Date().toISOString()
+          },
+          providerData: [],
+          refreshToken: 'test-refresh-token',
+          tenantId: null,
+          delete: async () => {},
+          getIdToken: async () => 'test-token-for-automated-testing-only',
+          getIdTokenResult: async () => ({
+            token: 'test-token-for-automated-testing-only',
+            authTime: new Date().toISOString(),
+            issuedAtTime: new Date().toISOString(),
+            expirationTime: new Date(Date.now() + 3600000).toISOString(),
+            signInProvider: 'test',
+            signInSecondFactor: null,
+            claims: {}
+          }),
+          reload: async () => {},
+          toJSON: () => ({}),
+          phoneNumber: null,
+          photoURL: null,
+          providerId: 'test'
+        } as User;
         
-        if (testToken === 'test-token-for-automated-testing-only') {
-          // Create fake Firebase user for test authentication
-          const testUser: User = {
-            uid: 'test-user-uid',
-            email: 'test@example.com',
-            displayName: 'Test User',
-            emailVerified: true,
-            isAnonymous: false,
-            metadata: {
-              creationTime: new Date().toISOString(),
-              lastSignInTime: new Date().toISOString()
-            },
-            providerData: [],
-            refreshToken: 'test-refresh-token',
-            tenantId: null,
-            delete: async () => {},
-            getIdToken: async () => 'test-id-token',
-            getIdTokenResult: async () => ({
-              token: 'test-id-token',
-              authTime: new Date().toISOString(),
-              issuedAtTime: new Date().toISOString(),
-              expirationTime: new Date(Date.now() + 3600000).toISOString(),
-              signInProvider: 'test',
-              signInSecondFactor: null,
-              claims: {}
-            }),
-            reload: async () => {},
-            toJSON: () => ({}),
-            phoneNumber: null,
-            photoURL: null,
-            providerId: 'test'
-          } as User;
-          
-          console.log('✅ Test authentication detected, setting test user');
-          setUser(testUser);
-          setInitializing(false);
-          return true; // Indicate test auth was used
-        }
+        console.log('🔧 DEV MODE: Auto-authenticating with test user (Replit dev bypass)');
+        setUser(testUser);
+        setInitializing(false);
+        return true; // Indicate test auth was used
       }
       return false; // No test auth
     };
 
-    // Try test auth first in development
+    // Try test auth first in development/Replit
     if (checkTestAuth()) {
       return; // Skip Firebase auth if test auth was successful
     }
