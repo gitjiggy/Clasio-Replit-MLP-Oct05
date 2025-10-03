@@ -1578,52 +1578,51 @@ export default function Documents() {
         </div>
 
         {/* Section 2 (Mobile): Smart Organization - Horizontal Scroll */}
-        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-hidden snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-2xl shadow-lg pb-3 mt-10`}>
+        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-4 mt-10`}>
           {/* Gradient fade indicators */}
           <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           
-          <div className="h-full px-6 py-3 flex items-start gap-3 min-w-max">
+          <div className="h-full px-6 py-4 flex items-start gap-4 min-w-max">
             {/* Category Cards */}
             {foldersLoading ? (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-52 h-52 flex items-center justify-center">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md w-56 h-[200px] flex items-center justify-center">
                 <div className="text-xs text-muted-foreground">Loading...</div>
               </div>
             ) : hierarchicalFolders.length > 0 ? (
               hierarchicalFolders.map((category) => {
-                const visibleSubFolders = category.subFolders?.slice(0, 2) || [];
-                const remainingCount = (category.subFolders?.length || 0) - 2;
-                
                 return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-52 h-52 flex flex-col">
+                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md w-56 h-[200px] flex flex-col">
                     <button
-                      className="w-full flex items-center justify-between text-left mb-2 min-h-[44px] shrink-0"
+                      className="w-full flex items-center justify-between text-left mb-3 min-h-[44px] shrink-0"
                       onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
+                      data-testid={`button-folder-${category.id}`}
                     >
                       <div className="flex items-center flex-1 min-w-0">
-                        <FolderOpen className="mr-2 h-4 w-4 shrink-0" style={{ color: category.color || '#8b5cf6' }} />
-                        <span className="text-xs font-semibold truncate">{category.name}</span>
+                        <FolderOpen className="mr-2 h-5 w-5 shrink-0" style={{ color: category.color || '#8b5cf6' }} />
+                        <span className="text-sm font-semibold truncate">{category.name}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground px-2 py-1 bg-purple-100 dark:bg-gray-700 rounded-full ml-2 shrink-0">
+                      <span className="text-xs text-muted-foreground px-2.5 py-1 bg-purple-100 dark:bg-gray-700 rounded-full ml-2 shrink-0 font-medium">
                         {category.documentCount || 0}
                       </span>
                     </button>
                     {category.subFolders && category.subFolders.length > 0 && (
-                      <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
+                      <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 pr-1">
                         {category.subFolders.map((subFolder) => (
                           <button
                             key={subFolder.id}
-                            className="w-full flex items-center justify-between text-left py-1.5 px-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 min-h-[36px]"
+                            className="w-full flex items-center justify-between text-left py-2 px-2.5 rounded-lg hover:bg-purple-50 dark:hover:bg-gray-700 min-h-[40px] transition-colors"
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedFolderId(selectedFolderId === subFolder.id ? "all" : subFolder.id);
                             }}
+                            data-testid={`button-subfolder-${subFolder.id}`}
                           >
                             <div className="flex items-center flex-1 min-w-0">
-                              <div className="mr-2 h-2 w-2 rounded-sm shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
-                              <span className="text-xs truncate leading-normal">{subFolder.name}</span>
+                              <div className="mr-2 h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
+                              <span className="text-xs truncate leading-normal font-medium text-gray-700 dark:text-gray-300">{subFolder.name}</span>
                             </div>
-                            <span className="text-xs text-muted-foreground ml-2 shrink-0">
+                            <span className="text-xs text-muted-foreground ml-2 shrink-0 font-medium">
                               {subFolder.documentCount || 0}
                             </span>
                           </button>
@@ -1634,7 +1633,7 @@ export default function Documents() {
                 );
               })
             ) : (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm w-52 h-52 flex items-center justify-center">
+              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md w-56 h-[200px] flex items-center justify-center">
                 <div className="text-xs text-muted-foreground text-center">
                   Upload documents to see smart folders
                 </div>
