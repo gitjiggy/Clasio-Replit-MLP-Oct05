@@ -2383,11 +2383,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User authentication required" });
       }
       
-      const document = await storage.updateDocument(req.params.id, {
-        name,
-        folderId,
-        isFavorite,
-      }, userId);
+      // Build update object with only defined values
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (folderId !== undefined) updateData.folderId = folderId;
+      if (isFavorite !== undefined) updateData.isFavorite = isFavorite;
+      
+      const document = await storage.updateDocument(req.params.id, updateData, userId);
 
       if (!document) {
         return res.status(404).json({ error: "Document not found" });

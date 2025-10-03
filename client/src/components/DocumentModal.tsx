@@ -28,7 +28,8 @@ import {
   ChevronDown,
   Edit2,
   Check,
-  X
+  X,
+  Star
 } from "lucide-react";
 import type { DocumentWithFolderAndTags, Folder as FolderType, Tag as TagType } from "@shared/schema";
 import { getDocumentDisplayName, getDocumentTooltip, type DocumentWithVersionInfo } from "@/lib/documentDisplay";
@@ -219,6 +220,31 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
       toast({
         title: "Failed to Remove Tag",
         description: error.message || "Failed to remove tag from document.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Toggle favorite mutation
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest(`/api/documents/${document.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ isFavorite: !document.isFavorite }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      toast({
+        title: "Updated",
+        description: document.isFavorite ? "Removed from favorites" : "Added to favorites",
+        duration: 1000,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Update failed",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -562,6 +588,17 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                 <div className="space-y-1.5">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center justify-between">
                     <span>Tags</span>
+                    <button
+                      onClick={() => toggleFavoriteMutation.mutate()}
+                      disabled={toggleFavoriteMutation.isPending}
+                      className="hover:scale-110 transition-transform disabled:opacity-50"
+                      title={document.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                      data-testid="toggle-favorite-star"
+                    >
+                      <Star 
+                        className={`h-4 w-4 ${document.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
+                      />
+                    </button>
                   </div>
                   <div className="space-y-1.5">
                     {/* Existing Tags */}
