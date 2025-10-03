@@ -2376,8 +2376,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update document
   app.put("/api/documents/:id", express.json(), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      console.log("🔍 PUT /api/documents/:id - Request body:", req.body);
-      console.log("🔍 Content-Type:", req.headers['content-type']);
+      console.log("🔍 PUT /api/documents/:id DEBUG:", {
+        body: req.body,
+        bodyKeys: Object.keys(req.body || {}),
+        contentType: req.headers['content-type'],
+        hasJsonMiddleware: true
+      });
       
       const { name, folderId, isFavorite, tagIds } = req.body;
       
@@ -3333,12 +3337,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Document-Tags endpoints
   app.post("/api/document-tags", express.json(), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user?.uid;
+      console.log("🔍 POST /api/document-tags DEBUG:", {
+        body: req.body,
+        user: req.user,
+        userId_from_req: req.userId,
+        userId_from_user: req.user?.uid,
+        headers: req.headers
+      });
+      
+      // Use req.userId which is set by verifyFirebaseToken
+      const userId = req.userId || req.user?.uid;
       if (!userId) {
+        console.error("❌ No userId found in request");
         return res.status(401).json({ error: "User authentication required" });
       }
+      
       // Add userId to body for validation
       const bodyWithUserId = { ...req.body, userId };
+      console.log("🔍 bodyWithUserId:", bodyWithUserId);
+      
       const validatedData = insertDocumentTagSchema.parse(bodyWithUserId);
       const documentTag = await storage.addDocumentTag(validatedData, userId);
       res.status(201).json(documentTag);
