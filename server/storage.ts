@@ -445,7 +445,13 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters.fileType && filters.fileType !== 'all') {
-      conditions.push(eq(documents.fileType, filters.fileType));
+      // Handle "image" filter to match all image types
+      if (filters.fileType === 'image') {
+        const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'tiff', 'ico'];
+        conditions.push(inArray(documents.fileType, imageTypes));
+      } else {
+        conditions.push(eq(documents.fileType, filters.fileType));
+      }
     }
 
     if (filters.folderId && filters.folderId !== 'all') {
@@ -2983,7 +2989,13 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters.fileType && filters.fileType !== 'all') {
-      conditions.push(eq(documents.fileType, filters.fileType));
+      // Handle "image" filter to match all image types
+      if (filters.fileType === 'image') {
+        const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'tiff', 'ico'];
+        conditions.push(inArray(documents.fileType, imageTypes));
+      } else {
+        conditions.push(eq(documents.fileType, filters.fileType));
+      }
     }
 
     if (filters.folderId && filters.folderId !== 'all') {
