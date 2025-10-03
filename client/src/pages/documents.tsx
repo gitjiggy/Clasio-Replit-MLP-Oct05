@@ -1578,12 +1578,12 @@ export default function Documents() {
         </div>
 
         {/* Section 2 (Mobile): Smart Organization - Horizontal Scroll */}
-        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-4 mt-10`}>
+        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-32 mt-10`}>
           {/* Gradient fade indicators */}
           <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
           
-          <div className="h-full px-6 py-4 flex items-start gap-4 min-w-max">
+          <div className="h-full px-6 py-24 flex items-start gap-4 min-w-max">
             {/* Category Cards */}
             {foldersLoading ? (
               <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-[224px] flex items-center justify-center">
