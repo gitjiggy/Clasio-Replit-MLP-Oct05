@@ -35,11 +35,17 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="container flex h-20 items-center justify-between px-4">
         <div className="flex-1 flex items-center justify-center md:justify-start">
-          <img 
-            src="/attached_assets/noBgColor (1)_1759471370484.png" 
-            alt="Clasio - AI-Powered Document Management" 
-            className="h-12 md:h-14 w-auto"
-          />
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-purple-300/20 to-pink-300/10 blur-2xl transform scale-110"></div>
+            <img 
+              src="/attached_assets/noBgColor (1)_1759471370484.png" 
+              alt="Clasio - AI-Powered Document Management" 
+              className="relative h-12 md:h-14 w-auto drop-shadow-[0_0_40px_rgba(255,255,255,0.3)]"
+              style={{
+                filter: 'drop-shadow(0 0 30px rgba(167, 139, 250, 0.4))'
+              }}
+            />
+          </div>
         </div>
         
         {!initializing && (
