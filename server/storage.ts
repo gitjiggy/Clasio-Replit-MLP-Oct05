@@ -5861,7 +5861,12 @@ export class DatabaseStorage implements IStorage {
     await this.ensureInitialized();
     
     try {
-      return await transactionManager.executeInTransaction('document_embedding_generation', async (ctx: TransactionContext) => {
+      return await transactionManager.executeWithIdempotency({
+        reqId: 'doc-embedding-' + documentId,
+        userId: userId,
+        operationType: 'document_embedding_generation',
+        idempotencyKey: `embedding-${documentId}`
+      }, async (ctx: TransactionContext) => {
         const { userId: tenantId } = ensureTenantContext(ctx);
         
         // Get document with content for embedding generation
@@ -6072,7 +6077,12 @@ export class DatabaseStorage implements IStorage {
   ): Promise<AiAnalysisQueue> {
     await this.ensureInitialized();
     
-    return await transactionManager.executeInTransaction('document_job_enqueue', async (ctx: TransactionContext) => {
+    return await transactionManager.executeWithIdempotency({
+      reqId: 'job-enqueue-' + documentId,
+      userId: userId,
+      operationType: 'document_job_enqueue',
+      idempotencyKey: `job-${documentId}-${jobType}`
+    }, async (ctx: TransactionContext) => {
       const { userId: tenantId } = ensureTenantContext(ctx);
       
       // Generate idempotency key based on document, job type, and version
@@ -6192,7 +6202,12 @@ export class DatabaseStorage implements IStorage {
   ): Promise<boolean> {
     await this.ensureInitialized();
     
-    return await transactionManager.executeInTransaction('document_analysis_writeback', async (ctx: TransactionContext) => {
+    return await transactionManager.executeWithIdempotency({
+      reqId: 'analysis-writeback-' + documentId,
+      userId: userId,
+      operationType: 'document_analysis_writeback',
+      idempotencyKey: `analysis-writeback-${documentId}`
+    }, async (ctx: TransactionContext) => {
       const { userId: tenantId } = ensureTenantContext(ctx);
       
       // Check if results already written using idempotency key
@@ -6263,7 +6278,12 @@ export class DatabaseStorage implements IStorage {
   ): Promise<boolean> {
     await this.ensureInitialized();
     
-    return await transactionManager.executeInTransaction('document_embedding_writeback', async (ctx: TransactionContext) => {
+    return await transactionManager.executeWithIdempotency({
+      reqId: 'embedding-writeback-' + documentId,
+      userId: userId,
+      operationType: 'document_embedding_writeback',
+      idempotencyKey: `embedding-writeback-${documentId}`
+    }, async (ctx: TransactionContext) => {
       const { userId: tenantId } = ensureTenantContext(ctx);
       
       // Check if embeddings already generated using idempotency
@@ -6630,7 +6650,12 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = { replayed: 0, errors: [] as string[] };
       
-      return await transactionManager.executeInTransaction('document_dlq_replay', async (ctx: TransactionContext) => {
+      return await transactionManager.executeWithIdempotency({
+        reqId: 'dlq-replay-' + Date.now(),
+        userId: tenantId || 'system',
+        operationType: 'document_dlq_replay',
+        idempotencyKey: `dlq-replay-${tenantId || 'all'}-${Date.now()}`
+      }, async (ctx: TransactionContext) => {
         // Build filter conditions for DLQ replay
         const conditions = [
           eq(aiAnalysisQueue.status, 'dlq'),
@@ -6701,7 +6726,12 @@ export class DatabaseStorage implements IStorage {
     await this.ensureInitialized();
     
     try {
-      return await transactionManager.executeInTransaction('document_manual_retry', async (ctx: TransactionContext) => {
+      return await transactionManager.executeWithIdempotency({
+        reqId: 'manual-retry-' + Date.now(),
+        userId: 'system',
+        operationType: 'document_manual_retry',
+        idempotencyKey: `manual-retry-${tenantId || 'all'}-${Date.now()}`
+      }, async (ctx: TransactionContext) => {
         const { userId: contextTenantId } = ensureTenantContext(ctx);
         const targetTenantId = tenantId || contextTenantId;
         
@@ -6768,7 +6798,12 @@ export class DatabaseStorage implements IStorage {
     const result = { cancelled: 0, errors: [] as string[] };
     
     try {
-      return await transactionManager.executeInTransaction('document_job_cancellation', async (ctx: TransactionContext) => {
+      return await transactionManager.executeWithIdempotency({
+        reqId: 'job-cancel-' + Date.now(),
+        userId: 'system',
+        operationType: 'document_job_cancellation',
+        idempotencyKey: `job-cancel-${jobIds.join(',')}-${Date.now()}`
+      }, async (ctx: TransactionContext) => {
         const { userId: tenantId } = ensureTenantContext(ctx);
         
         for (const jobId of jobIds) {
