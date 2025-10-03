@@ -349,6 +349,9 @@ app.get('/dashboard', (req, res) => {
     // Don't throw after responding - this can crash the server
   });
 
+  // Serve attached_assets directory for user-uploaded static files
+  app.use('/attached_assets', express.static('attached_assets'));
+  
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
