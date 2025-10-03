@@ -3265,7 +3265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tags", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/tags", express.json(), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?.uid;
       if (!userId) {
