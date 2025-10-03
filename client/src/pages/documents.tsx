@@ -1997,7 +1997,7 @@ export default function Documents() {
                     )}
 
                     {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
-                    <div className="grid grid-cols-4 gap-1.5 mt-auto">
+                    <div className="grid grid-cols-4 gap-1.5 mt-2">
                       <Button
                         size="sm"
                         variant="ghost"
