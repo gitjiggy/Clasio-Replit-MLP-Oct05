@@ -8,7 +8,11 @@ import {
   Link2,
   AlertCircle,
   FileWarning,
-  FileCheck
+  FileCheck,
+  FolderOpen,
+  Mail,
+  HardDrive,
+  Image
 } from "lucide-react";
 
 interface EmptyStateDashboardProps {
@@ -94,10 +98,18 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
     },
   ];
 
+  const documentLocations = [
+    { icon: FolderOpen, title: "Downloads folder", subtitle: "usually 50+ forgotten files" },
+    { icon: FolderOpen, title: "Desktop", subtitle: "those \"temporary\" PDFs" },
+    { icon: Mail, title: "Email attachments", subtitle: "receipts, invoices" },
+    { icon: HardDrive, title: "Google Drive", subtitle: "unorganized chaos" },
+    { icon: Image, title: "Photos app", subtitle: "pictures of documents" },
+  ];
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/40 dark:border-purple-800/40">
-        <CardHeader className="border-b border-purple-200/40 dark:border-purple-800/40 pb-2.5">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/40 dark:border-purple-800/40 shadow-2xl">
+        <CardHeader className="border-b border-purple-200/40 dark:border-purple-800/40 pb-2 pt-3">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-xl font-light tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400">
@@ -111,7 +123,7 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="hover:bg-purple-100 dark:hover:bg-purple-900/30"
+              className="hover:bg-purple-100 dark:hover:bg-purple-900/30 h-7 w-7 p-0"
               data-testid="button-close-empty-state"
             >
               <X className="h-4 w-4" />
@@ -119,24 +131,24 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-3 mt-3 pb-3">
+        <CardContent className="space-y-2.5 mt-2.5 pb-3">
           {/* Quick Win Scenarios */}
-          <div className="space-y-1.5">
-            <h3 className="text-sm font-normal tracking-wide text-muted-foreground px-1">
+          <div className="space-y-1">
+            <h3 className="text-sm font-light tracking-wide text-slate-600 dark:text-slate-400 px-1">
               Got 30 seconds? Try this:
             </h3>
-            <div className="grid grid-cols-1 gap-1.5">
+            <div className="grid grid-cols-1 gap-1">
               {quickActions.map((action, index) => {
                 const Icon = action.icon;
                 return (
                   <div
                     key={index}
-                    className="flex items-center gap-2.5 p-2.5 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30 hover:border-purple-200 dark:hover:border-purple-700 transition-colors"
+                    className="flex items-center gap-2 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30 hover:border-purple-200 dark:hover:border-purple-700 transition-colors"
                   >
-                    <Icon className={`h-4 w-4 ${action.color} flex-shrink-0`} />
+                    <Icon className={`h-3.5 w-3.5 ${action.color} flex-shrink-0`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-normal tracking-wide truncate">{action.title}</p>
-                      <p className="text-[10px] text-muted-foreground font-light tracking-wide truncate">
+                      <p className="text-xs font-light tracking-wide truncate">{action.title}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-light tracking-wide truncate">
                         {action.subtitle}
                       </p>
                     </div>
@@ -147,23 +159,49 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
           </div>
 
           {/* Quick Document Audit */}
-          <div className="space-y-1.5">
-            <h3 className="text-sm font-normal tracking-wide text-muted-foreground px-1">
+          <div className="space-y-1">
+            <h3 className="text-sm font-light tracking-wide text-slate-600 dark:text-slate-400 px-1">
               Quick Document Audit
             </h3>
-            <div className="grid grid-cols-1 gap-1.5">
+            <div className="grid grid-cols-1 gap-1">
               {auditQuestions.map((item, index) => {
                 const Icon = item.icon;
                 return (
                   <div
                     key={index}
-                    className="flex items-center gap-2.5 p-2.5 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30"
+                    className="flex items-center gap-2 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30"
                   >
-                    <Icon className={`h-4 w-4 ${item.color} flex-shrink-0`} />
+                    <Icon className={`h-3.5 w-3.5 ${item.color} flex-shrink-0`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-normal tracking-wide">{item.question}</p>
-                      <p className="text-[10px] text-muted-foreground font-light tracking-wide italic">
+                      <p className="text-xs font-light tracking-wide">{item.question}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-light tracking-wide italic">
                         → {item.solution}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Where are your documents hiding? */}
+          <div className="space-y-1">
+            <h3 className="text-sm font-light tracking-wide text-slate-600 dark:text-slate-400 px-1">
+              Where are your documents hiding?
+            </h3>
+            <div className="grid grid-cols-1 gap-1">
+              {documentLocations.map((location, index) => {
+                const Icon = location.icon;
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30"
+                  >
+                    <Icon className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-light tracking-wide truncate">{location.title}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-light tracking-wide italic truncate">
+                        {location.subtitle}
                       </p>
                     </div>
                   </div>
@@ -174,7 +212,7 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
 
           {/* CTA Button */}
           <Button
-            className="bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-500 dark:to-indigo-500 text-white hover:opacity-90 font-light tracking-wide w-full mt-2"
+            className="bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-500 dark:to-indigo-500 text-white hover:opacity-90 font-light tracking-wide w-full mt-1.5 h-10"
             onClick={handleUploadClick}
             data-testid="button-start-uploading"
           >
