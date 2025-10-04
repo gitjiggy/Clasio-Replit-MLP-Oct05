@@ -1753,14 +1753,14 @@ export default function Documents() {
                 </div>
               </div>
               
-              {/* Upload Button - Desktop only */}
-              <div ref={uploadButtonRef} className="hidden lg:block">
+              {/* Upload Button - Always functional, styled differently for desktop/mobile */}
+              <div ref={uploadButtonRef}>
                 <ObjectUploader
                   maxNumberOfFiles={5}
                   maxFileSize={50 * 1024 * 1024}
                   onSuccess={handleUploadSuccess}
                   onViewExistingDocument={handleViewExistingDocument}
-                  buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 flex-shrink-0"
+                  buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-xl shadow-lg hover:shadow-xl transition-all items-center gap-2 flex-shrink-0 hidden lg:flex"
                 >
                   <Upload className="h-5 w-5" />
                   <span>Upload</span>
