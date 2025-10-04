@@ -268,6 +268,31 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false, onUploa
                     <CardDescription className="font-light tracking-wide">Quick wins for better organization</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    {/* Time-aware suggestion */}
+                    <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                      <Calendar className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm font-light tracking-wide">
+                        {(() => {
+                          const month = new Date().getMonth(); // 0-11
+                          
+                          // December
+                          if (month === 11) {
+                            return "Are your year-end documents and receipts in order?";
+                          }
+                          // January - April (Tax season)
+                          if (month >= 0 && month <= 3) {
+                            return "Tax time! Upload your receipts and documents and make tax season a breeze!";
+                          }
+                          // September (Back to school)
+                          if (month === 8) {
+                            return "Back to school season - organize enrollment forms and student documents";
+                          }
+                          // Default
+                          return "Keep your important documents organized and easily accessible";
+                        })()}
+                      </p>
+                    </div>
+                    
                     <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
                       <Sparkles className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
                       <p className="text-sm font-light tracking-wide" data-testid="text-untagged-docs">
