@@ -137,7 +137,6 @@ export function MobileLayout({
           }
         }}
         onMenuClick={() => setMobileSidebarOpen(true)}
-        onSmartOrganizationClick={onSmartOrganizationCheck}
         documentCount={documentCount}
         isScrolling={isScrolling}
       />
@@ -176,8 +175,8 @@ export function MobileLayout({
         selectedFolderId={selectedFolderId}
         onFolderSelect={onFolderChange}
         folders={folders}
-        onSmartOrganize={onSmartOrganize}
-        isOrganizing={isOrganizing}
+        onSmartOrganizationCheck={onSmartOrganizationCheck}
+        isCheckingOrganization={isCheckingOrganization}
         onFunFactsClick={onQueueDashboardOpen}
         onDeleteAll={onDeleteAll}
         isDeleting={isDeleting}
