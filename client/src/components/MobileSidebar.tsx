@@ -2,7 +2,6 @@ import { X, FileText, Upload, Star, FolderOpen, Sparkles, Target, Trash2, Clock 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { UserMenu } from "@/components/UserMenu";
 
 interface Folder {
   id: string;
@@ -98,20 +97,15 @@ export function MobileSidebar({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-purple-500 to-indigo-500">
           <h2 className="text-lg font-semibold text-white">Menu</h2>
-          <div className="flex items-center gap-2 ml-auto">
-            <div className="mr-2">
-              <UserMenu />
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="text-white hover:bg-white/20 rounded-full"
-              data-testid="mobile-sidebar-close"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="text-white hover:bg-white/20 rounded-full"
+            data-testid="mobile-sidebar-close"
+          >
+            <X className="h-5 w-5" />
+          </Button>
         </div>
 
         {/* Content */}
