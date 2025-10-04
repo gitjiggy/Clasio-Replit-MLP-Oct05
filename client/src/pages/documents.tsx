@@ -1298,6 +1298,10 @@ export default function Documents() {
       onTagChange={setSelectedTagId}
       folders={folders}
       tags={tags}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      onSmartOrganize={() => organizeAllMutation.mutate()}
+      isOrganizing={organizeAllMutation.isPending}
     >
       <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
         {/* Sidebar - Hidden on mobile, visible on md+ */}

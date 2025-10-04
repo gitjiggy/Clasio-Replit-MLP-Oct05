@@ -3,6 +3,15 @@ import { useLocation } from "wouter";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { MobileDocumentsHeader } from "./MobileDocumentsHeader";
 import { MobileSearchModal } from "./MobileSearchModal";
+import { MobileSidebar } from "./MobileSidebar";
+
+interface Folder {
+  id: string;
+  name: string;
+  documentCount?: number;
+  isAutoCreated?: boolean;
+  parentId?: string | null;
+}
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -26,8 +35,13 @@ interface MobileLayoutProps {
   onFolderChange?: (id: string) => void;
   selectedTagId?: string;
   onTagChange?: (id: string) => void;
-  folders?: Array<{ id: string; name: string }>;
+  folders?: Folder[];
   tags?: Array<{ id: string; name: string }>;
+  // Sidebar props
+  viewMode?: string;
+  onViewModeChange?: (mode: string) => void;
+  onSmartOrganize?: () => void;
+  isOrganizing?: boolean;
 }
 
 export function MobileLayout({
@@ -54,9 +68,15 @@ export function MobileLayout({
   onTagChange = () => {},
   folders = [],
   tags = [],
+  // Sidebar props with defaults
+  viewMode = "all",
+  onViewModeChange = () => {},
+  onSmartOrganize,
+  isOrganizing = false,
 }: MobileLayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const currentView = location === "/drive" ? "drive" : location === "/trash" ? "trash" : "documents";
   const activeTab = mobileSearchOpen ? "search" : "documents";
@@ -75,10 +95,7 @@ export function MobileLayout({
             onQueueDashboardOpen();
           }
         }}
-        onMenuClick={() => {
-          // TODO: Implement mobile sidebar (Task 7)
-          console.log('Mobile sidebar not yet implemented');
-        }}
+        onMenuClick={() => setMobileSidebarOpen(true)}
         onDeleteAllClick={() => {
           if (onDeleteAll) {
             onDeleteAll();
@@ -109,6 +126,20 @@ export function MobileLayout({
         onTagChange={onTagChange}
         folders={folders}
         tags={tags}
+      />
+
+      {/* Mobile Sidebar - Only visible on mobile */}
+      <MobileSidebar
+        isOpen={mobileSidebarOpen}
+        onClose={() => setMobileSidebarOpen(false)}
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
+        selectedFolderId={selectedFolderId}
+        onFolderSelect={onFolderChange}
+        folders={folders}
+        onSmartOrganize={onSmartOrganize}
+        isOrganizing={isOrganizing}
+        onFunFactsClick={onQueueDashboardOpen}
       />
 
       {/* Mobile Bottom Navigation - Only visible on mobile */}
