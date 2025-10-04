@@ -75,6 +75,7 @@ import {
   Plus,
   Brain,
   Sparkles,
+  Wand2,
   Target,
   Link2,
   Edit2,
@@ -1712,16 +1713,16 @@ export default function Documents() {
           {/* Automatic Organization Folders - Always visible */}
           <div className="mt-6">
             <button
-              onClick={() => organizeAllMutation.mutate()}
-              disabled={organizeAllMutation.isPending}
+              onClick={() => smartOrganizationCheckMutation.mutate()}
+              disabled={smartOrganizationCheckMutation.isPending}
               className="w-full px-3 py-2 text-base md:text-lg font-light text-foreground tracking-wide flex items-center hover:bg-purple-50/50 dark:hover:bg-purple-900/20 rounded-lg transition-all cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="button-organize-all"
             >
               <Brain className="mr-2.5 h-5 w-5 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform" />
               <span className="group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                {organizeAllMutation.isPending ? 'Organizing...' : 'Smart Organization'}
+                {smartOrganizationCheckMutation.isPending ? 'Checking...' : 'Smart Organization'}
               </span>
-              <Sparkles className="ml-auto h-4 w-4 text-purple-500 opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all" />
+              <Wand2 className="ml-auto h-4 w-4 text-purple-500 opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all" />
             </button>
             
             {foldersLoading ? (
