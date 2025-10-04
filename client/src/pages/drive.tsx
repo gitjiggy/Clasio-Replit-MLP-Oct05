@@ -412,6 +412,28 @@ export default function Drive() {
         )}
       </div>
 
+      {/* Empty State - Not Connected to Drive */}
+      {!connectionStatus?.connected && !connectionLoading && (
+        <div className="flex flex-col items-center justify-center py-8 md:py-16 px-4">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-400 dark:from-blue-600 dark:to-indigo-600 rounded-full blur-2xl opacity-20 animate-pulse"></div>
+            <Cloud className="relative h-24 w-24 text-blue-500 dark:text-blue-400" strokeWidth={1.5} />
+          </div>
+          
+          <h2 className="text-2xl md:text-3xl font-light tracking-wide bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400 bg-clip-text text-transparent mb-3">
+            Your Google Drive Awaits
+          </h2>
+          
+          <p className="text-slate-600 dark:text-slate-300 font-light tracking-wide text-center max-w-md mb-2">
+            Connect your Google Drive to import, sync, and organize your documents—<span className="font-medium text-slate-900 dark:text-white">all with AI</span>.
+          </p>
+          
+          <p className="text-slate-500 dark:text-slate-400 font-light tracking-wide text-center max-w-lg text-sm">
+            Access your PDFs, Word docs, spreadsheets, and more. Our AI automatically categorizes and makes everything searchable. ✨
+          </p>
+        </div>
+      )}
+
       {connectionStatus?.connected && (
         <>
 
