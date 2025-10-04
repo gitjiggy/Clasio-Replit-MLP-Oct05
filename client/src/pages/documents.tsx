@@ -455,6 +455,20 @@ export default function Documents() {
   const [mobileMoreMenuOpen, setMobileMoreMenuOpen] = useState(false);
   const [location, setLocation] = useLocation();
   
+  // Responsive page limit: 10 on mobile, 20 on desktop
+  const [pageLimit, setPageLimit] = useState(20);
+  
+  useEffect(() => {
+    const updatePageLimit = () => {
+      const isMobile = window.innerWidth < 768; // md breakpoint
+      setPageLimit(isMobile ? 10 : 20);
+    };
+    
+    updatePageLimit();
+    window.addEventListener('resize', updatePageLimit);
+    return () => window.removeEventListener('resize', updatePageLimit);
+  }, []);
+  
   // Track if user has manually toggled Smart Org (to prevent auto-reopening)
   const userToggledSmartOrgRef = useRef(false);
   const uploadButtonRef = useRef<HTMLDivElement>(null);
@@ -503,7 +517,7 @@ export default function Documents() {
             fileType: selectedFileType === "all" ? undefined : selectedFileType,
             folderId: selectedFolderId === "all" ? undefined : selectedFolderId,
             tagId: selectedTagId || undefined,
-            limit: 20
+            limit: pageLimit
           }),
           headers: {
             'Content-Type': 'application/json',
@@ -604,7 +618,8 @@ export default function Documents() {
       fileType: selectedFileType === "all" ? "" : selectedFileType, 
       folderId: selectedFolderId === "all" ? "" : selectedFolderId, 
       tagId: selectedTagId, 
-      page: currentPage 
+      page: currentPage,
+      limit: pageLimit
     }],
     enabled: !isMainCategorySelected, // Only fetch documents when NOT viewing main category sub-folders
     refetchInterval: isPollingForAI ? 2000 : false, // Poll every 2 seconds when expecting AI analysis for faster updates
