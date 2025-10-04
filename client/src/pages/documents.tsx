@@ -192,6 +192,14 @@ const DOWNLOAD_MESSAGES = [
   "⚡ Finalizing download..."
 ];
 
+const VIEW_MESSAGES = [
+  "👀 Preparing for your viewing pleasure...",
+  "🎬 Getting your document ready...",
+  "✨ Loading the preview...",
+  "📄 Opening in a new tab...",
+  "⚡ Almost there..."
+];
+
 // Cosine similarity calculation
 function cosineSimilarity(vectorA: number[], vectorB: number[]): number {
     if (!vectorA || !vectorB || vectorA.length !== vectorB.length) {
@@ -1134,10 +1142,10 @@ export default function Documents() {
     let messageIndex = 0;
     const showNextMessage = () => {
       toast({
-        title: DOWNLOAD_MESSAGES[messageIndex], // Reuse download messages for opening
+        title: VIEW_MESSAGES[messageIndex],
         duration: 1500,
       });
-      messageIndex = (messageIndex + 1) % DOWNLOAD_MESSAGES.length;
+      messageIndex = (messageIndex + 1) % VIEW_MESSAGES.length;
     };
 
     showNextMessage();
