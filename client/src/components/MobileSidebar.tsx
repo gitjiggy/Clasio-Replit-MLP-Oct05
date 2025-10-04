@@ -42,11 +42,28 @@ export function MobileSidebar({
   isDeleting = false,
   hasDocuments = false,
 }: MobileSidebarProps) {
-  const mainCategories = folders.filter(f => f.isAutoCreated && !f.parentId);
+  // Get automatic folders only (Smart Organization)
+  const automaticFolders = folders.filter(folder => folder.isAutoCreated);
+  
+  // Build hierarchical structure for automatic folders
+  const categoryFolders = automaticFolders.filter(folder => !folder.parentId);
+  const subFolders = automaticFolders.filter(folder => folder.parentId);
+  
+  // Filter to show only folders with documents
+  const mainCategories = categoryFolders.filter(category => {
+    // Show category if it has documents directly OR has sub-folders with documents
+    const hasDirectDocuments = (category.documentCount || 0) > 0;
+    const categorySubFolders = subFolders.filter(sub => sub.parentId === category.id && (sub.documentCount || 0) > 0);
+    const hasSubFoldersWithDocuments = categorySubFolders.length > 0;
+    return hasDirectDocuments || hasSubFoldersWithDocuments;
+  });
+  
   const selectedFolder = folders.find(f => f.id === selectedFolderId);
   const isMainCategorySelected = selectedFolder?.isAutoCreated && !selectedFolder?.parentId;
+  
+  // Only show sub-folders with documents
   const selectedCategorySubFolders = folders.filter(
-    f => f.parentId === selectedFolderId && f.isAutoCreated
+    f => f.parentId === selectedFolderId && f.isAutoCreated && (f.documentCount || 0) > 0
   );
 
   return (
