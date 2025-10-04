@@ -1,4 +1,4 @@
-import { Sparkles, MoreVertical, Menu } from "lucide-react";
+import { Sparkles, Trash2, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface MobileDocumentsHeaderProps {
@@ -6,7 +6,7 @@ interface MobileDocumentsHeaderProps {
   onViewChange: (view: "documents" | "drive" | "trash") => void;
   onFunFactsClick: () => void;
   onMenuClick: () => void;
-  onMoreClick: () => void;
+  onDeleteAllClick: () => void;
   documentCount: number;
 }
 
@@ -15,12 +15,12 @@ export function MobileDocumentsHeader({
   onViewChange,
   onFunFactsClick,
   onMenuClick,
-  onMoreClick,
+  onDeleteAllClick,
   documentCount
 }: MobileDocumentsHeaderProps) {
   return (
     <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-border shadow-sm">
-      {/* Top Row: Logo, Fun Facts, More Menu */}
+      {/* Top Row: Logo and Action Icons */}
       <div className="flex items-center justify-between px-4 py-3">
         {/* Hamburger Menu */}
         <Button
@@ -42,7 +42,7 @@ export function MobileDocumentsHeader({
           />
         </div>
 
-        {/* Action Icons */}
+        {/* Action Icons with Even Spacing */}
         <div className="flex items-center gap-2">
           {/* Fun Facts Sparkles */}
           <Button
@@ -55,15 +55,15 @@ export function MobileDocumentsHeader({
             <Sparkles className="h-5 w-5" />
           </Button>
 
-          {/* More Menu (Delete All, etc) */}
+          {/* Delete All */}
           <Button
             variant="ghost"
             size="sm"
-            onClick={onMoreClick}
-            className="h-9 w-9 p-0"
-            data-testid="mobile-more-button"
+            onClick={onDeleteAllClick}
+            className="h-9 w-9 p-0 text-rose-600 dark:text-rose-400"
+            data-testid="mobile-delete-all-button"
           >
-            <MoreVertical className="h-5 w-5" />
+            <Trash2 className="h-5 w-5" />
           </Button>
         </div>
       </div>

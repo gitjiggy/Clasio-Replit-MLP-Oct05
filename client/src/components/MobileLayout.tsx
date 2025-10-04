@@ -2,7 +2,6 @@ import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { MobileDocumentsHeader } from "./MobileDocumentsHeader";
-import { MobileMoreMenu } from "./MobileMoreMenu";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -25,7 +24,6 @@ export function MobileLayout({
 }: MobileLayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobileMoreMenuOpen, setMobileMoreMenuOpen] = useState(false);
 
   const currentView = location === "/drive" ? "drive" : location === "/trash" ? "trash" : "documents";
   const activeTab = mobileSearchOpen ? "search" : "documents";
@@ -48,7 +46,11 @@ export function MobileLayout({
           // TODO: Implement mobile sidebar (Task 7)
           console.log('Mobile sidebar not yet implemented');
         }}
-        onMoreClick={() => setMobileMoreMenuOpen(true)}
+        onDeleteAllClick={() => {
+          if (onDeleteAll) {
+            onDeleteAll();
+          }
+        }}
         documentCount={documentCount}
       />
 
@@ -73,17 +75,6 @@ export function MobileLayout({
         onSearchClick={() => setMobileSearchOpen(true)}
         activeTab={activeTab}
       />
-
-      {/* Mobile More Menu (Delete All, etc.) - Only visible on mobile */}
-      {onDeleteAll && (
-        <MobileMoreMenu
-          isOpen={mobileMoreMenuOpen}
-          onClose={() => setMobileMoreMenuOpen(false)}
-          onDeleteAll={onDeleteAll}
-          hasDocuments={hasDocuments}
-          isDeleting={isDeleting}
-        />
-      )}
     </>
   );
 }
