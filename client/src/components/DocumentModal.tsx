@@ -645,8 +645,8 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                       )}
                     </div>
                     
-                    {/* Add Tag Section */}
-                    <div className="flex items-center space-x-1.5">
+                    {/* Add Tag Section - Responsive for mobile */}
+                    <div className="flex items-start flex-wrap gap-1.5">
                       {!isAddingTag ? (
                         <Button
                           size="sm"
@@ -658,7 +658,7 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                           {(createTagMutation.isPending || addTagToDocumentMutation.isPending) ? 'Adding...' : '+ Add Tag'}
                         </Button>
                       ) : (
-                        <div className="flex items-center space-x-1.5 flex-1">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 w-full">
                           <AutocompleteCombobox
                             value={newTagName}
                             onValueChange={setNewTagName}
@@ -666,37 +666,39 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                             placeholder="Select or create tag..."
                             searchPlaceholder="Search tags..."
                             allowCustom={true}
-                            className="flex-1 h-6 text-[10px]"
+                            className="flex-1 h-6 text-[10px] w-full sm:w-auto"
                             disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
                             testId="tag-combobox"
                           />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              if (newTagName.trim()) {
-                                handleAddTag(newTagName.trim());
-                              }
-                            }}
-                            disabled={!newTagName.trim() || createTagMutation.isPending || addTagToDocumentMutation.isPending}
-                            className="h-6 px-2 text-[10px] font-light tracking-wide"
-                            data-testid="confirm-add-tag"
-                          >
-                            {(createTagMutation.isPending || addTagToDocumentMutation.isPending) ? 'Adding...' : 'Add'}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setIsAddingTag(false);
-                              setNewTagName("");
-                            }}
-                            disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
-                            className="h-6 px-1.5"
-                            data-testid="cancel-add-tag"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (newTagName.trim()) {
+                                  handleAddTag(newTagName.trim());
+                                }
+                              }}
+                              disabled={!newTagName.trim() || createTagMutation.isPending || addTagToDocumentMutation.isPending}
+                              className="h-6 px-2 text-[10px] font-light tracking-wide flex-1 sm:flex-none"
+                              data-testid="confirm-add-tag"
+                            >
+                              {(createTagMutation.isPending || addTagToDocumentMutation.isPending) ? 'Adding...' : 'Add'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setIsAddingTag(false);
+                                setNewTagName("");
+                              }}
+                              disabled={createTagMutation.isPending || addTagToDocumentMutation.isPending}
+                              className="h-6 px-1.5"
+                              data-testid="cancel-add-tag"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
