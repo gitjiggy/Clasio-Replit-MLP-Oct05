@@ -3215,14 +3215,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.userId!;
       
-      // Get all user's documents
-      const allDocuments = await storage.getDocuments({
-        search: "",
-        page: 1,
-        limit: 1000,
-        includeContent: false,
-        userId
-      });
+      // Fetch ALL documents in batches - continues until natural end (partial batch)
+      const BATCH_SIZE = 500;
+      const MAX_PAGES = 1000; // Safety failsafe to prevent infinite loops only
+      let allDocuments: DocumentWithFolderAndTags[] = [];
+      let currentPage = 1;
+      
+      while (currentPage <= MAX_PAGES) {
+        const batch = await storage.getDocuments({
+          search: "",
+          page: currentPage,
+          limit: BATCH_SIZE,
+          includeContent: false,
+          userId
+        });
+        
+        // Empty batch = reached end
+        if (batch.length === 0) {
+          break;
+        }
+        
+        allDocuments = allDocuments.concat(batch);
+        currentPage++;
+        
+        // Partial batch = natural end reached
+        if (batch.length < BATCH_SIZE) {
+          break;
+        }
+      }
+      
+      // Log error if we hit the safety failsafe (indicates possible infinite loop)
+      if (currentPage > MAX_PAGES) {
+        console.error(`❌ Smart Organization: Hit safety failsafe at ${MAX_PAGES} pages (${allDocuments.length} documents). This indicates a possible pagination issue.`);
+      }
+      
+      console.log(`📊 Fetched ${allDocuments.length} total documents across ${currentPage - 1} pages`);
       
       // Classify documents into categories
       const needsReanalysis: DocumentWithFolderAndTags[] = [];
@@ -3248,57 +3275,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`📊 Smart Organization Check: ${needsReanalysis.length} need analysis, ${needsOrganization.length} need organization, ${alreadyComplete.length} already complete`);
       
-      // Start re-analysis for documents that need it (asynchronously)
-      const reanalysisPromise = async () => {
-        for (const doc of needsReanalysis) {
-          try {
-            if (doc.driveFileId) {
-              console.log(`⏭️ Skipping Drive document: ${doc.id}`);
-              continue;
+      // Re-analyze documents that need it with concurrency control
+      const CONCURRENCY_LIMIT = 3;
+      let reanalyzedCount = 0;
+      
+      // Process in batches of CONCURRENCY_LIMIT with delays
+      for (let i = 0; i < needsReanalysis.length; i += CONCURRENCY_LIMIT) {
+        const batch = needsReanalysis.slice(i, i + CONCURRENCY_LIMIT);
+        
+        await Promise.all(
+          batch.map(async (doc) => {
+            try {
+              if (doc.driveFileId) {
+                console.log(`⏭️ Skipping Drive document: ${doc.id}`);
+                return;
+              }
+              await storage.analyzeDocumentWithAI(doc.id, userId);
+              reanalyzedCount++;
+              console.log(`✅ Re-analyzed: ${doc.name} (${reanalyzedCount}/${needsReanalysis.length})`);
+            } catch (error) {
+              console.error(`❌ Failed to re-analyze ${doc.id}:`, error);
             }
-            await storage.analyzeDocumentWithAI(doc.id, userId);
-            console.log(`✅ Re-analyzed: ${doc.name}`);
-          } catch (error) {
-            console.error(`❌ Failed to re-analyze ${doc.id}:`, error);
-          }
+          })
+        );
+        
+        // Add delay between batches to avoid overwhelming the system
+        if (i + CONCURRENCY_LIMIT < needsReanalysis.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-      };
+      }
       
-      // Organize documents that have AI data (asynchronously)
-      const organizationPromise = async () => {
+      // Organize all documents that need organization
+      let organizedCount = 0;
+      if (needsOrganization.length > 0 || reanalyzedCount > 0) {
         const result = await storage.organizeAllUnorganizedDocuments(userId);
+        organizedCount = result.organized;
         console.log(`✅ Organization complete: ${result.organized} organized, ${result.errors.length} errors`);
-        return result;
-      };
+      }
       
-      // Return immediate response
+      // Return response AFTER all processing is complete
       res.json({
         success: true,
-        needsReanalysis: needsReanalysis.length,
-        needsOrganization: needsOrganization.length,
+        reanalyzed: reanalyzedCount,
+        organized: organizedCount,
         alreadyComplete: alreadyComplete.length,
         total: allDocuments.length,
-        status: "processing",
-        message: needsReanalysis.length > 0 
-          ? `🧠 Re-analyzing ${needsReanalysis.length} documents and organizing ${needsOrganization.length} more`
-          : needsOrganization.length > 0 
-            ? `📁 Organizing ${needsOrganization.length} documents`
+        status: "complete",
+        message: reanalyzedCount > 0 
+          ? `✨ Re-analyzed ${reanalyzedCount} documents and organized ${organizedCount} total`
+          : organizedCount > 0 
+            ? `✨ Organized ${organizedCount} documents`
             : `✨ All ${alreadyComplete.length} documents are already organized!`
-      });
-      
-      // Execute both processes asynchronously
-      Promise.all([
-        reanalysisPromise(),
-        organizationPromise()
-      ]).then(() => {
-        console.log("🎉 Smart organization complete");
-      }).catch((error) => {
-        console.error("Smart organization error:", error);
       });
       
     } catch (error) {
       console.error("Smart organization failed:", error);
-      res.status(500).json({ error: "Failed to start smart organization" });
+      res.status(500).json({ error: "Failed to complete smart organization" });
     }
   });
 
