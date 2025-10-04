@@ -1718,7 +1718,6 @@ export default function Documents() {
               className="w-full px-3 py-2 text-base md:text-lg font-light text-foreground tracking-wide flex items-center hover:bg-purple-50/50 dark:hover:bg-purple-900/20 rounded-lg transition-all cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="button-organize-all"
             >
-              <Brain className="mr-2.5 h-5 w-5 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform" />
               <span className="group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
                 {smartOrganizationCheckMutation.isPending ? 'Checking...' : 'Smart Organization'}
               </span>
