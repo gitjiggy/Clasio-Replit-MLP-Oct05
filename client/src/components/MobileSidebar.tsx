@@ -58,6 +58,19 @@ export function MobileSidebar({
     return hasDirectDocuments || hasSubFoldersWithDocuments;
   });
   
+  // Get custom folders (user-created)
+  const customFolders = folders.filter(folder => !folder.isAutoCreated);
+  const customCategoryFolders = customFolders.filter(folder => !folder.parentId);
+  const customSubFolders = customFolders.filter(folder => folder.parentId);
+  
+  // Filter to show only custom folders with documents
+  const customMainCategories = customCategoryFolders.filter(category => {
+    const hasDirectDocuments = (category.documentCount || 0) > 0;
+    const categorySubFolders = customSubFolders.filter(sub => sub.parentId === category.id && (sub.documentCount || 0) > 0);
+    const hasSubFoldersWithDocuments = categorySubFolders.length > 0;
+    return hasDirectDocuments || hasSubFoldersWithDocuments;
+  });
+  
   const selectedFolder = folders.find(f => f.id === selectedFolderId);
   const isMainCategorySelected = selectedFolder?.isAutoCreated && !selectedFolder?.parentId;
   
@@ -253,6 +266,88 @@ export function MobileSidebar({
               </div>
             )}
           </div>
+          
+          {/* Custom Folders Section */}
+          {customMainCategories.length > 0 && (
+            <>
+              <Separator className="my-6" />
+              
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Custom Folders
+                </h3>
+                
+                <div className="space-y-1">
+                  {customMainCategories.map((category) => {
+                    const categorySubFolders = customSubFolders.filter(
+                      sub => sub.parentId === category.id && (sub.documentCount || 0) > 0
+                    );
+                    const isExpanded = selectedFolderId === category.id;
+                    
+                    return (
+                      <div key={category.id}>
+                        {/* Main Category */}
+                        <Button
+                          variant="ghost"
+                          className={`w-full justify-start text-sm font-light h-10 ${
+                            selectedFolderId === category.id
+                              ? "bg-blue-100/50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                              : ""
+                          }`}
+                          onClick={() => {
+                            onFolderSelect(category.id);
+                            // Don't close if it has sub-folders - let user see them
+                            if (categorySubFolders.length === 0) {
+                              onClose();
+                            }
+                          }}
+                          data-testid={`mobile-custom-folder-${category.id}`}
+                        >
+                          <FolderOpen className="mr-2 h-4 w-4 text-muted-foreground" />
+                          <span className="flex-1 text-left truncate">{category.name}</span>
+                          {category.documentCount !== undefined && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {category.documentCount}
+                            </span>
+                          )}
+                        </Button>
+                        
+                        {/* Sub-folders - shown when category is selected/expanded */}
+                        {isExpanded && categorySubFolders.length > 0 && (
+                          <div className="ml-4 mt-1 space-y-1">
+                            {categorySubFolders.map((subFolder) => (
+                              <Button
+                                key={subFolder.id}
+                                variant="ghost"
+                                className={`w-full justify-start text-xs font-light h-9 pl-6 ${
+                                  selectedFolderId === subFolder.id
+                                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                                    : "text-muted-foreground"
+                                }`}
+                                onClick={() => {
+                                  onFolderSelect(subFolder.id);
+                                  onClose();
+                                }}
+                                data-testid={`mobile-custom-subfolder-${subFolder.id}`}
+                              >
+                                <span className="mr-2">•</span>
+                                <span className="flex-1 text-left truncate">{subFolder.name}</span>
+                                {subFolder.documentCount !== undefined && (
+                                  <span className="text-xs ml-2">
+                                    {subFolder.documentCount}
+                                  </span>
+                                )}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </ScrollArea>
 
         {/* Delete All Button - Fixed at Bottom */}
