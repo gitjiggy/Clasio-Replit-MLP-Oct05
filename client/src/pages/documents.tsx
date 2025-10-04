@@ -1599,7 +1599,15 @@ export default function Documents() {
         </div>
 
         {/* Documents Grid - flex-1 with vertical scroll */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6">
+        {(() => {
+          const hasScrollableContent = documentsLoading || aiSearchLoading || 
+            (documentsData?.documents?.length ?? 0) > 0 || 
+            (aiSearchResults?.documents?.length ?? 0) > 0;
+          
+          return (
+            <div className={`overflow-x-hidden p-3 md:p-6 md:flex-1 md:overflow-y-auto ${
+              hasScrollableContent ? 'overflow-y-auto' : 'overflow-y-visible'
+            }`}>
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">
@@ -2040,6 +2048,8 @@ export default function Documents() {
             </div>
           )}
         </div>
+          );
+        })()}
       </main>
       
       {/* Document Modal */}
