@@ -544,9 +544,9 @@ export default function Drive() {
                   </div>
                 )}
 
-                {/* Pagination */}
+                {/* Pagination - Extra bottom padding to clear mobile nav */}
                 {driveData?.pagination?.hasNext && (
-                  <div className="flex flex-col items-center pt-6 pb-4">
+                  <div className="flex flex-col items-center pt-6 pb-24 md:pb-6">
                     <p className="text-sm text-muted-foreground font-light tracking-wide mb-3">
                       More documents available in your Drive
                     </p>
