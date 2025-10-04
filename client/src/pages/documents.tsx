@@ -1856,7 +1856,7 @@ export default function Documents() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 pb-24 md:pb-0">
               {/* Display either AI search results or regular documents */}
               {(() => {
                 let docs = searchMode === "ai" && aiSearchResults ? aiSearchResults.documents : documentsData?.documents;
@@ -2148,7 +2148,7 @@ export default function Documents() {
 
           {/* Pagination */}
           {documentsData && documentsData.pagination.pages > 1 && (
-            <div className="flex items-center justify-between mt-8">
+            <div className="flex items-center justify-between mt-8 pb-24 md:pb-0">
               <div className="text-sm text-muted-foreground">
                 Showing {((documentsData.pagination.page - 1) * documentsData.pagination.limit) + 1}-
                 {Math.min(documentsData.pagination.page * documentsData.pagination.limit, documentsData.pagination.total)} of {documentsData.pagination.total} documents
