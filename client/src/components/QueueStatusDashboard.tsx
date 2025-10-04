@@ -134,16 +134,17 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false, onUploa
 
   // Full dashboard view
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-6xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/40 dark:border-purple-800/40" data-testid="card-queue-dashboard">
-        <CardHeader className="border-b border-purple-200/40 dark:border-purple-800/40">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center md:p-4">
+      <Card className="w-full h-full md:h-auto md:max-w-6xl md:max-h-[90vh] flex flex-col overflow-hidden bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/40 dark:border-purple-800/40 md:rounded-lg" data-testid="card-queue-dashboard">
+        {/* Sticky Header on Mobile */}
+        <CardHeader className="sticky top-0 z-10 bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-b border-purple-200/40 dark:border-purple-800/40 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-3xl font-light tracking-wide flex items-center gap-3 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400">
-                <Brain className="h-7 w-7 text-purple-600 dark:text-purple-400" />
+              <CardTitle className="text-2xl md:text-3xl font-light tracking-wide flex items-center gap-3 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400">
+                <Brain className="h-6 w-6 md:h-7 md:w-7 text-purple-600 dark:text-purple-400" />
                 Fun Facts
               </CardTitle>
-              <CardDescription className="mt-2 text-sm font-light tracking-wide">
+              <CardDescription className="mt-1 md:mt-2 text-xs md:text-sm font-light tracking-wide">
                 Your Clasio journey in numbers ✨
               </CardDescription>
             </div>
@@ -151,7 +152,7 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false, onUploa
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="hover:bg-purple-100 dark:hover:bg-purple-900/30"
+              className="hover:bg-purple-100 dark:hover:bg-purple-900/30 shrink-0"
               data-testid="button-close-dashboard"
             >
               <X className="h-4 w-4" />
@@ -159,7 +160,7 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false, onUploa
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-6 mt-6">
+        <CardContent className="space-y-6 mt-6 overflow-y-auto flex-1 pb-8">
           {error ? (
             <Alert className="border-purple-200 dark:border-purple-800">
               <AlertDescription className="font-light tracking-wide">
