@@ -144,34 +144,53 @@ function preprocessQuery(query: string): string {
     return filtered.join(' ');
 }
 
-// AI Analysis flavor text messages
-const AI_ANALYSIS_FLAVORS = [
-  "🧠 Clasio is analyzing your documents with AI magic...",
-  "📚 Our digital librarian is reading through your files...", 
-  "🎯 Smart Organization is finding the perfect folders...",
-  "✨ Teaching AI to understand your document types...",
-  "🔍 Extracting key topics and organizing everything...",
-  "🎨 Creating the perfect filing system for you...",
-  "⚡ Almost done! Your screen will refresh shortly...",
-  "🚀 Finalizing Smart Organization recommendations..."
+// Quirky rotating messages for various actions
+const AI_ANALYSIS_MESSAGES = [
+  "🧠 AI is reading your document...",
+  "📚 Teaching robots to understand your files...",
+  "🎯 Finding patterns and insights...",
+  "✨ Sprinkling AI magic on your content...",
+  "🔍 Extracting the good stuff...",
+  "🎨 Almost there, organizing thoughts...",
+  "⚡ Wrapping up the analysis...",
+  "🚀 Final touches being applied..."
 ];
 
-// Custom hook for AI analysis flavor text rotation
-function useAIAnalysisFlavor(isActive: boolean) {
-  const [flavorIndex, setFlavorIndex] = useState(0);
-  
-  useEffect(() => {
-    if (!isActive) return;
-    
-    const timer = setInterval(() => {
-      setFlavorIndex(i => (i + 1) % AI_ANALYSIS_FLAVORS.length);
-    }, 3000); // Change message every 3 seconds
-    
-    return () => clearInterval(timer);
-  }, [isActive]);
-  
-  return AI_ANALYSIS_FLAVORS[flavorIndex];
-}
+const DELETE_DOCUMENT_MESSAGES = [
+  "📦 Packing up your document...",
+  "🚚 Moving to the digital recycling bin...",
+  "👋 Saying goodbye to this file...",
+  "🗑️ Spring cleaning in progress...",
+  "✨ Making space for new documents...",
+  "🎯 Organizing your digital workspace..."
+];
+
+const FAVORITE_MESSAGES = [
+  "⭐ Updating favorites...",
+  "💫 Marking as special...",
+  "✨ Adding a star...",
+  "🎯 Organizing your top picks...",
+  "💝 Making it a favorite..."
+];
+
+const ORGANIZE_MESSAGES = [
+  "🧠 AI is organizing your documents...",
+  "📚 Creating smart folders...",
+  "🎯 Finding perfect categories...",
+  "✨ Sorting everything beautifully...",
+  "🔍 Analyzing document relationships...",
+  "🎨 Building your filing system...",
+  "⚡ Almost done organizing...",
+  "🚀 Finalizing folder structure..."
+];
+
+const DOWNLOAD_MESSAGES = [
+  "📥 Preparing your download...",
+  "🚀 Fetching your file...",
+  "📦 Packaging your document...",
+  "✨ Almost ready...",
+  "⚡ Finalizing download..."
+];
 
 // Cosine similarity calculation
 function cosineSimilarity(vectorA: number[], vectorB: number[]): number {
@@ -435,6 +454,8 @@ export default function Documents() {
   // State for AI analysis polling
   const [recentUploads, setRecentUploads] = useState<{ timestamp: number; documentIds: string[] }>({ timestamp: 0, documentIds: [] });
   const [isPollingForAI, setIsPollingForAI] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isOpeningDocument, setIsOpeningDocument] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -833,13 +854,6 @@ export default function Documents() {
       });
       return response;
     },
-    onMutate: () => {
-      toast({
-        title: "Starting AI Analysis",
-        description: "Analyzing document with AI...",
-        duration: 2000,
-      });
-    },
     onSuccess: (data) => {
       // Track successful AI analysis
       trackEvent('ai_analysis_complete', { analysis_type: 'gemini' });
@@ -883,13 +897,6 @@ export default function Documents() {
       // For other responses, try to parse JSON
       return response.json();
     },
-    onMutate: () => {
-      toast({
-        title: "Deleting document",
-        description: "Moving document to trash...",
-        duration: 1500,
-      });
-    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] }); // Keep folder counts fresh
@@ -918,13 +925,6 @@ export default function Documents() {
         headers: { "Content-Type": "application/json" },
       });
     },
-    onMutate: ({ isFavorite }) => {
-      toast({
-        title: isFavorite ? "Adding to favorites" : "Removing from favorites",
-        description: "Updating...",
-        duration: 1000,
-      });
-    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       toast({
@@ -947,13 +947,6 @@ export default function Documents() {
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/documents/organize-all");
       return response.json();
-    },
-    onMutate: () => {
-      toast({
-        title: "Starting Smart Organization",
-        description: "AI is analyzing your documents...",
-        duration: 2000,
-      });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
@@ -982,13 +975,6 @@ export default function Documents() {
       // Use the new "delete all" endpoint that gets ALL active documents
       const response = await apiRequest("DELETE", "/api/documents/all");
       return response.json();
-    },
-    onMutate: () => {
-      toast({
-        title: "Starting deletion",
-        description: "Preparing to move all documents to trash...",
-        duration: 1500,
-      });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
@@ -1065,6 +1051,114 @@ export default function Documents() {
       // Final cleanup toast would be handled by the mutation's onSuccess
     };
   }, [deleteAllDocumentsMutation.isPending, toast]);
+
+  // Rotating messages for AI Analysis
+  useEffect(() => {
+    if (!analyzeDocumentMutation.isPending) return;
+
+    let messageIndex = 0;
+    const showNextMessage = () => {
+      toast({
+        title: AI_ANALYSIS_MESSAGES[messageIndex],
+        duration: 2000,
+      });
+      messageIndex = (messageIndex + 1) % AI_ANALYSIS_MESSAGES.length;
+    };
+
+    showNextMessage();
+    const interval = setInterval(showNextMessage, 2000);
+    return () => clearInterval(interval);
+  }, [analyzeDocumentMutation.isPending, toast]);
+
+  // Rotating messages for Delete Document
+  useEffect(() => {
+    if (!deleteDocumentMutation.isPending) return;
+
+    let messageIndex = 0;
+    const showNextMessage = () => {
+      toast({
+        title: DELETE_DOCUMENT_MESSAGES[messageIndex],
+        duration: 1500,
+      });
+      messageIndex = (messageIndex + 1) % DELETE_DOCUMENT_MESSAGES.length;
+    };
+
+    showNextMessage();
+    const interval = setInterval(showNextMessage, 1500);
+    return () => clearInterval(interval);
+  }, [deleteDocumentMutation.isPending, toast]);
+
+  // Rotating messages for Toggle Favorite
+  useEffect(() => {
+    if (!toggleFavoriteMutation.isPending) return;
+
+    let messageIndex = 0;
+    const showNextMessage = () => {
+      toast({
+        title: FAVORITE_MESSAGES[messageIndex],
+        duration: 1000,
+      });
+      messageIndex = (messageIndex + 1) % FAVORITE_MESSAGES.length;
+    };
+
+    showNextMessage();
+    const interval = setInterval(showNextMessage, 1000);
+    return () => clearInterval(interval);
+  }, [toggleFavoriteMutation.isPending, toast]);
+
+  // Rotating messages for Smart Organization
+  useEffect(() => {
+    if (!organizeAllMutation.isPending) return;
+
+    let messageIndex = 0;
+    const showNextMessage = () => {
+      toast({
+        title: ORGANIZE_MESSAGES[messageIndex],
+        duration: 2000,
+      });
+      messageIndex = (messageIndex + 1) % ORGANIZE_MESSAGES.length;
+    };
+
+    showNextMessage();
+    const interval = setInterval(showNextMessage, 2000);
+    return () => clearInterval(interval);
+  }, [organizeAllMutation.isPending, toast]);
+
+  // Rotating messages for Download
+  useEffect(() => {
+    if (!isDownloading) return;
+
+    let messageIndex = 0;
+    const showNextMessage = () => {
+      toast({
+        title: DOWNLOAD_MESSAGES[messageIndex],
+        duration: 1500,
+      });
+      messageIndex = (messageIndex + 1) % DOWNLOAD_MESSAGES.length;
+    };
+
+    showNextMessage();
+    const interval = setInterval(showNextMessage, 1500);
+    return () => clearInterval(interval);
+  }, [isDownloading, toast]);
+
+  // Rotating messages for Open Document
+  useEffect(() => {
+    if (!isOpeningDocument) return;
+
+    let messageIndex = 0;
+    const showNextMessage = () => {
+      toast({
+        title: DOWNLOAD_MESSAGES[messageIndex], // Reuse download messages for opening
+        duration: 1500,
+      });
+      messageIndex = (messageIndex + 1) % DOWNLOAD_MESSAGES.length;
+    };
+
+    showNextMessage();
+    const interval = setInterval(showNextMessage, 1500);
+    return () => clearInterval(interval);
+  }, [isOpeningDocument, toast]);
 
   const getUploadParameters = async () => {
     const response = await apiRequest("POST", "/api/documents/upload-url", {});
@@ -1224,21 +1318,11 @@ export default function Documents() {
   const handleOpenDocumentFile = async (document: DocumentWithFolderAndTags) => {
     // For Drive documents, open Drive viewer directly
     if (document.driveWebViewLink) {
-      toast({
-        title: "Opening document",
-        description: "Redirecting to Google Drive...",
-        duration: 1500,
-      });
       window.open(document.driveWebViewLink, '_blank');
       return;
     }
 
-    // Show immediate feedback
-    toast({
-      title: "Opening document",
-      description: "Loading preview...",
-      duration: 1500,
-    });
+    setIsOpeningDocument(true);
 
     try {
       // For uploaded documents, fetch and display in new tab
@@ -1257,6 +1341,12 @@ export default function Documents() {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       window.open(url, '_blank');
+      
+      toast({
+        title: "Document opened",
+        description: "Preview ready!",
+        duration: 1000,
+      });
     } catch (error) {
       console.error('View error details:', error);
       toast({
@@ -1264,27 +1354,19 @@ export default function Documents() {
         description: error instanceof Error ? error.message : "There was an error viewing the document.",
         variant: "destructive",
       });
+    } finally {
+      setIsOpeningDocument(false);
     }
   };
 
   const handleDownload = async (document: DocumentWithFolderAndTags) => {
     // For Drive documents, redirect directly
     if (document.driveWebViewLink) {
-      toast({
-        title: "Opening document",
-        description: "Redirecting to Google Drive...",
-        duration: 1500,
-      });
       window.open(document.driveWebViewLink, '_blank');
       return;
     }
     
-    // Show immediate feedback
-    toast({
-      title: "Downloading",
-      description: "Preparing your document...",
-      duration: 1500,
-    });
+    setIsDownloading(true);
     
     try {
       // For uploaded documents, use the API endpoint to download
@@ -1310,6 +1392,12 @@ export default function Documents() {
       anchor.click();
       window.URL.revokeObjectURL(url);
       window.document.body.removeChild(anchor);
+      
+      toast({
+        title: "Download complete",
+        description: "Your document is ready!",
+        duration: 1000,
+      });
     } catch (error) {
       console.error('Download error details:', error);
       console.error('Error message:', error instanceof Error ? error.message : String(error));
@@ -1318,6 +1406,8 @@ export default function Documents() {
         description: error instanceof Error ? error.message : "There was an error downloading the document.",
         variant: "destructive",
       });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
