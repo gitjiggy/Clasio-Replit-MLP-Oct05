@@ -1699,23 +1699,9 @@ export default function Documents() {
                   <p className="text-lg text-muted-foreground font-light mb-2 max-w-lg text-center leading-relaxed">
                     Drop your receipts, invoices, contracts, PDFs, images—<span className="font-medium text-foreground">anything</span>.
                   </p>
-                  <p className="text-base text-muted-foreground font-light mb-8 max-w-md text-center">
+                  <p className="text-base text-muted-foreground font-light max-w-md text-center">
                     Our AI instantly organizes, categorizes, and makes everything searchable. No more chaos. ✨
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-3 items-center">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-full">
-                      <Sparkles className="h-4 w-4 text-purple-500" />
-                      <span>AI-Powered Organization</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-full">
-                      <Search className="h-4 w-4 text-indigo-500" />
-                      <span>Instant Search</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-full">
-                      <FolderOpen className="h-4 w-4 text-pink-500" />
-                      <span>Smart Folders</span>
-                    </div>
-                  </div>
                 </>
               )}
             </div>
