@@ -1670,7 +1670,7 @@ export default function Documents() {
           (searchMode === "ai" && aiSearchResults && aiSearchResults.documents.length === 0) || 
           (searchMode === "simple" && documentsData?.documents.length === 0) ? (
             <div className="flex flex-col items-center justify-center py-16 px-4">
-              {searchQuery || selectedFileType || selectedFolderId || selectedTagId ? (
+              {searchQuery || (selectedFileType && selectedFileType !== "all") || (selectedFolderId && selectedFolderId !== "all") || selectedTagId ? (
                 <>
                   <div className="relative mb-6">
                     <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-indigo-400 dark:from-purple-600 dark:to-indigo-600 rounded-full blur-2xl opacity-20 animate-pulse"></div>
