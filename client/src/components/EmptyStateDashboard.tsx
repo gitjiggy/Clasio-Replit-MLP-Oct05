@@ -145,6 +145,12 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
         </CardHeader>
 
         <CardContent className="space-y-3 mt-3 pb-4">
+          {/* Top Message */}
+          <div className="bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 border-2 border-purple-300/50 dark:border-purple-700/50 rounded-xl p-3 text-center">
+            <p className="text-sm font-semibold tracking-wide text-purple-900 dark:text-purple-100">
+              📊 Come back here after uploading to see fun facts about your documents!
+            </p>
+          </div>
           {/* Quick Win Scenarios */}
           <div className="space-y-1.5">
             <h3 className="text-base font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
@@ -221,6 +227,13 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
                 );
               })}
             </div>
+          </div>
+
+          {/* Bottom Message Before CTA */}
+          <div className="bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 border-2 border-purple-300/50 dark:border-purple-700/50 rounded-xl p-3 text-center mt-2">
+            <p className="text-sm font-semibold tracking-wide text-purple-900 dark:text-purple-100">
+              💡 Upload documents now and return here to discover insights and fun facts!
+            </p>
           </div>
 
           {/* CTA Button */}
