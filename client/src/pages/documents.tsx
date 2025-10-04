@@ -1669,7 +1669,7 @@ export default function Documents() {
           ) : /* Empty State */ 
           (searchMode === "ai" && aiSearchResults && aiSearchResults.documents.length === 0) || 
           (searchMode === "simple" && documentsData?.documents.length === 0) ? (
-            <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="flex flex-col items-center justify-center py-8 md:py-16 px-4">
               {searchQuery || (selectedFileType && selectedFileType !== "all") || (selectedFolderId && selectedFolderId !== "all") || selectedTagId ? (
                 <>
                   <div className="relative mb-6">
