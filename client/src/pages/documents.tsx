@@ -31,147 +31,6 @@ function useDeleteFlavor(isDeleting: boolean) {
   
   return isDeleting ? DELETE_FLAVOR_TEXT[idx] : "Delete All";
 }
-
-// Custom hook to detect mobile screen size
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
-  
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024); // lg breakpoint
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-  
-  return isMobile;
-}
-
-// Custom hook for swipe gestures on mobile
-function useSwipe(onSwipeLeft?: () => void, onSwipeRight?: () => void) {
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [isSwiping, setIsSwiping] = useState(false);
-
-  const minSwipeDistance = 20;
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-    setIsSwiping(true);
-  };
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (touchStart === null) return;
-    const currentTouch = e.targetTouches[0].clientX;
-    const distance = currentTouch - touchStart;
-    
-    if (Math.abs(distance) > 10) {
-      e.preventDefault();
-    }
-    
-    setSwipeOffset(distance);
-    setTouchEnd(currentTouch);
-  };
-
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) {
-      setSwipeOffset(0);
-      setIsSwiping(false);
-      return;
-    }
-    
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-    
-    if (isLeftSwipe && onSwipeLeft) {
-      onSwipeLeft();
-    }
-    if (isRightSwipe && onSwipeRight) {
-      onSwipeRight();
-    }
-    
-    setSwipeOffset(0);
-    setIsSwiping(false);
-    setTouchStart(null);
-    setTouchEnd(null);
-  };
-
-  return {
-    onTouchStart,
-    onTouchMove,
-    onTouchEnd,
-    swipeOffset,
-    isSwiping
-  };
-}
-
-// Swipeable Card wrapper for mobile gestures
-interface SwipeableCardProps {
-  children: React.ReactNode;
-  onSwipeLeft: () => void;
-  onSwipeRight: () => void;
-  document: any;
-}
-
-function SwipeableCard({ children, onSwipeLeft, onSwipeRight, document }: SwipeableCardProps) {
-  const swipe = useSwipe(onSwipeLeft, onSwipeRight);
-  const maxOffset = 120;
-  const offset = Math.max(-maxOffset, Math.min(maxOffset, swipe.swipeOffset));
-  const opacity = Math.abs(offset) / maxOffset;
-
-  return (
-    <div 
-      className="relative"
-      onTouchStart={swipe.onTouchStart}
-      onTouchMove={swipe.onTouchMove}
-      onTouchEnd={swipe.onTouchEnd}
-    >
-      {/* Swipe Background - Mobile Only */}
-      <div className="lg:hidden absolute inset-0 flex items-center justify-between px-8 rounded-2xl overflow-hidden pointer-events-none">
-        {/* Left Swipe (Delete) Background */}
-        <div 
-          className="absolute inset-0 bg-rose-500 transition-opacity duration-150"
-          style={{ opacity: offset < -20 ? opacity : 0 }}
-        />
-        {/* Right Swipe (View) Background */}
-        <div 
-          className="absolute inset-0 bg-blue-500 transition-opacity duration-150"
-          style={{ opacity: offset > 20 ? opacity : 0 }}
-        />
-        
-        {/* Delete Icon (Left) */}
-        {offset < -20 && (
-          <div className="relative z-10 flex items-center text-white">
-            <span className="text-sm font-semibold">Delete</span>
-          </div>
-        )}
-        
-        {/* View Icon (Right) */}
-        {offset > 20 && (
-          <div className="relative z-10 ml-auto flex items-center text-white">
-            <span className="text-sm font-semibold">View</span>
-          </div>
-        )}
-      </div>
-
-      {/* Card Content */}
-      <div 
-        className="transition-transform duration-150"
-        style={{ 
-          transform: `translateX(${swipe.isSwiping ? offset : 0}px)`,
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -567,7 +426,6 @@ export default function Documents() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileMoreMenuOpen, setMobileMoreMenuOpen] = useState(false);
-  const isMobile = useIsMobile();
   const [location, setLocation] = useLocation();
   
   // Track if user has manually toggled Smart Org (to prevent auto-reopening)
@@ -1984,13 +1842,13 @@ export default function Documents() {
                   docs = docs?.filter((doc: any) => doc.isFavorite);
                 }
                 
-                return docs?.map((document: any) => {
-                  const card = <Card 
-                    className="group hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[390px] flex flex-col" 
-                    data-testid={`document-card-${document.id}`}
-                    onClick={() => handleViewDocument(document)}
-                    key={document.id}
-                  >
+                return docs?.map((document: any) => (
+                <Card 
+                  key={document.id} 
+                  className="group hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[390px] flex flex-col" 
+                  data-testid={`document-card-${document.id}`}
+                  onClick={() => handleViewDocument(document)}
+                >
                   <CardContent className="px-4 pt-4 pb-0 flex flex-col h-full overflow-hidden">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
@@ -2250,24 +2108,8 @@ export default function Documents() {
                       </Button>
                     </div>
                   </CardContent>
-                </Card>;
-
-                  // Only wrap with swipe functionality on mobile
-                  if (isMobile) {
-                    return (
-                      <SwipeableCard
-                        key={document.id}
-                        document={document}
-                        onSwipeLeft={() => deleteDocumentMutation.mutate(document.id)}
-                        onSwipeRight={() => handleViewDocument(document)}
-                      >
-                        {card}
-                      </SwipeableCard>
-                    );
-                  }
-                  
-                  return card;
-                });
+                </Card>
+              ));
               })()}
             </div>
           )}
