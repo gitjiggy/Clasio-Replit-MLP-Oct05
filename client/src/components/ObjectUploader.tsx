@@ -318,8 +318,9 @@ export function ObjectUploader({
       abortControllerRef.current = null;
     }
 
-    // Reset user cancellation flag for new upload
+    // Reset user cancellation flags for new upload session
     userCancelledRef.current = false;
+    userExplicitlyCancelledRef.current = false;
 
     // Create new AbortController for this upload
     abortControllerRef.current = new AbortController();
