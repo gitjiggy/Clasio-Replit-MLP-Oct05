@@ -248,11 +248,13 @@ export function MobileSidebar({
             <Button
               variant="outline"
               onClick={() => {
-                onDeleteAll();
-                onClose();
+                if (!isDeleting && onDeleteAll) {
+                  onDeleteAll();
+                  onClose();
+                }
               }}
               disabled={isDeleting}
-              className="w-full h-12 border-2 border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 text-rose-700 dark:text-rose-400 font-semibold"
+              className="w-full h-12 border-2 border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 text-rose-700 dark:text-rose-400 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="mobile-sidebar-delete-all"
             >
               <Trash2 className="mr-2 h-5 w-5" />
