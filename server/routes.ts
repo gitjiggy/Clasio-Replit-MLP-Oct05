@@ -3226,9 +3226,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           search: "",
           page: currentPage,
           limit: BATCH_SIZE,
-          includeContent: false,
-          userId
-        });
+          includeContent: false
+        }, userId);  // userId is a SEPARATE parameter, not in filters!
         
         // Empty batch = reached end
         if (batch.length === 0) {
