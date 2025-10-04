@@ -3709,7 +3709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Verify token with Google and get user info
-      oauth2Client.setCredentials({ access_token: accessToken });
+      oauth2Client.setCredentials(tokens);
       const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
       const userInfo = await oauth2.userinfo.get();
       
