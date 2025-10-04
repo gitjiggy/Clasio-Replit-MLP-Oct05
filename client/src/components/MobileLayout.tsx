@@ -50,6 +50,8 @@ interface MobileLayoutProps {
   onViewModeChange?: (mode: string) => void;
   onSmartOrganize?: () => void;
   isOrganizing?: boolean;
+  onSmartOrganizationCheck?: () => void;
+  isCheckingOrganization?: boolean;
   // Scroll-to-hide
   isScrolling?: boolean;
 }
@@ -86,6 +88,8 @@ export function MobileLayout({
   onViewModeChange = () => {},
   onSmartOrganize,
   isOrganizing = false,
+  onSmartOrganizationCheck,
+  isCheckingOrganization = false,
   // Scroll-to-hide
   isScrolling = false,
 }: MobileLayoutProps) {
@@ -173,6 +177,8 @@ export function MobileLayout({
         folders={folders}
         onSmartOrganize={onSmartOrganize}
         isOrganizing={isOrganizing}
+        onSmartOrganizationCheck={onSmartOrganizationCheck}
+        isCheckingOrganization={isCheckingOrganization}
         onFunFactsClick={onQueueDashboardOpen}
         onDeleteAll={onDeleteAll}
         isDeleting={isDeleting}

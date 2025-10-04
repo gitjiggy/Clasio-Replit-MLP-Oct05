@@ -1,4 +1,4 @@
-import { X, FileText, Upload, Star, FolderOpen, Sparkles, Target, Trash2, Clock } from "lucide-react";
+import { X, FileText, Upload, Star, FolderOpen, Sparkles, Target, Trash2, Clock, Brain, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -21,6 +21,8 @@ interface MobileSidebarProps {
   folders: Folder[];
   onSmartOrganize?: () => void;
   isOrganizing?: boolean;
+  onSmartOrganizationCheck?: () => void;
+  isCheckingOrganization?: boolean;
   onFunFactsClick?: () => void;
   onDeleteAll?: () => void;
   isDeleting?: boolean;
@@ -37,6 +39,8 @@ export function MobileSidebar({
   folders,
   onSmartOrganize,
   isOrganizing = false,
+  onSmartOrganizationCheck,
+  isCheckingOrganization = false,
   onFunFactsClick,
   onDeleteAll,
   isDeleting = false,
@@ -165,6 +169,48 @@ export function MobileSidebar({
           </nav>
 
           <Separator className="my-6" />
+
+          {/* Smart Organization Check Card */}
+          {onSmartOrganizationCheck && (
+            <div className="mb-6">
+              <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 dark:from-purple-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 rounded-xl p-4 border-2 border-purple-200/50 dark:border-purple-800/50 shadow-lg">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="bg-gradient-to-br from-purple-500 to-indigo-500 p-2 rounded-lg">
+                    <Brain className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-1 tracking-wide">
+                      Smart Organization Check
+                    </h4>
+                    <p className="text-xs font-light text-purple-700 dark:text-purple-300 leading-relaxed tracking-wide">
+                      Automatically finds and fixes documents with missing data or incomplete AI analysis
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => {
+                    onSmartOrganizationCheck();
+                    onClose();
+                  }}
+                  disabled={isCheckingOrganization}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-light tracking-wide rounded-lg shadow-md hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                  data-testid="smart-organization-check-button"
+                >
+                  {isCheckingOrganization ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      Check & Fix
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Smart Organization Section */}
           <div className="space-y-4">

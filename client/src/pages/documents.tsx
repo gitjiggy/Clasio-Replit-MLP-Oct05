@@ -200,6 +200,18 @@ const VIEW_MESSAGES = [
   "⚡ Almost there..."
 ];
 
+const SMART_ORGANIZATION_CHECK_MESSAGES = [
+  "🔍 Scanning your document collection...",
+  "🧠 AI is checking for missing data...",
+  "✨ Finding documents that need love...",
+  "📋 Making a list, checking it twice...",
+  "🎯 Identifying incomplete documents...",
+  "🔧 Preparing to refresh AI analysis...",
+  "📚 Organizing smart folders...",
+  "⚡ Almost done fixing everything...",
+  "🚀 Finalizing your document organization..."
+];
+
 // Cosine similarity calculation
 function cosineSimilarity(vectorA: number[], vectorB: number[]): number {
     if (!vectorA || !vectorB || vectorA.length !== vectorB.length) {
@@ -1066,6 +1078,33 @@ export default function Documents() {
     },
   });
 
+  // Smart Organization Check mutation - Intelligently detects and fixes incomplete documents
+  const smartOrganizationCheckMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/smart-organization");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+      toast({
+        title: "Smart Organization Check Complete",
+        description: data.message || `✨ Checked ${data.total} documents`,
+        duration: 2000,
+      });
+      
+      // Scroll to top to show UI refresh
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+    },
+    onError: (error) => {
+      toast({
+        title: "Smart Organization Check failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Delete all documents mutation (for testing)
   const deleteAllDocumentsMutation = useMutation({
     mutationFn: async () => {
@@ -1220,6 +1259,24 @@ export default function Documents() {
     const interval = setInterval(showNextMessage, 2000);
     return () => clearInterval(interval);
   }, [organizeAllMutation.isPending, toast]);
+
+  // Rotating messages for Smart Organization Check
+  useEffect(() => {
+    if (!smartOrganizationCheckMutation.isPending) return;
+
+    let messageIndex = 0;
+    const showNextMessage = () => {
+      toast({
+        title: SMART_ORGANIZATION_CHECK_MESSAGES[messageIndex],
+        duration: 2000,
+      });
+      messageIndex = (messageIndex + 1) % SMART_ORGANIZATION_CHECK_MESSAGES.length;
+    };
+
+    showNextMessage();
+    const interval = setInterval(showNextMessage, 2000);
+    return () => clearInterval(interval);
+  }, [smartOrganizationCheckMutation.isPending, toast]);
 
   // Rotating messages for Download
   useEffect(() => {
@@ -1595,6 +1652,8 @@ export default function Documents() {
       onViewModeChange={setViewMode}
       onSmartOrganize={() => organizeAllMutation.mutate()}
       isOrganizing={organizeAllMutation.isPending}
+      onSmartOrganizationCheck={() => smartOrganizationCheckMutation.mutate()}
+      isCheckingOrganization={smartOrganizationCheckMutation.isPending}
       isScrolling={isScrolling}
     >
       <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">

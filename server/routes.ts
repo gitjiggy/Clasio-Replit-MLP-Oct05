@@ -3210,6 +3210,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Smart Organization Check endpoint - Intelligently detects and fixes incomplete documents
+  app.post("/api/smart-organization", moderateLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      
+      // Get all user's documents
+      const allDocuments = await storage.getDocuments({
+        search: "",
+        page: 1,
+        limit: 1000,
+        includeContent: false,
+        userId
+      });
+      
+      // Classify documents into categories
+      const needsReanalysis: DocumentWithFolderAndTags[] = [];
+      const needsOrganization: DocumentWithFolderAndTags[] = [];
+      const alreadyComplete: DocumentWithFolderAndTags[] = [];
+      
+      for (const doc of allDocuments) {
+        if (doc.isDeleted) continue;
+        
+        // Check if document needs re-analysis (missing AI data)
+        if (!doc.aiSummary || !doc.aiCategory || !doc.aiDocumentType) {
+          needsReanalysis.push(doc);
+        }
+        // Check if has AI data but not organized
+        else if (!doc.folderId && doc.aiCategory && doc.aiDocumentType) {
+          needsOrganization.push(doc);
+        }
+        // Already complete - has AI data and is organized
+        else {
+          alreadyComplete.push(doc);
+        }
+      }
+      
+      console.log(`📊 Smart Organization Check: ${needsReanalysis.length} need analysis, ${needsOrganization.length} need organization, ${alreadyComplete.length} already complete`);
+      
+      // Start re-analysis for documents that need it (asynchronously)
+      const reanalysisPromise = async () => {
+        for (const doc of needsReanalysis) {
+          try {
+            if (doc.driveFileId) {
+              console.log(`⏭️ Skipping Drive document: ${doc.id}`);
+              continue;
+            }
+            await storage.analyzeDocumentWithAI(doc.id, userId);
+            console.log(`✅ Re-analyzed: ${doc.name}`);
+          } catch (error) {
+            console.error(`❌ Failed to re-analyze ${doc.id}:`, error);
+          }
+        }
+      };
+      
+      // Organize documents that have AI data (asynchronously)
+      const organizationPromise = async () => {
+        const result = await storage.organizeAllUnorganizedDocuments(userId);
+        console.log(`✅ Organization complete: ${result.organized} organized, ${result.errors.length} errors`);
+        return result;
+      };
+      
+      // Return immediate response
+      res.json({
+        success: true,
+        needsReanalysis: needsReanalysis.length,
+        needsOrganization: needsOrganization.length,
+        alreadyComplete: alreadyComplete.length,
+        total: allDocuments.length,
+        status: "processing",
+        message: needsReanalysis.length > 0 
+          ? `🧠 Re-analyzing ${needsReanalysis.length} documents and organizing ${needsOrganization.length} more`
+          : needsOrganization.length > 0 
+            ? `📁 Organizing ${needsOrganization.length} documents`
+            : `✨ All ${alreadyComplete.length} documents are already organized!`
+      });
+      
+      // Execute both processes asynchronously
+      Promise.all([
+        reanalysisPromise(),
+        organizationPromise()
+      ]).then(() => {
+        console.log("🎉 Smart organization complete");
+      }).catch((error) => {
+        console.error("Smart organization error:", error);
+      });
+      
+    } catch (error) {
+      console.error("Smart organization failed:", error);
+      res.status(500).json({ error: "Failed to start smart organization" });
+    }
+  });
+
   // Document Versioning endpoints
   
   // Get document with all versions
