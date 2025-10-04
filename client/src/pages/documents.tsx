@@ -1583,9 +1583,9 @@ export default function Documents() {
           {/* Header - Clean Premium Single Row - No horizontal scroll on mobile */}
           <div className="pl-1 md:pl-2 pr-3 md:pr-6 py-1 md:py-1.5 border-b border-border/20 md:overflow-x-auto">
             {/* Single Row: All Controls - No wrap on mobile, fits in viewport */}
-            <div className="flex items-center gap-1.5 md:gap-2 md:min-w-max">
-              {/* Title + Document Count - Extra compact on mobile */}
-              <div className="flex items-baseline gap-1 md:gap-2 pr-1 md:pr-2">
+            <div className="flex items-center gap-2 md:min-w-max w-full md:w-auto">
+              {/* Title + Document Count - Compact but readable */}
+              <div className="flex items-baseline gap-1.5 pr-2">
                 <h2 className="text-sm md:text-base font-light tracking-wide text-foreground whitespace-nowrap">
                   {isMainCategorySelected 
                     ? `${selectedFolder?.name} Sub-folders`
@@ -1602,9 +1602,9 @@ export default function Documents() {
                 </span>
               </div>
               
-              {/* Filters - Extra compact on mobile */}
+              {/* Filters - Full width to show complete text */}
               <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-                <SelectTrigger className="w-[85px] md:w-28 text-[11px] md:text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-type">
+                <SelectTrigger className="w-[100px] md:w-28 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-type">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1617,7 +1617,7 @@ export default function Documents() {
               </Select>
               
               <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                <SelectTrigger className="w-[95px] md:w-36 text-[11px] md:text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-folder">
+                <SelectTrigger className="w-[110px] md:w-36 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-folder">
                   <SelectValue placeholder="All Folders" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1636,7 +1636,7 @@ export default function Documents() {
                 variant="outline" 
                 onClick={clearFilters}
                 size="sm"
-                className="h-8 px-2 md:px-3 text-[11px] md:text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex-shrink-0 shadow-sm"
+                className="h-8 px-2.5 md:px-3 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex-shrink-0 shadow-sm"
                 data-testid="clear-filters"
               >
                 Clear
