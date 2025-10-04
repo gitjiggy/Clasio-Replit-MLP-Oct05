@@ -72,7 +72,9 @@ interface QueueStatusDashboardProps {
 export function QueueStatusDashboard({ isOpen, onClose, compact = false, onUpload }: QueueStatusDashboardProps) {
   const { data, isLoading, error, refetch } = useQuery<FunFactsResponse>({
     queryKey: ["/api/fun-facts"],
-    refetchInterval: false,
+    enabled: isOpen,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 
   if (!isOpen) return null;
