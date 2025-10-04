@@ -1583,9 +1583,9 @@ export default function Documents() {
           {/* Header - Clean Premium Single Row - No horizontal scroll on mobile */}
           <div className="pl-1 md:pl-2 pr-1 md:pr-6 py-1 md:py-1.5 border-b border-border/20 md:overflow-x-auto">
             {/* Single Row: All Controls - No wrap on mobile, fits in viewport */}
-            <div className="flex items-center gap-2 md:min-w-max w-full md:w-auto">
+            <div className="flex items-center gap-1 md:gap-2 md:min-w-max w-full md:w-auto">
               {/* Title + Document Count - Compact but readable */}
-              <div className="flex items-baseline gap-1.5 pr-2">
+              <div className="flex items-baseline gap-1.5 pr-1 md:pr-2">
                 <h2 className="text-sm md:text-base font-light tracking-wide text-foreground whitespace-nowrap">
                   {isMainCategorySelected 
                     ? `${selectedFolder?.name} Sub-folders`
