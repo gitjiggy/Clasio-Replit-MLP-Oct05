@@ -459,15 +459,15 @@ export default function Drive() {
                       const IconComponent = getFileIcon(file.mimeType);
                       
                       return (
-                        <Card key={file.id} className="group hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[390px] flex flex-col">
-                          <CardContent className="px-4 pt-4 pb-0 flex flex-col h-full overflow-hidden">
-                            <div className="flex items-start justify-between mb-4">
+                        <Card key={file.id} className="group hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-300 border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between mb-3">
                               <div className="flex items-center space-x-3 flex-1 min-w-0">
                                 <div className="flex-shrink-0">
-                                  <IconComponent className="h-8 w-8 text-blue-600" />
+                                  <IconComponent className="h-6 w-6 text-blue-600" />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <h3 className="text-lg font-light tracking-tight text-foreground truncate mb-1" title={file.name}>
+                                  <h3 className="text-base font-light tracking-tight text-foreground truncate mb-0.5" title={file.name}>
                                     {file.name}
                                   </h3>
                                   <p className="text-xs text-muted-foreground font-light tracking-wide">
@@ -477,11 +477,8 @@ export default function Drive() {
                               </div>
                             </div>
                             
-                            {/* Spacer to push buttons to bottom */}
-                            <div className="flex-1"></div>
-                            
-                            {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
-                            <div className="grid grid-cols-3 gap-1.5 mt-2 -mb-2">
+                            {/* Action Buttons - Compact Design with Proper Touch Targets */}
+                            <div className="grid grid-cols-3 gap-1.5">
                               <Button
                                 size="sm"
                                 variant="ghost"
