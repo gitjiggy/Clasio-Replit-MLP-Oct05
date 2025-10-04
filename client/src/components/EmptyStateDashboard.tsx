@@ -75,6 +75,12 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
       subtitle: "Sync existing documents instantly",
       color: "text-blue-600 dark:text-blue-400"
     },
+    { 
+      icon: Upload, 
+      title: "Upload 5 files at once", 
+      subtitle: "Bulk upload with instant AI analysis",
+      color: "text-emerald-600 dark:text-emerald-400"
+    },
   ];
 
   const auditQuestions = [
@@ -96,6 +102,12 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
       solution: "Link related docs automatically",
       color: "text-teal-600 dark:text-teal-400"
     },
+    {
+      icon: AlertCircle,
+      question: "Got duplicate files clogging storage?",
+      solution: "Version control keeps one clean copy",
+      color: "text-rose-600 dark:text-rose-400"
+    },
   ];
 
   const documentLocations = [
@@ -104,6 +116,7 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
     { icon: Mail, title: "Email attachments", subtitle: "receipts, invoices" },
     { icon: HardDrive, title: "Google Drive", subtitle: "unorganized chaos" },
     { icon: Image, title: "Photos app", subtitle: "pictures of documents" },
+    { icon: HardDrive, title: "External drives", subtitle: "backup files from 2018" },
   ];
 
   return (
