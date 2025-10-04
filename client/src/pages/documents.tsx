@@ -1517,8 +1517,8 @@ export default function Documents() {
                 </div>
               </div>
               
-              {/* Upload Button */}
-              <div ref={uploadButtonRef}>
+              {/* Upload Button - Desktop only */}
+              <div ref={uploadButtonRef} className="hidden lg:block">
                 <ObjectUploader
                   maxNumberOfFiles={5}
                   maxFileSize={50 * 1024 * 1024}
@@ -1552,24 +1552,24 @@ export default function Documents() {
                 )}
               </Button>
               
-              {/* Fun Facts */}
+              {/* Fun Facts - Desktop only */}
               <Button
                 variant="ghost"
                 onClick={() => setQueueDashboardOpen(true)}
-                className="h-11 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
+                className="hidden lg:flex h-11 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
                 data-testid="button-queue-status"
               >
                 <Brain className="h-5 w-5" />
                 <span className="text-sm font-light tracking-wide">Fun Facts</span>
               </Button>
               
-              {/* Delete All */}
+              {/* Delete All - Desktop only */}
               {documentsData?.documents && documentsData.documents.length > 0 && (
                 <Button
                   variant="ghost"
                   onClick={() => deleteAllDocumentsMutation.mutate()}
                   disabled={deleteAllDocumentsMutation.isPending}
-                  className="h-11 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
+                  className="hidden lg:flex h-11 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
                   data-testid="button-delete-all"
                 >
                   <Trash2 className="h-5 w-5" />

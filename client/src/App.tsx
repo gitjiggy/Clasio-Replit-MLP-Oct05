@@ -70,7 +70,7 @@ function Navigation() {
   else if (location === "/trash") currentTab = "trash";
   
   return (
-    <div className="border-b bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 shadow-sm">
+    <div className="hidden lg:block border-b bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 shadow-sm">
       <div className="container mx-auto px-6 py-3">
         <Tabs value={currentTab} className="w-full">
           <TabsList className="grid w-full max-w-[700px] grid-cols-3 bg-transparent gap-3 p-0 h-auto">
