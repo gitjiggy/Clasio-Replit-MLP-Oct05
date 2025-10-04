@@ -79,7 +79,8 @@ import {
   Target,
   Link2,
   Edit2,
-  ExternalLink
+  ExternalLink,
+  Mic
 } from "lucide-react";
 
 // Calibrate confidence scores for better user experience
@@ -1857,14 +1858,14 @@ export default function Documents() {
               </Button>
             </div>
 
-            {/* Desktop Minimal Toolbar - Hidden on mobile */}
+            {/* Desktop Hero Toolbar - Hidden on mobile */}
             <div className="hidden lg:flex items-center gap-6 w-full">
-              {/* Wide Search Bar with Dynamic Count */}
-              <div className="relative flex-1 max-w-2xl">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+              {/* Hero Search Bar with Voice */}
+              <div className="relative flex-1 max-w-3xl">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/40" />
                 <Input
                   type="text"
-                  placeholder={`Search in ${documentsData?.pagination.total || 0} document${(documentsData?.pagination.total || 0) !== 1 ? 's' : ''}...`}
+                  placeholder="Ask Clasio anything..."
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   onKeyDown={(e) => {
@@ -1872,12 +1873,38 @@ export default function Documents() {
                       handleAISearch();
                     }
                   }}
-                  className="w-full pl-9 pr-4 h-10 text-sm bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-purple-500/30 focus:border-purple-500/30 transition-all"
+                  className="w-full pl-12 pr-12 h-12 text-base bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500/30 transition-all shadow-sm"
                   data-testid="search-input"
                 />
+                <button 
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  title="Voice Search (Coming Soon)"
+                  data-testid="voice-search"
+                >
+                  <Mic className="h-5 w-5 text-slate-400 hover:text-purple-500 transition-colors" />
+                </button>
               </div>
 
-              {/* Icon-only Filters with Tooltips */}
+              {/* Document Count Badge */}
+              <div className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-sm text-slate-600 dark:text-slate-400 font-light whitespace-nowrap">
+                {documentsData?.pagination.total || 0} docs
+              </div>
+
+              {/* AI/Simple Mode Dropdown */}
+              <Select value={searchMode} onValueChange={(value) => setSearchMode(value as "simple" | "ai")}>
+                <SelectTrigger 
+                  className="w-24 h-10 border-slate-200 dark:border-slate-700"
+                  data-testid="search-mode-select"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="simple">Simple</SelectItem>
+                  <SelectItem value="ai">AI</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Filters Group */}
               <div className="flex items-center gap-2">
                 <Select value={selectedFileType} onValueChange={setSelectedFileType}>
                   <SelectTrigger 
@@ -1927,34 +1954,71 @@ export default function Documents() {
                   </SelectContent>
                 </Select>
 
-                {/* AI Toggle */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSearchMode(searchMode === "ai" ? "simple" : "ai")}
-                  className={`w-10 h-10 p-0 transition-all ${
-                    searchMode === "ai"
-                      ? "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30"
-                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-                  }`}
-                  title={searchMode === "ai" ? "AI Search" : "Simple Search"}
-                  data-testid="search-mode-toggle"
-                >
-                  <Wand2 className={`h-4 w-4 transition-transform ${searchMode === "ai" ? "scale-110" : ""}`} />
-                </Button>
+                {/* Conditional Clear Button */}
+                {(selectedFileType !== "all" || selectedFolderId !== "all") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="h-10 px-3 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    data-testid="clear-filters"
+                  >
+                    Clear
+                  </Button>
+                )}
               </div>
 
-              {/* Primary Action: Upload */}
-              <ObjectUploader
-                maxNumberOfFiles={5}
-                maxFileSize={50 * 1024 * 1024}
-                onSuccess={handleUploadSuccess}
-                onViewExistingDocument={handleViewExistingDocument}
-                buttonClassName="h-10 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                <span>Upload</span>
-              </ObjectUploader>
+              {/* Actions Group */}
+              <div className="flex items-center gap-2">
+                {/* Stats Button */}
+                <Button
+                  variant="ghost"
+                  onClick={() => setQueueDashboardOpen(true)}
+                  className="h-10 px-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all gap-2"
+                  data-testid="button-stats"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span className="text-sm font-light">Stats</span>
+                </Button>
+
+                {/* Overflow Menu */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-10 w-10 p-0 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      data-testid="overflow-menu"
+                    >
+                      <MoreVertical className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {documentsData?.documents && documentsData.documents.length > 0 && (
+                      <DropdownMenuItem
+                        onClick={() => deleteAllDocumentsMutation.mutate()}
+                        disabled={deleteAllDocumentsMutation.isPending}
+                        className="text-rose-600 dark:text-rose-400 focus:text-rose-600 dark:focus:text-rose-400"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        <span>{deleteAllDocumentsMutation.isPending ? useDeleteFlavor(true) : 'Delete All'}</span>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Upload Button - Hero Action */}
+                <ObjectUploader
+                  maxNumberOfFiles={5}
+                  maxFileSize={50 * 1024 * 1024}
+                  onSuccess={handleUploadSuccess}
+                  onViewExistingDocument={handleViewExistingDocument}
+                  buttonClassName="h-10 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Upload</span>
+                </ObjectUploader>
+              </div>
             </div>
           </div>
         </div>
