@@ -3333,7 +3333,17 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getDocumentByDriveFileId(driveFileId: string): Promise<DocumentWithFolderAndTags | undefined> {
+  async getDocumentByDriveFileId(driveFileId: string, userId?: string): Promise<DocumentWithFolderAndTags | undefined> {
+    const whereConditions = [
+      eq(documents.driveFileId, driveFileId), 
+      eq(documents.isDeleted, false),
+      eq(documents.status, 'active')
+    ];
+
+    if (userId) {
+      whereConditions.push(eq(documents.userId, userId));
+    }
+
     const result = await db
       .select({
         document: documents,
@@ -3341,11 +3351,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(documents)
       .leftJoin(folders, eq(documents.folderId, folders.id))
-      .where(and(
-        eq(documents.driveFileId, driveFileId), 
-        eq(documents.isDeleted, false),
-        eq(documents.status, 'active')
-      ))
+      .where(and(...whereConditions))
       .limit(1);
 
     if (result.length === 0) {

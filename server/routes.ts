@@ -3996,7 +3996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         driveFileId
       }));
       
-      const existingDocument = await storage.getDocumentByDriveFileId(driveFileId);
+      const existingDocument = await storage.getDocumentByDriveFileId(driveFileId, userId!);
       if (existingDocument) {
         console.info(JSON.stringify({
           evt: "drive_sync.update_existing",
