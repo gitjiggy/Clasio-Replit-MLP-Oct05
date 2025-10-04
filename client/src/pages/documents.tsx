@@ -1570,23 +1570,6 @@ export default function Documents() {
                 </ObjectUploader>
               </div>
               
-              {/* Smart Organization Button - Mobile only */}
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  userToggledSmartOrgRef.current = true;
-                  setShowSmartOrg(!showSmartOrg);
-                }}
-                className="md:hidden h-11 px-4 bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/60 dark:border-purple-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
-                data-testid="button-smart-org-mobile"
-              >
-                <Sparkles className="h-5 w-5" />
-                <span className="text-sm font-light tracking-wide">Smart Org</span>
-                {hierarchicalFolders.length > 0 && (
-                  <span className="ml-auto text-xs font-light tracking-wide bg-purple-200/50 dark:bg-purple-800/50 px-2 py-0.5 rounded-full">{hierarchicalFolders.length}</span>
-                )}
-              </Button>
-              
               {/* Fun Facts - Desktop only */}
               <Button
                 variant="ghost"
@@ -1615,74 +1598,7 @@ export default function Documents() {
           </div>
         </div>
 
-        {/* Section 2 (Mobile): Smart Organization - Horizontal Scroll */}
-        <div className={`${showSmartOrg ? 'block' : 'hidden'} md:hidden overflow-x-auto overflow-y-visible snap-x snap-mandatory bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-900 border-b border-border relative rounded-b-lg shadow-lg pb-4 mt-12`}>
-          {/* Gradient fade indicators */}
-          <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-purple-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
-          <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-indigo-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
-          
-          <div className="h-full px-6 py-4 flex items-start gap-4 min-w-max">
-            {/* Category Cards */}
-            {foldersLoading ? (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-full flex items-center justify-center">
-                <div className="text-xs text-muted-foreground">Loading...</div>
-              </div>
-            ) : hierarchicalFolders.length > 0 ? (
-              hierarchicalFolders.map((category) => {
-                return (
-                  <div key={category.id} className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-full flex flex-col p-5 pb-4">
-                    <button
-                      className="w-full flex items-center justify-between text-left mb-3 h-11 shrink-0"
-                      onClick={() => setSelectedFolderId(selectedFolderId === category.id ? "all" : category.id)}
-                      data-testid={`button-folder-${category.id}`}
-                    >
-                      <div className="flex items-center flex-1 min-w-0">
-                        <FolderOpen className="mr-2 h-5 w-5 shrink-0" style={{ color: category.color || '#8b5cf6' }} />
-                        <span className="text-sm font-semibold truncate">{category.name}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground px-2.5 py-1 bg-purple-100 dark:bg-gray-700 rounded-full ml-2 shrink-0 font-medium">
-                        {category.documentCount || 0}
-                      </span>
-                    </button>
-                    {category.subFolders && category.subFolders.length > 0 && (
-                      <div className="flex-1 overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-2 py-3">
-                        <div className="h-full space-y-1.5 overflow-y-auto pr-1">
-                          {category.subFolders.map((subFolder) => (
-                            <button
-                              key={subFolder.id}
-                              className="w-full flex items-center justify-between text-left px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-gray-700/50 hover:bg-purple-100 dark:hover:bg-purple-900/30 border border-slate-200/50 dark:border-gray-600/50 transition-all shadow-sm hover:shadow-md"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedFolderId(selectedFolderId === subFolder.id ? "all" : subFolder.id);
-                              }}
-                              data-testid={`button-subfolder-${subFolder.id}`}
-                            >
-                              <div className="flex items-center flex-1 min-w-0 gap-2.5">
-                                <div className="h-3 w-3 rounded-full shrink-0 shadow-sm border-2 border-white dark:border-gray-900" style={{ backgroundColor: subFolder.color || '#9ca3af' }} />
-                                <span className="text-sm truncate leading-snug font-medium text-gray-900 dark:text-gray-100">{subFolder.name}</span>
-                              </div>
-                              <span className="text-xs bg-slate-200/80 dark:bg-gray-600/80 px-2 py-1 rounded-full ml-2 shrink-0 font-semibold text-gray-700 dark:text-gray-200">
-                                {subFolder.documentCount || 0}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="snap-start shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-56 h-full flex items-center justify-center">
-                <div className="text-xs text-muted-foreground text-center">
-                  Upload documents to see smart folders
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Section 3: Documents Grid - flex-1 with vertical scroll */}
+        {/* Documents Grid - flex-1 with vertical scroll */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6">
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
