@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { connectGoogleDrive } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
 import { MobileLayout } from "@/components/MobileLayout";
+import { QueueStatusDashboard } from "@/components/QueueStatusDashboard";
 import { 
   HardDrive, 
   Search, 
@@ -71,6 +72,7 @@ export default function Drive() {
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const [pageToken, setPageToken] = useState("");
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [queueDashboardOpen, setQueueDashboardOpen] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -260,7 +262,10 @@ export default function Drive() {
   // Remove this early return - let the normal UI handle the no-token case
 
   return (
-    <MobileLayout documentCount={driveData?.files?.length || 0}>
+    <MobileLayout 
+      documentCount={driveData?.files?.length || 0}
+      onQueueDashboardOpen={() => setQueueDashboardOpen(true)}
+    >
       {(() => {
         const hasScrollableContent = connectionStatus?.connected && 
           (documentsLoading || (driveData?.files?.length ?? 0) > 0);
@@ -580,6 +585,13 @@ export default function Drive() {
         </div>
         );
       })()}
+      
+      {/* Queue Status Dashboard */}
+      <QueueStatusDashboard
+        isOpen={queueDashboardOpen}
+        onClose={() => setQueueDashboardOpen(false)}
+        onUpload={() => {}}
+      />
     </MobileLayout>
   );
 }

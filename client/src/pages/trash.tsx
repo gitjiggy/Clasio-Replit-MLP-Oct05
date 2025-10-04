@@ -9,6 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 import type { DocumentWithFolderAndTags } from "@shared/schema";
 import { getDocumentDisplayName } from "@/lib/documentDisplay";
 import { MobileLayout } from "@/components/MobileLayout";
+import { QueueStatusDashboard } from "@/components/QueueStatusDashboard";
 import { 
   Trash2,
   RotateCcw,
@@ -61,6 +62,7 @@ interface TrashConfigResponse {
 
 export default function Trash() {
   const [showEmptyTrashDialog, setShowEmptyTrashDialog] = useState(false);
+  const [queueDashboardOpen, setQueueDashboardOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -181,7 +183,10 @@ export default function Trash() {
 
   if (isLoading) {
     return (
-      <MobileLayout documentCount={0}>
+      <MobileLayout 
+        documentCount={0}
+        onQueueDashboardOpen={() => setQueueDashboardOpen(true)}
+      >
         <div className="container mx-auto px-6 py-8">
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -200,7 +205,10 @@ export default function Trash() {
 
   if (error) {
     return (
-      <MobileLayout documentCount={0}>
+      <MobileLayout 
+        documentCount={0}
+        onQueueDashboardOpen={() => setQueueDashboardOpen(true)}
+      >
         <div className="container mx-auto px-6 py-8">
           <div className="space-y-6">
             <h1 className="text-3xl font-light tracking-wide">Trash</h1>
@@ -221,6 +229,7 @@ export default function Trash() {
       isDeleting={emptyTrashMutation.isPending}
       hasDocuments={trashedDocuments.length > 0}
       documentCount={trashedDocuments.length}
+      onQueueDashboardOpen={() => setQueueDashboardOpen(true)}
     >
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 md:px-6 py-8" data-testid="page-trash">
@@ -427,6 +436,13 @@ export default function Trash() {
         </div>
       </div>
       </div>
+      
+      {/* Queue Status Dashboard */}
+      <QueueStatusDashboard
+        isOpen={queueDashboardOpen}
+        onClose={() => setQueueDashboardOpen(false)}
+        onUpload={() => {}}
+      />
     </MobileLayout>
   );
 }
