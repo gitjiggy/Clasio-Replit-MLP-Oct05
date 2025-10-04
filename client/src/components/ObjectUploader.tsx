@@ -249,6 +249,7 @@ export function ObjectUploader({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const userCancelledRef = useRef<boolean>(false); // Track if user initiated cancellation
+  const userExplicitlyCancelledRef = useRef<boolean>(false); // Track explicit modal cancellation
   const { toast } = useToast();
   
   const flavorText = useFlavor(state);
@@ -443,6 +444,7 @@ export function ObjectUploader({
                     } else {
                       // User chose "Don't bother uploading"
                       console.log("User cancelled upload for duplicate file");
+                      userExplicitlyCancelledRef.current = true;
                       setShowModal(false);
                       setState("idle");
                       setSelectedFiles([]);
@@ -615,6 +617,7 @@ export function ObjectUploader({
               } else if (userDecision === 'cancel') {
                 // User chose not to upload - close modal and reset
                 console.log("User cancelled upload for duplicate file");
+                userExplicitlyCancelledRef.current = true;
                 setShowModal(false);
                 setState("idle");
                 setSelectedFiles([]);
@@ -827,8 +830,9 @@ export function ObjectUploader({
 
   // Reset state when closing modal
   const handleModalClose = useCallback((open: boolean) => {
-    // Only allow closing when not in active upload or processing states
-    if (!open && state !== "uploading" && state !== "finalizing" && state !== "signing" && state !== "analyzing") {
+    // Allow closing if user explicitly cancelled or if not in active states
+    if (!open && (userExplicitlyCancelledRef.current || (state !== "uploading" && state !== "finalizing" && state !== "signing" && state !== "analyzing"))) {
+      userExplicitlyCancelledRef.current = false; // Reset the flag
       setShowModal(false);
       setState("idle");
       setErrors([]);
