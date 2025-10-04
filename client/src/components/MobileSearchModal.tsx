@@ -204,11 +204,13 @@ export function MobileSearchModal({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Folders</SelectItem>
-                    {folders.map((folder) => (
-                      <SelectItem key={folder.id} value={folder.id}>
-                        {folder.name}
-                      </SelectItem>
-                    ))}
+                    {folders
+                      .filter(folder => folder.isAutoCreated && !folder.parentId)
+                      .map((folder) => (
+                        <SelectItem key={folder.id} value={folder.id}>
+                          {folder.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
