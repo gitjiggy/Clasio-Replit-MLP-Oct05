@@ -885,11 +885,11 @@ export function ObjectUploader({
             
             {/* File list */}
             {selectedFiles.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2 overflow-hidden">
                 <h4 className="text-sm font-medium">Files:</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
+                <ul className="space-y-1 text-sm text-muted-foreground overflow-hidden">
                   {selectedFiles.map((file, index) => (
-                    <li key={index} className="flex items-center justify-between gap-2">
+                    <li key={index} className="flex items-center justify-between gap-2 min-w-0">
                       <span className="truncate flex-1 min-w-0">{file.name}</span>
                       <span className="text-xs whitespace-nowrap flex-shrink-0">{formatFileSize(file.size)}</span>
                     </li>
