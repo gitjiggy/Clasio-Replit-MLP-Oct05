@@ -178,8 +178,6 @@ export function MobileLayout({
         folders={folders}
         onSmartOrganize={onSmartOrganize}
         isOrganizing={isOrganizing}
-        onSmartOrganizationCheck={onSmartOrganizationCheck}
-        isCheckingOrganization={isCheckingOrganization}
         onFunFactsClick={onQueueDashboardOpen}
         onDeleteAll={onDeleteAll}
         isDeleting={isDeleting}

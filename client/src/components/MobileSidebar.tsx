@@ -21,8 +21,6 @@ interface MobileSidebarProps {
   folders: Folder[];
   onSmartOrganize?: () => void;
   isOrganizing?: boolean;
-  onSmartOrganizationCheck?: () => void;
-  isCheckingOrganization?: boolean;
   onFunFactsClick?: () => void;
   onDeleteAll?: () => void;
   isDeleting?: boolean;
@@ -39,8 +37,6 @@ export function MobileSidebar({
   folders,
   onSmartOrganize,
   isOrganizing = false,
-  onSmartOrganizationCheck,
-  isCheckingOrganization = false,
   onFunFactsClick,
   onDeleteAll,
   isDeleting = false,
