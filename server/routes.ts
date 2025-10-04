@@ -3689,10 +3689,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Exchange code for access token
+      const redirectUri = `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`;
+      console.log('[OAuth Callback] Exchanging code for tokens:', {
+        reqId,
+        redirectUri,
+        hasCode: !!code,
+        codeLength: (code as string)?.length,
+        protocol: req.protocol,
+        host: req.get('host')
+      });
+      
       const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
-        `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`
+        redirectUri
       );
 
       const { tokens } = await oauth2Client.getToken(code as string);
