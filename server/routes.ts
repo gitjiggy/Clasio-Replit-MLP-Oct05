@@ -2609,7 +2609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update document classification
-  app.patch("/api/documents/:id/classification", verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
+  app.patch("/api/documents/:id/classification", express.json(), verifyFirebaseToken, moderateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const documentId = req.params.id;
       
