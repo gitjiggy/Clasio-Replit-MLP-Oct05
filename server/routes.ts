@@ -3705,7 +3705,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         redirectUri
       );
 
-      const { tokens } = await oauth2Client.getToken(code as string);
+      console.log('[OAuth Callback] About to exchange code:', {
+        reqId,
+        codePreview: (code as string)?.substring(0, 20) + '...',
+        codeFullLength: (code as string)?.length
+      });
+
+      let tokens;
+      try {
+        const tokenResponse = await oauth2Client.getToken(code as string);
+        tokens = tokenResponse.tokens;
+        console.log('[OAuth Callback] ✅ Token exchange successful:', {
+          reqId,
+          hasAccessToken: !!tokens.access_token,
+          hasRefreshToken: !!tokens.refresh_token,
+          tokenType: tokens.token_type,
+          scope: tokens.scope
+        });
+      } catch (tokenError: any) {
+        console.error('[OAuth Callback] ❌ Token exchange failed:', {
+          reqId,
+          error: tokenError.message,
+          stack: tokenError.stack
+        });
+        return res.status(400).send(`
+          <script>
+            window.opener.postMessage({ success: false, error: 'Token exchange failed: ${tokenError.message}' }, '*');
+            window.close();
+          </script>
+        `);
+      }
+
       const accessToken = tokens.access_token;
       const refreshToken = tokens.refresh_token;
       
