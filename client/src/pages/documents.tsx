@@ -203,13 +203,13 @@ const VIEW_MESSAGES = [
 const SMART_ORGANIZATION_CHECK_MESSAGES = [
   "🔍 Scanning your document collection...",
   "🧠 AI is checking for missing data...",
-  "✨ Finding documents that need love...",
+  "✨ Reviewing your documents...",
   "📋 Making a list, checking it twice...",
-  "🎯 Identifying incomplete documents...",
-  "🔧 Preparing to refresh AI analysis...",
-  "📚 Organizing smart folders...",
-  "⚡ Almost done fixing everything...",
-  "🚀 Finalizing your document organization..."
+  "🎯 Analyzing document completeness...",
+  "🔧 Running smart diagnostics...",
+  "📚 Verifying organization status...",
+  "⚡ Almost done checking...",
+  "🚀 Finalizing the review..."
 ];
 
 // Cosine similarity calculation
