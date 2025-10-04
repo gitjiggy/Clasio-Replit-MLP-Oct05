@@ -447,6 +447,11 @@ export default function Documents() {
   const [searchMode, setSearchMode] = useState<"simple" | "ai">("simple");
   const [aiSearchResults, setAiSearchResults] = useState<any>(null);
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  
+  // Mobile scroll-to-hide UI elements
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [viewMode, setViewMode] = useState<"all" | "recent" | "favorites">("all");
   
   // Mobile state
@@ -600,6 +605,36 @@ export default function Documents() {
       }
     }
   }, [hierarchicalFolders.length, showSmartOrg]);
+
+  // Mobile scroll-to-hide behavior
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      // Hide UI immediately on scroll
+      setIsScrolling(true);
+
+      // Clear previous timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // Show UI again after scrolling stops (300ms delay)
+      scrollTimeoutRef.current = setTimeout(() => {
+        setIsScrolling(false);
+      }, 300);
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Determine if selected folder is a main category or sub-folder
   const selectedFolder = folders.find(f => f.id === selectedFolderId);
@@ -1547,6 +1582,7 @@ export default function Documents() {
       onViewModeChange={setViewMode}
       onSmartOrganize={() => organizeAllMutation.mutate()}
       isOrganizing={organizeAllMutation.isPending}
+      isScrolling={isScrolling}
     >
       <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
         {/* Sidebar - Hidden on mobile, visible on md+ */}
@@ -1682,7 +1718,9 @@ export default function Documents() {
       {/* Main Content - Mobile Flex Layout */}
       <main className="flex-1 md:overflow-hidden flex flex-col overflow-hidden">
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
-        <div className="overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80">
+        <div className={`overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 transition-transform duration-300 ease-in-out md:transform-none ${
+          isScrolling ? '-translate-y-full md:translate-y-0' : 'translate-y-0'
+        }`}>
           {/* Header - Clean Premium Single Row - No horizontal scroll on mobile */}
           <div className="pl-1 md:pl-2 pr-1 md:pr-6 py-1 md:py-1.5 border-b border-border/20 md:overflow-x-auto">
             {/* Single Row: All Controls - No wrap on mobile, fits in viewport */}
@@ -1847,9 +1885,11 @@ export default function Documents() {
             (aiSearchResults?.documents?.length ?? 0) > 0;
           
           return (
-            <div className={`overflow-x-hidden p-3 md:p-6 md:flex-1 md:overflow-y-auto ${
-              hasScrollableContent ? 'overflow-y-auto' : 'overflow-y-visible'
-            }`}>
+            <div 
+              ref={scrollContainerRef}
+              className={`overflow-x-hidden p-3 md:p-6 md:flex-1 md:overflow-y-auto ${
+                hasScrollableContent ? 'overflow-y-auto' : 'overflow-y-visible'
+              }`}>
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">

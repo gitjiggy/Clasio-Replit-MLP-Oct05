@@ -7,6 +7,7 @@ interface MobileDocumentsHeaderProps {
   onFunFactsClick: () => void;
   onMenuClick: () => void;
   documentCount: number;
+  isScrolling?: boolean;
 }
 
 export function MobileDocumentsHeader({
@@ -14,10 +15,13 @@ export function MobileDocumentsHeader({
   onViewChange,
   onFunFactsClick,
   onMenuClick,
-  documentCount
+  documentCount,
+  isScrolling = false
 }: MobileDocumentsHeaderProps) {
   return (
-    <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-border shadow-sm">
+    <div className={`lg:hidden sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-border shadow-sm transition-transform duration-300 ease-in-out ${
+      isScrolling ? '-translate-y-full' : 'translate-y-0'
+    }`}>
       {/* Top Row: Logo and Action Icons */}
       <div className="flex items-center justify-between px-4 py-3">
         {/* Hamburger Menu - 25% Bigger */}

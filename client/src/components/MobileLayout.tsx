@@ -50,6 +50,8 @@ interface MobileLayoutProps {
   onViewModeChange?: (mode: string) => void;
   onSmartOrganize?: () => void;
   isOrganizing?: boolean;
+  // Scroll-to-hide
+  isScrolling?: boolean;
 }
 
 export function MobileLayout({
@@ -84,6 +86,8 @@ export function MobileLayout({
   onViewModeChange = () => {},
   onSmartOrganize,
   isOrganizing = false,
+  // Scroll-to-hide
+  isScrolling = false,
 }: MobileLayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -130,6 +134,7 @@ export function MobileLayout({
         }}
         onMenuClick={() => setMobileSidebarOpen(true)}
         documentCount={documentCount}
+        isScrolling={isScrolling}
       />
 
       {/* Page Content */}
