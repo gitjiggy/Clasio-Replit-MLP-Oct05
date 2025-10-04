@@ -501,20 +501,29 @@ export default function Documents() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Handle search with debouncing
+  // Handle search with smart auto-detection
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
     
-    // Clear existing timeout
+    // Clear existing timeouts
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
     
-    // Set new timeout for analytics tracking
+    // Clear AI search results when query changes to show simple search results
+    if (aiSearchResults) {
+      setAiSearchResults(null);
+    }
+    
+    // Set new timeout for auto-triggering AI search when typing stops
     if (query.trim()) {
       const timeout = setTimeout(() => {
+        // Analytics tracking
         trackEvent('search', { search_term: query.trim() });
-      }, 500); // 500ms debounce
+        
+        // Auto-trigger AI search when user stops typing (smart auto-detection)
+        handleAISearch();
+      }, 1000); // 1 second debounce - shows simple results while typing, then upgrades to AI
       setSearchTimeout(timeout);
     }
   };
