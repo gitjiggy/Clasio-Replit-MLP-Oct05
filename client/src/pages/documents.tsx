@@ -1434,8 +1434,8 @@ export default function Documents() {
         </nav>
       </aside>
 
-      {/* Main Content - Mobile Grid Layout */}
-      <main className="flex-1 md:overflow-hidden md:flex md:flex-col grid md:grid-none grid-rows-[18vh_28vh_auto] md:grid-rows-none overflow-hidden">
+      {/* Main Content - Mobile Flex Layout */}
+      <main className="flex-1 md:overflow-hidden flex flex-col overflow-hidden">
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
         <div className="overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80">
           {/* Header - Clean Premium Single Row with Horizontal Scroll */}
@@ -1682,8 +1682,8 @@ export default function Documents() {
           </div>
         </div>
 
-        {/* Section 3 (Mobile): Documents Grid - auto height with overflow-y */}
-        <div className="overflow-y-auto md:flex-1 md:overflow-auto p-3 md:p-6 mt-6">
+        {/* Section 3: Documents Grid - flex-1 with vertical scroll */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6">
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">
@@ -1733,9 +1733,9 @@ export default function Documents() {
             </div>
           )}
           
-          {/* Sub-folders View (when main category is selected) */}
+          {/* Sub-folders View (when main category is selected) - Hidden on mobile */}
           {isMainCategorySelected && selectedCategorySubFolders.length > 0 ? (
-            <div>
+            <div className="hidden lg:block">
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-foreground mb-2">
                   {selectedFolder?.name} Sub-folders
@@ -1781,7 +1781,7 @@ export default function Documents() {
               </div>
             </div>
           ) : isMainCategorySelected ? (
-            <div className="text-center py-12">
+            <div className="hidden lg:block text-center py-12">
               <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">
                 No sub-folders found
