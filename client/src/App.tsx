@@ -43,7 +43,7 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
         </div>
         
         {!initializing && (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 ml-auto">
             {user ? (
               <UserMenu />
             ) : (
