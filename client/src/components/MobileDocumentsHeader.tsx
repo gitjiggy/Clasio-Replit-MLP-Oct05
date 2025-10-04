@@ -31,14 +31,8 @@ export function MobileDocumentsHeader({
           <Menu className="h-5 w-5" />
         </Button>
 
-        {/* Logo/Title */}
-        <div className="flex-1 flex justify-center">
-          <img 
-            src="/attached_assets/noBgColor (1)_1759471370484.png" 
-            alt="Clasio" 
-            className="h-8 w-auto"
-          />
-        </div>
+        {/* Spacer */}
+        <div className="flex-1"></div>
 
         {/* Fun Facts Sparkles */}
         <Button
