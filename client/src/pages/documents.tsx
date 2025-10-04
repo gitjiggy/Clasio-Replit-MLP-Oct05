@@ -1332,18 +1332,7 @@ export default function Documents() {
     } else {
       // If not in current list, fetch it from the API
       try {
-        const response = await fetch(`/api/documents/${documentId}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch document');
-        }
-        
-        const doc: DocumentWithFolderAndTags = await response.json();
+        const doc: DocumentWithFolderAndTags = await apiRequest(`/api/documents/${documentId}`);
         setSelectedDocument(doc);
         setDocumentModalOpen(true);
       } catch (error) {
