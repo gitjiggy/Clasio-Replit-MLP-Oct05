@@ -454,25 +454,33 @@ export default function Drive() {
             ) : (
               <>
                 {driveData?.files && driveData.files.length > 0 ? (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {driveData.files.map((file) => {
                       const IconComponent = getFileIcon(file.mimeType);
                       
                       return (
-                        <Card key={file.id} className="hover:shadow-md transition-shadow">
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <IconComponent className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                        <Card key={file.id} className="group hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[390px] flex flex-col">
+                          <CardContent className="px-4 pt-4 pb-0 flex flex-col h-full overflow-hidden">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                <div className="flex-shrink-0">
+                                  <IconComponent className="h-8 w-8 text-blue-600" />
+                                </div>
                                 <div className="min-w-0 flex-1">
-                                  <h3 className="font-light tracking-wide truncate" title={file.name}>{file.name}</h3>
-                                  <p className="text-sm text-muted-foreground font-light tracking-wide">
+                                  <h3 className="text-lg font-light tracking-tight text-foreground truncate mb-1" title={file.name}>
+                                    {file.name}
+                                  </h3>
+                                  <p className="text-xs text-muted-foreground font-light tracking-wide">
                                     {file.size && formatFileSize(file.size)} • {formatDate(file.modifiedTime)}
                                   </p>
                                 </div>
                               </div>
                             </div>
                             
+                            {/* Spacer to push buttons to bottom */}
+                            <div className="flex-1"></div>
+                            
+                            {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
                             <div className="grid grid-cols-3 gap-1.5 mt-2 -mb-2">
                               <Button
                                 size="sm"
