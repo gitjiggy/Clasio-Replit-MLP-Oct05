@@ -1355,6 +1355,10 @@ export default function Documents() {
       return;
     }
 
+    // Open window IMMEDIATELY (before any async operations) to preserve user gesture
+    // This prevents mobile popup blockers from blocking the new tab
+    const newTab = window.open('', '_blank');
+
     setIsOpeningDocument(true);
 
     try {
@@ -1362,6 +1366,11 @@ export default function Documents() {
       const response = await apiRequest('GET', `/api/documents/${document.id}/download`);
 
       if (!response.ok) {
+        // Close the empty tab on error
+        if (newTab) {
+          newTab.close();
+        }
+        
         if (response.status === 401) {
           throw new Error('You do not have permission to view this document. Please check if you own this document or if your session has expired.');
         } else if (response.status === 404) {
@@ -1373,7 +1382,11 @@ export default function Documents() {
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      
+      // Populate the already-open tab with the document
+      if (newTab) {
+        newTab.location.href = url;
+      }
       
       toast({
         title: "Document opened",
@@ -1382,6 +1395,12 @@ export default function Documents() {
       });
     } catch (error) {
       console.error('View error details:', error);
+      
+      // Close the empty tab on error if it's still open
+      if (newTab && !newTab.closed) {
+        newTab.close();
+      }
+      
       toast({
         title: "View failed",
         description: error instanceof Error ? error.message : "There was an error viewing the document.",
