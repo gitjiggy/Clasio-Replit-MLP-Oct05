@@ -1487,10 +1487,10 @@ export default function Documents() {
               </Select>
               
               <Button 
-                variant="ghost" 
+                variant="outline" 
                 onClick={clearFilters}
                 size="sm"
-                className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground bg-slate-50/50 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 rounded-lg border border-slate-200/50 dark:border-slate-700/50 flex-shrink-0"
+                className="h-8 px-3 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex-shrink-0 shadow-sm"
                 data-testid="clear-filters"
               >
                 Clear
