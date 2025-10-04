@@ -4,6 +4,10 @@ import { MobileBottomNav } from "./MobileBottomNav";
 import { MobileDocumentsHeader } from "./MobileDocumentsHeader";
 import { MobileSearchModal } from "./MobileSearchModal";
 import { MobileSidebar } from "./MobileSidebar";
+import { ObjectUploader } from "./ObjectUploader";
+import { Upload } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 interface Folder {
   id: string;
@@ -21,6 +25,9 @@ interface MobileLayoutProps {
   documentCount?: number;
   onQueueDashboardOpen?: () => void;
   uploadButtonRef?: React.RefObject<HTMLDivElement>;
+  // Upload callbacks
+  onUploadSuccess?: (docIds: string[]) => void;
+  onViewExistingDocument?: (documentId: string) => void;
   // Search props
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
@@ -52,6 +59,8 @@ export function MobileLayout({
   documentCount = 0,
   onQueueDashboardOpen,
   uploadButtonRef,
+  onUploadSuccess,
+  onViewExistingDocument,
   // Search props with defaults
   searchQuery = "",
   onSearchChange = () => {},
@@ -77,9 +86,31 @@ export function MobileLayout({
   const [location, setLocation] = useLocation();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const currentView = location === "/drive" ? "drive" : location === "/trash" ? "trash" : "documents";
   const activeTab = mobileSearchOpen ? "search" : "documents";
+  
+  // Default upload success handler for tabs that don't provide their own
+  const defaultUploadSuccess = (docIds: string[]) => {
+    queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/queue/status'] });
+    toast({
+      title: "Upload successful",
+      description: `${docIds.length} document${docIds.length > 1 ? 's' : ''} uploaded successfully.`,
+    });
+  };
+  
+  // Default view existing document handler (does nothing for Drive/Trash)
+  const defaultViewExistingDocument = () => {
+    // No-op for tabs without this functionality
+  };
+  
+  const handleUploadSuccess = onUploadSuccess || defaultUploadSuccess;
+  const handleViewExistingDocument = onViewExistingDocument || defaultViewExistingDocument;
 
   return (
     <>
@@ -139,6 +170,20 @@ export function MobileLayout({
         isDeleting={isDeleting}
         hasDocuments={hasDocuments}
       />
+
+      {/* Mobile Upload Button - Hidden but functional, triggered by bottom nav, works across all tabs */}
+      <div ref={uploadButtonRef} className="lg:hidden">
+        <ObjectUploader
+          maxNumberOfFiles={5}
+          maxFileSize={50 * 1024 * 1024}
+          onSuccess={handleUploadSuccess}
+          onViewExistingDocument={handleViewExistingDocument}
+          buttonClassName="hidden"
+        >
+          <Upload className="h-5 w-5" />
+          <span>Upload</span>
+        </ObjectUploader>
+      </div>
 
       {/* Mobile Bottom Navigation - Only visible on mobile */}
       <MobileBottomNav

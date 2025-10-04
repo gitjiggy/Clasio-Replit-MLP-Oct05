@@ -1484,6 +1484,8 @@ export default function Documents() {
       documentCount={documentsData?.pagination.total || 0}
       onQueueDashboardOpen={() => setQueueDashboardOpen(true)}
       uploadButtonRef={uploadButtonRef}
+      onUploadSuccess={handleUploadSuccess}
+      onViewExistingDocument={handleViewExistingDocument}
       searchQuery={searchQuery}
       onSearchChange={handleSearchChange}
       searchMode={searchMode}
@@ -1753,14 +1755,14 @@ export default function Documents() {
                 </div>
               </div>
               
-              {/* Upload Button - Always functional, styled differently for desktop/mobile */}
-              <div ref={uploadButtonRef}>
+              {/* Upload Button - Desktop only (mobile uses MobileLayout uploader) */}
+              <div className="hidden lg:block">
                 <ObjectUploader
                   maxNumberOfFiles={5}
                   maxFileSize={50 * 1024 * 1024}
                   onSuccess={handleUploadSuccess}
                   onViewExistingDocument={handleViewExistingDocument}
-                  buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-xl shadow-lg hover:shadow-xl transition-all items-center gap-2 flex-shrink-0 hidden lg:flex"
+                  buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 flex-shrink-0"
                 >
                   <Upload className="h-5 w-5" />
                   <span>Upload</span>
