@@ -1489,23 +1489,12 @@ export default function Documents() {
                   ))}
                 </SelectContent>
               </Select>
-
-              {/* Mobile Clear Button - visible on mobile only */}
-              <Button 
-                variant="outline" 
-                onClick={clearFilters}
-                size="sm"
-                className="lg:hidden h-8 px-3 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex-shrink-0 shadow-sm"
-                data-testid="clear-filters-mobile"
-              >
-                Clear
-              </Button>
               
               <Button 
                 variant="outline" 
                 onClick={clearFilters}
                 size="sm"
-                className="hidden lg:flex h-8 px-3 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex-shrink-0 shadow-sm"
+                className="h-8 px-3 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex-shrink-0 shadow-sm"
                 data-testid="clear-filters"
               >
                 Clear
