@@ -1323,7 +1323,7 @@ export default function Documents() {
     setDocumentModalOpen(true);
   };
 
-  const handleViewExistingDocument = useCallback((documentId: string) => {
+  const handleViewExistingDocument = useCallback(async (documentId: string) => {
     // Find the document from the current documents list
     const document = documentsData?.documents.find(doc => doc.id === documentId);
     if (document) {
@@ -1331,19 +1331,29 @@ export default function Documents() {
       setDocumentModalOpen(true);
     } else {
       // If not in current list, fetch it from the API
-      apiRequest(`/api/documents/${documentId}`)
-        .then((doc: DocumentWithFolderAndTags) => {
-          setSelectedDocument(doc);
-          setDocumentModalOpen(true);
-        })
-        .catch((error) => {
-          console.error('Failed to fetch document:', error);
-          toast({
-            title: "Error",
-            description: "Could not open the document. It may have been deleted.",
-            variant: "destructive",
-          });
+      try {
+        const response = await fetch(`/api/documents/${documentId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch document');
+        }
+        
+        const doc: DocumentWithFolderAndTags = await response.json();
+        setSelectedDocument(doc);
+        setDocumentModalOpen(true);
+      } catch (error) {
+        console.error('Failed to fetch document:', error);
+        toast({
+          title: "Error",
+          description: "Could not open the document. It may have been deleted.",
+          variant: "destructive",
+        });
+      }
     }
   }, [documentsData, toast]);
 
