@@ -3213,6 +3213,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Smart Organization Check endpoint - Intelligently detects and fixes incomplete documents
   app.post("/api/smart-organization", moderateLimiter, verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
+      const { DatabaseStorage } = await import("./storage");
+      const storage = new DatabaseStorage();
       const userId = req.userId!;
       
       // Fetch ALL documents in batches - continues until natural end (partial batch)
