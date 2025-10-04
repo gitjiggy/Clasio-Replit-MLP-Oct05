@@ -20,29 +20,30 @@ export function MobileDocumentsHeader({
     <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-border shadow-sm">
       {/* Top Row: Logo and Action Icons */}
       <div className="flex items-center justify-between px-4 py-3">
-        {/* Hamburger Menu */}
+        {/* Hamburger Menu - 25% Bigger */}
         <Button
           variant="ghost"
           size="sm"
           onClick={onMenuClick}
-          className="h-9 w-9 p-0"
+          className="h-11 w-11 p-0"
           data-testid="mobile-menu-button"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-6 w-6" />
         </Button>
 
         {/* Spacer */}
         <div className="flex-1"></div>
 
-        {/* Fun Facts Sparkles */}
+        {/* Stats Button with Icon + Text - 25% Bigger */}
         <Button
           variant="ghost"
           size="sm"
           onClick={onFunFactsClick}
-          className="h-9 w-9 p-0 text-purple-600 dark:text-purple-400"
+          className="h-11 px-3 py-2 text-purple-600 dark:text-purple-400 flex items-center gap-1.5"
           data-testid="mobile-fun-facts-button"
         >
-          <Sparkles className="h-5 w-5" />
+          <Sparkles className="h-6 w-6" />
+          <span className="text-sm font-medium tracking-wide">Stats</span>
         </Button>
       </div>
 
