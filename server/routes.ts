@@ -3325,7 +3325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? `✨ Re-analyzed ${reanalyzedCount} documents and organized ${organizedCount} total`
           : organizedCount > 0 
             ? `✨ Organized ${organizedCount} documents`
-            : `✨ All ${alreadyComplete.length} documents are already organized!`
+            : `✨ All ${allDocuments.length} documents are already organized!`
       });
       
     } catch (error) {
