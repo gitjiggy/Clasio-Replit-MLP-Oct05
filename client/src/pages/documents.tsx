@@ -612,6 +612,19 @@ export default function Documents() {
     if (!scrollContainer) return;
 
     const handleScroll = () => {
+      // Check if near bottom (within 200px) - keep UI visible for pagination
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      const nearBottom = scrollHeight - scrollTop - clientHeight < 200;
+      
+      if (nearBottom) {
+        // Don't hide UI when near bottom (pagination needs to be accessible)
+        setIsScrolling(false);
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+        }
+        return;
+      }
+
       // Hide UI immediately on scroll
       setIsScrolling(true);
 
