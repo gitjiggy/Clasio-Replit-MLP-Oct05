@@ -2339,10 +2339,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Document Lifecycle
       const now = Date.now();
-      const documentAges = allDocuments.map(doc => ({
-        name: doc.name,
-        age: Math.floor((now - new Date(doc.uploadedAt).getTime()) / (1000 * 60 * 60 * 24))
-      })).sort((a, b) => b.age - a.age);
+      const documentAges = allDocuments.map(doc => {
+        const uploadDate = new Date(doc.uploadedAt);
+        const ageInDays = Math.floor((now - uploadDate.getTime()) / (1000 * 60 * 60 * 24));
+        let ageText: string;
+        
+        if (ageInDays === 0) {
+          ageText = 'uploaded today';
+        } else if (ageInDays === 1) {
+          ageText = 'uploaded yesterday';
+        } else {
+          ageText = `${ageInDays} days old`;
+        }
+        
+        return {
+          name: doc.name,
+          age: ageInDays,
+          ageText
+        };
+      }).sort((a, b) => b.age - a.age);
       const oldestDoc = documentAges[0];
 
       // Drive sync stats
@@ -2407,7 +2422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           documentLifecycle: {
             oldestDocument: oldestDoc ? 
-              `Oldest document: '${oldestDoc.name}' (${oldestDoc.age} days old)` :
+              `Oldest document: '${oldestDoc.name}' (${oldestDoc.ageText})` :
               "No documents yet",
             documentsThisMonth: `You've processed ${docsThisMonth} documents this month`,
           },
