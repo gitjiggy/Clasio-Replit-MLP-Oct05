@@ -43,9 +43,7 @@ import { Separator } from "@/components/ui/separator";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { DocumentModal } from "@/components/DocumentModal";
 import { QueueStatusDashboard } from "@/components/QueueStatusDashboard";
-import { MobileBottomNav } from "@/components/MobileBottomNav";
-import { MobileDocumentsHeader } from "@/components/MobileDocumentsHeader";
-import { MobileMoreMenu } from "@/components/MobileMoreMenu";
+import { MobileLayout } from "@/components/MobileLayout";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { trackEvent } from "@/lib/analytics";
@@ -1278,24 +1276,16 @@ export default function Documents() {
   }, [searchQuery, selectedFileType, selectedFolderId, selectedTagId]);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Mobile Documents Header - Only visible on mobile */}
-      <MobileDocumentsHeader
-        currentView={location === "/drive" ? "drive" : location === "/trash" ? "trash" : "documents"}
-        onViewChange={(view) => {
-          const routes = { documents: "/documents", drive: "/drive", trash: "/trash" };
-          setLocation(routes[view]);
-        }}
-        onFunFactsClick={() => setQueueDashboardOpen(true)}
-        onMenuClick={() => {
-          // TODO: Implement mobile sidebar (Task 7)
-          console.log('Mobile sidebar not yet implemented');
-        }}
-        onMoreClick={() => setMobileMoreMenuOpen(true)}
-        documentCount={documentsData?.pagination.total || 0}
-      />
-
-      {/* Sidebar - Hidden on mobile, visible on md+ */}
+    <MobileLayout
+      onDeleteAll={() => deleteAllDocumentsMutation.mutate()}
+      isDeleting={deleteAllDocumentsMutation.isPending}
+      hasDocuments={!!documentsData?.documents && documentsData.documents.length > 0}
+      documentCount={documentsData?.pagination.total || 0}
+      onQueueDashboardOpen={() => setQueueDashboardOpen(true)}
+      uploadButtonRef={uploadButtonRef}
+    >
+      <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        {/* Sidebar - Hidden on mobile, visible on md+ */}
       <aside className="hidden md:flex w-80 bg-card/80 backdrop-blur-sm border-r border-border flex-col overflow-hidden">
         
         <nav className="flex-1 p-4 overflow-y-auto">
@@ -2170,32 +2160,7 @@ export default function Documents() {
           if (button) button.click();
         }}
       />
-
-      {/* Mobile Bottom Navigation - Only visible on mobile */}
-      <MobileBottomNav
-        onDocumentsClick={() => {
-          // Always go to documents page when clicking Documents tab
-          if (location !== "/documents") {
-            setLocation("/documents");
-          }
-        }}
-        onUploadClick={() => {
-          // Trigger upload button click
-          const button = uploadButtonRef.current?.querySelector('button');
-          if (button) button.click();
-        }}
-        onSearchClick={() => setMobileSearchOpen(true)}
-        activeTab="documents"
-      />
-
-      {/* Mobile More Menu (Delete All, etc.) - Only visible on mobile */}
-      <MobileMoreMenu
-        isOpen={mobileMoreMenuOpen}
-        onClose={() => setMobileMoreMenuOpen(false)}
-        onDeleteAll={() => deleteAllDocumentsMutation.mutate()}
-        hasDocuments={!!documentsData?.documents && documentsData.documents.length > 0}
-        isDeleting={deleteAllDocumentsMutation.isPending}
-      />
     </div>
+    </MobileLayout>
   );
 }
