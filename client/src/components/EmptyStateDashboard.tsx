@@ -144,24 +144,24 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-2.5 mt-2.5 pb-3">
+        <CardContent className="space-y-3 mt-3 pb-4">
           {/* Quick Win Scenarios */}
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
+          <div className="space-y-1.5">
+            <h3 className="text-base font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
               Got 30 seconds? Try this:
             </h3>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {quickActions.map((action, index) => {
                 const Icon = action.icon;
                 return (
                   <div
                     key={index}
-                    className="flex items-center gap-2 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30 hover:border-purple-200 dark:hover:border-purple-700 transition-colors"
+                    className="flex items-center gap-2.5 p-2.5 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30 hover:border-purple-200 dark:hover:border-purple-700 transition-colors"
                   >
-                    <Icon className={`h-3.5 w-3.5 ${action.color} flex-shrink-0`} />
+                    <Icon className={`h-4 w-4 ${action.color} flex-shrink-0`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-light tracking-wide truncate">{action.title}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-light tracking-wide truncate">
+                      <p className="text-sm font-light tracking-wide truncate">{action.title}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-light tracking-wide truncate">
                         {action.subtitle}
                       </p>
                     </div>
@@ -172,22 +172,22 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
           </div>
 
           {/* Quick Document Audit */}
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
+          <div className="space-y-1.5">
+            <h3 className="text-base font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
               Quick Document Audit
             </h3>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {auditQuestions.map((item, index) => {
                 const Icon = item.icon;
                 return (
                   <div
                     key={index}
-                    className="flex items-center gap-2 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30"
+                    className="flex items-center gap-2.5 p-2.5 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30"
                   >
-                    <Icon className={`h-3.5 w-3.5 ${item.color} flex-shrink-0`} />
+                    <Icon className={`h-4 w-4 ${item.color} flex-shrink-0`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-light tracking-wide">{item.question}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-light tracking-wide italic">
+                      <p className="text-sm font-light tracking-wide">{item.question}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-light tracking-wide italic">
                         → {item.solution}
                       </p>
                     </div>
@@ -198,22 +198,22 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
           </div>
 
           {/* Where are your documents hiding? */}
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
+          <div className="space-y-1.5">
+            <h3 className="text-base font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
               Where are your documents hiding?
             </h3>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {documentLocations.map((location, index) => {
                 const Icon = location.icon;
                 return (
                   <div
                     key={index}
-                    className="flex items-center gap-2 p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30"
+                    className="flex items-center gap-2.5 p-2.5 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-purple-100/50 dark:border-purple-800/30"
                   >
-                    <Icon className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                    <Icon className="h-4 w-4 text-slate-500 dark:text-slate-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-light tracking-wide truncate">{location.title}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-light tracking-wide italic truncate">
+                      <p className="text-sm font-light tracking-wide truncate">{location.title}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-light tracking-wide italic truncate">
                         {location.subtitle}
                       </p>
                     </div>
