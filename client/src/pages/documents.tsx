@@ -1795,8 +1795,8 @@ export default function Documents() {
         }`}>
           {/* Header - Clean Premium Single Row - No horizontal scroll on mobile */}
           <div className="pl-1 md:pl-2 pr-1 md:pr-6 py-1 md:py-1.5 border-b border-border/20 md:overflow-x-auto">
-            {/* Single Row: All Controls - No wrap on mobile, fits in viewport */}
-            <div className="flex items-center gap-1 md:gap-2 md:min-w-max w-full md:w-auto">
+            {/* Mobile Controls - Show on small screens only */}
+            <div className="flex lg:hidden items-center gap-1 md:gap-2 md:min-w-max w-full md:w-auto">
               {/* Title + Document Count - Compact but readable */}
               <div className="flex items-baseline gap-1.5 pr-1 md:pr-2">
                 <h2 className="text-sm md:text-base font-light tracking-wide text-foreground whitespace-nowrap">
@@ -1855,97 +1855,106 @@ export default function Documents() {
               >
                 Clear
               </Button>
-              
-              {/* Search Components - Desktop only (mobile has search in bottom nav) */}
-              <div className="hidden md:flex items-center gap-2 p-2 rounded-2xl border-2 border-slate-200/40 dark:border-slate-700/40 bg-slate-50/30 dark:bg-slate-800/20 flex-shrink-0">
-                {/* Search Mode Toggle */}
-                <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg w-[140px]">
-                  <Button
-                    variant={searchMode === "simple" ? "default" : "ghost"}
-                    size="sm"
-                    className={`rounded-none text-xs font-semibold h-full border-0 gap-1 flex flex-row items-center justify-center flex-1 ${
-                      searchMode === "simple" 
-                        ? "bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md" 
-                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
-                    }`}
-                    onClick={() => setSearchMode("simple")}
-                    data-testid="search-mode-simple"
+            </div>
+
+            {/* Desktop Minimal Toolbar - Hidden on mobile */}
+            <div className="hidden lg:flex items-center gap-6 w-full">
+              {/* Wide Search Bar with Dynamic Count */}
+              <div className="relative flex-1 max-w-2xl">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                <Input
+                  type="text"
+                  placeholder={`Search in ${documentsData?.pagination.total || 0} document${(documentsData?.pagination.total || 0) !== 1 ? 's' : ''}...`}
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchMode === "ai" && searchQuery.trim()) {
+                      handleAISearch();
+                    }
+                  }}
+                  className="w-full pl-9 pr-4 h-10 text-sm bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-purple-500/30 focus:border-purple-500/30 transition-all"
+                  data-testid="search-input"
+                />
+              </div>
+
+              {/* Icon-only Filters with Tooltips */}
+              <div className="flex items-center gap-2">
+                <Select value={selectedFileType} onValueChange={setSelectedFileType}>
+                  <SelectTrigger 
+                    className="w-10 h-10 p-0 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" 
+                    data-testid="filter-type"
+                    title="Document Type"
                   >
-                    <span>Simple</span>
-                    <Search className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant={searchMode === "ai" ? "default" : "ghost"}
-                    size="sm"
-                    className={`rounded-none text-xs font-semibold h-full border-0 gap-1 flex items-center justify-center flex-1 ${
-                      searchMode === "ai" 
-                        ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md" 
-                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
-                    }`}
-                    onClick={() => setSearchMode("ai")}
-                    data-testid="search-mode-ai"
-                  >
-                    <span>AI</span>
-                    <Search className="h-4 w-4" />
-                  </Button>
-                </div>
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <FileText className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                      {selectedFileType !== "all" && (
+                        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-purple-500 rounded-full" />
+                      )}
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {availableFileTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 
-                {/* Compact Search Input */}
-                <div className="relative w-40">
-                  <Input
-                    type="text"
-                    placeholder={searchMode === "ai" ? "Ask AI..." : "Ask.."}
-                    value={searchQuery}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && searchMode === "ai" && searchQuery.trim()) {
-                        handleAISearch();
-                      }
-                    }}
-                    className="w-full px-3 text-sm h-11 bg-white dark:bg-gray-800 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl shadow-lg focus:ring-2 focus:ring-purple-500/50"
-                    data-testid="search-input"
-                  />
-                </div>
-              </div>
-              
-              {/* Upload Button - Desktop only (mobile uses MobileLayout uploader) */}
-              <div className="hidden lg:block">
-                <ObjectUploader
-                  maxNumberOfFiles={5}
-                  maxFileSize={50 * 1024 * 1024}
-                  onSuccess={handleUploadSuccess}
-                  onViewExistingDocument={handleViewExistingDocument}
-                  buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 flex-shrink-0"
-                >
-                  <Upload className="h-5 w-5" />
-                  <span>Upload</span>
-                </ObjectUploader>
-              </div>
-              
-              {/* Fun Facts - Desktop only */}
-              <Button
-                variant="ghost"
-                onClick={() => setQueueDashboardOpen(true)}
-                className="hidden lg:flex h-11 px-4 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
-                data-testid="button-queue-status"
-              >
-                <Brain className="h-5 w-5" />
-                <span className="text-sm font-light tracking-wide">Fun Facts</span>
-              </Button>
-              
-              {/* Delete All - Desktop only */}
-              {documentsData?.documents && documentsData.documents.length > 0 && (
+                <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+                  <SelectTrigger 
+                    className="w-10 h-10 p-0 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" 
+                    data-testid="filter-folder"
+                    title="Folder"
+                  >
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <FolderOpen className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                      {selectedFolderId !== "all" && (
+                        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-purple-500 rounded-full" />
+                      )}
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Folders</SelectItem>
+                    {folders
+                      .filter(folder => folder.isAutoCreated && !folder.parentId && folder.documentCount > 0)
+                      .map((folder) => (
+                      <SelectItem key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* AI Toggle */}
                 <Button
                   variant="ghost"
-                  onClick={() => deleteAllDocumentsMutation.mutate()}
-                  disabled={deleteAllDocumentsMutation.isPending}
-                  className="hidden lg:flex h-11 px-4 bg-rose-50/90 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800/40 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-200/60 dark:border-rose-700/60 shadow-lg hover:shadow-xl transition-all flex-shrink-0 gap-2"
-                  data-testid="button-delete-all"
+                  size="sm"
+                  onClick={() => setSearchMode(searchMode === "ai" ? "simple" : "ai")}
+                  className={`w-10 h-10 p-0 transition-all ${
+                    searchMode === "ai"
+                      ? "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  }`}
+                  title={searchMode === "ai" ? "AI Search" : "Simple Search"}
+                  data-testid="search-mode-toggle"
                 >
-                  <Trash2 className="h-5 w-5" />
-                  <span className="text-sm font-light tracking-wide">Delete All</span>
+                  <Wand2 className={`h-4 w-4 transition-transform ${searchMode === "ai" ? "scale-110" : ""}`} />
                 </Button>
-              )}
+              </div>
+
+              {/* Primary Action: Upload */}
+              <ObjectUploader
+                maxNumberOfFiles={5}
+                maxFileSize={50 * 1024 * 1024}
+                onSuccess={handleUploadSuccess}
+                onViewExistingDocument={handleViewExistingDocument}
+                buttonClassName="h-10 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                <span>Upload</span>
+              </ObjectUploader>
             </div>
           </div>
         </div>
