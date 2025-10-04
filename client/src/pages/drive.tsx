@@ -144,9 +144,17 @@ export default function Drive() {
       if (selectedFolderId) params.append('folderId', selectedFolderId);
       if (pageToken) params.append('pageToken', pageToken);
       
-      return apiRequest(`/api/drive/documents?${params.toString()}`, {
+      const response = await apiRequest(`/api/drive/documents?${params.toString()}`, {
         method: 'GET',
       });
+      
+      console.log('[Drive Frontend] Pagination data:', {
+        filesCount: response.files?.length,
+        hasNext: response.pagination?.hasNext,
+        nextPageToken: response.nextPageToken?.substring(0, 20)
+      });
+      
+      return response;
     },
     enabled: isDriveAuthenticated && !!connectionStatus?.connected,
     retry: false,
@@ -538,14 +546,29 @@ export default function Drive() {
 
                 {/* Pagination */}
                 {driveData?.pagination?.hasNext && (
-                  <div className="flex justify-center pt-6">
+                  <div className="flex flex-col items-center pt-6 pb-4">
+                    <p className="text-sm text-muted-foreground font-light tracking-wide mb-3">
+                      More documents available in your Drive
+                    </p>
                     <Button
                       variant="outline"
+                      size="lg"
                       onClick={() => setPageToken(driveData.nextPageToken || "")}
                       disabled={documentsLoading}
                       data-testid="button-load-more"
+                      className="font-light tracking-wide bg-white dark:bg-gray-900 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-blue-200 dark:border-blue-700 w-full md:w-auto"
                     >
-                      Load More
+                      {documentsLoading ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Loading more files...
+                        </>
+                      ) : (
+                        <>
+                          <Cloud className="h-4 w-4 mr-2" />
+                          Get More from Drive
+                        </>
+                      )}
                     </Button>
                   </div>
                 )}
