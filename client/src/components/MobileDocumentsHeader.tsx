@@ -19,8 +19,8 @@ export function MobileDocumentsHeader({
   isScrolling = false
 }: MobileDocumentsHeaderProps) {
   return (
-    <div className={`lg:hidden sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-border shadow-sm transition-transform duration-300 ease-in-out ${
-      isScrolling ? '-translate-y-full' : 'translate-y-0'
+    <div className={`lg:hidden sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-border shadow-sm transition-all duration-300 ease-in-out overflow-hidden ${
+      isScrolling ? 'max-h-0 opacity-0' : 'max-h-[200px] opacity-100'
     }`}>
       {/* Top Row: Logo and Action Icons */}
       <div className="flex items-center justify-between px-4 py-3">

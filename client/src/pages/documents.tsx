@@ -1718,8 +1718,8 @@ export default function Documents() {
       {/* Main Content - Mobile Flex Layout */}
       <main className="flex-1 md:overflow-hidden flex flex-col overflow-hidden">
         {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
-        <div className={`overflow-visible bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 transition-transform duration-300 ease-in-out md:transform-none ${
-          isScrolling ? '-translate-y-full md:translate-y-0' : 'translate-y-0'
+        <div className={`bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 transition-all duration-300 ease-in-out md:max-h-none md:opacity-100 ${
+          isScrolling ? 'max-h-0 opacity-0 overflow-hidden' : 'max-h-[200px] opacity-100 overflow-visible'
         }`}>
           {/* Header - Clean Premium Single Row - No horizontal scroll on mobile */}
           <div className="pl-1 md:pl-2 pr-1 md:pr-6 py-1 md:py-1.5 border-b border-border/20 md:overflow-x-auto">
