@@ -833,6 +833,13 @@ export default function Documents() {
       });
       return response;
     },
+    onMutate: () => {
+      toast({
+        title: "Starting AI Analysis",
+        description: "Analyzing document with AI...",
+        duration: 2000,
+      });
+    },
     onSuccess: (data) => {
       // Track successful AI analysis
       trackEvent('ai_analysis_complete', { analysis_type: 'gemini' });
@@ -876,6 +883,13 @@ export default function Documents() {
       // For other responses, try to parse JSON
       return response.json();
     },
+    onMutate: () => {
+      toast({
+        title: "Deleting document",
+        description: "Moving document to trash...",
+        duration: 1500,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] }); // Keep folder counts fresh
@@ -904,6 +918,13 @@ export default function Documents() {
         headers: { "Content-Type": "application/json" },
       });
     },
+    onMutate: ({ isFavorite }) => {
+      toast({
+        title: isFavorite ? "Adding to favorites" : "Removing from favorites",
+        description: "Updating...",
+        duration: 1000,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       toast({
@@ -926,6 +947,13 @@ export default function Documents() {
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/documents/organize-all");
       return response.json();
+    },
+    onMutate: () => {
+      toast({
+        title: "Starting Smart Organization",
+        description: "AI is analyzing your documents...",
+        duration: 2000,
+      });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
@@ -954,6 +982,13 @@ export default function Documents() {
       // Use the new "delete all" endpoint that gets ALL active documents
       const response = await apiRequest("DELETE", "/api/documents/all");
       return response.json();
+    },
+    onMutate: () => {
+      toast({
+        title: "Starting deletion",
+        description: "Preparing to move all documents to trash...",
+        duration: 1500,
+      });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
@@ -1189,9 +1224,21 @@ export default function Documents() {
   const handleOpenDocumentFile = async (document: DocumentWithFolderAndTags) => {
     // For Drive documents, open Drive viewer directly
     if (document.driveWebViewLink) {
+      toast({
+        title: "Opening document",
+        description: "Redirecting to Google Drive...",
+        duration: 1500,
+      });
       window.open(document.driveWebViewLink, '_blank');
       return;
     }
+
+    // Show immediate feedback
+    toast({
+      title: "Opening document",
+      description: "Loading preview...",
+      duration: 1500,
+    });
 
     try {
       // For uploaded documents, fetch and display in new tab
@@ -1223,9 +1270,21 @@ export default function Documents() {
   const handleDownload = async (document: DocumentWithFolderAndTags) => {
     // For Drive documents, redirect directly
     if (document.driveWebViewLink) {
+      toast({
+        title: "Opening document",
+        description: "Redirecting to Google Drive...",
+        duration: 1500,
+      });
       window.open(document.driveWebViewLink, '_blank');
       return;
     }
+    
+    // Show immediate feedback
+    toast({
+      title: "Downloading",
+      description: "Preparing your document...",
+      duration: 1500,
+    });
     
     try {
       // For uploaded documents, use the API endpoint to download
