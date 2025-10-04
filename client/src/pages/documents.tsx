@@ -1865,11 +1865,11 @@ export default function Documents() {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/40" />
                 <Input
                   type="text"
-                  placeholder="Ask Clasio anything..."
+                  placeholder={`Search your ${documentsData?.pagination.total || 0} document${(documentsData?.pagination.total || 0) !== 1 ? 's' : ''}...`}
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && searchMode === "ai" && searchQuery.trim()) {
+                    if (e.key === 'Enter' && searchQuery.trim()) {
                       handleAISearch();
                     }
                   }}
@@ -1884,25 +1884,6 @@ export default function Documents() {
                   <Mic className="h-5 w-5 text-slate-400 hover:text-purple-500 transition-colors" />
                 </button>
               </div>
-
-              {/* Document Count Badge */}
-              <div className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-sm text-slate-600 dark:text-slate-400 font-light whitespace-nowrap">
-                {documentsData?.pagination.total || 0} docs
-              </div>
-
-              {/* AI/Simple Mode Dropdown */}
-              <Select value={searchMode} onValueChange={(value) => setSearchMode(value as "simple" | "ai")}>
-                <SelectTrigger 
-                  className="w-24 h-10 border-slate-200 dark:border-slate-700"
-                  data-testid="search-mode-select"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="simple">Simple</SelectItem>
-                  <SelectItem value="ai">AI</SelectItem>
-                </SelectContent>
-              </Select>
 
               {/* Filters Group */}
               <div className="flex items-center gap-2">
