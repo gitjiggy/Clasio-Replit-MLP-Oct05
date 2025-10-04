@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { MobileDocumentsHeader } from "./MobileDocumentsHeader";
@@ -48,8 +48,6 @@ interface MobileLayoutProps {
   // Sidebar props
   viewMode?: string;
   onViewModeChange?: (mode: string) => void;
-  onSmartOrganize?: () => void;
-  isOrganizing?: boolean;
   onSmartOrganizationCheck?: () => void;
   isCheckingOrganization?: boolean;
   // Scroll-to-hide
@@ -86,8 +84,6 @@ export function MobileLayout({
   // Sidebar props with defaults
   viewMode = "all",
   onViewModeChange = () => {},
-  onSmartOrganize,
-  isOrganizing = false,
   onSmartOrganizationCheck,
   isCheckingOrganization = false,
   // Scroll-to-hide
