@@ -385,8 +385,10 @@ export default function Drive() {
                     });
                     
                     setIsDriveAuthenticated(false);
-                    queryClient.invalidateQueries({ queryKey: ['drive-connection'] });
-                    queryClient.invalidateQueries({ queryKey: ['drive-documents'] });
+                    
+                    // Clear cached data explicitly to force UI update
+                    queryClient.removeQueries({ queryKey: ['drive-connection'] });
+                    queryClient.removeQueries({ queryKey: ['drive-documents'] });
                     
                     toast({
                       title: "Disconnected",
