@@ -180,76 +180,72 @@ export function MobileSidebar({
             {/* Folders */}
             {mainCategories.length > 0 ? (
               <div className="space-y-1">
-                {isMainCategorySelected && selectedCategorySubFolders.length > 0 ? (
-                  <>
-                    {/* Back Button */}
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start text-sm font-light h-10"
-                      onClick={() => onFolderSelect("all")}
-                      data-testid="mobile-folder-back"
-                    >
-                      <span className="mr-2">←</span>
-                      Back to Categories
-                    </Button>
-
-                    {/* Sub-folders */}
-                    {selectedCategorySubFolders.map((folder) => (
+                {mainCategories.map((category) => {
+                  const categorySubFolders = subFolders.filter(
+                    sub => sub.parentId === category.id && (sub.documentCount || 0) > 0
+                  );
+                  const isExpanded = selectedFolderId === category.id;
+                  
+                  return (
+                    <div key={category.id}>
+                      {/* Main Category */}
                       <Button
-                        key={folder.id}
-                        variant="ghost"
-                        className="w-full justify-start text-sm font-light pl-8 h-10"
-                        onClick={() => {
-                          onFolderSelect(folder.id);
-                          onClose();
-                        }}
-                        data-testid={`mobile-folder-${folder.id}`}
-                      >
-                        <FolderOpen className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <span className="flex-1 text-left truncate">{folder.name}</span>
-                        {folder.documentCount !== undefined && (
-                          <span className="text-xs text-muted-foreground ml-2">
-                            {folder.documentCount}
-                          </span>
-                        )}
-                      </Button>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    {/* Main Categories */}
-                    {mainCategories.map((folder) => (
-                      <Button
-                        key={folder.id}
                         variant="ghost"
                         className={`w-full justify-start text-sm font-light h-10 ${
-                          selectedFolderId === folder.id
+                          selectedFolderId === category.id
                             ? "bg-purple-100/50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400"
                             : ""
                         }`}
                         onClick={() => {
-                          onFolderSelect(folder.id);
-                          // Don't close if it's a main category (has sub-folders)
-                          const subFolders = folders.filter(
-                            f => f.parentId === folder.id && f.isAutoCreated
-                          );
-                          if (subFolders.length === 0) {
+                          onFolderSelect(category.id);
+                          // Don't close if it has sub-folders - let user see them
+                          if (categorySubFolders.length === 0) {
                             onClose();
                           }
                         }}
-                        data-testid={`mobile-folder-${folder.id}`}
+                        data-testid={`mobile-folder-${category.id}`}
                       >
                         <FolderOpen className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <span className="flex-1 text-left truncate">{folder.name}</span>
-                        {folder.documentCount !== undefined && (
+                        <span className="flex-1 text-left truncate">{category.name}</span>
+                        {category.documentCount !== undefined && (
                           <span className="text-xs text-muted-foreground ml-2">
-                            {folder.documentCount}
+                            {category.documentCount}
                           </span>
                         )}
                       </Button>
-                    ))}
-                  </>
-                )}
+                      
+                      {/* Sub-folders - shown when category is selected/expanded */}
+                      {isExpanded && categorySubFolders.length > 0 && (
+                        <div className="ml-4 mt-1 space-y-1">
+                          {categorySubFolders.map((subFolder) => (
+                            <Button
+                              key={subFolder.id}
+                              variant="ghost"
+                              className={`w-full justify-start text-xs font-light h-9 pl-6 ${
+                                selectedFolderId === subFolder.id
+                                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                                  : "text-muted-foreground"
+                              }`}
+                              onClick={() => {
+                                onFolderSelect(subFolder.id);
+                                onClose();
+                              }}
+                              data-testid={`mobile-subfolder-${subFolder.id}`}
+                            >
+                              <span className="mr-2">•</span>
+                              <span className="flex-1 text-left truncate">{subFolder.name}</span>
+                              {subFolder.documentCount !== undefined && (
+                                <span className="text-xs ml-2">
+                                  {subFolder.documentCount}
+                                </span>
+                              )}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-lg">
