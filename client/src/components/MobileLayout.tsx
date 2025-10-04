@@ -137,6 +137,7 @@ export function MobileLayout({
           }
         }}
         onMenuClick={() => setMobileSidebarOpen(true)}
+        onSmartOrganizationClick={onSmartOrganizationCheck}
         documentCount={documentCount}
         isScrolling={isScrolling}
       />
