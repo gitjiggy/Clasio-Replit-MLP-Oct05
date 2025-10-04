@@ -875,9 +875,9 @@ export function ObjectUploader({
 
       {/* Upload Modal */}
       <Dialog open={showModal} onOpenChange={handleModalClose}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md border-purple-200/40 dark:border-purple-700/40 bg-gradient-to-b from-white to-purple-50/30 dark:from-gray-900 dark:to-purple-950/20">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
+            <DialogTitle className="text-lg font-light tracking-wide bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400 bg-clip-text text-transparent">
               {state === "signing" ? "Preparing uploads…" :
                state === "uploading" ? "Uploading…" :
                state === "finalizing" ? "Finishing up…" :
@@ -887,8 +887,8 @@ export function ObjectUploader({
             </DialogTitle>
             {/* Show upload limits proactively when idle */}
             {state === "idle" && (
-              <div className="text-xs text-muted-foreground mt-2 space-y-1 bg-muted/50 p-3 rounded-md">
-                <div className="font-medium text-foreground">Upload Limits:</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300 mt-2 space-y-1 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 p-3 rounded-xl border border-purple-200/40 dark:border-purple-700/40">
+                <div className="font-medium text-purple-700 dark:text-purple-300 tracking-wide">Upload Limits:</div>
                 <div>• Maximum file size: {formatFileSize(maxFileSize)}</div>
                 <div>• Maximum files per upload: {maxNumberOfFiles}</div>
                 <div>• Supported types: PDF, Word, Excel, PowerPoint, Images, Text, CSV</div>
@@ -898,25 +898,25 @@ export function ObjectUploader({
           
           <div className="space-y-4">
             {/* Flavor text */}
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-600 dark:text-slate-300 font-light">
               {flavorText}
             </p>
 
             {/* Progress indicator */}
             <Progress 
               value={state === "done" ? 100 : undefined}
-              className="w-full"
+              className="w-full h-2 bg-purple-100 dark:bg-purple-950/30"
             />
             
             {/* File list */}
             {selectedFiles.length > 0 && (
               <div className="space-y-2 overflow-hidden">
-                <h4 className="text-sm font-medium">Files:</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground overflow-hidden">
+                <h4 className="text-sm font-medium text-purple-700 dark:text-purple-300 tracking-wide">Files:</h4>
+                <ul className="space-y-1 text-sm text-slate-600 dark:text-slate-300 overflow-hidden">
                   {selectedFiles.map((file, index) => (
-                    <li key={index} className="flex items-center justify-between gap-2 min-w-0">
-                      <span className="truncate flex-1 min-w-0">{file.name}</span>
-                      <span className="text-xs whitespace-nowrap flex-shrink-0">{formatFileSize(file.size)}</span>
+                    <li key={index} className="flex items-center justify-between gap-2 min-w-0 p-2 rounded-lg bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200/30 dark:border-purple-700/30">
+                      <span className="truncate flex-1 min-w-0 font-light">{file.name}</span>
+                      <span className="text-xs whitespace-nowrap flex-shrink-0 text-purple-600 dark:text-purple-400">{formatFileSize(file.size)}</span>
                     </li>
                   ))}
                 </ul>
@@ -930,7 +930,7 @@ export function ObjectUploader({
                   onClick={cancelUpload}
                   variant="outline"
                   size="sm"
-                  className="text-destructive hover:text-destructive"
+                  className="text-destructive hover:text-destructive border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/20"
                   data-testid="button-cancel-upload"
                 >
                   <XCircle className="w-4 h-4 mr-2" />
@@ -942,8 +942,8 @@ export function ObjectUploader({
             {/* Error list */}
             {errors.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-sm font-medium text-destructive">Errors:</h4>
-                <ul className="space-y-1 text-sm text-destructive list-disc ml-5">
+                <h4 className="text-sm font-medium text-destructive tracking-wide">Errors:</h4>
+                <ul className="space-y-1 text-sm text-red-600 dark:text-red-400 list-disc ml-5">
                   {errors.map((error, i) => (
                     <li key={i}>{error}</li>
                   ))}
@@ -953,7 +953,7 @@ export function ObjectUploader({
                     onClick={handleRetry}
                     variant="outline"
                     size="sm"
-                    className="mt-2"
+                    className="mt-2 border-purple-200 dark:border-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/20"
                   >
                     Retry Failed
                   </Button>
@@ -966,40 +966,40 @@ export function ObjectUploader({
 
       {/* Duplicate Detection Modal */}
       <Dialog open={duplicateModal.isOpen} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md border-amber-200/40 dark:border-amber-700/40 bg-gradient-to-b from-white to-amber-50/30 dark:from-gray-900 dark:to-amber-950/20">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-yellow-600">
+            <DialogTitle className="text-lg font-light tracking-wide bg-gradient-to-r from-amber-600 to-orange-600 dark:from-amber-400 dark:to-orange-400 bg-clip-text text-transparent">
               Duplicate File Detected! ⚠️
             </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
+            <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 font-light">
               {duplicateModal.duplicateInfo?.message}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3">
-              <p className="text-sm">
-                <strong>File:</strong> {duplicateModal.file?.name}
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200/60 dark:border-amber-700/60 rounded-xl p-3 shadow-sm">
+              <p className="text-sm text-slate-700 dark:text-slate-300">
+                <strong className="font-medium text-amber-700 dark:text-amber-300">File:</strong> {duplicateModal.file?.name}
               </p>
-              <p className="text-sm mt-1">
-                <strong>Already exists:</strong> {duplicateModal.duplicateInfo?.duplicateCount} time{duplicateModal.duplicateInfo?.duplicateCount !== 1 ? 's' : ''}
+              <p className="text-sm mt-1 text-slate-700 dark:text-slate-300">
+                <strong className="font-medium text-amber-700 dark:text-amber-300">Already exists:</strong> {duplicateModal.duplicateInfo?.duplicateCount} time{duplicateModal.duplicateInfo?.duplicateCount !== 1 ? 's' : ''}
               </p>
               {duplicateModal.duplicateInfo?.existingDocs?.[0] && (
-                <p className="text-sm mt-1">
-                  <strong>Original:</strong> "{duplicateModal.duplicateInfo.existingDocs[0].name}"
+                <p className="text-sm mt-1 text-slate-700 dark:text-slate-300">
+                  <strong className="font-medium text-amber-700 dark:text-amber-300">Original:</strong> "{duplicateModal.duplicateInfo.existingDocs[0].name}"
                 </p>
               )}
             </div>
 
             <div className="space-y-3">
-              <p className="text-sm font-medium">What would you like to do?</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300 tracking-wide">What would you like to do?</p>
               
               <div className="grid grid-cols-1 gap-2">
                 {/* View File Option */}
                 <Button
                   onClick={() => duplicateModal.onResolve?.('view')}
                   variant="outline"
-                  className="w-full justify-start"
+                  className="w-full justify-start border-emerald-200 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 font-light tracking-wide"
                   data-testid="button-view-existing"
                 >
                   <Eye className="h-4 w-4 mr-2" />
@@ -1009,8 +1009,7 @@ export function ObjectUploader({
                 {/* Proceed Option */}
                 <Button
                   onClick={() => duplicateModal.onResolve?.('proceed')}
-                  variant="default"
-                  className="w-full justify-start bg-blue-600 hover:bg-blue-700"
+                  className="w-full justify-start bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-light tracking-wide shadow-lg"
                   data-testid="button-proceed-upload"
                 >
                   <ArrowRight className="h-4 w-4 mr-2" />
@@ -1020,8 +1019,8 @@ export function ObjectUploader({
                 {/* Cancel Option */}
                 <Button
                   onClick={() => duplicateModal.onResolve?.('cancel')}
-                  variant="destructive"
-                  className="w-full justify-start"
+                  variant="outline"
+                  className="w-full justify-start border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-950/20 text-slate-600 dark:text-slate-300 font-light tracking-wide"
                   data-testid="button-cancel-upload"
                 >
                   <XCircle className="h-4 w-4 mr-2" />
