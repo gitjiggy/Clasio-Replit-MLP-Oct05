@@ -14,7 +14,9 @@ import {
   Clock,
   Sparkles,
   FileText,
-  HardDrive
+  HardDrive,
+  Calendar,
+  Lightbulb
 } from "lucide-react";
 
 interface FunFactsResponse {
@@ -229,30 +231,106 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false, onUploa
                 </Card>
               </div>
 
-              {/* Document Intelligence Analytics */}
-              <Card className="border-purple-200/50 dark:border-purple-800/50 bg-gradient-to-br from-purple-50/50 to-white dark:from-purple-950/20 dark:to-gray-900/70">
-                <CardHeader>
-                  <CardTitle className="text-xl font-light tracking-wide flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                    Document Intelligence Analytics
-                  </CardTitle>
-                  <CardDescription className="font-light tracking-wide">Organization Patterns</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                    <FolderOpen className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm font-light tracking-wide" data-testid="text-active-folder">
-                      {data?.insights.organizationPatterns.mostActiveFolder}
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                    <Tags className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm font-light tracking-wide" data-testid="text-tag-usage">
-                      {data?.insights.organizationPatterns.mostUsedTag}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Document Intelligence Analytics & Time-Aware Prompts */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Document Intelligence Analytics - 50% width */}
+                <Card className="border-purple-200/50 dark:border-purple-800/50 bg-gradient-to-br from-purple-50/50 to-white dark:from-purple-950/20 dark:to-gray-900/70">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-light tracking-wide flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      Document Intelligence Analytics
+                    </CardTitle>
+                    <CardDescription className="font-light tracking-wide">Organization Patterns</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                      <FolderOpen className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm font-light tracking-wide" data-testid="text-active-folder">
+                        {data?.insights.organizationPatterns.mostActiveFolder}
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                      <Tags className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm font-light tracking-wide" data-testid="text-tag-usage">
+                        {data?.insights.organizationPatterns.mostUsedTag}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Time-Aware Prompts - 50% width */}
+                <Card className="border-blue-200/50 dark:border-blue-800/50 bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-950/20 dark:to-gray-900/70">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-light tracking-wide flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      Time-Aware Prompts
+                    </CardTitle>
+                    <CardDescription className="font-light tracking-wide">Documents You'll Need This Month</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {(() => {
+                      const now = new Date();
+                      const month = now.getMonth(); // 0-11
+                      const dayOfWeek = now.getDay(); // 0-6
+                      const dayOfMonth = now.getDate();
+                      const daysInMonth = new Date(now.getFullYear(), month + 1, 0).getDate();
+                      const isEndOfMonth = dayOfMonth >= daysInMonth - 3;
+
+                      // Monthly prompts
+                      let monthlyPrompt = "";
+                      switch (month) {
+                        case 0: // January
+                          monthlyPrompt = "Tax season prep - start with last year's receipts";
+                          break;
+                        case 2: // March
+                          monthlyPrompt = "Tax documents checklist";
+                          break;
+                        case 8: // September
+                          monthlyPrompt = "Back-to-school forms";
+                          break;
+                        case 11: // December
+                          monthlyPrompt = "Year-end expense reports";
+                          break;
+                        default:
+                          monthlyPrompt = "Keep your documents organized and ready";
+                      }
+
+                      // Weekly prompt (Monday)
+                      const weeklyPrompt = dayOfWeek === 1 ? "Weekly expense reports made simple" : null;
+
+                      // End of month prompt
+                      const endOfMonthPrompt = isEndOfMonth ? "Invoice organization time" : null;
+
+                      return (
+                        <>
+                          <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                            <Lightbulb className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                            <p className="text-sm font-light tracking-wide">
+                              {monthlyPrompt}
+                            </p>
+                          </div>
+                          {weeklyPrompt && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                              <Calendar className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                              <p className="text-sm font-light tracking-wide">
+                                {weeklyPrompt}
+                              </p>
+                            </div>
+                          )}
+                          {endOfMonthPrompt && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                              <Clock className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                              <p className="text-sm font-light tracking-wide">
+                                {endOfMonthPrompt}
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              </div>
 
               {/* AI Classification Insights */}
               <Card className="border-indigo-200/50 dark:border-indigo-800/50 bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/20 dark:to-gray-900/70">
