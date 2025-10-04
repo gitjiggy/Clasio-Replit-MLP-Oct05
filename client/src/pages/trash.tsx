@@ -267,26 +267,27 @@ export default function Trash() {
                           Empty
                         </Button>
                       </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
+                  <DialogContent className="sm:max-w-[425px] rounded-xl border-2 border-slate-200/60 dark:border-slate-700/60 shadow-2xl">
                     <DialogHeader>
-                      <DialogTitle className="flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-destructive" />
-                        Empty Trash?
+                      <DialogTitle className="flex items-center gap-2 text-xl font-light tracking-wide">
+                        <AlertTriangle className="h-6 w-6 text-rose-500" />
+                        <span className="bg-gradient-to-r from-rose-500 to-red-500 bg-clip-text text-transparent">Empty Trash?</span>
                       </DialogTitle>
-                      <DialogDescription className="space-y-2">
-                        <p>This will permanently delete all {trashedDocuments.length} documents in the trash.</p>
-                        <p className="font-medium text-foreground">This action cannot be undone.</p>
-                        <div className="bg-muted p-3 rounded-lg text-sm">
-                          <p className="font-medium mb-1">Why empty trash manually?</p>
-                          <p>Documents normally auto-delete after {retentionDays} days. Use this only if you want to permanently remove them immediately for storage or privacy reasons.</p>
+                      <DialogDescription className="space-y-3 pt-2">
+                        <p className="text-slate-600 dark:text-slate-300 font-light">This will permanently delete all {trashedDocuments.length} documents in the trash.</p>
+                        <p className="font-semibold text-rose-600 dark:text-rose-400">This action cannot be undone.</p>
+                        <div className="bg-gradient-to-r from-slate-50/50 to-slate-100/50 dark:from-slate-800/50 dark:to-slate-700/50 p-4 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-sm shadow-sm">
+                          <p className="font-semibold mb-2 text-slate-700 dark:text-slate-200">Why empty trash manually?</p>
+                          <p className="text-slate-600 dark:text-slate-300 font-light">Documents normally auto-delete after {retentionDays} days. Use this only if you want to permanently remove them immediately for storage or privacy reasons.</p>
                         </div>
                       </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter>
+                    <DialogFooter className="gap-2">
                       <Button
                         variant="outline"
                         onClick={() => setShowEmptyTrashDialog(false)}
                         data-testid="button-cancel-empty-trash"
+                        className="rounded-xl font-light tracking-wide border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600 shadow-sm hover:shadow-md transition-all"
                       >
                         Cancel
                       </Button>
@@ -295,6 +296,7 @@ export default function Trash() {
                         onClick={() => emptyTrashMutation.mutate()}
                         disabled={emptyTrashMutation.isPending}
                         data-testid="button-confirm-empty-trash"
+                        className="rounded-xl font-light tracking-wide shadow-lg hover:shadow-xl transition-all"
                       >
                         {emptyTrashMutation.isPending ? "Deleting..." : "Empty Trash"}
                       </Button>
