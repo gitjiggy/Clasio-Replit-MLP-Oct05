@@ -79,7 +79,6 @@ basicGoogleProvider.setCustomParameters({
 // Separate Drive Provider for incremental consent (redirect-only)
 const driveGoogleProvider = new GoogleAuthProvider();
 driveGoogleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
-driveGoogleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 driveGoogleProvider.setCustomParameters({
   'prompt': 'consent'  // Force consent screen for Drive scopes
 });
