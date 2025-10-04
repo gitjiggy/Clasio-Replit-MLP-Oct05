@@ -1,4 +1,4 @@
-import { Sparkles, Trash2, Menu } from "lucide-react";
+import { Sparkles, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface MobileDocumentsHeaderProps {
@@ -6,7 +6,6 @@ interface MobileDocumentsHeaderProps {
   onViewChange: (view: "documents" | "drive" | "trash") => void;
   onFunFactsClick: () => void;
   onMenuClick: () => void;
-  onDeleteAllClick: () => void;
   documentCount: number;
 }
 
@@ -15,7 +14,6 @@ export function MobileDocumentsHeader({
   onViewChange,
   onFunFactsClick,
   onMenuClick,
-  onDeleteAllClick,
   documentCount
 }: MobileDocumentsHeaderProps) {
   return (
@@ -42,30 +40,16 @@ export function MobileDocumentsHeader({
           />
         </div>
 
-        {/* Action Icons with Even Spacing */}
-        <div className="flex items-center gap-2">
-          {/* Fun Facts Sparkles */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onFunFactsClick}
-            className="h-9 w-9 p-0 text-purple-600 dark:text-purple-400"
-            data-testid="mobile-fun-facts-button"
-          >
-            <Sparkles className="h-5 w-5" />
-          </Button>
-
-          {/* Delete All */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDeleteAllClick}
-            className="h-9 w-9 p-0 text-rose-600 dark:text-rose-400"
-            data-testid="mobile-delete-all-button"
-          >
-            <Trash2 className="h-5 w-5" />
-          </Button>
-        </div>
+        {/* Fun Facts Sparkles */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onFunFactsClick}
+          className="h-9 w-9 p-0 text-purple-600 dark:text-purple-400"
+          data-testid="mobile-fun-facts-button"
+        >
+          <Sparkles className="h-5 w-5" />
+        </Button>
       </div>
 
       {/* Segmented Control Row: My Docs / Drive / Trash */}

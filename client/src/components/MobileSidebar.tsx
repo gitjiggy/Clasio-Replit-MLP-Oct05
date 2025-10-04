@@ -1,4 +1,4 @@
-import { X, FileText, Upload, Star, FolderOpen, Sparkles, Target } from "lucide-react";
+import { X, FileText, Upload, Star, FolderOpen, Sparkles, Target, Trash2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -22,6 +22,9 @@ interface MobileSidebarProps {
   onSmartOrganize?: () => void;
   isOrganizing?: boolean;
   onFunFactsClick?: () => void;
+  onDeleteAll?: () => void;
+  isDeleting?: boolean;
+  hasDocuments?: boolean;
 }
 
 export function MobileSidebar({
@@ -35,6 +38,9 @@ export function MobileSidebar({
   onSmartOrganize,
   isOrganizing = false,
   onFunFactsClick,
+  onDeleteAll,
+  isDeleting = false,
+  hasDocuments = false,
 }: MobileSidebarProps) {
   const mainCategories = folders.filter(f => f.isAutoCreated && !f.parentId);
   const selectedFolder = folders.find(f => f.id === selectedFolderId);
@@ -234,34 +240,26 @@ export function MobileSidebar({
               </div>
             )}
           </div>
-
-          <Separator className="my-6" />
-
-          {/* Insights & Tips Section */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Insights & Tips
-            </h3>
-            
-            {onFunFactsClick && (
-              <Button
-                variant="outline"
-                className="w-full justify-start h-12 border-2 border-purple-200 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-purple-100 dark:hover:bg-purple-900/20 text-purple-700 dark:text-purple-300"
-                onClick={() => {
-                  onFunFactsClick();
-                  onClose();
-                }}
-                data-testid="mobile-fun-facts-button"
-              >
-                <Sparkles className="mr-3 h-5 w-5" />
-                <div className="flex flex-col items-start">
-                  <span className="font-semibold text-sm">Fun Facts</span>
-                  <span className="text-xs text-muted-foreground">View queue status</span>
-                </div>
-              </Button>
-            )}
-          </div>
         </ScrollArea>
+
+        {/* Delete All Button - Fixed at Bottom */}
+        {hasDocuments && onDeleteAll && (
+          <div className="p-4 border-t border-border bg-white dark:bg-gray-900">
+            <Button
+              variant="outline"
+              onClick={() => {
+                onDeleteAll();
+                onClose();
+              }}
+              disabled={isDeleting}
+              className="w-full h-12 border-2 border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 text-rose-700 dark:text-rose-400 font-semibold"
+              data-testid="mobile-sidebar-delete-all"
+            >
+              <Trash2 className="mr-2 h-5 w-5" />
+              {isDeleting ? "Deleting..." : "Delete All"}
+            </Button>
+          </div>
+        )}
       </div>
     </>
   );

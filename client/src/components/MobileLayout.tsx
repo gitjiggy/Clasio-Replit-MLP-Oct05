@@ -96,11 +96,6 @@ export function MobileLayout({
           }
         }}
         onMenuClick={() => setMobileSidebarOpen(true)}
-        onDeleteAllClick={() => {
-          if (onDeleteAll) {
-            onDeleteAll();
-          }
-        }}
         documentCount={documentCount}
       />
 
@@ -140,6 +135,9 @@ export function MobileLayout({
         onSmartOrganize={onSmartOrganize}
         isOrganizing={isOrganizing}
         onFunFactsClick={onQueueDashboardOpen}
+        onDeleteAll={onDeleteAll}
+        isDeleting={isDeleting}
+        hasDocuments={hasDocuments}
       />
 
       {/* Mobile Bottom Navigation - Only visible on mobile */}
