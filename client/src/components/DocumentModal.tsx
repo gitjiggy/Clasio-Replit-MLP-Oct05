@@ -533,7 +533,7 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
           </DialogHeader>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 px-4 py-3">
+        <div className="flex-1 min-h-0 px-4 py-3 overflow-y-auto">
           <div className="space-y-4">
             {/* Basic Information */}
             <div className="grid grid-cols-2 gap-2 text-xs font-light tracking-wide">
@@ -870,7 +870,7 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
             {/* Content Preview */}
             {getPreviewContent()}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Actions */}
         <div className="flex justify-between items-center px-4 py-2.5 border-t flex-shrink-0">
