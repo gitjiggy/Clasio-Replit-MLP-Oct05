@@ -1669,18 +1669,36 @@ export default function Documents() {
           ) : /* Empty State */ 
           (searchMode === "ai" && aiSearchResults && aiSearchResults.documents.length === 0) || 
           (searchMode === "simple" && documentsData?.documents.length === 0) ? (
-            <div className="text-center py-12">
-              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">
-                {searchMode === "ai" ? "Hmm, nothing turned up 🤔" : "Nothing here yet! 📭"}
-              </h3>
-              <p className="text-muted-foreground">
-                {searchQuery || selectedFileType || selectedFolderId || selectedTagId
-                  ? searchMode === "ai" 
-                    ? "Try rephrasing your AI search query or using different keywords."
-                    : "Try adjusting your filters or search query."
-                  : "Upload your first document to get the party started! 🎉"}
-              </p>
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              {searchQuery || selectedFileType || selectedFolderId || selectedTagId ? (
+                <>
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-indigo-400 dark:from-purple-600 dark:to-indigo-600 rounded-full blur-2xl opacity-20 animate-pulse"></div>
+                    <Search className="relative h-20 w-20 text-purple-500 dark:text-purple-400" strokeWidth={1.5} />
+                  </div>
+                  <h3 className="text-2xl font-light tracking-tight text-foreground mb-3 bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400 bg-clip-text text-transparent">
+                    No matches found
+                  </h3>
+                  <p className="text-muted-foreground text-base font-light max-w-md">
+                    {searchMode === "ai" 
+                      ? "Your AI search didn't find any matches. Try different keywords or phrases."
+                      : "Clear some filters or try a different search term."}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 dark:from-indigo-600 dark:to-purple-600 rounded-full blur-2xl opacity-20 animate-pulse"></div>
+                    <Sparkles className="relative h-20 w-20 text-indigo-500 dark:text-indigo-400" strokeWidth={1.5} />
+                  </div>
+                  <h3 className="text-2xl font-light tracking-tight text-foreground mb-3 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+                    Ready to organize?
+                  </h3>
+                  <p className="text-muted-foreground text-base font-light mb-6 max-w-md">
+                    Upload your first document and watch our AI work its magic! ✨
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
