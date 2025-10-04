@@ -1327,16 +1327,16 @@ export default function Documents() {
     // Find the document from the current documents list
     const document = documentsData?.documents.find(doc => doc.id === documentId);
     if (document) {
-      setSelectedDocument(document);
-      setDocumentModalOpen(true);
+      // Open the document file (same as clicking the View button on the card)
+      handleOpenDocumentFile(document);
     } else {
       // If not in current list, fetch it from the API
       try {
         const doc: DocumentWithFolderAndTags = await apiRequest(`/api/documents/${documentId}`, {
           method: 'GET'
         });
-        setSelectedDocument(doc);
-        setDocumentModalOpen(true);
+        // Open the document file
+        handleOpenDocumentFile(doc);
       } catch (error) {
         console.error('Failed to fetch document:', error);
         toast({
