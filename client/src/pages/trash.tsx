@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { DocumentWithFolderAndTags } from "@shared/schema";
 import { getDocumentDisplayName } from "@/lib/documentDisplay";
+import { MobileLayout } from "@/components/MobileLayout";
 import { 
   Trash2,
   RotateCcw,
@@ -180,38 +181,48 @@ export default function Trash() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-6 py-8">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-light tracking-wide">Trash</h1>
-          </div>
-          <div className="grid gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
-            ))}
+      <MobileLayout documentCount={0}>
+        <div className="container mx-auto px-6 py-8">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-light tracking-wide">Trash</h1>
+            </div>
+            <div className="grid gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </MobileLayout>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-6 py-8">
-        <div className="space-y-6">
-          <h1 className="text-3xl font-light tracking-wide">Trash</h1>
-          <div className="text-center py-12">
-            <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-lg text-muted-foreground font-light tracking-wide">Failed to load trash</p>
-            <p className="text-sm text-muted-foreground mt-2 font-light tracking-wide">Please try again later</p>
+      <MobileLayout documentCount={0}>
+        <div className="container mx-auto px-6 py-8">
+          <div className="space-y-6">
+            <h1 className="text-3xl font-light tracking-wide">Trash</h1>
+            <div className="text-center py-12">
+              <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-lg text-muted-foreground font-light tracking-wide">Failed to load trash</p>
+              <p className="text-sm text-muted-foreground mt-2 font-light tracking-wide">Please try again later</p>
+            </div>
           </div>
         </div>
-      </div>
+      </MobileLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <MobileLayout
+      onDeleteAll={() => emptyTrashMutation.mutate()}
+      isDeleting={emptyTrashMutation.isPending}
+      hasDocuments={trashedDocuments.length > 0}
+      documentCount={trashedDocuments.length}
+    >
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 md:px-6 py-8" data-testid="page-trash">
         <div className="space-y-6">
           {/* Header */}
@@ -415,6 +426,7 @@ export default function Trash() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </MobileLayout>
   );
 }

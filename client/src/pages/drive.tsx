@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { connectGoogleDrive } from "@/lib/firebase";
 import { trackEvent } from "@/lib/analytics";
+import { MobileLayout } from "@/components/MobileLayout";
 import { 
   HardDrive, 
   Search, 
@@ -251,7 +252,8 @@ export default function Drive() {
   // Remove this early return - let the normal UI handle the no-token case
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
+    <MobileLayout documentCount={driveData?.files?.length || 0}>
+      <div className="container mx-auto p-6 max-w-6xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <HardDrive className="h-8 w-8 text-blue-600" />
@@ -518,6 +520,7 @@ export default function Drive() {
           </div>
         </>
       )}
-    </div>
+      </div>
+    </MobileLayout>
   );
 }
