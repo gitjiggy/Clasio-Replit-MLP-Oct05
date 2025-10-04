@@ -1672,14 +1672,14 @@ export default function Documents() {
             <div className="text-center py-12">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">
-                {searchMode === "ai" ? "No AI search results found" : "No documents found"}
+                {searchMode === "ai" ? "Hmm, nothing turned up 🤔" : "Nothing here yet! 📭"}
               </h3>
               <p className="text-muted-foreground">
                 {searchQuery || selectedFileType || selectedFolderId || selectedTagId
                   ? searchMode === "ai" 
                     ? "Try rephrasing your AI search query or using different keywords."
                     : "Try adjusting your filters or search query."
-                  : "Upload your first document to get started."}
+                  : "Upload your first document to get the party started! 🎉"}
               </p>
             </div>
           ) : (

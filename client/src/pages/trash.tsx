@@ -302,7 +302,7 @@ export default function Trash() {
         {trashedDocuments.length === 0 ? (
           <div className="text-center py-12">
             <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-lg text-muted-foreground font-light tracking-wide">Trash is empty</p>
+            <p className="text-lg text-muted-foreground font-light tracking-wide">All clean! 🧹</p>
             <p className="text-sm text-muted-foreground mt-2 font-light tracking-wide">
               Deleted documents will appear here for {retentionDays} days before being permanently removed
             </p>

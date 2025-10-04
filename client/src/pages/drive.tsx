@@ -495,7 +495,7 @@ export default function Drive() {
                 ) : (
                   <div className="text-center py-12">
                     <HardDrive className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-light tracking-wide mb-2">No documents found</h3>
+                    <h3 className="text-lg font-light tracking-wide mb-2">Nothing here yet! 📭</h3>
                     <p className="text-muted-foreground font-light tracking-wide">
                       {searchQuery ? 'Try a different search term' : 'No supported documents in your Drive'}
                     </p>
