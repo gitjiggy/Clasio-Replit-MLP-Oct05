@@ -374,42 +374,6 @@ export default function Drive() {
                   Storage: {formatFileSize(connectionStatus.quota.usageInDrive)} used of {formatFileSize(connectionStatus.quota.limit)}
                 </span>
               )}
-              <Button 
-                onClick={async () => {
-                  try {
-                    await apiRequest('/api/drive/signout', {
-                      method: 'POST',
-                      headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                      }
-                    });
-                    
-                    setIsDriveAuthenticated(false);
-                    
-                    // Clear cached data explicitly to force UI update
-                    queryClient.removeQueries({ queryKey: ['drive-connection'] });
-                    queryClient.removeQueries({ queryKey: ['drive-documents'] });
-                    
-                    toast({
-                      title: "Disconnected",
-                      description: "Successfully disconnected from Google Drive. Reconnect to see your files with updated permissions.",
-                    });
-                  } catch (error: any) {
-                    console.error('Disconnect error:', error);
-                    toast({
-                      title: "Disconnect Failed",
-                      description: error?.message || "Failed to disconnect from Google Drive",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-                size="sm"
-                variant="ghost"
-                className="h-8 text-xs font-light tracking-wide text-muted-foreground hover:text-destructive"
-                data-testid="button-disconnect-drive"
-              >
-                Disconnect
-              </Button>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-destructive">

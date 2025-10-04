@@ -3601,7 +3601,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       response_type: 'code',
       scope,
       access_type: 'offline',
-      prompt: 'consent select_account',
+      include_granted_scopes: 'true',
+      prompt: 'consent',
       state
     });
 
@@ -3689,55 +3690,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Exchange code for access token
-      const redirectUri = `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`;
-      console.log('[OAuth Callback] Exchanging code for tokens:', {
-        reqId,
-        redirectUri,
-        hasCode: !!code,
-        codeLength: (code as string)?.length,
-        protocol: req.protocol,
-        host: req.get('host')
-      });
-      
       const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
-        redirectUri
+        `${req.protocol}://${req.get('host')}/api/drive/oauth-callback`
       );
 
-      console.log('[OAuth Callback] About to exchange code:', {
-        reqId,
-        codePreview: (code as string)?.substring(0, 20) + '...',
-        codeFullLength: (code as string)?.length
-      });
-
-      let tokens;
-      try {
-        const tokenResponse = await oauth2Client.getToken(code as string);
-        tokens = tokenResponse.tokens;
-        console.log('[OAuth Callback] ✅ Token exchange successful:', {
-          reqId,
-          hasAccessToken: !!tokens.access_token,
-          hasRefreshToken: !!tokens.refresh_token,
-          tokenType: tokens.token_type,
-          scope: tokens.scope
-        });
-      } catch (tokenError: any) {
-        console.error('[OAuth Callback] ❌ Token exchange failed:', {
-          reqId,
-          error: tokenError.message,
-          stack: tokenError.stack
-        });
-        return res.status(400).send(`
-          <script>
-            window.opener.postMessage({ success: false, error: 'Token exchange failed: ${tokenError.message}' }, '*');
-            window.close();
-          </script>
-        `);
-      }
-
+      const { tokens } = await oauth2Client.getToken(code as string);
       const accessToken = tokens.access_token;
-      const refreshToken = tokens.refresh_token;
       
       if (!accessToken) {
         return res.status(400).send(`
@@ -3749,7 +3709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Verify token with Google and get user info
-      oauth2Client.setCredentials(tokens);
+      oauth2Client.setCredentials({ access_token: accessToken });
       const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
       const userInfo = await oauth2.userinfo.get();
       
@@ -3763,13 +3723,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `);
       }
       
-      // Set the tokens in httpOnly cookies (both access and refresh for revocation)
+      // Set the token in httpOnly cookie
       setDriveTokenCookie(res, accessToken, req);
-      if (refreshToken) {
-        const opts = getCookieOptions(req);
-        res.cookie('drive_refresh_token', refreshToken, opts);
-        console.log('[OAuth Callback] ✅ Stored refresh token for revocation');
-      }
       
       // Log successful completion
       console.log(`[OAuth Callback] ✅ Drive authentication successful`, {
@@ -3878,41 +3833,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Sign out endpoint - revokes Google token and clears Drive token cookies
+  // Sign out endpoint - clears Drive token cookies
   app.post("/api/drive/signout", express.json(), verifyFirebaseToken, csrfProtection, async (req: AuthenticatedRequest, res) => {
     try {
-      // Get the refresh token to revoke it with Google
-      const refreshToken = req.cookies?.['drive_refresh_token'];
-      
-      if (refreshToken) {
-        try {
-          // Revoke the Google OAuth token
-          console.log('[Drive Revoke] Revoking Google OAuth token...');
-          const revokeUrl = `https://oauth2.googleapis.com/revoke?token=${refreshToken}`;
-          const revokeResponse = await fetch(revokeUrl, { method: 'POST' });
-          
-          if (revokeResponse.ok) {
-            console.log('[Drive Revoke] ✅ Successfully revoked Google OAuth token');
-          } else {
-            console.warn('[Drive Revoke] ⚠️ Failed to revoke token:', revokeResponse.status, await revokeResponse.text());
-          }
-        } catch (revokeError) {
-          console.error('[Drive Revoke] Error revoking token:', revokeError);
-          // Continue with cookie clearing even if revoke fails
-        }
-      } else {
-        console.log('[Drive Revoke] No refresh token found, skipping revocation');
-      }
-      
-      // Clear all Drive-related cookies
       clearDriveTokenCookies(res, req);
-      res.clearCookie('drive_refresh_token', getCookieOptions(req));
       
-      console.log('[Telemetry] Drive sign-out: Cookies cleared and token revoked for user:', req.user?.email);
+      console.log('[Telemetry] Drive sign-out: Cookies cleared for user:', req.user?.email);
       
       res.json({
         success: true,
-        message: "Drive sign-out successful - token revoked"
+        message: "Drive sign-out successful"
       });
     } catch (error) {
       console.error("Sign-out error:", error);

@@ -55,8 +55,8 @@ export class DriveService {
     try {
       const { pageSize = 50, pageToken, query, folderId } = options;
       
-      // Build query string - show all non-trashed files (no MIME type filter)
-      let q = `trashed = false`;
+      // Build query string
+      let q = `trashed = false and (${SUPPORTED_MIME_TYPES.map(type => `mimeType = '${type}'`).join(' or ')})`;
       
       if (folderId) {
         q += ` and '${folderId}' in parents`;
