@@ -1,11 +1,18 @@
-import { Sparkles, Menu } from "lucide-react";
+import { Sparkles, Menu, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MobileDocumentsHeaderProps {
   currentView: "documents" | "drive" | "trash";
   onViewChange: (view: "documents" | "drive" | "trash") => void;
   onFunFactsClick: () => void;
   onMenuClick: () => void;
+  onSmartOrganizationClick?: () => void;
   documentCount: number;
   isScrolling?: boolean;
 }
@@ -15,6 +22,7 @@ export function MobileDocumentsHeader({
   onViewChange,
   onFunFactsClick,
   onMenuClick,
+  onSmartOrganizationClick,
   documentCount,
   isScrolling = false
 }: MobileDocumentsHeaderProps) {
@@ -37,6 +45,28 @@ export function MobileDocumentsHeader({
 
         {/* Spacer */}
         <div className="flex-1"></div>
+
+        {/* Magic Wand - Smart Organization Check */}
+        {onSmartOrganizationClick && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onSmartOrganizationClick}
+                  className="h-11 w-11 p-0 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/20 transition-all hover:scale-110"
+                  data-testid="mobile-smart-organization-wand"
+                >
+                  <Wand2 className="h-6 w-6" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[250px] text-center">
+                <p className="text-sm">Automatically finds and fixes documents with missing data or incomplete AI analysis</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
 
         {/* Stats Button with Icon + Text - 25% Bigger */}
         <Button
