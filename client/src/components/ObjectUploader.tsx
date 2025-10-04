@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Eye, ArrowRight, XCircle } from "lucide-react";
+import { Eye, ArrowRight, XCircle, FileText } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -967,66 +967,75 @@ export function ObjectUploader({
 
       {/* Duplicate Detection Modal */}
       <Dialog open={duplicateModal.isOpen} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-md rounded-xl border-2 border-slate-200/60 dark:border-slate-700/60 shadow-2xl">
+        <DialogContent className="sm:max-w-md rounded-2xl border-2 border-indigo-200/40 dark:border-indigo-700/40 shadow-2xl bg-gradient-to-br from-white via-indigo-50/30 to-purple-50/30 dark:from-gray-900 dark:via-indigo-950/30 dark:to-purple-950/30">
           <DialogHeader>
-            <DialogTitle className="text-xl font-light tracking-wide bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent flex items-center gap-2">
-              Duplicate File Detected! ⚠️
+            <DialogTitle className="text-2xl font-light tracking-wide bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent flex items-center gap-2">
+              <span className="text-3xl">✨</span> File Already Here!
             </DialogTitle>
-            <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 font-light">
-              {duplicateModal.duplicateInfo?.message}
+            <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 font-light pt-1">
+              Good news! We found this file in your library already. 
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            <div className="bg-gradient-to-r from-amber-50/50 to-orange-50/50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200/60 dark:border-amber-700/60 rounded-xl p-4 shadow-sm">
-              <p className="text-sm text-slate-700 dark:text-slate-200 font-light">
-                <strong className="font-semibold">File:</strong> {duplicateModal.file?.name}
-              </p>
-              <p className="text-sm mt-2 text-slate-700 dark:text-slate-200 font-light">
-                <strong className="font-semibold">Already exists:</strong> {duplicateModal.duplicateInfo?.duplicateCount} time{duplicateModal.duplicateInfo?.duplicateCount !== 1 ? 's' : ''}
-              </p>
+          <div className="space-y-4 pt-2">
+            <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border-2 border-indigo-100/60 dark:border-indigo-900/60 rounded-2xl p-5 shadow-lg">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                    {duplicateModal.file?.name}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Exists {duplicateModal.duplicateInfo?.duplicateCount} time{duplicateModal.duplicateInfo?.duplicateCount !== 1 ? 's' : ''} in your library
+                  </p>
+                </div>
+              </div>
               {duplicateModal.duplicateInfo?.existingDocs?.[0] && (
-                <p className="text-sm mt-2 text-slate-700 dark:text-slate-200 font-light">
-                  <strong className="font-semibold">Original:</strong> "{duplicateModal.duplicateInfo.existingDocs[0].name}"
-                </p>
+                <div className="pt-3 border-t border-slate-200/60 dark:border-slate-700/60">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-light">
+                    Saved as: <span className="text-slate-700 dark:text-slate-200 font-medium">"{duplicateModal.duplicateInfo.existingDocs[0].name}"</span>
+                  </p>
+                </div>
               )}
             </div>
 
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">What would you like to do?</p>
+            <div className="space-y-2.5">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200 px-1">Choose an action:</p>
               
-              <div className="grid grid-cols-1 gap-2.5">
+              <div className="grid grid-cols-1 gap-2">
                 {/* View File Option */}
                 <Button
                   onClick={() => duplicateModal.onResolve?.('view')}
                   variant="outline"
-                  className="w-full justify-start rounded-xl border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600 font-light tracking-wide shadow-sm hover:shadow-md transition-all"
+                  className="w-full justify-start rounded-xl bg-white/50 dark:bg-slate-800/50 border-indigo-200 hover:border-indigo-300 dark:border-indigo-800 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/30 font-light tracking-wide shadow-sm hover:shadow-md transition-all"
                   data-testid="button-view-existing"
                 >
                   <Eye className="h-4 w-4 mr-2" />
-                  View Existing File
+                  Open Existing File
                 </Button>
 
                 {/* Proceed Option */}
                 <Button
                   onClick={() => duplicateModal.onResolve?.('proceed')}
                   variant="default"
-                  className="w-full justify-start bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 rounded-xl shadow-lg hover:shadow-xl font-light tracking-wide transition-all"
+                  className="w-full justify-start bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 rounded-xl shadow-lg hover:shadow-xl font-light tracking-wide transition-all"
                   data-testid="button-proceed-upload"
                 >
                   <ArrowRight className="h-4 w-4 mr-2" />
-                  Proceed with Upload Anyway
+                  Upload as New Copy
                 </Button>
 
                 {/* Cancel Option */}
                 <Button
                   onClick={() => duplicateModal.onResolve?.('cancel')}
-                  variant="destructive"
-                  className="w-full justify-start rounded-xl font-light tracking-wide shadow-sm hover:shadow-md transition-all"
+                  variant="outline"
+                  className="w-full justify-start rounded-xl bg-white/50 dark:bg-slate-800/50 border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600 text-slate-600 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-200 font-light tracking-wide shadow-sm hover:shadow-md transition-all"
                   data-testid="button-cancel-upload"
                 >
                   <XCircle className="h-4 w-4 mr-2" />
-                  Don't Bother Uploading
+                  Skip Upload
                 </Button>
               </div>
             </div>
