@@ -765,11 +765,15 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                                   <Badge variant="secondary" className="ml-1.5 text-[9px] h-4 px-1">Edited</Badge>
                                 )}
                               </span>
-                              {formatConfidence(document.aiCategoryConfidence) && (
+                              {document.classificationOverridden ? (
+                                <span className="text-[9px] bg-purple-100 dark:bg-purple-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide whitespace-nowrap" data-testid={`modal-confidence-category-${document.id}`}>
+                                  Custom
+                                </span>
+                              ) : formatConfidence(document.aiCategoryConfidence) ? (
                                 <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide whitespace-nowrap" data-testid={`modal-confidence-category-${document.id}`}>
                                   Classification Confidence: {formatConfidence(document.aiCategoryConfidence)}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           )}
                           {document.aiDocumentType && (
@@ -785,11 +789,15 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
                                   <Badge variant="secondary" className="ml-1.5 text-[9px] h-4 px-1">Edited</Badge>
                                 )}
                               </span>
-                              {formatConfidence(document.aiDocumentTypeConfidence) && (
+                              {document.classificationOverridden ? (
+                                <span className="text-[9px] bg-purple-100 dark:bg-purple-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide whitespace-nowrap" data-testid={`modal-confidence-type-${document.id}`}>
+                                  Custom
+                                </span>
+                              ) : formatConfidence(document.aiDocumentTypeConfidence) ? (
                                 <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded font-medium tracking-wide whitespace-nowrap" data-testid={`modal-confidence-type-${document.id}`}>
                                   Classification Confidence: {formatConfidence(document.aiDocumentTypeConfidence)}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           )}
                         </div>
