@@ -520,7 +520,7 @@ export function DocumentModal({ document: initialDocument, open, onOpenChange, s
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-3xl max-h-[70vh] md:max-h-[85vh] overflow-hidden flex flex-col p-0">
         <div className="flex-shrink-0 px-4 pt-4">
           <DialogHeader>
             <DialogTitle className="flex items-center text-base font-light tracking-wide" title={getDocumentTooltip(document)} data-testid={`document-name-modal-${document.id}`}>
