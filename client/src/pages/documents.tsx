@@ -1679,24 +1679,43 @@ export default function Documents() {
                   <h3 className="text-2xl font-light tracking-tight text-foreground mb-3 bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400 bg-clip-text text-transparent">
                     No matches found
                   </h3>
-                  <p className="text-muted-foreground text-base font-light max-w-md">
+                  <p className="text-muted-foreground text-base font-light max-w-md text-center">
                     {searchMode === "ai" 
-                      ? "Your AI search didn't find any matches. Try different keywords or phrases."
-                      : "Clear some filters or try a different search term."}
+                      ? "Try different keywords or clear your search"
+                      : "Try clearing some filters or searching differently"}
                   </p>
                 </>
               ) : (
                 <>
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 dark:from-indigo-600 dark:to-purple-600 rounded-full blur-2xl opacity-20 animate-pulse"></div>
-                    <Sparkles className="relative h-20 w-20 text-indigo-500 dark:text-indigo-400" strokeWidth={1.5} />
+                  <div className="relative mb-8">
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 dark:from-indigo-600 dark:via-purple-600 dark:to-pink-600 rounded-full blur-3xl opacity-30 animate-pulse"></div>
+                    <div className="relative flex items-center justify-center">
+                      <Upload className="h-24 w-24 text-indigo-500 dark:text-indigo-400" strokeWidth={1.5} />
+                    </div>
                   </div>
-                  <h3 className="text-2xl font-light tracking-tight text-foreground mb-3 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
-                    Ready to organize?
+                  <h3 className="text-3xl font-light tracking-tight text-foreground mb-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
+                    Your Document Hub Awaits
                   </h3>
-                  <p className="text-muted-foreground text-base font-light mb-6 max-w-md">
-                    Upload your first document and watch our AI work its magic! ✨
+                  <p className="text-lg text-muted-foreground font-light mb-2 max-w-lg text-center leading-relaxed">
+                    Drop your receipts, invoices, contracts, PDFs, images—<span className="font-medium text-foreground">anything</span>.
                   </p>
+                  <p className="text-base text-muted-foreground font-light mb-8 max-w-md text-center">
+                    Our AI instantly organizes, categorizes, and makes everything searchable. No more chaos. ✨
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 items-center">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-full">
+                      <Sparkles className="h-4 w-4 text-purple-500" />
+                      <span>AI-Powered Organization</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-full">
+                      <Search className="h-4 w-4 text-indigo-500" />
+                      <span>Instant Search</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-full">
+                      <FolderOpen className="h-4 w-4 text-pink-500" />
+                      <span>Smart Folders</span>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
