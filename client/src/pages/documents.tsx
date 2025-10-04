@@ -1705,7 +1705,7 @@ export default function Documents() {
                     Your Document Hub Awaits
                   </h3>
                   <p className="text-lg text-muted-foreground font-light mb-2 max-w-lg text-center leading-relaxed">
-                    Drop your receipts, invoices, contracts, PDFs, images—<span className="font-medium text-foreground">anything</span>.
+                    Drop or snap your receipts, invoices, contracts, PDFs, images—<span className="font-medium text-foreground">anything</span>.
                   </p>
                   <p className="text-base text-muted-foreground font-light max-w-md text-center">
                     Our AI instantly organizes, categorizes, and makes everything searchable. No more chaos. ✨
