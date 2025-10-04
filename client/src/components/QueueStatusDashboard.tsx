@@ -258,76 +258,28 @@ export function QueueStatusDashboard({ isOpen, onClose, compact = false, onUploa
                   </CardContent>
                 </Card>
 
-                {/* Time-Aware Prompts - 50% width */}
+                {/* Smart Suggestions - 50% width */}
                 <Card className="border-blue-200/50 dark:border-blue-800/50 bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-950/20 dark:to-gray-900/70">
                   <CardHeader>
                     <CardTitle className="text-xl font-light tracking-wide flex items-center gap-2">
-                      <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      Time-Aware Prompts
+                      <Lightbulb className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      Smart Suggestions
                     </CardTitle>
-                    <CardDescription className="font-light tracking-wide">Documents You'll Need This Month</CardDescription>
+                    <CardDescription className="font-light tracking-wide">Quick wins for better organization</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {(() => {
-                      const now = new Date();
-                      const month = now.getMonth(); // 0-11
-                      const dayOfWeek = now.getDay(); // 0-6
-                      const dayOfMonth = now.getDate();
-                      const daysInMonth = new Date(now.getFullYear(), month + 1, 0).getDate();
-                      const isEndOfMonth = dayOfMonth >= daysInMonth - 3;
-
-                      // Monthly prompts
-                      let monthlyPrompt = "";
-                      switch (month) {
-                        case 0: // January
-                          monthlyPrompt = "Tax season prep - start with last year's receipts";
-                          break;
-                        case 2: // March
-                          monthlyPrompt = "Tax documents checklist";
-                          break;
-                        case 8: // September
-                          monthlyPrompt = "Back-to-school forms";
-                          break;
-                        case 11: // December
-                          monthlyPrompt = "Year-end expense reports";
-                          break;
-                        default:
-                          monthlyPrompt = "Keep your documents organized and ready";
-                      }
-
-                      // Weekly prompt (Monday)
-                      const weeklyPrompt = dayOfWeek === 1 ? "Weekly expense reports made simple" : null;
-
-                      // End of month prompt
-                      const endOfMonthPrompt = isEndOfMonth ? "Invoice organization time" : null;
-
-                      return (
-                        <>
-                          <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                            <Lightbulb className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                            <p className="text-sm font-light tracking-wide">
-                              {monthlyPrompt}
-                            </p>
-                          </div>
-                          {weeklyPrompt && (
-                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                              <Calendar className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                              <p className="text-sm font-light tracking-wide">
-                                {weeklyPrompt}
-                              </p>
-                            </div>
-                          )}
-                          {endOfMonthPrompt && (
-                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
-                              <Clock className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
-                              <p className="text-sm font-light tracking-wide">
-                                {endOfMonthPrompt}
-                              </p>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
+                    <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                      <Sparkles className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm font-light tracking-wide" data-testid="text-untagged-docs">
+                        {data?.insights.smartRecommendations.untaggedDocs}
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                      <HardDrive className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm font-light tracking-wide" data-testid="text-storage-optimization">
+                        {data?.insights.smartRecommendations.storageOptimization}
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
