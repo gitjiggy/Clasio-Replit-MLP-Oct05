@@ -3914,6 +3914,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get folders for navigation
       const folders = await driveService.getFolders();
       
+      // Debug logging for pagination
+      console.log('[Drive Pagination]', {
+        filesReturned: result.files.length,
+        pageSize: validatedQuery.pageSize,
+        hasNextPageToken: !!result.nextPageToken,
+        nextPageToken: result.nextPageToken ? result.nextPageToken.substring(0, 20) + '...' : null
+      });
+      
       res.json({
         files: result.files,
         folders,
