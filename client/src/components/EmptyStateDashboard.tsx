@@ -108,7 +108,7 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/40 dark:border-purple-800/40 shadow-2xl">
+      <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/40 dark:border-purple-800/40 shadow-2xl">
         <CardHeader className="border-b border-purple-200/40 dark:border-purple-800/40 pb-2 pt-3">
           <div className="flex items-center justify-between">
             <div>
@@ -134,10 +134,10 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
         <CardContent className="space-y-2.5 mt-2.5 pb-3">
           {/* Quick Win Scenarios */}
           <div className="space-y-1">
-            <h3 className="text-sm font-light tracking-wide text-slate-600 dark:text-slate-400 px-1">
+            <h3 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
               Got 30 seconds? Try this:
             </h3>
-            <div className="grid grid-cols-1 gap-1">
+            <div className="grid grid-cols-2 gap-1.5">
               {quickActions.map((action, index) => {
                 const Icon = action.icon;
                 return (
@@ -160,10 +160,10 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
 
           {/* Quick Document Audit */}
           <div className="space-y-1">
-            <h3 className="text-sm font-light tracking-wide text-slate-600 dark:text-slate-400 px-1">
+            <h3 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
               Quick Document Audit
             </h3>
-            <div className="grid grid-cols-1 gap-1">
+            <div className="grid grid-cols-2 gap-1.5">
               {auditQuestions.map((item, index) => {
                 const Icon = item.icon;
                 return (
@@ -186,10 +186,10 @@ export function EmptyStateDashboard({ isOpen, onClose, onUpload }: EmptyStateDas
 
           {/* Where are your documents hiding? */}
           <div className="space-y-1">
-            <h3 className="text-sm font-light tracking-wide text-slate-600 dark:text-slate-400 px-1">
+            <h3 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-300 px-1">
               Where are your documents hiding?
             </h3>
-            <div className="grid grid-cols-1 gap-1">
+            <div className="grid grid-cols-2 gap-1.5">
               {documentLocations.map((location, index) => {
                 const Icon = location.icon;
                 return (
