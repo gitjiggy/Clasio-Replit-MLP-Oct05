@@ -34,7 +34,7 @@ function AppHeader({ onSignInClick }: AppHeaderProps) {
   return (
     <header className="border-b bg-gradient-to-r from-slate-600 via-indigo-500 to-purple-500 dark:from-slate-700 dark:via-indigo-600 dark:to-purple-600 sticky top-0 z-50">
       <div className="container flex h-24 md:h-28 items-center justify-between px-4">
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center md:justify-start ml-8 md:ml-0">
           <img 
             src="/attached_assets/noBgColor (1)_1759471370484.png" 
             alt="Clasio - AI-Powered Document Management" 
