@@ -1,4 +1,4 @@
-import { X, FileText, Upload, Star, FolderOpen, Sparkles, Target, Trash2, Clock } from "lucide-react";
+import { X, FileText, Upload, Star, FolderOpen, Wand2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -19,8 +19,8 @@ interface MobileSidebarProps {
   selectedFolderId: string;
   onFolderSelect: (id: string) => void;
   folders: Folder[];
-  onSmartOrganize?: () => void;
-  isOrganizing?: boolean;
+  onSmartOrganizationCheck?: () => void;
+  isCheckingOrganization?: boolean;
   onFunFactsClick?: () => void;
   onDeleteAll?: () => void;
   isDeleting?: boolean;
@@ -35,8 +35,8 @@ export function MobileSidebar({
   selectedFolderId,
   onFolderSelect,
   folders,
-  onSmartOrganize,
-  isOrganizing = false,
+  onSmartOrganizationCheck,
+  isCheckingOrganization = false,
   onFunFactsClick,
   onDeleteAll,
   isDeleting = false,
@@ -172,20 +172,20 @@ export function MobileSidebar({
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Smart Organization
               </h3>
-              {onSmartOrganize && (
+              {onSmartOrganizationCheck && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    onSmartOrganize();
+                    onSmartOrganizationCheck();
                     onClose();
                   }}
-                  disabled={isOrganizing}
-                  className="h-8 px-2 text-xs"
-                  data-testid="mobile-smart-organize-button"
+                  disabled={isCheckingOrganization}
+                  className="h-8 w-8 p-0 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/20"
+                  data-testid="mobile-smart-organization-wand"
+                  title="Automatically finds and fixes documents with missing data or incomplete AI analysis"
                 >
-                  <Target className="h-3.5 w-3.5 mr-1" />
-                  {isOrganizing ? "Organizing..." : "Organize"}
+                  <Wand2 className="h-4 w-4" />
                 </Button>
               )}
             </div>
