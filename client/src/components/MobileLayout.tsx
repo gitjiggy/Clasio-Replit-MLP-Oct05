@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { MobileDocumentsHeader } from "./MobileDocumentsHeader";
+import { MobileSearchModal } from "./MobileSearchModal";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -11,6 +12,22 @@ interface MobileLayoutProps {
   documentCount?: number;
   onQueueDashboardOpen?: () => void;
   uploadButtonRef?: React.RefObject<HTMLDivElement>;
+  // Search props
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  searchMode?: "simple" | "ai";
+  onSearchModeChange?: (mode: "simple" | "ai") => void;
+  onAISearch?: () => void;
+  aiSearchLoading?: boolean;
+  aiSearchResults?: any;
+  selectedFileType?: string;
+  onFileTypeChange?: (type: string) => void;
+  selectedFolderId?: string;
+  onFolderChange?: (id: string) => void;
+  selectedTagId?: string;
+  onTagChange?: (id: string) => void;
+  folders?: Array<{ id: string; name: string }>;
+  tags?: Array<{ id: string; name: string }>;
 }
 
 export function MobileLayout({
@@ -20,7 +37,23 @@ export function MobileLayout({
   hasDocuments = false,
   documentCount = 0,
   onQueueDashboardOpen,
-  uploadButtonRef
+  uploadButtonRef,
+  // Search props with defaults
+  searchQuery = "",
+  onSearchChange = () => {},
+  searchMode = "simple",
+  onSearchModeChange = () => {},
+  onAISearch = () => {},
+  aiSearchLoading = false,
+  aiSearchResults,
+  selectedFileType = "all",
+  onFileTypeChange = () => {},
+  selectedFolderId = "all",
+  onFolderChange = () => {},
+  selectedTagId,
+  onTagChange = () => {},
+  folders = [],
+  tags = [],
 }: MobileLayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -56,6 +89,27 @@ export function MobileLayout({
 
       {/* Page Content */}
       {children}
+
+      {/* Mobile Search Modal - Only visible on mobile */}
+      <MobileSearchModal
+        isOpen={mobileSearchOpen}
+        onClose={() => setMobileSearchOpen(false)}
+        searchQuery={searchQuery}
+        onSearchChange={onSearchChange}
+        searchMode={searchMode}
+        onSearchModeChange={onSearchModeChange}
+        onAISearch={onAISearch}
+        aiSearchLoading={aiSearchLoading}
+        aiSearchResults={aiSearchResults}
+        selectedFileType={selectedFileType}
+        onFileTypeChange={onFileTypeChange}
+        selectedFolderId={selectedFolderId}
+        onFolderChange={onFolderChange}
+        selectedTagId={selectedTagId}
+        onTagChange={onTagChange}
+        folders={folders}
+        tags={tags}
+      />
 
       {/* Mobile Bottom Navigation - Only visible on mobile */}
       <MobileBottomNav
