@@ -442,6 +442,11 @@ export function ObjectUploader({
                       resolve({ success: false, error: 'user_chose_view', skipErrorHandling: true });
                     } else {
                       // User chose "Don't bother uploading"
+                      console.log("User cancelled upload for duplicate file");
+                      setShowModal(false);
+                      setState("idle");
+                      setSelectedFiles([]);
+                      setErrors([]);
                       resolve({ success: false, error: 'user_cancelled', reason: 'duplicate_cancelled', skipErrorHandling: true });
                     }
                   }
@@ -607,8 +612,15 @@ export function ObjectUploader({
                     onViewExistingDocument(firstDoc.id);
                   }
                 }
+              } else if (userDecision === 'cancel') {
+                // User chose not to upload - close modal and reset
+                console.log("User cancelled upload for duplicate file");
+                setShowModal(false);
+                setState("idle");
+                setSelectedFiles([]);
+                setErrors([]);
+                return; // Exit the upload function
               }
-              // For 'cancel', we do nothing - file is skipped
             }
           }
         }
