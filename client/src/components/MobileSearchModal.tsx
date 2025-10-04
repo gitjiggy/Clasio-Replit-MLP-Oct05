@@ -30,6 +30,7 @@ interface MobileSearchModalProps {
   onTagChange: (id: string) => void;
   folders?: Array<{ id: string; name: string }>;
   tags?: Array<{ id: string; name: string }>;
+  availableFileTypes?: Array<{ value: string; label: string }>;
 }
 
 export function MobileSearchModal({
@@ -50,6 +51,7 @@ export function MobileSearchModal({
   onTagChange,
   folders = [],
   tags = [],
+  availableFileTypes = [],
 }: MobileSearchModalProps) {
   const [showFilters, setShowFilters] = useState(false);
 
@@ -185,9 +187,11 @@ export function MobileSearchModal({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="application/pdf">PDF</SelectItem>
-                    <SelectItem value="application/vnd.openxmlformats-officedocument.wordprocessingml.document">Word</SelectItem>
-                    <SelectItem value="text/plain">Text</SelectItem>
+                    {availableFileTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -205,7 +209,7 @@ export function MobileSearchModal({
                   <SelectContent>
                     <SelectItem value="all">All Folders</SelectItem>
                     {folders
-                      .filter(folder => folder.isAutoCreated && !folder.parentId)
+                      .filter(folder => folder.isAutoCreated && !folder.parentId && folder.documentCount > 0)
                       .map((folder) => (
                         <SelectItem key={folder.id} value={folder.id}>
                           {folder.name}

@@ -44,6 +44,7 @@ interface MobileLayoutProps {
   onTagChange?: (id: string) => void;
   folders?: Folder[];
   tags?: Array<{ id: string; name: string }>;
+  availableFileTypes?: Array<{ value: string; label: string }>;
   // Sidebar props
   viewMode?: string;
   onViewModeChange?: (mode: string) => void;
@@ -77,6 +78,7 @@ export function MobileLayout({
   onTagChange = () => {},
   folders = [],
   tags = [],
+  availableFileTypes = [],
   // Sidebar props with defaults
   viewMode = "all",
   onViewModeChange = () => {},
@@ -152,6 +154,7 @@ export function MobileLayout({
         onTagChange={onTagChange}
         folders={folders}
         tags={tags}
+        availableFileTypes={availableFileTypes}
       />
 
       {/* Mobile Sidebar - Only visible on mobile */}

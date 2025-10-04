@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 
 // Humorous delete messaging for Clasio's document management
@@ -631,6 +631,47 @@ export default function Documents() {
   const { data: tags = [] } = useQuery<Tag[]>({
     queryKey: ['/api/tags'],
   });
+
+  // Calculate available file types dynamically from documents
+  const availableFileTypes = useMemo(() => {
+    if (!documentsData?.documents || documentsData.documents.length === 0) {
+      return [];
+    }
+
+    // Extract unique file types
+    const uniqueTypes = new Set(documentsData.documents.map(doc => doc.fileType));
+    const typeArray = Array.from(uniqueTypes);
+    const types: Array<{ value: string; label: string }> = [];
+
+    // Image types - backend has special handling for 'image' value
+    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'tiff', 'ico'];
+    const hasImages = typeArray.some(type => imageTypes.includes(type));
+    if (hasImages) {
+      types.push({ value: 'image', label: 'Images' });
+    }
+
+    // Map other file types to user-friendly labels
+    const typeLabels: Record<string, string> = {
+      'pdf': 'PDF',
+      'doc': 'Word (DOC)',
+      'docx': 'Word (DOCX)',
+      'txt': 'Text',
+      'text/plain': 'Plain Text',
+      'xlsx': 'Excel',
+      'csv': 'CSV',
+      'pptx': 'PowerPoint',
+    };
+
+    // Add individual file types (excluding image types which are grouped)
+    typeArray
+      .filter(type => !imageTypes.includes(type))
+      .forEach(type => {
+        const label = typeLabels[type] || type.toUpperCase();
+        types.push({ value: type, label });
+      });
+
+    return types;
+  }, [documentsData?.documents]);
 
   // Sync selected document with updated data when documents refetch
   useEffect(() => {
@@ -1501,6 +1542,7 @@ export default function Documents() {
       onTagChange={setSelectedTagId}
       folders={folders}
       tags={tags}
+      availableFileTypes={availableFileTypes}
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       onSmartOrganize={() => organizeAllMutation.mutate()}
@@ -1670,10 +1712,11 @@ export default function Documents() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="pdf">PDF</SelectItem>
-                  <SelectItem value="docx">Word</SelectItem>
-                  <SelectItem value="xlsx">Excel</SelectItem>
-                  <SelectItem value="image">Images</SelectItem>
+                  {availableFileTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               
@@ -1684,7 +1727,7 @@ export default function Documents() {
                 <SelectContent>
                   <SelectItem value="all">All Folders</SelectItem>
                   {folders
-                    .filter(folder => folder.isAutoCreated && !folder.parentId)
+                    .filter(folder => folder.isAutoCreated && !folder.parentId && folder.documentCount > 0)
                     .map((folder) => (
                     <SelectItem key={folder.id} value={folder.id}>
                       {folder.name}
