@@ -270,10 +270,10 @@ export default function Drive() {
         </div>
       </div>
 
-      {/* Connection Status & Search - All in One Line */}
-      <div className="mb-6 flex items-center gap-4">
+      {/* Connection Status & Search - Responsive Layout */}
+      <div className="mb-6 flex flex-col md:flex-row md:items-center gap-4">
         {/* Connection Status Box */}
-        <div className="inline-flex items-center gap-6 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-3 shadow-sm">
+        <div className="inline-flex items-center gap-3 md:gap-6 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2">
             <Cloud className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-light tracking-wide text-foreground">Drive Connection Status</span>
@@ -377,7 +377,7 @@ export default function Drive() {
 
         {/* Search Box */}
         {connectionStatus?.connected && (
-          <div className="inline-flex items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-2.5 shadow-sm flex-1 max-w-md">
+          <div className="inline-flex items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border border-border/50 rounded-xl px-4 py-2.5 shadow-sm w-full md:flex-1 md:max-w-md">
             <Search className="h-4 w-4 text-muted-foreground mr-3 flex-shrink-0" />
             <input
               type="text"
@@ -390,8 +390,8 @@ export default function Drive() {
           </div>
         )}
 
-        {/* Spacer to push refresh to the right */}
-        {connectionStatus?.connected && <div className="flex-1" />}
+        {/* Spacer to push refresh to the right on desktop only */}
+        {connectionStatus?.connected && <div className="hidden md:block md:flex-1" />}
 
         {/* Refresh Button */}
         {connectionStatus?.connected && (
@@ -402,7 +402,7 @@ export default function Drive() {
             }} 
             variant="outline" 
             size="sm" 
-            className="font-light tracking-wide"
+            className="font-light tracking-wide w-full md:w-auto"
             data-testid="button-refresh-drive"
             disabled={connectionLoading || documentsLoading}
           >
