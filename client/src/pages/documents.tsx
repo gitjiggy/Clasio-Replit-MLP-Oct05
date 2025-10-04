@@ -1642,8 +1642,8 @@ export default function Documents() {
                 Clear
               </Button>
               
-              {/* Search Components - Grouped with subtle bounding box */}
-              <div className="flex items-center gap-2 p-2 rounded-2xl border-2 border-slate-200/40 dark:border-slate-700/40 bg-slate-50/30 dark:bg-slate-800/20 flex-shrink-0">
+              {/* Search Components - Desktop only (mobile has search in bottom nav) */}
+              <div className="hidden md:flex items-center gap-2 p-2 rounded-2xl border-2 border-slate-200/40 dark:border-slate-700/40 bg-slate-50/30 dark:bg-slate-800/20 flex-shrink-0">
                 {/* Search Mode Toggle */}
                 <div className="flex items-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-850 border-2 border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden h-11 shadow-lg w-[140px]">
                   <Button
