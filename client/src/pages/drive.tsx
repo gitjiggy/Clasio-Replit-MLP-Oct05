@@ -253,7 +253,14 @@ export default function Drive() {
 
   return (
     <MobileLayout documentCount={driveData?.files?.length || 0}>
-      <div className="container mx-auto p-6 max-w-6xl">
+      {(() => {
+        const hasScrollableContent = connectionStatus?.connected && 
+          (documentsLoading || (driveData?.files?.length ?? 0) > 0);
+        
+        return (
+          <div className={`container mx-auto p-6 max-w-6xl md:overflow-y-auto ${
+            hasScrollableContent ? 'overflow-y-auto' : 'overflow-y-visible'
+          }`}>
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <HardDrive className="h-8 w-8 text-blue-600" />
@@ -520,7 +527,9 @@ export default function Drive() {
           </div>
         </>
       )}
-      </div>
+        </div>
+        );
+      })()}
     </MobileLayout>
   );
 }
