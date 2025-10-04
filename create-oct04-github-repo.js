@@ -62,12 +62,16 @@ const EXCLUDE_PATTERNS = [
   '*.tar.gz',
   '*.log',
   'server/public',
-  '*.js', // Exclude all upload scripts
+  '*.js', // Exclude all upload scripts  
   'attached_assets',
   'project-backup.tar.gz',
   '.config',
+  '.cache',
+  '.local',
   'gz',
-  '*.png' // Exclude screenshots
+  '*.png', // Exclude screenshots
+  'test/',
+  '.github/'
 ];
 
 function shouldExclude(filePath) {
@@ -115,12 +119,26 @@ async function uploadFile(octokit, owner, repo, filePath, content) {
   try {
     const contentBase64 = Buffer.from(content).toString('base64');
     
+    // Try to get existing file SHA for updates
+    let sha;
+    try {
+      const { data } = await octokit.repos.getContent({
+        owner,
+        repo,
+        path: filePath
+      });
+      sha = data.sha;
+    } catch (e) {
+      // File doesn't exist, that's fine
+    }
+    
     await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
       path: filePath,
       message: `Add ${filePath}`,
-      content: contentBase64
+      content: contentBase64,
+      ...(sha && { sha })
     });
     
     return true;
@@ -134,14 +152,17 @@ async function main() {
   console.log('🚀 Creating Clasio-Replit-MLP-Oct04 repository...\n');
   
   const octokit = await getUncachableGitHubClient();
-  const owner = 'gitjiggy';
   const repoName = 'Clasio-Replit-MLP-Oct04';
+  
+  // Get authenticated user
+  const { data: user } = await octokit.users.getAuthenticated();
+  const owner = user.login;
+  console.log(`📝 Authenticated as: ${owner}\n`);
   
   // Create repository
   console.log('📦 Creating repository...');
   try {
-    const { data: repo } = await octokit.repos.createInOrg({
-      org: owner,
+    const { data: repo } = await octokit.repos.createForAuthenticatedUser({
       name: repoName,
       description: 'AI-powered document management system with mobile-first design - Oct 04, 2025 mobile viewport optimization',
       private: false,
