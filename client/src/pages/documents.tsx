@@ -459,21 +459,6 @@ export default function Documents() {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
-  // AI analysis flavor text for notifications
-  const currentAIFlavor = useAIAnalysisFlavor(isPollingForAI);
-  
-  // Show rotating AI analysis notifications during polling
-  useEffect(() => {
-    if (!isPollingForAI) return;
-    
-    // Show toast notification with current flavor text
-    toast({
-      title: "🤖 Smart Organization Active",
-      description: currentAIFlavor,
-      duration: 2800, // Show for slightly less than rotation time
-    });
-  }, [isPollingForAI, currentAIFlavor, toast]);
 
   // Handle search with debouncing
   const handleSearchChange = (query: string) => {
