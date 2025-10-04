@@ -208,6 +208,7 @@ interface ObjectUploaderProps {
   children: ReactNode;
   onSuccess?: (docIds: string[]) => void;
   onClose?: () => void;
+  onViewExistingDocument?: (documentId: string) => void;
 }
 
 // Helper function to format file size
@@ -238,6 +239,7 @@ export function ObjectUploader({
   children,
   onSuccess,
   onClose,
+  onViewExistingDocument,
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
   const [state, setState] = useState<UploadState>("idle");
@@ -426,13 +428,16 @@ export function ObjectUploader({
                       // User chose "View File" - navigate to existing document
                       const firstExisting = result.existingDocs?.[0];
                       if (firstExisting) {
-                        // TODO: Navigate to document view - implement navigation logic here
-                        console.log("Navigating to document:", firstExisting.id);
-                        toast({
-                          title: "Opening Document",
-                          description: `Navigating to "${firstExisting.name}"`,
-                          duration: 3000,
-                        });
+                        console.log("Opening existing document:", firstExisting.id);
+                        // Close all modals
+                        setShowModal(false);
+                        setState("idle");
+                        setSelectedFiles([]);
+                        setErrors([]);
+                        // Call parent callback to open document
+                        if (onViewExistingDocument) {
+                          onViewExistingDocument(firstExisting.id);
+                        }
                       }
                       resolve({ success: false, error: 'user_chose_view', skipErrorHandling: true });
                     } else {
@@ -591,12 +596,16 @@ export function ObjectUploader({
                 // User chose to view existing file - open document modal
                 if (fileResult.existingDocs && fileResult.existingDocs.length > 0) {
                   const firstDoc = fileResult.existingDocs[0];
-                  // Trigger document modal opening (this will be handled by parent component)
-                  toast({
-                    title: "Opening existing document",
-                    description: `Viewing "${firstDoc.name}"`,
-                  });
-                  // Note: The actual document modal opening should be handled by the parent
+                  console.log("Opening existing document:", firstDoc.id);
+                  // Close all modals
+                  setShowModal(false);
+                  setState("idle");
+                  setSelectedFiles([]);
+                  setErrors([]);
+                  // Call parent callback to open document
+                  if (onViewExistingDocument) {
+                    onViewExistingDocument(firstDoc.id);
+                  }
                 }
               }
               // For 'cancel', we do nothing - file is skipped

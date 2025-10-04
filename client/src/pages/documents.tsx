@@ -1323,6 +1323,30 @@ export default function Documents() {
     setDocumentModalOpen(true);
   };
 
+  const handleViewExistingDocument = useCallback((documentId: string) => {
+    // Find the document from the current documents list
+    const document = documentsData?.documents.find(doc => doc.id === documentId);
+    if (document) {
+      setSelectedDocument(document);
+      setDocumentModalOpen(true);
+    } else {
+      // If not in current list, fetch it from the API
+      apiRequest(`/api/documents/${documentId}`)
+        .then((doc: DocumentWithFolderAndTags) => {
+          setSelectedDocument(doc);
+          setDocumentModalOpen(true);
+        })
+        .catch((error) => {
+          console.error('Failed to fetch document:', error);
+          toast({
+            title: "Error",
+            description: "Could not open the document. It may have been deleted.",
+            variant: "destructive",
+          });
+        });
+    }
+  }, [documentsData, toast]);
+
   const handleOpenDocumentFile = async (document: DocumentWithFolderAndTags) => {
     // For Drive documents, open Drive viewer directly
     if (document.driveWebViewLink) {
@@ -1714,12 +1738,8 @@ export default function Documents() {
                 <ObjectUploader
                   maxNumberOfFiles={5}
                   maxFileSize={50 * 1024 * 1024}
-                  enableBulkUpload={true}
-                  onGetUploadParameters={getUploadParameters}
-                  onGetBulkUploadParameters={getBulkUploadParameters}
-                  onComplete={handleUploadComplete}
-                  onBulkUploadComplete={handleBulkUploadComplete}
                   onSuccess={handleUploadSuccess}
+                  onViewExistingDocument={handleViewExistingDocument}
                   buttonClassName="h-11 px-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white text-sm font-light tracking-wide rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 flex-shrink-0"
                 >
                   <Upload className="h-5 w-5" />
