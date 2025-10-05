@@ -1,0 +1,743 @@
+"""
+DOCUMENT CONSCIOUSNESS IMPLEMENTATION FOR CLASIO - WITH SOURCE TRACKING
+=======================================================================
+
+This implementation ensures every answer includes:
+1. The direct answer/information
+2. The specific documents used for inference
+3. Confidence scores and calculation details
+4. Links to view original documents
+
+"""
+
+import json
+from datetime import datetime
+from typing import Dict, List, Any, Tuple
+import re
+import hashlib
+
+# ============================================================================
+# PART 1: ENHANCED DOCUMENT CONSCIOUSNESS ENGINE WITH SOURCE TRACKING
+# ============================================================================
+
+class DocumentConsciousnessEngine:
+    def __init__(self, gemini_client, db_connection):
+        self.gemini = gemini_client
+        self.db = db_connection
+        self.extraction_cache = {}
+    
+    def extract_document_consciousness(self, document_text: str, document_id: str, document_metadata: Dict) -> Dict:
+        # Build extraction prompt for Gemini Flash-lite 2.5
+        extraction_prompt = f"""
+        Analyze this document and extract comprehensive structured intelligence.
+        Document type hint: {document_metadata.get('type', 'auto-detect')}
+        
+        Return JSON with ALL these layers:
+        
+        1. IDENTITY LAYER - Core document understanding:
+        {{
+          "doc_type": "invoice|contract|medical|tax|insurance|legal|financial|receipt",
+          "doc_purpose": "action_required|reference|compliance|payment|knowledge",
+          "doc_title": "human-readable title or description",
+          "validity_period": {{"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}},
+          "stakeholders": ["list of people/organizations involved"],
+          "sensitivity_level": "public|internal|confidential|restricted",
+          "lifecycle_stage": "draft|active|pending|completed|archived"
+        }}
+        
+        2. EXTRACTION LAYER - Critical data points:
+        {{
+          "identifiers": [
+            {{"type": "account|policy|claim|ein|ssn|reference", "value": "XXX", "label": "human name"}}
+          ],
+          "critical_dates": [
+            {{"date": "YYYY-MM-DD", "event": "what happens", "action_required": true, "reminder_days_before": 7}}
+          ],
+          "monetary_values": [
+            {{"amount": 0.00, "currency": "USD", "context": "invoice_total|payment|deductible", "recurring": false, "frequency": "monthly"}}
+          ],
+          "obligations": [
+            {{"requirement": "what must be done", "deadline": "YYYY-MM-DD", "penalty": "consequence", "responsible_party": "who"}}
+          ],
+          "coverage_terms": [
+            {{"item": "what's covered", "limit": 0.00, "conditions": "when applicable", "exclusions": ["not covered"]}}
+          ]
+        }}
+        
+        3. INTELLIGENCE LAYER - Derived insights:
+        {{
+          "key_questions": [
+            {{"question": "What's the deductible?", "answer": "$1,500", "confidence": 0.95, "source_section": "page 2"}}
+          ],
+          "warnings": [
+            {{"issue": "Payment overdue", "severity": "high", "deadline": "YYYY-MM-DD", "impact": "Late fee $50"}}
+          ],
+          "opportunities": [
+            {{"action": "File claim", "benefit": "Save $200", "deadline": "2025-03-01", "requirements": ["receipt"]}}
+          ],
+          "dependencies": [
+            {{"requires": "Form W2", "purpose": "Complete tax filing", "deadline": "2025-04-15"}}
+          ]
+        }}
+        
+        4. TEMPORAL LAYER - Time-based relevance:
+        {{
+          "relevance_triggers": [
+            {{"date": "2025-04-01", "reason": "Tax deadline approaching", "relevance_score": 95}}
+          ],
+          "expiration_date": "2025-12-31",
+          "review_schedule": "quarterly",
+          "seasonal_relevance": ["March", "April"]
+        }}
+        
+        5. COMPUTATION LAYER - Enable calculations:
+        {{
+          "numeric_values": [
+            {{"value": 1500.00, "type": "invoice_total", "date": "2025-01-15", "vendor": "Ajax Corp", "status": "unpaid"}}
+          ],
+          "aggregatable_fields": ["invoice_total", "payment_amount", "medical_expense"],
+          "comparison_baseline": {{"typical_amount": 1000.00, "historical_average": 950.00}}
+        }}
+        
+        6. SEARCH OPTIMIZATION - For instant answers:
+        {{
+          "instant_answers": [
+            {{"trigger_phrases": ["deductible", "how much"], "response": "$1,500 health insurance deductible"}}
+          ],
+          "common_queries": [
+            {{"pattern": "when.*due|deadline", "answer": "April 15, 2025"}}
+          ],
+          "semantic_tags": ["tax", "2024", "business", "deductible"]
+        }}
+        
+        Document text:
+        {document_text[:50000]}
+        """
+        
+        try:
+            response = self.gemini.generate_content(
+                extraction_prompt,
+                generation_config={
+                    "temperature": 0.1,
+                    "max_output_tokens": 2048,
+                    "response_mime_type": "application/json"
+                }
+            )
+            
+            consciousness_data = json.loads(response.text)
+            
+            # Add document tracking metadata
+            consciousness_data["document_metadata"] = {
+                "document_id": document_id,
+                "document_name": document_metadata.get('name', 'Untitled'),
+                "upload_date": document_metadata.get('upload_date', datetime.now().isoformat()),
+                "file_type": document_metadata.get('file_type', 'unknown'),
+                "file_size": document_metadata.get('file_size', 0),
+                "extraction_timestamp": datetime.now().isoformat(),
+                "extraction_model": "gemini-flash-lite-2.5",
+                "document_hash": hashlib.md5(document_text.encode()).hexdigest()
+            }
+            
+            return consciousness_data
+            
+        except Exception as e:
+            print(f"Extraction error: {e}")
+            return {}
+    
+    def store_consciousness(self, document_id: str, consciousness_data: Dict):
+        # Store with full document reference
+        self.db.execute("""
+            INSERT INTO document_consciousness 
+            (document_id, consciousness_data, document_name, created_at)
+            VALUES (?, ?, ?, ?)
+        """, [
+            document_id, 
+            json.dumps(consciousness_data), 
+            consciousness_data["document_metadata"]["document_name"],
+            datetime.now()
+        ])
+
+# ============================================================================
+# PART 2: INFERENCE ENGINE WITH SOURCE TRACKING
+# ============================================================================
+
+class InferenceSearchEngine:
+    def __init__(self, gemini_client, consciousness_db):
+        self.gemini = gemini_client
+        self.db = consciousness_db
+        
+    def intelligent_search(self, user_query: str) -> Dict:
+        # Analyze query intent
+        query_analysis = self.analyze_query_intent(user_query)
+        
+        if query_analysis["requires_computation"]:
+            return self.perform_inference(user_query, query_analysis)
+        else:
+            return self.perform_direct_search(user_query)
+    
+    def analyze_query_intent(self, query: str) -> Dict:
+        analysis_prompt = f"""
+        Analyze this user query: "{query}"
+        
+        Determine:
+        1. Intent type: LOOKUP|COMPUTATION|COMPARISON|TREND|PREDICTION
+        2. Required operations: sum|average|count|compare|forecast
+        3. Target data: invoice_total|date|amount|status
+        4. Filters: last_n|date_range|category|vendor
+        
+        Return as JSON.
+        """
+        
+        response = self.gemini.generate_content(
+            analysis_prompt,
+            generation_config={"response_mime_type": "application/json", "temperature": 0}
+        )
+        
+        return json.loads(response.text)
+    
+    def perform_direct_search(self, query: str) -> Dict:
+        # Search for direct answers in consciousness data
+        relevant_docs = self.db.query(f"""
+            SELECT document_id, document_name, consciousness_data
+            FROM document_consciousness
+            WHERE consciousness_data LIKE ?
+            LIMIT 5
+        """, [f"%{query}%"])
+        
+        if not relevant_docs:
+            return {
+                "answer": "No information found for your query.",
+                "sources": [],
+                "confidence": 0
+            }
+        
+        # Extract answer from most relevant document
+        primary_doc = relevant_docs[0]
+        consciousness = json.loads(primary_doc['consciousness_data'])
+        
+        # Find matching instant answer
+        answer_text = None
+        for instant in consciousness.get('search_optimization', {}).get('instant_answers', []):
+            if any(phrase in query.lower() for phrase in instant['trigger_phrases']):
+                answer_text = instant['response']
+                break
+        
+        if not answer_text:
+            # Try key questions
+            for q in consciousness.get('intelligence_layer', {}).get('key_questions', []):
+                if query.lower() in q['question'].lower():
+                    answer_text = q['answer']
+                    break
+        
+        return {
+            "answer": answer_text or "Information found in documents",
+            "sources": [
+                {
+                    "document_id": doc['document_id'],
+                    "document_name": doc['document_name'],
+                    "relevance": "primary" if doc == primary_doc else "supporting",
+                    "preview": self.generate_preview(doc['consciousness_data'], query)
+                }
+                for doc in relevant_docs
+            ],
+            "confidence": 0.85
+        }
+    
+    def calculate_sum_with_sources(self, query: str, analysis: Dict) -> Dict:
+        # Query consciousness database for relevant documents
+        target_field = analysis["target_data"]
+        filter_criteria = analysis.get("filters", {})
+        
+        relevant_docs = self.db.query(f"""
+            SELECT document_id, document_name, consciousness_data
+            FROM document_consciousness
+            WHERE json_extract(consciousness_data, '$.identity.doc_type') = 'invoice'
+            ORDER BY json_extract(consciousness_data, '$.document_metadata.upload_date') DESC
+            LIMIT {filter_criteria.get('last_n', 3)}
+        """)
+        
+        # Calculate sum and track sources
+        total = 0
+        calculation_details = []
+        source_documents = []
+        
+        for doc in relevant_docs:
+            consciousness = json.loads(doc['consciousness_data'])
+            doc_total = 0
+            
+            for value in consciousness.get('computation_layer', {}).get('numeric_values', []):
+                if value['type'] == target_field:
+                    total += value['value']
+                    doc_total = value['value']
+                    
+                    calculation_details.append({
+                        'document_name': doc['document_name'],
+                        'document_id': doc['document_id'],
+                        'vendor': value.get('vendor', 'Unknown'),
+                        'amount': value['value'],
+                        'date': value.get('date', 'Unknown'),
+                        'status': value.get('status', 'unknown')
+                    })
+            
+            source_documents.append({
+                'document_id': doc['document_id'],
+                'document_name': doc['document_name'],
+                'contribution': doc_total,
+                'percentage_of_total': (doc_total / total * 100) if total > 0 else 0
+            })
+        
+        # Generate natural response with source attribution
+        response_text = f"The total of your last {len(calculation_details)} invoices is ${total:,.2f}.\n\n"
+        response_text += "Breakdown:\n"
+        for detail in calculation_details:
+            response_text += f"• {detail['vendor']}: ${detail['amount']:,.2f} ({detail['date']}) - from '{detail['document_name']}'\n"
+        
+        return {
+            "answer": response_text,
+            "calculation": {
+                "operation": "sum",
+                "total": total,
+                "count": len(calculation_details),
+                "details": calculation_details
+            },
+            "sources": source_documents,
+            "source_summary": f"Calculated from {len(source_documents)} documents",
+            "confidence": 1.0,
+            "audit_trail": {
+                "query": query,
+                "filters_applied": filter_criteria,
+                "documents_processed": len(relevant_docs),
+                "calculation_timestamp": datetime.now().isoformat()
+            }
+        }
+    
+    def perform_inference(self, query: str, analysis: Dict) -> Dict:
+        operation = analysis["operation"]
+        
+        if operation == "sum":
+            return self.calculate_sum_with_sources(query, analysis)
+        elif operation == "trend":
+            return self.calculate_trend_with_sources(query, analysis)
+        elif operation == "comparison":
+            return self.perform_comparison_with_sources(query, analysis)
+        elif operation == "prediction":
+            return self.make_prediction_with_sources(query, analysis)
+        
+        return self.perform_direct_search(query)
+    
+    def calculate_trend_with_sources(self, query: str, analysis: Dict) -> Dict:
+        # Get time-series data with source tracking
+        category = analysis.get("category", "expense")
+        
+        time_series_docs = self.db.query(f"""
+            SELECT document_id, document_name, consciousness_data,
+                   json_extract(consciousness_data, '$.document_metadata.upload_date') as doc_date
+            FROM document_consciousness
+            WHERE json_extract(consciousness_data, '$.semantic_tags') LIKE '%{category}%'
+            ORDER BY doc_date
+            LIMIT 20
+        """)
+        
+        # Extract values and build trend
+        trend_data = []
+        source_documents = []
+        
+        for doc in time_series_docs:
+            consciousness = json.loads(doc['consciousness_data'])
+            for value in consciousness.get('computation_layer', {}).get('numeric_values', []):
+                if category in value.get('context', '').lower():
+                    trend_data.append({
+                        'date': doc['doc_date'],
+                        'value': value['value'],
+                        'document': doc['document_name']
+                    })
+                    
+            source_documents.append({
+                'document_id': doc['document_id'],
+                'document_name': doc['document_name'],
+                'date': doc['doc_date'],
+                'data_points_contributed': len([d for d in trend_data if d['document'] == doc['document_name']])
+            })
+        
+        # Calculate trend
+        if len(trend_data) >= 2:
+            first_period = sum(d['value'] for d in trend_data[:len(trend_data)//2])
+            second_period = sum(d['value'] for d in trend_data[len(trend_data)//2:])
+            change_percent = ((second_period - first_period) / first_period * 100) if first_period > 0 else 0
+            
+            trend_direction = "increasing" if change_percent > 5 else "decreasing" if change_percent < -5 else "stable"
+            
+            answer = f"Your {category} expenses are {trend_direction} by {abs(change_percent):.1f}%.\n"
+            answer += f"First period average: ${first_period/len(trend_data)*2:.2f}\n"
+            answer += f"Recent period average: ${second_period/len(trend_data)*2:.2f}\n"
+            answer += f"\nAnalysis based on {len(source_documents)} documents."
+        else:
+            answer = "Insufficient data for trend analysis."
+            change_percent = 0
+            trend_direction = "unknown"
+        
+        return {
+            "answer": answer,
+            "analysis": {
+                "trend_direction": trend_direction,
+                "change_percent": change_percent,
+                "data_points": len(trend_data),
+                "time_range": f"{trend_data[0]['date'] if trend_data else 'N/A'} to {trend_data[-1]['date'] if trend_data else 'N/A'}"
+            },
+            "sources": source_documents,
+            "source_summary": f"Trend calculated from {len(source_documents)} documents over time",
+            "confidence": min(0.6 + (len(trend_data) * 0.05), 0.95),
+            "visualization_data": trend_data  # For frontend charting
+        }
+    
+    def generate_preview(self, consciousness_data: str, query: str) -> str:
+        # Generate a preview snippet from the document relevant to the query
+        consciousness = json.loads(consciousness_data)
+        
+        # Try to find relevant section
+        for instant in consciousness.get('search_optimization', {}).get('instant_answers', []):
+            if any(word in query.lower() for word in instant.get('trigger_phrases', [])):
+                return instant['response']
+        
+        # Fallback to document title/purpose
+        return f"{consciousness.get('identity', {}).get('doc_type', 'Document')} - {consciousness.get('identity', {}).get('doc_purpose', 'Unknown purpose')}"
+
+# ============================================================================
+# PART 3: ENHANCED BUSINESS INTELLIGENCE WITH SOURCE TRACKING
+# ============================================================================
+
+class BusinessIntelligence:
+    def __init__(self, search_engine, consciousness_db):
+        self.search = search_engine
+        self.db = consciousness_db
+        
+    def assess_affordability_with_sources(self, query: str, context: Dict) -> Dict:
+        # Extract purchase amount
+        amount_match = re.search(r'\$?([\d,]+)', query)
+        purchase_amount = float(amount_match.group(1).replace(',', '')) if amount_match else 0
+        
+        # Get all financial documents
+        financial_docs = self.db.query("""
+            SELECT document_id, document_name, consciousness_data
+            FROM document_consciousness
+            WHERE json_extract(consciousness_data, '$.identity.doc_type') 
+            IN ('bank_statement', 'invoice', 'payment', 'financial')
+            ORDER BY json_extract(consciousness_data, '$.document_metadata.upload_date') DESC
+            LIMIT 20
+        """)
+        
+        # Calculate financial position
+        cash_position = 0
+        upcoming_expenses = 0
+        expected_income = 0
+        source_documents = []
+        
+        for doc in financial_docs:
+            consciousness = json.loads(doc['consciousness_data'])
+            doc_contribution = {
+                'document_id': doc['document_id'],
+                'document_name': doc['document_name'],
+                'data_used': []
+            }
+            
+            # Extract financial data
+            for value in consciousness.get('computation_layer', {}).get('numeric_values', []):
+                if value['type'] == 'account_balance':
+                    cash_position += value['value']
+                    doc_contribution['data_used'].append(f"Balance: ${value['value']:,.2f}")
+                elif value['type'] == 'expense' and value.get('status') == 'pending':
+                    upcoming_expenses += value['value']
+                    doc_contribution['data_used'].append(f"Upcoming expense: ${value['value']:,.2f}")
+                elif value['type'] == 'expected_payment':
+                    expected_income += value['value']
+                    doc_contribution['data_used'].append(f"Expected income: ${value['value']:,.2f}")
+            
+            if doc_contribution['data_used']:
+                source_documents.append(doc_contribution)
+        
+        # Calculate affordability
+        available = cash_position + expected_income - upcoming_expenses - purchase_amount
+        can_afford = available > 0
+        
+        # Generate detailed answer with sources
+        answer = f"{'Yes' if can_afford else 'No'}, you {'can' if can_afford else 'cannot'} afford this ${purchase_amount:,.2f} purchase.\n\n"
+        answer += f"Financial Analysis:\n"
+        answer += f"• Current cash position: ${cash_position:,.2f}\n"
+        answer += f"• Expected income: ${expected_income:,.2f}\n"
+        answer += f"• Upcoming expenses: ${upcoming_expenses:,.2f}\n"
+        answer += f"• After purchase: ${available:,.2f}\n\n"
+        answer += f"This analysis is based on {len(source_documents)} financial documents."
+        
+        return {
+            "answer": answer,
+            "analysis": {
+                "can_afford": can_afford,
+                "purchase_amount": purchase_amount,
+                "available_cash": cash_position,
+                "net_after_purchase": available,
+                "buffer_remaining": max(0, available),
+                "risk_level": "low" if available > purchase_amount else "high" if available < 0 else "medium"
+            },
+            "sources": source_documents,
+            "source_summary": f"Financial position calculated from {len(source_documents)} documents",
+            "confidence": min(0.7 + (len(source_documents) * 0.05), 0.95),
+            "recommendations": [
+                "Consider waiting 30 days if buffer is low" if available < purchase_amount * 0.5 else "Purchase timing looks good",
+                f"You'll have {available/cash_position*100:.1f}% of current cash after purchase" if cash_position > 0 else "Monitor cash flow"
+            ]
+        }
+
+# ============================================================================
+# PART 4: ENHANCED API ENDPOINTS WITH SOURCE TRACKING
+# ============================================================================
+
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+consciousness_engine = DocumentConsciousnessEngine(gemini_client, db)
+search_engine = InferenceSearchEngine(gemini_client, db)
+intelligence = BusinessIntelligence(search_engine, db)
+
+@app.route('/api/documents/process', methods=['POST'])
+def process_document():
+    document_text = request.json['text']
+    document_id = request.json['document_id']
+    document_metadata = {
+        'name': request.json.get('filename', 'Untitled'),
+        'type': request.json.get('type'),
+        'upload_date': datetime.now().isoformat(),
+        'file_type': request.json.get('file_type', 'pdf'),
+        'file_size': len(document_text)
+    }
+    
+    # Extract consciousness with full metadata
+    consciousness = consciousness_engine.extract_document_consciousness(
+        document_text, 
+        document_id, 
+        document_metadata
+    )
+    
+    # Store with source tracking
+    consciousness_engine.store_consciousness(document_id, consciousness)
+    
+    return jsonify({
+        "status": "success", 
+        "document_id": document_id,
+        "document_name": document_metadata['name'],
+        "consciousness_layers": list(consciousness.keys()),
+        "extraction_complete": True
+    })
+
+@app.route('/api/search/intelligent', methods=['POST'])
+def intelligent_search():
+    query = request.json['query']
+    user_context = request.json.get('context', {})
+    include_sources = request.json.get('include_sources', True)
+    
+    # Handle query with full source tracking
+    result = intelligence.handle_natural_query(query, user_context)
+    
+    # Ensure sources are always included
+    if 'sources' not in result:
+        result['sources'] = []
+    
+    # Add query metadata
+    result['query_metadata'] = {
+        'original_query': query,
+        'processed_at': datetime.now().isoformat(),
+        'user_context': user_context,
+        'inference_type': result.get('analysis', {}).get('operation', 'direct_search')
+    }
+    
+    return jsonify(result)
+
+@app.route('/api/documents/<document_id>/view', methods=['GET'])
+def view_document(document_id):
+    # Endpoint to view original document referenced in search results
+    doc = db.query_one("""
+        SELECT * FROM documents WHERE id = ?
+    """, [document_id])
+    
+    if not doc:
+        return jsonify({"error": "Document not found"}), 404
+    
+    return jsonify({
+        "document_id": document_id,
+        "name": doc['name'],
+        "content": doc['content'],
+        "upload_date": doc['upload_date'],
+        "consciousness": json.loads(doc.get('consciousness_data', '{}'))
+    })
+
+# ============================================================================
+# PART 5: FRONTEND COMPONENT FOR DISPLAYING RESULTS WITH SOURCES
+# ============================================================================
+
+"""
+FRONTEND IMPLEMENTATION (JavaScript/React):
+
+const IntelligentSearchWithSources = () => {
+    const [query, setQuery] = useState('');
+    const [result, setResult] = useState(null);
+    const [expandedSources, setExpandedSources] = useState(false);
+    
+    const handleSearch = async (searchQuery) => {
+        const response = await fetch('/api/search/intelligent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                query: searchQuery,
+                include_sources: true,
+                context: { user_type: 'individual' }
+            })
+        });
+        
+        const data = await response.json();
+        setResult(data);
+    };
+    
+    const viewDocument = async (documentId) => {
+        window.open(`/documents/${documentId}`, '_blank');
+    };
+    
+    return (
+        <div className="intelligent-search">
+            <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch(query)}
+                placeholder="Ask anything: 'Total of recent invoices' or 'Can I afford new equipment?'"
+            />
+            
+            {result && (
+                <div className="search-result">
+                    {/* Primary Answer */}
+                    <div className="answer-section">
+                        <h3>Answer</h3>
+                        <p>{result.answer}</p>
+                        <div className="confidence-meter">
+                            Confidence: {(result.confidence * 100).toFixed(0)}%
+                        </div>
+                    </div>
+                    
+                    {/* Calculation Details if present */}
+                    {result.calculation && (
+                        <div className="calculation-section">
+                            <h4>Calculation Details</h4>
+                            <div className="calculation-breakdown">
+                                <p>Operation: {result.calculation.operation}</p>
+                                <p>Total: ${result.calculation.total?.toFixed(2)}</p>
+                                <p>Items processed: {result.calculation.count}</p>
+                                {result.calculation.details?.map((item, idx) => (
+                                    <div key={idx} className="calculation-item">
+                                        • {item.vendor}: ${item.amount} ({item.date})
+                                        <button onClick={() => viewDocument(item.document_id)}>
+                                            View Document
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Source Documents */}
+                    <div className="sources-section">
+                        <h4 onClick={() => setExpandedSources(!expandedSources)}>
+                            📄 Source Documents ({result.sources?.length || 0})
+                            <span>{expandedSources ? '▼' : '▶'}</span>
+                        </h4>
+                        
+                        {expandedSources && result.sources && (
+                            <div className="source-list">
+                                {result.sources.map((source, idx) => (
+                                    <div key={idx} className="source-item">
+                                        <div className="source-name">
+                                            {source.document_name}
+                                        </div>
+                                        <div className="source-details">
+                                            {source.contribution && (
+                                                <span>Contributed: ${source.contribution.toFixed(2)}</span>
+                                            )}
+                                            {source.percentage_of_total && (
+                                                <span>({source.percentage_of_total.toFixed(1)}%)</span>
+                                            )}
+                                            {source.data_points_contributed && (
+                                                <span>{source.data_points_contributed} data points</span>
+                                            )}
+                                        </div>
+                                        <button 
+                                            className="view-document-btn"
+                                            onClick={() => viewDocument(source.document_id)}
+                                        >
+                                            View Original
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        
+                        <div className="source-summary">
+                            {result.source_summary}
+                        </div>
+                    </div>
+                    
+                    {/* Audit Trail for transparency */}
+                    {result.audit_trail && (
+                        <details className="audit-trail">
+                            <summary>Audit Trail</summary>
+                            <pre>{JSON.stringify(result.audit_trail, null, 2)}</pre>
+                        </details>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+"""
+
+# ============================================================================
+# TESTING CHECKLIST WITH SOURCE VERIFICATION
+# ============================================================================
+
+"""
+ENHANCED TESTING CHECKLIST:
+
+1. TEST SOURCE TRACKING:
+   - Query: "Total of last 3 invoices"
+   - Verify: Shows total AND lists each invoice document with contribution
+   - Check: Can click to view each source document
+
+2. TEST TREND WITH SOURCES:
+   - Query: "Are expenses increasing?"
+   - Verify: Shows trend AND lists all documents analyzed
+   - Check: Shows date range and number of data points from each document
+
+3. TEST COMPLEX INFERENCE:
+   - Query: "Can I afford $10,000 purchase?"
+   - Verify: Shows decision AND lists all financial documents used
+   - Check: Shows what data was pulled from each document
+
+4. TEST DIRECT LOOKUP:
+   - Query: "What's my deductible?"
+   - Verify: Shows answer AND the insurance document it came from
+   - Check: Can view the original document
+
+5. VERIFY AUDIT TRAIL:
+   - Every query should show:
+     * Answer with confidence score
+     * List of source documents
+     * What data came from each document
+     * Timestamp of calculation
+     * Link to view originals
+
+SUCCESS METRICS:
+- 100% of answers include source documents
+- Users can always trace back to original documents
+- Confidence scores reflect number of sources
+- Audit trail available for compliance
+"""
+
+# END OF ENHANCED IMPLEMENTATION WITH FULL SOURCE TRACKING
