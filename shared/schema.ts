@@ -274,6 +274,48 @@ export const userQuotas = pgTable("user_quotas", {
   storageUsageIndex: index("user_quotas_storage_usage_idx").on(table.storageUsed, table.storageLimit),
 }));
 
+// Document Consciousness - Revolutionary AI intelligence extraction
+export const documentConsciousness = pgTable("document_consciousness", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull().unique(),
+  userId: text("user_id").notNull(), // Firebase UID for tenant isolation
+  
+  // Store as JSONB text for flexibility - 6 intelligence layers
+  consciousnessData: text("consciousness_data").notNull(), // Full JSON consciousness object
+  
+  // Extracted timestamp and model info
+  extractedAt: timestamp("extracted_at").default(sql`now()`).notNull(),
+  extractionModel: text("extraction_model").default("gemini-2.5-flash-lite").notNull(),
+  documentHash: text("document_hash"), // MD5 hash to detect content changes
+  
+  // Quick-access fields for common queries (denormalized for performance)
+  docType: text("doc_type"), // invoice, contract, medical, tax, etc.
+  docPurpose: text("doc_purpose"), // action_required, reference, compliance, etc.
+  sensitivityLevel: text("sensitivity_level"), // public, internal, confidential, restricted
+  
+  // Temporal relevance
+  expirationDate: timestamp("expiration_date"),
+  nextRelevanceDate: timestamp("next_relevance_date"), // When this becomes important again
+  
+  // Search optimization
+  hasInstantAnswers: boolean("has_instant_answers").default(false).notNull(),
+  hasNumericValues: boolean("has_numeric_values").default(false).notNull(),
+  hasCriticalDates: boolean("has_critical_dates").default(false).notNull(),
+  
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+}, (table) => ({
+  // Multi-tenant index
+  userIdIndex: index("consciousness_user_id_idx").on(table.userId),
+  // Document lookup
+  documentIdIndex: index("consciousness_document_id_idx").on(table.documentId),
+  // Temporal queries for proactive surfacing
+  relevanceDateIndex: index("consciousness_relevance_date_idx").on(table.nextRelevanceDate, table.userId),
+  // Type-based filtering
+  docTypeIndex: index("consciousness_doc_type_idx").on(table.userId, table.docType),
+  // Sensitive document fast-lookup
+  sensitivityIndex: index("consciousness_sensitivity_idx").on(table.userId, table.sensitivityLevel),
+}));
+
 export const insertFolderSchema = createInsertSchema(folders).omit({
   id: true,
   createdAt: true,
@@ -332,6 +374,12 @@ export const insertUserQuotaSchema = createInsertSchema(userQuotas).omit({
   updatedAt: true,
 });
 
+export const insertDocumentConsciousnessSchema = createInsertSchema(documentConsciousness).omit({
+  id: true,
+  extractedAt: true,
+  updatedAt: true,
+});
+
 export type InsertFolder = z.infer<typeof insertFolderSchema>;
 export type InsertTag = z.infer<typeof insertTagSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
@@ -343,6 +391,7 @@ export type InsertDailyApiUsage = z.infer<typeof insertDailyApiUsageSchema>;
 export type InsertAiQueueMetrics = z.infer<typeof insertAiQueueMetricsSchema>;
 export type InsertIdempotencyKey = z.infer<typeof insertIdempotencyKeySchema>;
 export type InsertUserQuota = z.infer<typeof insertUserQuotaSchema>;
+export type InsertDocumentConsciousness = z.infer<typeof insertDocumentConsciousnessSchema>;
 
 export type Folder = typeof folders.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
@@ -355,6 +404,7 @@ export type DailyApiUsage = typeof dailyApiUsage.$inferSelect;
 export type AiQueueMetrics = typeof aiQueueMetrics.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
 export type UserQuota = typeof userQuotas.$inferSelect;
+export type DocumentConsciousness = typeof documentConsciousness.$inferSelect;
 
 export type DocumentWithFolderAndTags = Document & {
   folder?: Folder;
@@ -362,6 +412,7 @@ export type DocumentWithFolderAndTags = Document & {
   confidenceScore?: number; // For search confidence scoring
   relevanceReason?: string; // AI explanation of why document matches
   isRelevant?: boolean; // AI assessment of relevance
+  consciousness?: DocumentConsciousness; // AI consciousness data
 };
 
 export type DocumentWithVersions = DocumentWithFolderAndTags & {
