@@ -2205,7 +2205,7 @@ export default function Documents() {
                   data-testid={`document-card-${document.id}`}
                   onClick={() => handleViewDocument(document)}
                 >
-                  <CardContent className="px-4 pt-4 pb-3 flex flex-col h-full">
+                  <CardContent className="px-4 pt-4 pb-3 flex flex-col h-full min-h-0">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         <div className="flex-shrink-0">
@@ -2369,8 +2369,9 @@ export default function Documents() {
                             </Button>
                           </Collapsible.Trigger>
                           
-                          <Collapsible.Content className="overflow-visible data-[state=open]:animate-slideDown data-[state=closed]:animate-slideUp">
-                            <div className="mt-2 space-y-2">
+                          <Collapsible.Content className="overflow-hidden data-[state=open]:animate-slideDown data-[state=closed]:animate-slideUp">
+                            <div className="mt-2 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
+                              <div className="space-y-2">
                               {/* Folder/Sub-folder Classifications */}
                               {hasClassifications && (
                                 <div className="p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20">
@@ -2496,6 +2497,7 @@ export default function Documents() {
                                 </Button>
                               </div>
                               </div>
+                            </div>
                           </Collapsible.Content>
                         </Collapsible.Root>
                       );
