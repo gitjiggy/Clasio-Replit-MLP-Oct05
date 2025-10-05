@@ -462,7 +462,6 @@ export default function Documents() {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [showSmartOrg, setShowSmartOrg] = useState(false);
   const [queueDashboardOpen, setQueueDashboardOpen] = useState(false);
-  const [searchMode, setSearchMode] = useState<"simple" | "ai">("simple");
   const [aiSearchResults, setAiSearchResults] = useState<any>(null);
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
   const [consciousnessResults, setConsciousnessResults] = useState<any>(null);
@@ -1702,8 +1701,6 @@ export default function Documents() {
       onViewExistingDocument={handleViewExistingDocument}
       searchQuery={searchQuery}
       onSearchChange={handleSearchChange}
-      searchMode={searchMode}
-      onSearchModeChange={setSearchMode}
       onAISearch={handleAISearch}
       aiSearchLoading={aiSearchLoading}
       aiSearchResults={aiSearchResults}
@@ -2107,7 +2104,7 @@ export default function Documents() {
                 hasScrollableContent ? 'overflow-y-auto' : 'overflow-y-visible'
               }`}>
           {/* Consciousness Search Results - Direct Answers */}
-          {searchMode === "ai" && consciousnessResults?.hasAnswer && (
+          {consciousnessResults?.hasAnswer && (
             <div className="mb-6">
               <ConsciousnessSearchResults
                 hasAnswer={consciousnessResults.hasAnswer}
@@ -2126,7 +2123,7 @@ export default function Documents() {
           )}
 
           {/* AI Search Results Section */}
-          {searchMode === "ai" && aiSearchResults && (
+          {aiSearchResults && (
             <div className="mb-6">
               <div className="bg-purple-50 dark:bg-gray-900 border border-purple-200 dark:border-purple-500 rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -2192,8 +2189,8 @@ export default function Documents() {
               ))}
             </div>
           ) : /* Empty State */ 
-          (searchMode === "ai" && aiSearchResults && aiSearchResults.documents.length === 0) || 
-          (searchMode === "simple" && documentsData?.documents.length === 0) ? (
+          (aiSearchResults && aiSearchResults.documents.length === 0) || 
+          (documentsData?.documents.length === 0) ? (
             <div className="flex flex-col items-center justify-center py-8 md:py-16 px-4">
               {searchQuery || (selectedFileType && selectedFileType !== "all") || (selectedFolderId && selectedFolderId !== "all") || selectedTagId ? (
                 <>
@@ -2205,9 +2202,7 @@ export default function Documents() {
                     No matches found
                   </h3>
                   <p className="text-muted-foreground text-base font-light max-w-md text-center">
-                    {searchMode === "ai" 
-                      ? "Try different keywords or clear your search"
-                      : "Try clearing some filters or searching differently"}
+                    Try different keywords or clear your search
                   </p>
                 </>
               ) : (
@@ -2234,7 +2229,7 @@ export default function Documents() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 pb-24 md:pb-0">
               {/* Display either AI search results or regular documents */}
               {(() => {
-                let docs = searchMode === "ai" && aiSearchResults ? aiSearchResults.documents : documentsData?.documents;
+                let docs = aiSearchResults ? aiSearchResults.documents : documentsData?.documents;
                 
                 // Apply view mode filter
                 if (viewMode === "recent") {
@@ -2637,7 +2632,7 @@ export default function Documents() {
                     })()}
                     
                     {/* AI Search Score Display - Mobile Responsive */}
-                    {searchMode === "ai" && aiSearchResults && document.aiScore !== undefined && (
+                    {aiSearchResults && document.aiScore !== undefined && (
                       <div className="mb-0 p-2 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-900 rounded-md border border-purple-200 dark:border-purple-500">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                           <div className="flex items-center gap-2">
