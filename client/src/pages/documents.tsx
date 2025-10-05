@@ -80,9 +80,9 @@ import {
   Target,
   Link2,
   Edit2,
-  ExternalLink,
-  Mic
+  ExternalLink
 } from "lucide-react";
+import desktopMicIcon from "@assets/DesktopMic_transparent_1759628494810.png";
 
 // Calibrate confidence scores for better user experience
 function calibrateConfidence(rawScore) {
@@ -1922,11 +1922,15 @@ export default function Documents() {
                   title={!isVoiceSupported ? "Voice search not supported" : isVoiceListening ? "Stop listening" : "Voice Search"}
                   data-testid="voice-search"
                 >
-                  <Mic className={`h-5 w-5 transition-colors ${
-                    isVoiceListening 
-                      ? 'text-purple-600 dark:text-purple-400' 
-                      : 'text-slate-400 hover:text-purple-500'
-                  }`} />
+                  <img 
+                    src={desktopMicIcon} 
+                    alt="Voice Search" 
+                    className={`h-5 w-5 transition-all ${
+                      isVoiceListening 
+                        ? 'opacity-100 brightness-110' 
+                        : 'opacity-70 hover:opacity-100'
+                    }`}
+                  />
                   {isVoiceListening && (
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
                   )}
