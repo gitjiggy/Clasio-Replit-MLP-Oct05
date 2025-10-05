@@ -2201,11 +2201,11 @@ export default function Documents() {
                 return docs?.map((document: any) => (
                 <Card 
                   key={document.id} 
-                  className="group hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[390px] flex flex-col" 
+                  className="group hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[360px] flex flex-col" 
                   data-testid={`document-card-${document.id}`}
                   onClick={() => handleViewDocument(document)}
                 >
-                  <CardContent className="px-4 pt-4 pb-0 flex flex-col h-full overflow-hidden">
+                  <CardContent className="px-4 pt-4 pb-3 flex flex-col h-full overflow-hidden">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         <div className="flex-shrink-0">
@@ -2314,7 +2314,7 @@ export default function Documents() {
                       )}
                     </div>
                     
-                    {/* AI Summary - Always Visible */}
+                    {/* AI Summary - Always Visible with Scrollable Content */}
                     {document.aiSummary && (
                       <div className="mb-0 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0">
                         <div className="flex items-center gap-1.5 mb-1.5">
@@ -2323,7 +2323,9 @@ export default function Documents() {
                             AI Summary
                           </span>
                         </div>
-                        <p className="text-xs text-[#1E1E1E] dark:text-slate-100 leading-relaxed font-light tracking-wide">{document.aiSummary}</p>
+                        <div className="max-h-[150px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
+                          <p className="text-xs text-[#1E1E1E] dark:text-slate-100 leading-relaxed font-light tracking-wide">{document.aiSummary}</p>
+                        </div>
                       </div>
                     )}
                     
@@ -2368,7 +2370,8 @@ export default function Documents() {
                           </Collapsible.Trigger>
                           
                           <Collapsible.Content className="overflow-hidden data-[state=open]:animate-slideDown data-[state=closed]:animate-slideUp">
-                            <div className="mt-2 space-y-2">
+                            <div className="mt-2 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
+                              <div className="space-y-2">
                               {/* Folder/Sub-folder Classifications */}
                               {hasClassifications && (
                                 <div className="p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20">
@@ -2492,6 +2495,7 @@ export default function Documents() {
                                   <Trash2 className="h-3.5 w-3.5" />
                                   <span className="text-[10px] font-light tracking-wide">Del</span>
                                 </Button>
+                              </div>
                               </div>
                             </div>
                           </Collapsible.Content>
