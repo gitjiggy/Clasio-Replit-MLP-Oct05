@@ -29,6 +29,7 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
           height: 100%;
           object-fit: contain;
           transition: all 0.3s ease;
+          mix-blend-mode: screen;
         }
         
         .neural-mic-container.active .neural-mic-image {
