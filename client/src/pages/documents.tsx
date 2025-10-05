@@ -82,7 +82,7 @@ import {
   Edit2,
   ExternalLink
 } from "lucide-react";
-import desktopMicIcon from "@assets/DesktopMic_transparent_1759628494810.png";
+import desktopMicIcon from "@assets/ClasioDesktopMic_1759628838903.png";
 
 // Calibrate confidence scores for better user experience
 function calibrateConfidence(rawScore) {
