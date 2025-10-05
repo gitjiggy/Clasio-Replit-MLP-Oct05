@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Search, Brain } from "lucide-react";
+import { Search, Brain, FileText, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent } from "@/components/ui/card";
 import { NeuralMicIcon } from "@/components/NeuralMicIcon";
 import { UserMenu } from "@/components/UserMenu";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
@@ -17,6 +18,34 @@ interface MobileSearchModalProps {
   documentCount?: number;
   onDocumentsClick?: () => void;
   onUploadClick?: () => void;
+  onDocumentClick?: (doc: any) => void;
+}
+
+// Helper functions
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInMs = now.getTime() - date.getTime();
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  
+  if (diffInDays === 0) return 'Today';
+  if (diffInDays === 1) return 'Yesterday';
+  if (diffInDays < 7) return `${diffInDays} days ago`;
+  if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
+  
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function getFileIcon(fileType: string) {
+  return <FileText className="h-5 w-5 text-purple-500" />;
 }
 
 export function MobileSearchModal({
@@ -29,6 +58,7 @@ export function MobileSearchModal({
   documentCount = 0,
   onDocumentsClick,
   onUploadClick,
+  onDocumentClick,
 }: MobileSearchModalProps) {
   const [voiceActive, setVoiceActive] = useState(false);
 
@@ -118,6 +148,64 @@ export function MobileSearchModal({
                 </div>
               )}
             </div>
+
+            {/* Document Cards */}
+            {aiSearchResults.documents && aiSearchResults.documents.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Matched Documents</h4>
+                {aiSearchResults.documents.map((doc: any) => (
+                  <Card 
+                    key={doc.id}
+                    className="cursor-pointer hover:shadow-lg transition-all border-slate-200 dark:border-slate-700"
+                    onClick={() => {
+                      if (onDocumentClick) {
+                        onDocumentClick(doc);
+                      }
+                    }}
+                    data-testid={`search-result-${doc.id}`}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 mt-0.5">
+                          {getFileIcon(doc.fileType)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate mb-1">
+                            {doc.name}
+                          </h3>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+                            <span>{formatFileSize(doc.fileSize || 0)}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDate(doc.uploadedAt)}
+                            </span>
+                          </div>
+                          {doc.aiSummary && (
+                            <p className="text-xs text-purple-600 dark:text-purple-400 line-clamp-2 leading-relaxed">
+                              {doc.aiSummary}
+                            </p>
+                          )}
+                          {doc.aiScore !== undefined && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-purple-500 to-indigo-500"
+                                  style={{ width: `${Math.min(100, doc.aiScore)}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
+                                {Math.round(doc.aiScore)}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </ScrollArea>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-8 pb-24">

@@ -1665,6 +1665,7 @@ export default function Documents() {
       isOrganizing={organizeAllMutation.isPending}
       onSmartOrganizationCheck={() => smartOrganizationCheckMutation.mutate()}
       isCheckingOrganization={smartOrganizationCheckMutation.isPending}
+      onDocumentClick={handleViewDocument}
       isScrolling={isScrolling}
     >
       <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">

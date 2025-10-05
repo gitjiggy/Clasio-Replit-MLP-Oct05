@@ -52,6 +52,8 @@ interface MobileLayoutProps {
   isCheckingOrganization?: boolean;
   // Scroll-to-hide
   isScrolling?: boolean;
+  // Document click handler
+  onDocumentClick?: (doc: any) => void;
 }
 
 export function MobileLayout({
@@ -88,6 +90,8 @@ export function MobileLayout({
   isCheckingOrganization = false,
   // Scroll-to-hide
   isScrolling = false,
+  // Document click handler
+  onDocumentClick,
 }: MobileLayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -159,6 +163,12 @@ export function MobileLayout({
           if (uploadButtonRef?.current) {
             const button = uploadButtonRef.current.querySelector('button');
             if (button) button.click();
+          }
+        }}
+        onDocumentClick={(doc) => {
+          if (onDocumentClick) {
+            onDocumentClick(doc);
+            setMobileSearchOpen(false);
           }
         }}
       />
