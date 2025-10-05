@@ -149,6 +149,18 @@ export function MobileLayout({
         aiSearchLoading={aiSearchLoading}
         aiSearchResults={aiSearchResults}
         documentCount={documentCount}
+        onDocumentsClick={() => {
+          if (location !== "/documents") {
+            setLocation("/documents");
+          }
+        }}
+        onUploadClick={() => {
+          // Trigger upload button click
+          if (uploadButtonRef?.current) {
+            const button = uploadButtonRef.current.querySelector('button');
+            if (button) button.click();
+          }
+        }}
       />
 
       {/* Mobile Sidebar - Only visible on mobile */}
