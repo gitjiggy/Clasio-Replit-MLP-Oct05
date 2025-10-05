@@ -1,4 +1,4 @@
-import neuralMicImage from "@assets/mic-3d-transparent_1759623541071.png";
+import neuralMicImage from "@assets/Clasio Mic_1759624291865.png";
 
 interface NeuralMicIconProps {
   className?: string;
