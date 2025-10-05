@@ -609,9 +609,12 @@ export class DatabaseStorage implements IStorage {
       versionCountByDocId.set(documentId, count);
     });
 
-    const consciousnessByDocId = new Map<string, DocumentConsciousness>();
+    const consciousnessByDocId = new Map<string, any>();
     allConsciousness.forEach((consciousness) => {
-      consciousnessByDocId.set(consciousness.documentId, consciousness);
+      // Extract just the consciousnessData JSONB field for the UI
+      if (consciousness.consciousnessData) {
+        consciousnessByDocId.set(consciousness.documentId, consciousness.consciousnessData);
+      }
     });
 
     // Assemble final results (no more database queries!)
