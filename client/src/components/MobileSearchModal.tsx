@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Search, Brain, FileText, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Brain, FileText, Clock, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { NeuralMicIcon } from "@/components/NeuralMicIcon";
 import { UserMenu } from "@/components/UserMenu";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { useVoiceSearch } from "@/hooks/use-voice-search";
 
 interface MobileSearchModalProps {
   isOpen: boolean;
@@ -60,14 +61,39 @@ export function MobileSearchModal({
   onUploadClick,
   onDocumentClick,
 }: MobileSearchModalProps) {
-  const [voiceActive, setVoiceActive] = useState(false);
+  const {
+    isListening,
+    transcript,
+    interimTranscript,
+    error: voiceError,
+    isSupported,
+    startListening,
+    stopListening,
+    resetTranscript,
+  } = useVoiceSearch();
+
+  // Update search query when voice transcript changes
+  useEffect(() => {
+    if (transcript) {
+      onSearchChange(transcript);
+    }
+  }, [transcript, onSearchChange]);
+
+  // Reset transcript when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      resetTranscript();
+    }
+  }, [isOpen, resetTranscript]);
 
   if (!isOpen) return null;
 
   const handleVoiceClick = () => {
-    setVoiceActive(true);
-    // Voice functionality will be implemented tomorrow
-    setTimeout(() => setVoiceActive(false), 2000); // Reset after animation
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
   };
 
   return (
@@ -212,21 +238,59 @@ export function MobileSearchModal({
             {/* Hero Voice Icon */}
             <div 
               onClick={handleVoiceClick}
-              className="cursor-pointer transform transition-transform hover:scale-105 active:scale-95"
+              className={`cursor-pointer transform transition-transform ${
+                isSupported ? 'hover:scale-105 active:scale-95' : 'opacity-50 cursor-not-allowed'
+              }`}
               data-testid="mobile-voice-search-hero"
             >
-              <NeuralMicIcon active={voiceActive} className="w-48 h-48" />
+              <NeuralMicIcon active={isListening} className="w-48 h-48" />
             </div>
             
+            {/* Listening State & Interim Transcript */}
+            {isListening && (
+              <div className="text-center space-y-2 mt-8 max-w-sm">
+                <div className="flex items-center justify-center gap-2 text-purple-600 dark:text-purple-400">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-medium">Listening...</span>
+                </div>
+                {interimTranscript && (
+                  <p className="text-base text-slate-700 dark:text-slate-300 italic">
+                    "{interimTranscript}"
+                  </p>
+                )}
+              </div>
+            )}
+            
             {/* Instruction Text */}
-            <div className="text-center space-y-2 mt-8 max-w-sm">
-              <h3 className="text-xl font-light text-slate-800 dark:text-slate-200">
-                Voice Search Your Documents
-              </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                Tap the mic to search with your voice, or type in the search bar above
-              </p>
-            </div>
+            {!isListening && !voiceError && (
+              <div className="text-center space-y-2 mt-8 max-w-sm">
+                <h3 className="text-xl font-light text-slate-800 dark:text-slate-200">
+                  Voice Search Your Documents
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {isSupported 
+                    ? "Tap the mic to search with your voice, or type in the search bar above"
+                    : "Voice search is not supported in this browser. Please type your search above."}
+                </p>
+              </div>
+            )}
+
+            {/* Error State */}
+            {voiceError && (
+              <div className="mt-8 p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-500/30 rounded-lg max-w-sm">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-medium text-rose-900 dark:text-rose-100 mb-1">
+                      Voice Search Error
+                    </h4>
+                    <p className="text-xs text-rose-700 dark:text-rose-300">
+                      {voiceError}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Loading State */}
             {aiSearchLoading && (
