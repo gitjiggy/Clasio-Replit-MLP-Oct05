@@ -164,34 +164,3 @@
     animation: scroll 15s linear infinite;
   }
 }
-
-/* Collapsible animations for document cards */
-@keyframes slideDown {
-  from {
-    height: 0;
-    opacity: 0;
-  }
-  to {
-    height: var(--radix-collapsible-content-height);
-    opacity: 1;
-  }
-}
-
-@keyframes slideUp {
-  from {
-    height: var(--radix-collapsible-content-height);
-    opacity: 1;
-  }
-  to {
-    height: 0;
-    opacity: 0;
-  }
-}
-
-.animate-slideDown {
-  animation: slideDown 200ms ease-out;
-}
-
-.animate-slideUp {
-  animation: slideUp 200ms ease-out;
-}
