@@ -89,20 +89,22 @@ export function AnswerCard({ answer, confidence, sourceDocument, context, matchT
           )}
         </div>
 
-        {/* Source Document Attribution */}
-        <div className="pt-2 md:pt-3 border-t border-purple-100 dark:border-purple-900/50">
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />
-            <span className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0">Source:</span>
-            <button
-              onClick={() => onDocumentClick(sourceDocument.id)}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium truncate hover:underline transition-colors"
-              data-testid={`source-document-${sourceDocument.id}`}
-            >
-              {sourceDocument.name}
-            </button>
+        {/* Source Document Attribution - hide for semantic tags */}
+        {matchType !== 'semantic_tag' && (
+          <div className="pt-2 md:pt-3 border-t border-purple-100 dark:border-purple-900/50">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />
+              <span className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0">Source:</span>
+              <button
+                onClick={() => onDocumentClick(sourceDocument.id)}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium truncate hover:underline transition-colors"
+                data-testid={`source-document-${sourceDocument.id}`}
+              >
+                {sourceDocument.name}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

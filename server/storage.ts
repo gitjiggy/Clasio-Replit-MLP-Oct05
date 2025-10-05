@@ -2398,12 +2398,25 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Remove duplicates and sort by confidence
+    // Remove duplicates and sort by match type priority, then confidence
+    const matchTypePriority = {
+      'instant_answer': 1,
+      'key_question': 2,
+      'identifier': 3,
+      'semantic_tag': 4
+    };
+    
     const uniqueAnswers = answers.filter((answer, index, self) => 
       index === self.findIndex((a) => 
         a.answer === answer.answer && a.sourceDocument.id === answer.sourceDocument.id
       )
-    ).sort((a, b) => b.confidence - a.confidence);
+    ).sort((a, b) => {
+      // First sort by match type priority (lower number = higher priority)
+      const priorityDiff = matchTypePriority[a.matchType] - matchTypePriority[b.matchType];
+      if (priorityDiff !== 0) return priorityDiff;
+      // Then sort by confidence (higher confidence first)
+      return b.confidence - a.confidence;
+    });
 
     // Get related documents (documents with lower confidence matches)
     const relatedDocs = uniqueAnswers
