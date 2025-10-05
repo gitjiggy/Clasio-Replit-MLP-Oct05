@@ -28,10 +28,8 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
           padding: 8px;
         }
         
-        @media (prefers-color-scheme: dark) {
-          .neural-mic-container {
-            background-color: rgb(17, 24, 39);
-          }
+        .dark .neural-mic-container {
+          background-color: rgb(17, 24, 39);
         }
         
         /* Glow layer behind the image */
