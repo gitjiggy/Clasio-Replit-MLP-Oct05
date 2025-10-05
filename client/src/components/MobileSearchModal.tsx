@@ -196,7 +196,7 @@ export function MobileSearchModal({
                           {getFileIcon(doc.fileType)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate mb-1">
+                          <h3 className="text-sm font-medium text-blue-600 dark:text-blue-400 truncate mb-1">
                             {doc.name}
                           </h3>
                           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
