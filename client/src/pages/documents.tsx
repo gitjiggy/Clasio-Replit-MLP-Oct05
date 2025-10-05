@@ -2122,55 +2122,6 @@ export default function Documents() {
             </div>
           )}
 
-          {/* AI Search Results Section */}
-          {aiSearchResults && (
-            <div className="mb-6">
-              <div className="bg-purple-50 dark:bg-gray-900 border border-purple-200 dark:border-purple-500 rounded-lg p-4 mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Brain className="h-5 w-5 text-purple-500" />
-                  <h3 className="text-sm font-semibold text-[#1E1E1E] dark:text-slate-100">AI Search Results</h3>
-                  <Badge variant="secondary" className="text-xs">
-                    {aiSearchResults.totalResults} found
-                  </Badge>
-                </div>
-                <div className="text-sm text-[#1E1E1E] dark:text-slate-100 mb-2">
-                  {aiSearchResults.response.includes('•') ? (
-                    // Format numbered responses
-                    <div className="space-y-2">
-                      {aiSearchResults.response.split('•').filter((part: string) => part.trim()).map((part: string, index: number) => (
-                        <div key={index} className={index === 0 ? 'mb-2' : 'flex items-start gap-2'}>
-                          {index === 0 ? (
-                            // First part is the intro text (e.g., "I found 3 documents...")
-                            <span className="font-medium">{part.trim()}</span>
-                          ) : (
-                            // Subsequent parts are the numbered points
-                            <>
-                              <span className="text-[#1E1E1E] dark:text-slate-100 font-bold mt-0.5 min-w-[1.25rem]">{index}.</span>
-                              <span className="flex-1">{part.trim()}</span>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    // Regular response without bullets
-                    <span>{aiSearchResults.response}</span>
-                  )}
-                </div>
-                {aiSearchResults.keywords && aiSearchResults.keywords.length > 0 && (
-                  <div className="flex gap-1 flex-wrap">
-                    <span className="text-xs text-[#1E1E1E] dark:text-slate-100">Keywords:</span>
-                    {aiSearchResults.keywords.map((keyword: string, index: number) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {keyword}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          
           {/* Loading State */}
           {(documentsLoading || aiSearchLoading) ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

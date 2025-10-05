@@ -1,6 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { FileText, CheckCircle, Lightbulb, Hash, Tag } from "lucide-react";
 import type { DocumentWithFolderAndTags } from "@shared/schema";
 
@@ -75,16 +74,16 @@ export function AnswerCard({ answer, confidence, sourceDocument, context, matchT
           {getConfidenceBadge(confidence)}
         </div>
 
-        {/* Main Answer */}
-        <div className="space-y-2">
+        {/* Main Answer in Styled Text Box */}
+        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/50 dark:to-indigo-950/50 border border-purple-200 dark:border-purple-800 rounded-lg p-3 md:p-4">
           <p 
-            className="text-lg font-medium text-[#1E1E1E] dark:text-slate-100 leading-relaxed"
+            className="text-lg font-semibold text-[#1E1E1E] dark:text-slate-100 leading-relaxed"
             data-testid="answer-text"
           >
             {answer}
           </p>
           {context && (
-            <p className="text-sm text-slate-600 dark:text-slate-400 italic" data-testid="answer-context">
+            <p className="text-sm text-slate-600 dark:text-slate-400 italic mt-2" data-testid="answer-context">
               {context}
             </p>
           )}
@@ -92,27 +91,16 @@ export function AnswerCard({ answer, confidence, sourceDocument, context, matchT
 
         {/* Source Document Attribution */}
         <div className="pt-2 md:pt-3 border-t border-purple-100 dark:border-purple-900/50">
-          <div className="flex items-center justify-between gap-2 md:gap-3">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <FileText className="w-4 h-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />
-              <span className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0">Source:</span>
-              <button
-                onClick={() => onDocumentClick(sourceDocument.id)}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium truncate hover:underline transition-colors"
-                data-testid={`source-document-${sourceDocument.id}`}
-              >
-                {sourceDocument.name}
-              </button>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />
+            <span className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0">Source:</span>
+            <button
               onClick={() => onDocumentClick(sourceDocument.id)}
-              className="text-xs flex-shrink-0 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950 hover:text-purple-600 dark:hover:text-purple-400"
-              data-testid="button-view-source"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium truncate hover:underline transition-colors"
+              data-testid={`source-document-${sourceDocument.id}`}
             >
-              View Source
-            </Button>
+              {sourceDocument.name}
+            </button>
           </div>
         </div>
       </CardContent>
