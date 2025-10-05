@@ -146,20 +146,9 @@ export function MobileLayout({
         onClose={() => setMobileSearchOpen(false)}
         searchQuery={searchQuery}
         onSearchChange={onSearchChange}
-        searchMode={searchMode}
-        onSearchModeChange={onSearchModeChange}
-        onAISearch={onAISearch}
         aiSearchLoading={aiSearchLoading}
         aiSearchResults={aiSearchResults}
-        selectedFileType={selectedFileType}
-        onFileTypeChange={onFileTypeChange}
-        selectedFolderId={selectedFolderId}
-        onFolderChange={onFolderChange}
-        selectedTagId={selectedTagId}
-        onTagChange={onTagChange}
-        folders={folders}
-        tags={tags}
-        availableFileTypes={availableFileTypes}
+        documentCount={documentCount}
       />
 
       {/* Mobile Sidebar - Only visible on mobile */}
