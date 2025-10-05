@@ -45,15 +45,15 @@ function getMatchTypeLabel(matchType: string) {
 
 function getConfidenceBadge(confidence: number) {
   if (confidence >= 0.90) {
-    return <Badge variant="outline" className="bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
+    return <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800">
       {Math.round(confidence * 100)}% confident
     </Badge>;
   } else if (confidence >= 0.75) {
-    return <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800">
+    return <Badge variant="outline" className="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800">
       {Math.round(confidence * 100)}% confident
     </Badge>;
   } else {
-    return <Badge variant="outline" className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-400 border-slate-200 dark:border-slate-800">
+    return <Badge variant="outline" className="bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
       {Math.round(confidence * 100)}% confident
     </Badge>;
   }
@@ -62,13 +62,13 @@ function getConfidenceBadge(confidence: number) {
 export function AnswerCard({ answer, confidence, sourceDocument, context, matchType, onDocumentClick }: AnswerCardProps) {
   return (
     <Card 
-      className="border-l-4 border-l-indigo-500 bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 hover:shadow-md transition-all duration-200"
+      className="border-l-4 border-l-purple-500 dark:border-l-purple-400 bg-gradient-to-br from-purple-50/50 via-indigo-50/30 to-white dark:from-purple-950/30 dark:via-indigo-950/20 dark:to-slate-950 hover:shadow-lg hover:shadow-purple-100 dark:hover:shadow-purple-900/20 transition-all duration-200"
       data-testid={`answer-card-${matchType}`}
     >
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-3 md:p-4 space-y-2 md:space-y-3">
         {/* Answer Header */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+        <div className="flex items-start justify-between gap-2 md:gap-3">
+          <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
             {getMatchTypeIcon(matchType)}
             <span className="font-medium">{getMatchTypeLabel(matchType)}</span>
           </div>
@@ -91,11 +91,11 @@ export function AnswerCard({ answer, confidence, sourceDocument, context, matchT
         </div>
 
         {/* Source Document Attribution */}
-        <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
-          <div className="flex items-center justify-between gap-3">
+        <div className="pt-2 md:pt-3 border-t border-purple-100 dark:border-purple-900/50">
+          <div className="flex items-center justify-between gap-2 md:gap-3">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <FileText className="w-4 h-4 text-slate-500 dark:text-slate-400 flex-shrink-0" />
-              <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">Source:</span>
+              <FileText className="w-4 h-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />
+              <span className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0">Source:</span>
               <button
                 onClick={() => onDocumentClick(sourceDocument.id)}
                 className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium truncate hover:underline transition-colors"
@@ -108,7 +108,7 @@ export function AnswerCard({ answer, confidence, sourceDocument, context, matchT
               variant="outline"
               size="sm"
               onClick={() => onDocumentClick(sourceDocument.id)}
-              className="text-xs flex-shrink-0"
+              className="text-xs flex-shrink-0 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950 hover:text-purple-600 dark:hover:text-purple-400"
               data-testid="button-view-source"
             >
               View Source
@@ -139,20 +139,20 @@ export function ConsciousnessSearchResults({ hasAnswer, answers, query, onDocume
   }
 
   return (
-    <div className="space-y-4" data-testid="consciousness-search-results">
+    <div className="space-y-3 md:space-y-4" data-testid="consciousness-search-results">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <Lightbulb className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+      <div className="flex items-center gap-2 pb-2 border-b border-purple-100 dark:border-purple-900/50">
+        <Lightbulb className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+        <h3 className="text-lg font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400 bg-clip-text text-transparent">
           Direct Answers
         </h3>
-        <Badge variant="secondary" className="ml-auto" data-testid="answer-count">
+        <Badge variant="secondary" className="ml-auto bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800" data-testid="answer-count">
           {answers.length} {answers.length === 1 ? 'answer' : 'answers'}
         </Badge>
       </div>
 
       {/* Answer Cards */}
-      <div className="space-y-3">
+      <div className="space-y-2 md:space-y-3">
         {answers.map((answer, index) => (
           <AnswerCard
             key={`${answer.sourceDocument.id}-${index}`}
