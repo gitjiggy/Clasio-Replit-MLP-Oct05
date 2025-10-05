@@ -60,7 +60,8 @@ Preferred communication style: Simple, everyday language.
 - **Typography**: Increased header logo and button sizes for readability.
 - **Branding**: Rebranded as "Clasio - AI-Powered Document Management".
 - **Voice Search Icon**: Custom PNG microphone (ClasioMic_noborder_1759626117703.png) with neural network visualization; features pseudo-element glow layer (radial gradient purple-to-indigo) to avoid PNG edge artifacts; glow pulses on active state with opacity/scale animations; clean border-free rendering in all states.
-- **Text Readability**: Document cards use deep charcoal (#1E1E1E) in light mode and slate-100 in dark mode for improved readability; applies to AI results, document names, summaries, and metadata across desktop and mobile views.
+- **Text Readability**: Document cards use deep charcoal (#1E1E1E) in light mode and slate-100 in dark mode for improved readability; applies to AI results, summaries, and metadata across desktop and mobile views.
+- **Document Titles**: Use traditional blue hyperlink colors (text-blue-600 light mode, text-blue-400 dark mode) with font-medium weight for clarity and clickability; hover states show darker blue with underline on desktop.
 
 ## Feature Specifications
 - **Analytics Dashboard**: `/analytics` route displaying total documents, unique users, average documents per user, and storage used.
