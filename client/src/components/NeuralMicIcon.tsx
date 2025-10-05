@@ -1,4 +1,4 @@
-import neuralMicImage from "@assets/Clasio Mic_1759624291865.png";
+import neuralMicImage from "@assets/ClasioMic_noborder_1759626117703.png";
 
 interface NeuralMicIconProps {
   className?: string;
@@ -30,16 +30,6 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
           height: 100%;
           object-fit: contain;
           transition: all 0.4s ease;
-          mix-blend-mode: multiply;
-          filter: brightness(1.1) contrast(1.1);
-        }
-        
-        /* Dark mode adjustment - use screen blend mode */
-        @media (prefers-color-scheme: dark) {
-          .neural-mic-image {
-            mix-blend-mode: screen;
-            filter: brightness(0.95) contrast(1.1);
-          }
         }
         
         /* Active state with enhanced multi-layered glow on container */
