@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1152 768">
+  <!-- White background -->
+  <rect width="100%" height="100%" fill="#ffffff"/>
+
+  <!-- ===== Glows & styles ===== -->
+  <defs>
+    <!-- Reusable soft glow (good for UI icons) -->
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%"
+            color-interpolation-filters="sRGB">
+      <!-- Blur creates the halo -->
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <!-- Merge the blur (halo) under the sharp source -->
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Stronger glow option (use id="strongGlow" on .glow if you want more punch) -->
+    <filter id="strongGlow" x="-70%" y="-70%" width="240%" height="240%"
+            color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="b1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="18" result="b2"/>
+      <feMerge>
+        <feMergeNode in="b2"/>
+        <feMergeNode in="b1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <style>
+      /* Center dot */
+      .dot {
+        paint-order: stroke fill;
+        stroke: rgba(255,255,255,0.35); /* subtle rim */
+        stroke-width: 2.5;
+      }
+      /* Halo circle; same fill as dot, low opacity + blur filter */
+      .glow {
+        filter: url(#softGlow);
+        opacity: 0.55;
+      }
+
+      /* Optional: per-color utility classes */
+      .pink   { fill: #ff6aa9; }
+      .violet { fill: #a66cff; }
+      .blue   { fill: #7cc7ff; }
+      .white  { fill: #ffffff; }
+
+      /* Optional: gentle pulsing (apply class "pulse" to the glow circle) */
+      @keyframes pulse {
+        0%,100% { opacity: 0.45; transform: scale(1); }
+        50%     { opacity: 0.85; transform: scale(1.25); }
+      }
+      .pulse {
+        transform-box: fill-box;
+        transform-origin: 50% 50%;
+        animation: pulse 2.2s ease-in-out infinite;
+      }
+    </style>
+  </defs>
+
+  <!-- ===== EXAMPLE NODES ===== 
+       For each node: duplicate the circle:
+       1) .glow (larger radius) below
+       2) .dot  (smaller radius) above
+  -->
+  <g>
+    <!-- Node 1 -->
+    <circle class="glow pink pulse" cx="360" cy="260" r="18"/>
+    <circle class="dot  pink"       cx="360" cy="260" r="8"/>
+
+    <!-- Node 2 -->
+    <circle class="glow violet"     cx="520" cy="220" r="18"/>
+    <circle class="dot  violet"     cx="520" cy="220" r="8"/>
+
+    <!-- Node 3 -->
+    <circle class="glow blue"       cx="620" cy="340" r="18"/>
+    <circle class="dot  blue"       cx="620" cy="340" r="8"/>
+
+    <!-- Node 4 (white highlight) -->
+    <circle class="glow white"      cx="440" cy="360" r="18"/>
+    <circle class="dot  white"      cx="440" cy="360" r="8"/>
+  </g>
+
+  <!-- ===== YOUR MICROPHONE ART =====
+       Place your existing mic paths/groups here (or wrap them around the nodes).
+       The glow works on a white background and stays crisp when scaled.
+  -->
+</svg>
