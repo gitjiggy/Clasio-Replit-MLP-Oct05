@@ -22,6 +22,7 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
           display: inline-block;
           transition: all 0.3s ease;
           cursor: pointer;
+          position: relative;
         }
         
         .neural-mic-image {
@@ -29,10 +30,20 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
           height: 100%;
           object-fit: contain;
           transition: all 0.4s ease;
+          mix-blend-mode: multiply;
+          filter: brightness(1.1) contrast(1.1);
         }
         
-        /* Active state with enhanced multi-layered glow */
-        .neural-mic-container.active .neural-mic-image {
+        /* Dark mode adjustment - use screen blend mode */
+        @media (prefers-color-scheme: dark) {
+          .neural-mic-image {
+            mix-blend-mode: screen;
+            filter: brightness(0.95) contrast(1.1);
+          }
+        }
+        
+        /* Active state with enhanced multi-layered glow on container */
+        .neural-mic-container.active {
           animation: neuralGlow 2s ease-in-out infinite;
         }
         
@@ -57,8 +68,8 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
           }
         }
         
-        /* Hover effect - subtle glow preview */
-        .neural-mic-container:hover .neural-mic-image {
+        /* Hover effect - subtle glow preview on container */
+        .neural-mic-container:hover {
           transform: scale(1.02);
           filter: 
             drop-shadow(0 0 6px rgba(168, 85, 247, 0.3))
