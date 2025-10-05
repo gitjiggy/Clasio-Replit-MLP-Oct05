@@ -64,47 +64,50 @@ export function AnswerCard({ answer, confidence, sourceDocument, context, matchT
       className="border-l-4 border-l-purple-500 dark:border-l-purple-400 bg-gradient-to-br from-purple-50/50 via-indigo-50/30 to-white dark:from-purple-950/30 dark:via-indigo-950/20 dark:to-slate-950 hover:shadow-lg hover:shadow-purple-100 dark:hover:shadow-purple-900/20 transition-all duration-200"
       data-testid={`answer-card-${matchType}`}
     >
-      <CardContent className="p-3 md:p-4 space-y-2 md:space-y-3">
-        {/* Answer Header */}
-        <div className="flex items-start justify-between gap-2 md:gap-3">
-          <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
-            {getMatchTypeIcon(matchType)}
-            <span className="font-medium">{getMatchTypeLabel(matchType)}</span>
-          </div>
-          {getConfidenceBadge(confidence)}
-        </div>
-
-        {/* Main Answer in Styled Text Box */}
+      <CardContent className="p-3 md:p-4">
+        {/* Single unified box with answer, context, and source */}
         <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/50 dark:to-indigo-950/50 border border-purple-200 dark:border-purple-800 rounded-lg p-3 md:p-4">
+          {/* Match type header and confidence badge */}
+          <div className="flex items-start justify-between gap-2 md:gap-3 mb-3">
+            <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
+              {getMatchTypeIcon(matchType)}
+              <span className="font-medium">{getMatchTypeLabel(matchType)}</span>
+            </div>
+            {getConfidenceBadge(confidence)}
+          </div>
+
+          {/* Main answer */}
           <p 
             className="text-lg font-semibold text-[#1E1E1E] dark:text-slate-100 leading-relaxed"
             data-testid="answer-text"
           >
             {answer}
           </p>
+
+          {/* Context/question */}
           {context && (
             <p className="text-sm text-slate-600 dark:text-slate-400 italic mt-2" data-testid="answer-context">
               {context}
             </p>
           )}
-        </div>
 
-        {/* Source Document Attribution - hide for semantic tags */}
-        {matchType !== 'semantic_tag' && (
-          <div className="pt-2 md:pt-3 border-t border-purple-100 dark:border-purple-900/50">
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />
-              <span className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0">Source:</span>
-              <button
-                onClick={() => onDocumentClick(sourceDocument.id)}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium truncate hover:underline transition-colors"
-                data-testid={`source-document-${sourceDocument.id}`}
-              >
-                {sourceDocument.name}
-              </button>
+          {/* Source Document Attribution - hide for semantic tags */}
+          {matchType !== 'semantic_tag' && (
+            <div className="pt-3 mt-3 border-t border-purple-200 dark:border-purple-800">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />
+                <span className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0">Source:</span>
+                <button
+                  onClick={() => onDocumentClick(sourceDocument.id)}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium truncate hover:underline transition-colors"
+                  data-testid={`source-document-${sourceDocument.id}`}
+                >
+                  {sourceDocument.name}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   );
