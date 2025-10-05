@@ -272,6 +272,19 @@ export interface IStorage {
     keywords: string[];
     timing?: { total: number; fts: number; semantic: number };
   }>;
+
+  // Consciousness-powered search: Returns direct answers with source attribution
+  searchConsciousness(query: string, userId: string): Promise<{
+    hasAnswer: boolean;
+    answers: Array<{
+      answer: string;
+      confidence: number;
+      sourceDocument: DocumentWithFolderAndTags;
+      context: string;
+      matchType: 'instant_answer' | 'identifier' | 'key_question' | 'semantic_tag';
+    }>;
+    relatedDocuments: DocumentWithFolderAndTags[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2208,6 +2221,147 @@ export class DatabaseStorage implements IStorage {
       intent: 'hybrid_search',
       keywords: preprocessedQuery.split(' ').filter(word => word.trim().length > 0),
       timing: { total: totalTime, fts: ftsTime, semantic: semanticTime }
+    };
+  }
+
+  // Consciousness-powered search: Returns direct answers with source attribution
+  async searchConsciousness(query: string, userId: string): Promise<{
+    hasAnswer: boolean;
+    answers: Array<{
+      answer: string;
+      confidence: number;
+      sourceDocument: DocumentWithFolderAndTags;
+      context: string;
+      matchType: 'instant_answer' | 'identifier' | 'key_question' | 'semantic_tag';
+    }>;
+    relatedDocuments: DocumentWithFolderAndTags[];
+  }> {
+    await this.ensureInitialized();
+    ensureTenantContext(userId);
+
+    const normalizedQuery = query.toLowerCase().trim();
+    const answers: Array<{
+      answer: string;
+      confidence: number;
+      sourceDocument: DocumentWithFolderAndTags;
+      context: string;
+      matchType: 'instant_answer' | 'identifier' | 'key_question' | 'semantic_tag';
+    }> = [];
+
+    // Fetch all consciousness data for the user
+    const consciousnessRecords = await db
+      .select()
+      .from(documentConsciousness)
+      .where(eq(documentConsciousness.userId, userId));
+
+    // For each consciousness record, search through the intelligence layers
+    for (const record of consciousnessRecords) {
+      if (!record.consciousnessData) continue;
+
+      let parsedData;
+      try {
+        parsedData = JSON.parse(record.consciousnessData);
+      } catch (error) {
+        console.error(`Failed to parse consciousness data for document ${record.documentId}:`, error);
+        continue;
+      }
+
+      // Get the source document
+      const sourceDoc = await this.getDocumentById(record.documentId, userId);
+      if (!sourceDoc) continue;
+
+      // 1. Search Instant Answers (highest priority)
+      const instantAnswers = parsedData.searchOptimization?.instantAnswers || [];
+      for (const qa of instantAnswers) {
+        if (qa.triggerPhrase && normalizedQuery.includes(qa.triggerPhrase.toLowerCase())) {
+          answers.push({
+            answer: qa.answer,
+            confidence: qa.confidence || 0.95,
+            sourceDocument: sourceDoc,
+            context: qa.triggerPhrase,
+            matchType: 'instant_answer'
+          });
+        }
+      }
+
+      // 2. Search Key Questions (high priority)
+      const keyQuestions = parsedData.intelligence?.keyQuestions || [];
+      for (const qa of keyQuestions) {
+        if (qa.question && normalizedQuery.includes(qa.question.toLowerCase())) {
+          answers.push({
+            answer: qa.answer,
+            confidence: qa.confidence || 0.90,
+            sourceDocument: sourceDoc,
+            context: qa.question,
+            matchType: 'key_question'
+          });
+        }
+      }
+
+      // 3. Search Identifiers (exact match priority)
+      const identifiers = parsedData.extraction?.identifiers || [];
+      for (const identifier of identifiers) {
+        const idLabel = (identifier.label || identifier.type || '').toLowerCase();
+        const idValue = (identifier.value || '').toLowerCase();
+        
+        // Match by label query (e.g., "what's my account number")
+        if (idLabel && normalizedQuery.includes(idLabel)) {
+          answers.push({
+            answer: identifier.value,
+            confidence: 0.98,
+            sourceDocument: sourceDoc,
+            context: `${identifier.label || identifier.type}: ${identifier.value}`,
+            matchType: 'identifier'
+          });
+        }
+        
+        // Match by value query (e.g., searching for "235794439")
+        if (idValue && normalizedQuery.includes(idValue)) {
+          answers.push({
+            answer: `${identifier.label || identifier.type}: ${identifier.value}`,
+            confidence: 0.99,
+            sourceDocument: sourceDoc,
+            context: `Found ${identifier.type} in document`,
+            matchType: 'identifier'
+          });
+        }
+      }
+
+      // 4. Search Semantic Tags (broader context)
+      const semanticTags = parsedData.searchOptimization?.semanticTags || [];
+      for (const tag of semanticTags) {
+        if (normalizedQuery.includes(tag.toLowerCase())) {
+          const docTitle = parsedData.identity?.docTitle || sourceDoc.name;
+          answers.push({
+            answer: docTitle,
+            confidence: 0.75,
+            sourceDocument: sourceDoc,
+            context: `Related to: ${tag}`,
+            matchType: 'semantic_tag'
+          });
+        }
+      }
+    }
+
+    // Remove duplicates and sort by confidence
+    const uniqueAnswers = answers.filter((answer, index, self) => 
+      index === self.findIndex((a) => 
+        a.answer === answer.answer && a.sourceDocument.id === answer.sourceDocument.id
+      )
+    ).sort((a, b) => b.confidence - a.confidence);
+
+    // Get related documents (documents with lower confidence matches)
+    const relatedDocs = uniqueAnswers
+      .filter(a => a.confidence < 0.80)
+      .map(a => a.sourceDocument)
+      .filter((doc, index, self) => 
+        index === self.findIndex(d => d.id === doc.id)
+      );
+
+    return {
+      hasAnswer: uniqueAnswers.length > 0,
+      answers: uniqueAnswers.slice(0, 5), // Top 5 answers
+      relatedDocuments: relatedDocs
     };
   }
 

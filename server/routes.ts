@@ -2147,6 +2147,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Consciousness-powered search: Returns direct answers with source attribution
+  app.post("/api/search/consciousness", express.json({ limit: '10mb' }), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: "User authentication required" });
+      }
+
+      const { query } = req.body;
+      
+      // Validate required query parameter
+      if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        return res.status(400).json({ 
+          error: "Query parameter is required for consciousness search" 
+        });
+      }
+
+      console.log(`\n🧠 CONSCIOUSNESS SEARCH: "${query}" (userId: ${userId})`);
+      
+      // Use consciousness-powered search engine
+      const searchResult = await storage.searchConsciousness(query.trim(), userId);
+      
+      // Return structured results with answers + source documents
+      res.json({
+        hasAnswer: searchResult.hasAnswer,
+        answers: searchResult.answers.map(answer => ({
+          answer: answer.answer,
+          confidence: answer.confidence,
+          sourceDocument: answer.sourceDocument,
+          context: answer.context,
+          matchType: answer.matchType
+        })),
+        relatedDocuments: searchResult.relatedDocuments,
+        query: query.trim(),
+        totalAnswers: searchResult.answers.length
+      });
+      
+    } catch (error) {
+      console.error("Error in consciousness search:", error);
+      res.status(500).json({ 
+        error: "Failed to perform consciousness search",
+        message: "Consciousness search service encountered an error. Please try again."
+      });
+    }
+  });
+
   // Get document content on-demand
   app.get("/api/documents/:id/content", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
