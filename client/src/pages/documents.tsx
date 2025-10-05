@@ -2377,10 +2377,15 @@ export default function Documents() {
                               {/* Folder/Sub-folder Classifications */}
                               {hasClassifications && (
                                 <div className="p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20">
-                                  <div className="flex items-center gap-1.5 mb-1.5">
-                                    <FolderOpen className="h-3 w-3 text-purple-500 dark:text-purple-400" />
+                                  <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <FolderOpen className="h-3 w-3 text-purple-500 dark:text-purple-400" />
+                                      <span className="text-xs font-light tracking-wide text-[#1E1E1E] dark:text-slate-100">
+                                        Classification
+                                      </span>
+                                    </div>
                                     <span className="text-xs font-light tracking-wide text-[#1E1E1E] dark:text-slate-100">
-                                      Classification
+                                      Confidence Score
                                     </span>
                                   </div>
                                   <div className="text-xs text-[#1E1E1E] dark:text-slate-100 space-y-1">
