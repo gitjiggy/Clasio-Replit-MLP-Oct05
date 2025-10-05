@@ -89,9 +89,7 @@ export function MobileFilterSheet({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Folders</SelectItem>
-                  {folders
-                    .filter(folder => folder.isAutoCreated && !folder.parentId && folder.documentCount > 0)
-                    .map((folder) => (
+                  {folders.map((folder) => (
                     <SelectItem key={folder.id} value={folder.id}>
                       {folder.name}
                     </SelectItem>

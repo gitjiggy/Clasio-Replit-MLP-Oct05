@@ -1988,7 +1988,6 @@ export default function Documents() {
                 </ObjectUploader>
               </div>
             </div>
-          </div>
         </div>
 
         {/* Documents Grid - flex-1 with vertical scroll */}
@@ -2446,6 +2445,7 @@ export default function Documents() {
           );
         })()}
       </main>
+      </div>
       
       {/* Document Modal */}
       <DocumentModal
