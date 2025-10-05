@@ -1,4 +1,4 @@
-import neuralMicImage from "@assets/mic-3d-white-background_1759623007689.png";
+import neuralMicImage from "@assets/mic-3d-transparent_1759623541071.png";
 
 interface NeuralMicIconProps {
   className?: string;
@@ -29,7 +29,6 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
           height: 100%;
           object-fit: contain;
           transition: all 0.3s ease;
-          mix-blend-mode: screen;
         }
         
         .neural-mic-container.active .neural-mic-image {
