@@ -2273,24 +2273,42 @@ export class DatabaseStorage implements IStorage {
       // 1. Search Instant Answers (highest priority)
       const instantAnswers = parsedData.searchOptimization?.instantAnswers || [];
       for (const qa of instantAnswers) {
-        if (qa.triggerPhrase && normalizedQuery.includes(qa.triggerPhrase.toLowerCase())) {
-          answers.push({
-            answer: qa.answer,
-            confidence: qa.confidence || 0.95,
-            sourceDocument: sourceDoc,
-            context: qa.triggerPhrase,
-            matchType: 'instant_answer'
-          });
+        const triggerPhrases = qa.triggerPhrases || (qa.triggerPhrase ? [qa.triggerPhrase] : []);
+        for (const phrase of triggerPhrases) {
+          if (phrase && normalizedQuery.includes(phrase.toLowerCase())) {
+            answers.push({
+              answer: qa.response || qa.answer,
+              confidence: qa.confidence || 0.95,
+              sourceDocument: sourceDoc,
+              context: phrase,
+              matchType: 'instant_answer'
+            });
+            break; // Found a match, move to next instant answer
+          }
         }
       }
 
-      // 2. Search Key Questions (high priority)
+      // 2. Search Key Questions (high priority) - Use fuzzy matching
       const keyQuestions = parsedData.intelligence?.keyQuestions || [];
+      const queryTokens = normalizedQuery.split(/\s+/).filter(t => t.length > 2);
+      
       for (const qa of keyQuestions) {
-        if (qa.question && normalizedQuery.includes(qa.question.toLowerCase())) {
+        if (!qa.question || !qa.answer) continue;
+        
+        const questionLower = qa.question.toLowerCase();
+        const questionTokens = questionLower.split(/\s+/).filter(t => t.length > 2);
+        
+        // Check for keyword overlap between query and question
+        const matchCount = queryTokens.filter(qt => 
+          questionTokens.some(qt2 => qt2.includes(qt) || qt.includes(qt2))
+        ).length;
+        
+        // If significant overlap (>40% of query tokens match), include this answer
+        if (matchCount >= Math.max(2, queryTokens.length * 0.4)) {
+          const confidenceAdjusted = (qa.confidence || 0.90) * (matchCount / queryTokens.length);
           answers.push({
             answer: qa.answer,
-            confidence: qa.confidence || 0.90,
+            confidence: Math.min(confidenceAdjusted, 0.95),
             sourceDocument: sourceDoc,
             context: qa.question,
             matchType: 'key_question'

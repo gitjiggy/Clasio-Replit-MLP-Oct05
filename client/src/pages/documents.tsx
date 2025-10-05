@@ -2114,8 +2114,7 @@ export default function Documents() {
                   const doc = documentsData?.documents.find(d => d.id === docId) 
                     || consciousnessResults.answers.find((a: any) => a.sourceDocument.id === docId)?.sourceDocument;
                   if (doc) {
-                    setSelectedDocument(doc);
-                    setDocumentModalOpen(true);
+                    handleOpenDocumentFile(doc);
                   }
                 }}
               />
