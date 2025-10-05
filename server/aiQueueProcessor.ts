@@ -19,11 +19,11 @@ class AIQueueProcessor {
   private analysisWorkers: Set<Promise<void>> = new Set();
   private embeddingWorkers: Set<Promise<void>> = new Set();
   private processingInterval: NodeJS.Timeout | null = null;
-  private readonly REQUESTS_PER_MINUTE = 15; // Free tier limit - respect the limits!
-  private readonly DAILY_REQUEST_LIMIT = 1200; // Safety buffer from 1500
+  private readonly REQUESTS_PER_MINUTE = 60; // Increased for consciousness extraction (still well within API limits)
+  private readonly DAILY_REQUEST_LIMIT = 5000; // Increased for MVP launch phase
   private readonly PROCESSING_INTERVAL_MS = 2000; // Check every 2 seconds (faster processing)
   private readonly RETRY_DELAY_MS = 60000; // 1 minute retry for failed requests
-  private tokenBucket = 15; // Start with full bucket (matches REQUESTS_PER_MINUTE)
+  private tokenBucket = 60; // Start with full bucket (matches REQUESTS_PER_MINUTE)
   private lastTokenRefill = Date.now();
   
   // Concurrency configuration
