@@ -1,4 +1,4 @@
-import { Sparkles, Menu, Filter } from "lucide-react";
+import { Sparkles, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface MobileDocumentsHeaderProps {
@@ -8,8 +8,6 @@ interface MobileDocumentsHeaderProps {
   onMenuClick: () => void;
   documentCount: number;
   isScrolling?: boolean;
-  onFilterClick?: () => void;
-  hasActiveFilters?: boolean;
 }
 
 export function MobileDocumentsHeader({
@@ -18,9 +16,7 @@ export function MobileDocumentsHeader({
   onFunFactsClick,
   onMenuClick,
   documentCount,
-  isScrolling = false,
-  onFilterClick,
-  hasActiveFilters = false
+  isScrolling = false
 }: MobileDocumentsHeaderProps) {
   return (
     <div className={`lg:hidden sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-border shadow-sm transition-all duration-300 ease-in-out overflow-hidden ${
@@ -55,26 +51,9 @@ export function MobileDocumentsHeader({
         </Button>
       </div>
 
-      {/* Segmented Control Row: Filter + My Docs / Drive / Trash */}
-      <div className="px-4 pb-3 flex items-center gap-2">
-        {/* Filter Button - Only show on documents view */}
-        {currentView === "documents" && onFilterClick && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onFilterClick}
-            className="h-10 w-10 flex-shrink-0 relative"
-            data-testid="mobile-filter-button"
-          >
-            <Filter className="h-5 w-5 text-foreground" />
-            {hasActiveFilters && (
-              <div className="absolute top-1 right-1 h-2 w-2 bg-purple-500 rounded-full" />
-            )}
-          </Button>
-        )}
-        
-        {/* Segmented Control */}
-        <div className="flex-1 flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+      {/* Segmented Control Row: My Docs / Drive / Trash */}
+      <div className="px-4 pb-3">
+        <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
           <button
             onClick={() => onViewChange("documents")}
             className={`flex-1 px-4 py-2 rounded-lg text-sm font-light tracking-wide transition-all ${

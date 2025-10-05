@@ -80,8 +80,11 @@ import {
   Target,
   Link2,
   Edit2,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
+import * as Collapsible from "@radix-ui/react-collapsible";
 import desktopMicIcon from "@assets/ClasioDesktopMic_1759628838903.png";
 
 // Calibrate confidence scores for better user experience
@@ -463,6 +466,9 @@ export default function Documents() {
   const [aiSearchResults, setAiSearchResults] = useState<any>(null);
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
   
+  // Desktop collapsible "More" section state
+  const [expandedDocuments, setExpandedDocuments] = useState<Set<string>>(new Set());
+  
   // Mobile scroll-to-hide UI elements
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -473,7 +479,6 @@ export default function Documents() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileMoreMenuOpen, setMobileMoreMenuOpen] = useState(false);
-  const [mobileFilterSheetOpen, setMobileFilterSheetOpen] = useState(false);
   const [location, setLocation] = useLocation();
   
   // Responsive page limit: 10 on mobile, 20 on desktop
@@ -1670,7 +1675,6 @@ export default function Documents() {
       onAISearch={handleAISearch}
       aiSearchLoading={aiSearchLoading}
       aiSearchResults={aiSearchResults}
-      onClearFilters={clearFilters}
       selectedFileType={selectedFileType}
       onFileTypeChange={setSelectedFileType}
       selectedFolderId={selectedFolderId}
@@ -1821,9 +1825,76 @@ export default function Documents() {
 
       {/* Main Content - Mobile Flex Layout */}
       <main className="flex-1 md:overflow-hidden flex flex-col overflow-hidden">
-        {/* Desktop Hero Toolbar */}
-        <div className="bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 border-b border-border/20">
-          <div className="hidden lg:flex items-center gap-6 w-full pl-2 pr-6 py-1.5">
+        {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
+        <div className={`bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 transition-all duration-300 ease-in-out md:max-h-none md:opacity-100 ${
+          isScrolling ? 'max-h-0 opacity-0 overflow-hidden' : 'max-h-[200px] opacity-100 overflow-visible'
+        }`}>
+          {/* Header - Clean Premium Single Row - No horizontal scroll on mobile */}
+          <div className="pl-1 md:pl-2 pr-1 md:pr-6 py-1 md:py-1.5 border-b border-border/20 md:overflow-x-auto">
+            {/* Mobile Controls - Show on small screens only */}
+            <div className="flex lg:hidden items-center gap-1 md:gap-2 md:min-w-max w-full md:w-auto">
+              {/* Title + Document Count - Compact but readable */}
+              <div className="flex items-baseline gap-1.5 pr-1 md:pr-2">
+                <h2 className="text-sm md:text-base font-light tracking-wide text-foreground whitespace-nowrap">
+                  {isMainCategorySelected 
+                    ? `${selectedFolder?.name} Sub-folders`
+                    : isSubFolderSelected 
+                      ? selectedFolder?.name 
+                      : "Documents"
+                  }
+                </h2>
+                <span className="text-xs md:text-sm text-muted-foreground/70 font-light tracking-wide whitespace-nowrap" data-testid="document-count">
+                  {isMainCategorySelected 
+                    ? `${selectedCategorySubFolders.length} folders`
+                    : `${documentsData?.pagination.total || 0}`
+                  }
+                </span>
+              </div>
+              
+              {/* Filters - Full width to show complete text */}
+              <Select value={selectedFileType} onValueChange={setSelectedFileType}>
+                <SelectTrigger className="w-[100px] md:w-28 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-type">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {availableFileTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+                <SelectTrigger className="w-[110px] md:w-36 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-folder">
+                  <SelectValue placeholder="All Folders" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Folders</SelectItem>
+                  {folders
+                    .filter(folder => folder.isAutoCreated && !folder.parentId && folder.documentCount > 0)
+                    .map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Button 
+                variant="outline" 
+                onClick={clearFilters}
+                size="sm"
+                className="h-8 px-2.5 md:px-3 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex-shrink-0 shadow-sm"
+                data-testid="clear-filters"
+              >
+                Clear
+              </Button>
+            </div>
+
+            {/* Desktop Hero Toolbar - Hidden on mobile */}
+            <div className="hidden lg:flex items-center gap-6 w-full">
               {/* Hero Search Bar with Voice */}
               <div className="relative flex-1 max-w-3xl">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/40" />
@@ -1988,6 +2059,7 @@ export default function Documents() {
                 </ObjectUploader>
               </div>
             </div>
+          </div>
         </div>
 
         {/* Documents Grid - flex-1 with vertical scroll */}
@@ -2129,11 +2201,11 @@ export default function Documents() {
                 return docs?.map((document: any) => (
                 <Card 
                   key={document.id} 
-                  className="group hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[390px] flex flex-col" 
+                  className="group hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer border-border/50 rounded-2xl overflow-hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm w-full h-[360px] flex flex-col" 
                   data-testid={`document-card-${document.id}`}
                   onClick={() => handleViewDocument(document)}
                 >
-                  <CardContent className="px-4 pt-4 pb-0 flex flex-col h-full overflow-hidden">
+                  <CardContent className="px-4 pt-4 pb-3 flex flex-col h-full min-h-0">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         <div className="flex-shrink-0">
@@ -2242,67 +2314,194 @@ export default function Documents() {
                       )}
                     </div>
                     
-                    {/* AI Analysis Results - Scrollable */}
-                    {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
-                      <div className="mb-0 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
-                        <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-purple-50/40 dark:bg-purple-950/10 pb-1">
+                    {/* AI Summary - Always Visible with Scrollable Content */}
+                    {document.aiSummary && (
+                      <div className="mb-0 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 mb-1.5">
                           <Sparkles className="h-3 w-3 text-purple-500 dark:text-purple-400" />
                           <span className="text-xs font-light tracking-wide text-[#1E1E1E] dark:text-slate-100">
-                            {document.aiSummary ? 'AI Analysis' : 'Classification'}
+                            AI Summary
                           </span>
                         </div>
-                        {document.aiSummary && (
-                          <p className="text-xs text-[#1E1E1E] dark:text-slate-100 mb-2 leading-relaxed font-light tracking-wide">{document.aiSummary}</p>
-                        )}
-                        {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
-                          <div className="text-xs text-[#1E1E1E] dark:text-slate-100 mb-2 space-y-1">
-                            <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs truncate">Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
-                                {document.overrideCategory ? (
-                                  <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-category-${document.id}`}>
-                                    Custom
-                                  </span>
-                                ) : formatConfidence(document.aiCategoryConfidence) && (
-                                  <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-category-${document.id}`}>
-                                    {formatConfidence(document.aiCategoryConfidence)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {(document.overrideDocumentType || document.aiDocumentType) && (
-                              <div className="flex flex-col gap-0.5">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs truncate">Sub-folder: {
-                                    (document.folder?.parentId ? document.folder.name : null) ||
-                                    document.overrideDocumentType || 
-                                    document.aiDocumentType
-                                  }</span>
-                                  {document.overrideDocumentType ? (
-                                    <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-type-${document.id}`}>
-                                      Custom
-                                    </span>
-                                  ) : formatConfidence(document.aiDocumentTypeConfidence) && (
-                                    <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-type-${document.id}`}>
-                                      {formatConfidence(document.aiDocumentTypeConfidence)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1 border-t border-purple-200/30 dark:border-purple-500/20">
-                            {document.aiKeyTopics.map((topic, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs bg-purple-100/60 dark:bg-gray-800/60 text-[#1E1E1E] dark:text-slate-100 border-0">
-                                {topic}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                        <div className="max-h-[150px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
+                          <p className="text-xs text-[#1E1E1E] dark:text-slate-100 leading-relaxed font-light tracking-wide">{document.aiSummary}</p>
+                        </div>
                       </div>
                     )}
+                    
+                    {/* Collapsible "More" Section - Works on all devices */}
+                    {(() => {
+                      const hasClassifications = document.aiDocumentType || document.overrideDocumentType || document.overrideCategory;
+                      const hasTopics = document.aiKeyTopics && document.aiKeyTopics.length > 0;
+                      const hasActionButtons = true; // Action buttons are always present
+                      const hasMoreDetails = hasClassifications || hasTopics || hasActionButtons;
+                      const isExpanded = expandedDocuments.has(document.id);
+                      
+                      return (
+                        <Collapsible.Root
+                          open={isExpanded}
+                          onOpenChange={(open) => {
+                            setExpandedDocuments(prev => {
+                              const next = new Set(prev);
+                              if (open) {
+                                next.add(document.id);
+                              } else {
+                                next.delete(document.id);
+                              }
+                              return next;
+                            });
+                          }}
+                        >
+                          <Collapsible.Trigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full h-7 mt-2 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`more-button-${document.id}`}
+                            >
+                              <span>More details</span>
+                              {isExpanded ? (
+                                <ChevronUp className="h-3 w-3" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </Collapsible.Trigger>
+                          
+                          <Collapsible.Content className="overflow-hidden data-[state=open]:animate-slideDown data-[state=closed]:animate-slideUp">
+                            <div className="mt-2 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
+                              <div className="space-y-2">
+                              {/* Folder/Sub-folder Classifications */}
+                              {hasClassifications && (
+                                <div className="p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20">
+                                  <div className="flex items-center gap-1.5 mb-1.5">
+                                    <FolderOpen className="h-3 w-3 text-purple-500 dark:text-purple-400" />
+                                    <span className="text-xs font-light tracking-wide text-[#1E1E1E] dark:text-slate-100">
+                                      Classification
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-[#1E1E1E] dark:text-slate-100 space-y-1">
+                                    <div className="flex flex-col gap-0.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs truncate">Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                                        {document.overrideCategory ? (
+                                          <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-category-${document.id}`}>
+                                            Custom
+                                          </span>
+                                        ) : formatConfidence(document.aiCategoryConfidence) && (
+                                          <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-category-${document.id}`}>
+                                            {formatConfidence(document.aiCategoryConfidence)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {(document.overrideDocumentType || document.aiDocumentType) && (
+                                      <div className="flex flex-col gap-0.5">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs truncate">Sub-folder: {
+                                            (document.folder?.parentId ? document.folder.name : null) ||
+                                            document.overrideDocumentType || 
+                                            document.aiDocumentType
+                                          }</span>
+                                          {document.overrideDocumentType ? (
+                                            <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-type-${document.id}`}>
+                                              Custom
+                                            </span>
+                                          ) : formatConfidence(document.aiDocumentTypeConfidence) && (
+                                            <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-type-${document.id}`}>
+                                              {formatConfidence(document.aiDocumentTypeConfidence)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* AI Topics */}
+                              {hasTopics && (
+                                <div className="p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20">
+                                  <div className="flex items-center gap-1.5 mb-1.5">
+                                    <Brain className="h-3 w-3 text-purple-500 dark:text-purple-400" />
+                                    <span className="text-xs font-light tracking-wide text-[#1E1E1E] dark:text-slate-100">
+                                      Topics
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {document.aiKeyTopics.map((topic, index) => (
+                                      <Badge key={index} variant="secondary" className="text-xs bg-purple-100/60 dark:bg-gray-800/60 text-[#1E1E1E] dark:text-slate-100 border-0">
+                                        {topic}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Action Buttons - Inside Collapsible on Desktop */}
+                              <div className="grid grid-cols-4 gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-11 bg-slate-100/50 hover:bg-slate-200/70 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 px-1.5 transition-all flex-col gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownload(document);
+                                  }}
+                                  data-testid={`download-${document.id}`}
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  <span className="text-[10px] font-light tracking-wide">Get</span>
+                                </Button>
+                                <Button 
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-1.5 transition-all flex-col gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenDocumentFile(document);
+                                  }}
+                                  data-testid={`preview-${document.id}`}
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  <span className="text-[10px] font-light tracking-wide">View</span>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-11 bg-purple-100/50 hover:bg-purple-200/70 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-700/50 px-1.5 transition-all flex-col gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    analyzeDocumentMutation.mutate(document.id);
+                                  }}
+                                  disabled={analyzeDocumentMutation.isPending}
+                                  data-testid={`analyze-ai-${document.id}`}
+                                >
+                                  <Brain className="h-3.5 w-3.5" />
+                                  <span className="text-[10px] font-light tracking-wide">AI</span>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-11 bg-rose-100/50 hover:bg-rose-200/70 dark:bg-rose-900/20 dark:hover:bg-rose-800/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-700/50 px-1.5 transition-all flex-col gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteDocumentMutation.mutate(document.id);
+                                  }}
+                                  disabled={deleteDocumentMutation.isPending}
+                                  data-testid={`delete-${document.id}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span className="text-[10px] font-light tracking-wide">Del</span>
+                                </Button>
+                              </div>
+                              </div>
+                            </div>
+                          </Collapsible.Content>
+                        </Collapsible.Root>
+                      );
+                    })()}
                     
                     {/* AI Search Score Display - Mobile Responsive */}
                     {searchMode === "ai" && aiSearchResults && document.aiScore !== undefined && (
@@ -2333,64 +2532,6 @@ export default function Documents() {
                         </div>
                       </div>
                     )}
-
-                    {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
-                    <div className="grid grid-cols-4 gap-1.5 mt-2 -mb-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-slate-100/50 hover:bg-slate-200/70 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownload(document);
-                        }}
-                        data-testid={`download-${document.id}`}
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">Get</span>
-                      </Button>
-                      <Button 
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDocumentFile(document);
-                        }}
-                        data-testid={`preview-${document.id}`}
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">View</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-purple-100/50 hover:bg-purple-200/70 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          analyzeDocumentMutation.mutate(document.id);
-                        }}
-                        disabled={analyzeDocumentMutation.isPending}
-                        data-testid={`analyze-ai-${document.id}`}
-                      >
-                        <Brain className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">AI</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-rose-100/50 hover:bg-rose-200/70 dark:bg-rose-900/20 dark:hover:bg-rose-800/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteDocumentMutation.mutate(document.id);
-                        }}
-                        disabled={deleteDocumentMutation.isPending}
-                        data-testid={`delete-${document.id}`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">Del</span>
-                      </Button>
-                    </div>
                   </CardContent>
                 </Card>
               ));
@@ -2445,7 +2586,6 @@ export default function Documents() {
           );
         })()}
       </main>
-      </div>
       
       {/* Document Modal */}
       <DocumentModal
@@ -2466,6 +2606,7 @@ export default function Documents() {
           if (button) button.click();
         }}
       />
+    </div>
     </MobileLayout>
   );
 }
