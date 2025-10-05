@@ -2316,6 +2316,81 @@ export default function Documents() {
                       )}
                     </div>
                     
+                    {/* Document Consciousness - Key Intelligence */}
+                    {document.consciousness && (() => {
+                      const c = document.consciousness;
+                      const hasIdentifiers = c.extraction?.identifiers && c.extraction.identifiers.length > 0;
+                      const hasDates = c.extraction?.criticalDates && c.extraction.criticalDates.length > 0;
+                      const hasMonetary = c.extraction?.monetaryValues && c.extraction.monetaryValues.length > 0;
+                      const hasWarnings = c.intelligence?.warnings && c.intelligence.warnings.length > 0;
+                      const hasAny = hasIdentifiers || hasDates || hasMonetary || hasWarnings;
+                      
+                      if (!hasAny) return null;
+                      
+                      return (
+                        <div className="mb-2 p-2.5 bg-indigo-50/40 dark:bg-indigo-950/10 rounded-lg border border-indigo-200/30 dark:border-indigo-500/20 flex-shrink-0">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Target className="h-3 w-3 text-indigo-500 dark:text-indigo-400" />
+                            <span className="text-xs font-light tracking-wide text-[#1E1E1E] dark:text-slate-100">
+                              Key Intelligence
+                            </span>
+                          </div>
+                          <div className="space-y-1.5 text-xs text-[#1E1E1E] dark:text-slate-100">
+                            {/* Critical Identifiers */}
+                            {hasIdentifiers && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {c.extraction.identifiers.slice(0, 3).map((id: any, idx: number) => (
+                                  <div key={idx} className="flex items-center gap-1 bg-white/60 dark:bg-slate-800/40 px-2 py-0.5 rounded border border-indigo-200/40 dark:border-indigo-500/30">
+                                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">{id.label || id.type}:</span>
+                                    <span className="text-[11px] font-medium">{id.value}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Critical Dates */}
+                            {hasDates && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {c.extraction.criticalDates.slice(0, 2).map((date: any, idx: number) => (
+                                  <div key={idx} className={`flex items-center gap-1 px-2 py-0.5 rounded border ${
+                                    date.actionRequired 
+                                      ? 'bg-orange-50/60 dark:bg-orange-950/30 border-orange-200/40 dark:border-orange-500/30' 
+                                      : 'bg-white/60 dark:bg-slate-800/40 border-indigo-200/40 dark:border-indigo-500/30'
+                                  }`}>
+                                    <Clock className="h-3 w-3" />
+                                    <span className="text-[11px]">{date.event}: {new Date(date.date).toLocaleDateString()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Monetary Values */}
+                            {hasMonetary && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {c.extraction.monetaryValues.slice(0, 2).map((money: any, idx: number) => (
+                                  <div key={idx} className="flex items-center gap-1 bg-green-50/60 dark:bg-green-950/30 px-2 py-0.5 rounded border border-green-200/40 dark:border-green-500/30">
+                                    <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">{money.context}:</span>
+                                    <span className="text-[11px] font-medium">${money.amount.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Warnings */}
+                            {hasWarnings && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {c.intelligence.warnings.slice(0, 1).map((warning: any, idx: number) => (
+                                  <div key={idx} className="flex items-center gap-1 bg-red-50/60 dark:bg-red-950/30 px-2 py-0.5 rounded border border-red-200/40 dark:border-red-500/30">
+                                    <span className="text-[11px] text-red-700 dark:text-red-400">{warning.issue}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    
                     {/* AI Summary - Always Visible, No Independent Scrolling */}
                     {document.aiSummary && (
                       <div className={`mb-0 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0 ${

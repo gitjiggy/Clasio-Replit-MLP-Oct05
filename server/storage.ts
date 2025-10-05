@@ -582,7 +582,13 @@ export class DatabaseStorage implements IStorage {
       .where(inArray(documentVersions.documentId, documentIds))
       .groupBy(documentVersions.documentId);
 
-    // Map tags and versions to documents in-memory (fast!)
+    // Bulk fetch consciousness data for all documents (1 query instead of N)
+    const allConsciousness = await db
+      .select()
+      .from(documentConsciousness)
+      .where(inArray(documentConsciousness.documentId, documentIds));
+
+    // Map tags, versions, and consciousness to documents in-memory (fast!)
     const tagsByDocId = new Map<string, Tag[]>();
     allDocTags.forEach(({ documentId, tag }) => {
       if (tag) {
@@ -603,6 +609,11 @@ export class DatabaseStorage implements IStorage {
       versionCountByDocId.set(documentId, count);
     });
 
+    const consciousnessByDocId = new Map<string, DocumentConsciousness>();
+    allConsciousness.forEach((consciousness) => {
+      consciousnessByDocId.set(consciousness.documentId, consciousness);
+    });
+
     // Assemble final results (no more database queries!)
     const docsWithTags = results.map((result) => {
       return {
@@ -611,6 +622,7 @@ export class DatabaseStorage implements IStorage {
         tags: tagsByDocId.get(result.document.id) || [],
         currentVersionNumber: versionByDocId.get(result.document.id) || 1,
         versionCount: versionCountByDocId.get(result.document.id) || 1,
+        consciousness: consciousnessByDocId.get(result.document.id) || undefined,
       };
     });
 
