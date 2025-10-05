@@ -48,7 +48,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useVoiceSearch } from "@/hooks/use-voice-search";
 import { apiRequest } from "@/lib/queryClient";
 import { trackEvent } from "@/lib/analytics";
-import { getGoogleAccessToken } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import type { UploadResult } from "@uppy/core";
 import type { DocumentWithFolderAndTags, DocumentWithVersions, DocumentVersion, Folder, Tag } from "@shared/schema";
@@ -88,7 +87,7 @@ import * as Collapsible from "@radix-ui/react-collapsible";
 import desktopMicIcon from "@assets/ClasioDesktopMic_1759628838903.png";
 
 // Calibrate confidence scores for better user experience
-function calibrateConfidence(rawScore) {
+function calibrateConfidence(rawScore: number) {
     // Map raw scores to more intuitive confidence ranges
     if (rawScore >= 70) return Math.min(99, rawScore + 25);  // 70+ becomes 95-99%
     if (rawScore >= 50) return Math.min(85, rawScore + 20);  // 50+ becomes 70-85%
@@ -97,7 +96,7 @@ function calibrateConfidence(rawScore) {
 }
 
 // Get confidence level label and color based on score
-function getConfidenceLevel(score) {
+function getConfidenceLevel(score: number) {
     if (score >= 90) return { label: "Very High", color: "text-green-800 dark:text-green-400" };
     if (score >= 70) return { label: "High", color: "text-green-600 dark:text-green-500" };
     if (score >= 40) return { label: "Moderate", color: "text-orange-600 dark:text-orange-400" };
@@ -888,13 +887,14 @@ export default function Documents() {
           console.log('📊 Current documents data after refetch:', documentsQuery);
           console.log('🔑 Using query key:', currentQueryKey);
           
-          if (documentsQuery && documentsQuery.documents) {
-            const docsWithFolders = documentsQuery.documents.filter(doc => doc.folder?.name);
-            const docsWithoutFolders = documentsQuery.documents.filter(doc => !doc.folder?.name);
+          if (documentsQuery && typeof documentsQuery === 'object' && 'documents' in documentsQuery) {
+            const queryData = documentsQuery as DocumentsResponse;
+            const docsWithFolders = queryData.documents.filter((doc: DocumentWithVersionInfo) => doc.folder?.name);
+            const docsWithoutFolders = queryData.documents.filter((doc: DocumentWithVersionInfo) => !doc.folder?.name);
             console.log(`📁 Documents with folders: ${docsWithFolders.length}, without folders: ${docsWithoutFolders.length}`);
             
             if (docsWithoutFolders.length > 0) {
-              console.log('❌ Documents still missing folder data:', docsWithoutFolders.map(d => ({ id: d.id, name: d.name, folderId: d.folderId })));
+              console.log('❌ Documents still missing folder data:', docsWithoutFolders.map((d: DocumentWithVersionInfo) => ({ id: d.id, name: d.name, folderId: d.folderId })));
             }
           }
         }).catch((error) => {
@@ -1685,7 +1685,7 @@ export default function Documents() {
       tags={tags}
       availableFileTypes={availableFileTypes}
       viewMode={viewMode}
-      onViewModeChange={setViewMode}
+      onViewModeChange={(mode: string) => setViewMode(mode as "all" | "recent" | "favorites")}
       onSmartOrganize={() => organizeAllMutation.mutate()}
       isOrganizing={organizeAllMutation.isPending}
       onSmartOrganizationCheck={() => smartOrganizationCheckMutation.mutate()}
@@ -2089,7 +2089,7 @@ export default function Documents() {
                   {aiSearchResults.response.includes('•') ? (
                     // Format numbered responses
                     <div className="space-y-2">
-                      {aiSearchResults.response.split('•').filter(part => part.trim()).map((part, index) => (
+                      {aiSearchResults.response.split('•').filter((part: string) => part.trim()).map((part: string, index: number) => (
                         <div key={index} className={index === 0 ? 'mb-2' : 'flex items-start gap-2'}>
                           {index === 0 ? (
                             // First part is the intro text (e.g., "I found 3 documents...")
@@ -2221,7 +2221,7 @@ export default function Documents() {
                             </p>
                             {document.tags && document.tags.length > 0 && (
                               <div className="flex flex-wrap gap-1">
-                                {document.tags.map((tag) => (
+                                {document.tags.map((tag: Tag) => (
                                   <Badge
                                     key={tag.id}
                                     variant="secondary"
@@ -2430,7 +2430,7 @@ export default function Documents() {
                                     </span>
                                   </div>
                                   <div className="flex flex-wrap gap-1">
-                                    {document.aiKeyTopics.map((topic, index) => (
+                                    {document.aiKeyTopics.map((topic: string, index: number) => (
                                       <Badge key={index} variant="secondary" className="text-xs bg-purple-100/60 dark:bg-gray-800/60 text-[#1E1E1E] dark:text-slate-100 border-0">
                                         {topic}
                                       </Badge>
