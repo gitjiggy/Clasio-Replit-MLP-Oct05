@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Realistic 3D Neural Mic — SVG with glow/pulse -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512"
+     role="img" aria-labelledby="title desc" class="neural-mic-3d">
+  <title id="title">Neural Microphone Icon (3D)</title>
+  <desc id="desc">A realistic 3D microphone whose grille is a brain-like neural network. Nodes glow in a purple-to-indigo gradient (#a855f7 → #6366f1).</desc>
+
+  <!-- ====== DEFINITIONS ====== -->
+  <defs>
+    <!-- Brand gradient: purple (#a855f7) to indigo (#6366f1) -->
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+
+    <!-- Metal sheen for body -->
+    <linearGradient id="metalV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#b19cff"/>
+      <stop offset="35%" stop-color="#8d7bea"/>
+      <stop offset="55%" stop-color="#7868e0"/>
+      <stop offset="100%" stop-color="#5b4dc6"/>
+    </linearGradient>
+
+    <!-- Inner glassy shading for grille aperture -->
+    <radialGradient id="glass" cx="50%" cy="35%" r="70%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.22"/>
+    </radialGradient>
+
+    <!-- Subtle rim highlight -->
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.15"/>
+    </linearGradient>
+
+    <!-- Soft drop shadow for whole mic group -->
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+
+    <!-- Strong per-node glow (brand colors), composited for nice bloom -->
+    <filter id="nodeGlow" x="-150%" y="-150%" width="400%" height="400%">
+      <!-- base blur -->
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur1"/>
+      <!-- colored bloom layers -->
+      <feFlood flood-color="#a855f7" flood-opacity="0.95" result="c1"/>
+      <feComposite in="c1" in2="blur1" operator="in" result="g1"/>
+      <feGaussianBlur in="g1" stdDeviation="3" result="g1b"/>
+
+      <feFlood flood-color="#6366f1" flood-opacity="0.85" result="c2"/>
+      <feComposite in="c2" in2="blur1" operator="in" result="g2"/>
+      <feGaussianBlur in="g2" stdDeviation="5" result="g2b"/>
+
+      <!-- merge layers back with original node -->
+      <feMerge>
+        <feMergeNode in="g2b"/>
+        <feMergeNode in="g1b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- ====== ANIMATION STYLES ====== -->
+  <style>
+    /* Add 'active' to <svg> to enable subtle breathing/pulse on nodes */
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.95; }
+      50%      { transform: scale(1.12); opacity: 1; }
+    }
+    .active .node {
+      animation: pulse 2.2s ease-in-out infinite;
+    }
+  </style>
+
+  <!-- ====== BACKGROUND (white by default) ====== -->
+  <rect class="bg" width="512" height="512" fill="#ffffff"/>
+
+  <!-- ====== MICROPHONE ====== -->
+  <g filter="url(#softShadow)" transform="translate(0,6)">
+
+    <!-- Base shadow ellipse -->
+    <ellipse cx="256" cy="446" rx="120" ry="20" fill="#e9e6ff"/>
+
+    <!-- Stand bar -->
+    <rect x="172" y="416" width="168" height="18" rx="9" fill="url(#brand)"/>
+
+    <!-- Stem -->
+    <rect x="244" y="370" width="24" height="56" rx="12" fill="url(#brand)"/>
+
+    <!-- Yoke -->
+    <path d="M152 214a14 14 0 0 1 14-14h180a14 14 0 0 1 14 14v22a14 14 0 0 1-14 14H166a14 14 0 0 1-14-14z" fill="url(#brand)"/>
+
+    <!-- Lower bowl of mic body -->
+    <path d="M168 312a88 88 0 0 0 176 0v-12H168z" fill="url(#metalV)"/>
+
+    <!-- Mic head (shell + grille) -->
+    <g>
+      <!-- Shell -->
+      <rect x="132" y="86" width="248" height="212" rx="124" fill="url(#metalV)"/>
+      <!-- Rim highlight -->
+      <rect x="140" y="94" width="232" height="196" rx="112" fill="none" stroke="url(#rim)" stroke-width="2"/>
+      <!-- Grille aperture -->
+      <rect x="156" y="110" width="200" height="168" rx="100" fill="#1b1537"/>
+      <!-- Glassy overlay -->
+      <rect x="156" y="110" width="200" height="168" rx="100" fill="url(#glass)"/>
+      <!-- Inset line -->
+      <rect x="156" y="110" width="200" height="168" rx="100" fill="none" stroke="#000" stroke-opacity="0.25" stroke-width="1"/>
+    </g>
+
+    <!-- ====== NEURAL NETWORK (links + nodes) ====== -->
+    <g transform="translate(0,0)">
+      <!-- Links -->
+      <g stroke="#ece9ff" stroke-opacity="0.95" stroke-width="2">
+        <!-- symmetric brain-ish scaffold -->
+        <path d="M256 132
+                 C230 138,210 152,200 174
+                 C196 186,196 206,204 218
+                 C214 234,234 244,256 248
+                 C278 244,298 234,308 218
+                 C316 206,316 186,312 174
+                 C302 152,282 138,256 132" fill="none"/>
+        <!-- Horizontal layers -->
+        <path d="M224 162 L 288 162" />
+        <path d="M214 190 L 298 190" />
+        <path d="M220 216 L 292 216" />
+        <path d="M238 148 L 274 148" />
+        <path d="M232 234 L 280 234" />
+        <!-- Vertical spine -->
+        <path d="M256 140 L 256 242" />
+        <!-- Dendrites -->
+        <path d="M204 168 C196 178,194 198,204 210" />
+        <path d="M308 168 C316 178,318 198,308 210" />
+      </g>
+
+      <!-- Nodes (glow-capable) -->
+      <g fill="#ffffff" filter="url(#nodeGlow)">
+        <circle class="node" cx="256" cy="140" r="6"/>
+        <circle class="node" cx="256" cy="162" r="5"/>
+        <circle class="node" cx="256" cy="190" r="5"/>
+        <circle class="node" cx="256" cy="216" r="5"/>
+        <circle class="node" cx="256" cy="242" r="5"/>
+
+        <circle class="node" cx="224" cy="162" r="5"/>
+        <circle class="node" cx="288" cy="162" r="5"/>
+        <circle class="node" cx="214" cy="190" r="5"/>
+        <circle class="node" cx="298" cy="190" r="5"/>
+        <circle class="node" cx="220" cy="216" r="5"/>
+        <circle class="node" cx="292" cy="216" r="5"/>
+        <circle class="node" cx="238" cy="148" r="4.6"/>
+        <circle class="node" cx="274" cy="148" r="4.6"/>
+        <circle class="node" cx="232" cy="234" r="4.6"/>
+        <circle class="node" cx="280" cy="234" r="4.6"/>
+        <circle class="node" cx="204" cy="168" r="4.6"/>
+        <circle class="node" cx="308" cy="168" r="4.6"/>
+        <circle class="node" cx="204" cy="210" r="4.6"/>
+        <circle class="node" cx="308" cy="210" r="4.6"/>
+      </g>
+
+      <!-- Subtle color tint over grille to reinforce brand gradient -->
+      <rect x="156" y="110" width="200" height="168" rx="100" fill="url(#brand)" opacity="0.22"/>
+    </g>
+  </g>
+</svg>
