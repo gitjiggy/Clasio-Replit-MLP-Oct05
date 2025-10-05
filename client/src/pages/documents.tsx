@@ -45,6 +45,7 @@ import { DocumentModal } from "@/components/DocumentModal";
 import { QueueStatusDashboard } from "@/components/QueueStatusDashboard";
 import { MobileLayout } from "@/components/MobileLayout";
 import { useToast } from "@/hooks/use-toast";
+import { useVoiceSearch } from "@/hooks/use-voice-search";
 import { apiRequest } from "@/lib/queryClient";
 import { trackEvent } from "@/lib/analytics";
 import { getGoogleAccessToken } from "@/lib/firebase";
@@ -500,6 +501,24 @@ export default function Documents() {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Voice search hook for desktop
+  const {
+    isListening: isVoiceListening,
+    transcript: voiceTranscript,
+    error: voiceError,
+    isSupported: isVoiceSupported,
+    startListening: startVoiceListening,
+    stopListening: stopVoiceListening,
+    resetTranscript: resetVoiceTranscript,
+  } = useVoiceSearch();
+
+  // Update search query when voice transcript changes
+  useEffect(() => {
+    if (voiceTranscript) {
+      handleSearchChange(voiceTranscript);
+    }
+  }, [voiceTranscript]);
 
   // Handle search with smart auto-detection
   const handleSearchChange = (query: string) => {
@@ -1887,11 +1906,30 @@ export default function Documents() {
                   data-testid="search-input"
                 />
                 <button 
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                  title="Voice Search (Coming Soon)"
+                  onClick={() => {
+                    if (isVoiceListening) {
+                      stopVoiceListening();
+                    } else {
+                      startVoiceListening();
+                    }
+                  }}
+                  disabled={!isVoiceSupported}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all ${
+                    isVoiceListening 
+                      ? 'bg-purple-100 dark:bg-purple-900/30 scale-110' 
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                  } ${!isVoiceSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={!isVoiceSupported ? "Voice search not supported" : isVoiceListening ? "Stop listening" : "Voice Search"}
                   data-testid="voice-search"
                 >
-                  <Mic className="h-5 w-5 text-slate-400 hover:text-purple-500 transition-colors" />
+                  <Mic className={`h-5 w-5 transition-colors ${
+                    isVoiceListening 
+                      ? 'text-purple-600 dark:text-purple-400' 
+                      : 'text-slate-400 hover:text-purple-500'
+                  }`} />
+                  {isVoiceListening && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                  )}
                 </button>
               </div>
 
