@@ -40,15 +40,18 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
           0%, 100% { 
             transform: scale(1);
             filter: 
-              drop-shadow(0 0 8px rgba(168, 85, 247, 0.4))
-              drop-shadow(0 0 16px rgba(168, 85, 247, 0.3))
-              drop-shadow(0 0 24px rgba(99, 102, 241, 0.2));
+              drop-shadow(0 0 8px rgba(168, 85, 247, 0.3))
+              drop-shadow(0 0 16px rgba(168, 85, 247, 0.25))
+              drop-shadow(0 0 24px rgba(99, 102, 241, 0.2))
+              drop-shadow(0 0 40px rgba(99, 102, 241, 0.15))
+              drop-shadow(0 0 60px rgba(99, 102, 241, 0.1));
           }
           50% { 
             transform: scale(1.05);
             filter: 
-              drop-shadow(0 0 12px rgba(168, 85, 247, 0.8))
-              drop-shadow(0 0 24px rgba(168, 85, 247, 0.6))
+              drop-shadow(0 0 8px rgba(168, 85, 247, 0.8))
+              drop-shadow(0 0 16px rgba(168, 85, 247, 0.6))
+              drop-shadow(0 0 24px rgba(99, 102, 241, 0.5))
               drop-shadow(0 0 40px rgba(99, 102, 241, 0.4))
               drop-shadow(0 0 60px rgba(99, 102, 241, 0.3));
           }
