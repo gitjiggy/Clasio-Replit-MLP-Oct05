@@ -44,6 +44,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { DocumentModal } from "@/components/DocumentModal";
 import { QueueStatusDashboard } from "@/components/QueueStatusDashboard";
 import { MobileLayout } from "@/components/MobileLayout";
+import { ConsciousnessSearchResults } from "@/components/AnswerCard";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceSearch } from "@/hooks/use-voice-search";
 import { apiRequest } from "@/lib/queryClient";
@@ -464,6 +465,8 @@ export default function Documents() {
   const [searchMode, setSearchMode] = useState<"simple" | "ai">("simple");
   const [aiSearchResults, setAiSearchResults] = useState<any>(null);
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [consciousnessResults, setConsciousnessResults] = useState<any>(null);
+  const [consciousnessLoading, setConsciousnessLoading] = useState(false);
   
   // Desktop collapsible "More" section state
   const [expandedDocuments, setExpandedDocuments] = useState<Set<string>>(new Set());
@@ -538,6 +541,9 @@ export default function Documents() {
     if (aiSearchResults) {
       setAiSearchResults(null);
     }
+    if (consciousnessResults) {
+      setConsciousnessResults(null);
+    }
     
     // Set new timeout for auto-triggering AI search when typing stops
     if (query.trim()) {
@@ -556,40 +562,64 @@ export default function Documents() {
   const handleAISearch = async () => {
     if (searchQuery.trim()) {
       setAiSearchLoading(true);
+      setConsciousnessLoading(true);
       const processedQuery = preprocessQuery(searchQuery.trim());
       console.log('AI Search triggered for:', searchQuery);
       console.log('Processed query:', processedQuery);
       
       try {
-        // Call the new /api/search endpoint
-        const response = await apiRequest('/api/search', {
-          method: 'POST',
-          body: JSON.stringify({
-            query: searchQuery.trim(),
-            fileType: selectedFileType === "all" ? undefined : selectedFileType,
-            folderId: selectedFolderId === "all" ? undefined : selectedFolderId,
-            tagId: selectedTagId || undefined,
-            limit: pageLimit
+        // Call both searches in parallel
+        const [aiResponse, consciousnessResponse] = await Promise.all([
+          // Regular AI search
+          apiRequest('/api/search', {
+            method: 'POST',
+            body: JSON.stringify({
+              query: searchQuery.trim(),
+              fileType: selectedFileType === "all" ? undefined : selectedFileType,
+              folderId: selectedFolderId === "all" ? undefined : selectedFolderId,
+              tagId: selectedTagId || undefined,
+              limit: pageLimit
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+            },
           }),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+          // Consciousness search for direct answers
+          apiRequest('/api/search/consciousness', {
+            method: 'POST',
+            body: JSON.stringify({
+              query: searchQuery.trim()
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }).catch(err => {
+            console.warn('Consciousness search failed, continuing with regular search:', err);
+            return { hasAnswer: false, answers: [], relatedDocuments: [] };
+          })
+        ]);
         
-        console.log('AI Search results:', response);
-        setAiSearchResults(response);
+        console.log('AI Search results:', aiResponse);
+        console.log('Consciousness Search results:', consciousnessResponse);
+        setAiSearchResults(aiResponse);
+        setConsciousnessResults(consciousnessResponse);
         
         trackEvent('ai_search', { 
           search_term: searchQuery.trim(),
           processed_term: processedQuery,
-          results_count: response.documents?.length || 0,
-          scoring_method: response.scoringMethod,
-          use_new_scoring: response.useNewScoring
+          results_count: aiResponse.documents?.length || 0,
+          scoring_method: aiResponse.scoringMethod,
+          use_new_scoring: aiResponse.useNewScoring,
+          has_consciousness_answer: consciousnessResponse?.hasAnswer || false
         });
         
+        const answerCount = consciousnessResponse?.answers?.length || 0;
+        const docCount = aiResponse.documents?.length || 0;
         toast({
-          title: "AI Search Complete",
-          description: `Found ${response.documents?.length || 0} relevant documents`,
+          title: answerCount > 0 ? "Direct Answers Found!" : "AI Search Complete",
+          description: answerCount > 0 
+            ? `Found ${answerCount} direct ${answerCount === 1 ? 'answer' : 'answers'} and ${docCount} documents`
+            : `Found ${docCount} relevant documents`,
           duration: 1000,
         });
       } catch (error) {
@@ -600,6 +630,7 @@ export default function Documents() {
           name: error instanceof Error ? error.name : undefined
         });
         setAiSearchResults(null);
+        setConsciousnessResults(null);
         toast({
           title: "Search Error",
           description: error instanceof Error ? error.message : "AI search failed. Please try again.",
@@ -607,6 +638,7 @@ export default function Documents() {
         });
       } finally {
         setAiSearchLoading(false);
+        setConsciousnessLoading(false);
       }
     }
   };
@@ -2074,6 +2106,25 @@ export default function Documents() {
               className={`overflow-x-hidden p-3 md:p-6 md:flex-1 md:overflow-y-auto ${
                 hasScrollableContent ? 'overflow-y-auto' : 'overflow-y-visible'
               }`}>
+          {/* Consciousness Search Results - Direct Answers */}
+          {searchMode === "ai" && consciousnessResults?.hasAnswer && (
+            <div className="mb-6">
+              <ConsciousnessSearchResults
+                hasAnswer={consciousnessResults.hasAnswer}
+                answers={consciousnessResults.answers}
+                query={searchQuery}
+                onDocumentClick={(docId) => {
+                  const doc = documentsData?.documents.find(d => d.id === docId) 
+                    || consciousnessResults.answers.find((a: any) => a.sourceDocument.id === docId)?.sourceDocument;
+                  if (doc) {
+                    setSelectedDocument(doc);
+                    setDocumentModalOpen(true);
+                  }
+                }}
+              />
+            </div>
+          )}
+
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">
