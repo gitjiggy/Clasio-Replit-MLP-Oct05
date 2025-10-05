@@ -20,50 +20,73 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
       <style>{`
         .neural-mic-container {
           display: inline-block;
-          transition: all 0.3s ease;
+          transition: transform 0.3s ease;
           cursor: pointer;
           position: relative;
+        }
+        
+        /* Glow layer behind the image */
+        .neural-mic-container::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 100%;
+          height: 100%;
+          background: radial-gradient(circle, rgba(168, 85, 247, 0.6) 0%, rgba(99, 102, 241, 0.4) 40%, transparent 70%);
+          filter: blur(20px);
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          z-index: -1;
+          pointer-events: none;
         }
         
         .neural-mic-image {
           width: 100%;
           height: 100%;
           object-fit: contain;
-          transition: all 0.4s ease;
+          position: relative;
+          z-index: 1;
+          transition: transform 0.4s ease;
         }
         
-        /* Active state with enhanced multi-layered glow on container */
-        .neural-mic-container.active {
-          animation: neuralGlow 2s ease-in-out infinite;
+        /* Active state - animate glow layer */
+        .neural-mic-container.active::before {
+          animation: glowPulse 2s ease-in-out infinite;
         }
         
-        @keyframes neuralGlow {
+        .neural-mic-container.active .neural-mic-image {
+          animation: scalePulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes glowPulse {
+          0%, 100% { 
+            opacity: 0.3;
+            transform: translate(-50%, -50%) scale(1);
+          }
+          50% { 
+            opacity: 0.8;
+            transform: translate(-50%, -50%) scale(1.2);
+          }
+        }
+        
+        @keyframes scalePulse {
           0%, 100% { 
             transform: scale(1);
-            filter: 
-              drop-shadow(0 0 8px rgba(168, 85, 247, 0.3))
-              drop-shadow(0 0 16px rgba(168, 85, 247, 0.25))
-              drop-shadow(0 0 24px rgba(99, 102, 241, 0.2))
-              drop-shadow(0 0 40px rgba(99, 102, 241, 0.15))
-              drop-shadow(0 0 60px rgba(99, 102, 241, 0.1));
           }
           50% { 
             transform: scale(1.05);
-            filter: 
-              drop-shadow(0 0 8px rgba(168, 85, 247, 0.8))
-              drop-shadow(0 0 16px rgba(168, 85, 247, 0.6))
-              drop-shadow(0 0 24px rgba(99, 102, 241, 0.5))
-              drop-shadow(0 0 40px rgba(99, 102, 241, 0.4))
-              drop-shadow(0 0 60px rgba(99, 102, 241, 0.3));
           }
         }
         
-        /* Hover effect - subtle glow preview on container */
-        .neural-mic-container:hover {
+        /* Hover effect - subtle glow preview */
+        .neural-mic-container:hover::before {
+          opacity: 0.2;
+        }
+        
+        .neural-mic-container:hover .neural-mic-image {
           transform: scale(1.02);
-          filter: 
-            drop-shadow(0 0 6px rgba(168, 85, 247, 0.3))
-            drop-shadow(0 0 12px rgba(168, 85, 247, 0.2));
         }
       `}</style>
     </div>
