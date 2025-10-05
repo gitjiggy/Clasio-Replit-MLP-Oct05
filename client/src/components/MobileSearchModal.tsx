@@ -138,12 +138,12 @@ export function MobileSearchModal({
             <div className="bg-purple-50 dark:bg-gray-900 border border-purple-200 dark:border-purple-500 rounded-xl p-4 mb-4 mt-4">
               <div className="flex items-center gap-2 mb-3">
                 <Brain className="h-5 w-5 text-purple-500" />
-                <h3 className="text-base font-semibold text-purple-900 dark:text-purple-100">AI Results</h3>
+                <h3 className="text-base font-semibold text-[#1E1E1E] dark:text-slate-100">AI Results</h3>
                 <Badge variant="secondary" className="text-xs">
                   {aiSearchResults.totalResults} found
                 </Badge>
               </div>
-              <div className="text-sm text-purple-500 dark:text-purple-200 mb-3">
+              <div className="text-sm text-[#1E1E1E] dark:text-slate-100 mb-3">
                 {aiSearchResults.response.includes('•') ? (
                   <div className="space-y-2">
                     {aiSearchResults.response.split('•').filter((part: string) => part.trim()).map((part: string, index: number) => (
@@ -152,7 +152,7 @@ export function MobileSearchModal({
                           <span className="font-medium">{part.trim()}</span>
                         ) : (
                           <>
-                            <span className="text-purple-500 dark:text-purple-400 font-bold mt-0.5 min-w-[1.25rem]">{index}.</span>
+                            <span className="text-[#1E1E1E] dark:text-slate-100 font-bold mt-0.5 min-w-[1.25rem]">{index}.</span>
                             <span className="flex-1">{part.trim()}</span>
                           </>
                         )}
@@ -165,7 +165,7 @@ export function MobileSearchModal({
               </div>
               {aiSearchResults.keywords && aiSearchResults.keywords.length > 0 && (
                 <div className="flex gap-1 flex-wrap">
-                  <span className="text-xs text-purple-500 dark:text-purple-300">Keywords:</span>
+                  <span className="text-xs text-[#1E1E1E] dark:text-slate-100">Keywords:</span>
                   {aiSearchResults.keywords.map((keyword: string, index: number) => (
                     <Badge key={index} variant="outline" className="text-xs">
                       {keyword}
@@ -208,7 +208,7 @@ export function MobileSearchModal({
                             </span>
                           </div>
                           {doc.aiSummary && (
-                            <p className="text-xs text-purple-600 dark:text-purple-400 line-clamp-2 leading-relaxed">
+                            <p className="text-xs text-[#1E1E1E] dark:text-slate-100 line-clamp-2 leading-relaxed">
                               {doc.aiSummary}
                             </p>
                           )}
@@ -220,7 +220,7 @@ export function MobileSearchModal({
                                   style={{ width: `${Math.min(100, doc.aiScore)}%` }}
                                 />
                               </div>
-                              <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
+                              <span className="text-xs font-medium text-[#1E1E1E] dark:text-slate-100">
                                 {Math.round(doc.aiScore)}%
                               </span>
                             </div>
@@ -249,7 +249,7 @@ export function MobileSearchModal({
             {/* Listening State & Interim Transcript */}
             {isListening && (
               <div className="text-center space-y-2 mt-8 max-w-sm">
-                <div className="flex items-center justify-center gap-2 text-purple-600 dark:text-purple-400">
+                <div className="flex items-center justify-center gap-2 text-[#1E1E1E] dark:text-slate-100">
                   <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
                   <span className="text-sm font-medium">Listening...</span>
                 </div>
@@ -294,7 +294,7 @@ export function MobileSearchModal({
 
             {/* Loading State */}
             {aiSearchLoading && (
-              <div className="mt-6 flex items-center gap-2 text-purple-500">
+              <div className="mt-6 flex items-center gap-2 text-[#1E1E1E] dark:text-slate-100">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-500" />
                 <span className="text-sm font-medium">Searching...</span>
               </div>
