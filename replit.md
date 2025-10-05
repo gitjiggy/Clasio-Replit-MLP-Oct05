@@ -59,6 +59,7 @@ Preferred communication style: Simple, everyday language.
 - **Spacing**: Optimized for conciseness and premium look (reduced padding/margins).
 - **Typography**: Increased header logo and button sizes for readability.
 - **Branding**: Rebranded as "Clasio - AI-Powered Document Management".
+- **Voice Search Icon**: Custom SVG microphone with neural network visualization; features dual-circle glow pattern (soft/strong filters) and pulse animations on active state; purple-to-indigo gradients match brand palette.
 
 ## Feature Specifications
 - **Analytics Dashboard**: `/analytics` route displaying total documents, unique users, average documents per user, and storage used.
