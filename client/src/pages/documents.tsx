@@ -1925,7 +1925,7 @@ export default function Documents() {
                   <img 
                     src={desktopMicIcon} 
                     alt="Voice Search" 
-                    className={`h-6 w-6 transition-all object-contain ${
+                    className={`h-10 w-auto transition-all object-contain ${
                       isVoiceListening 
                         ? 'opacity-100 brightness-110' 
                         : 'opacity-70 hover:opacity-100'
