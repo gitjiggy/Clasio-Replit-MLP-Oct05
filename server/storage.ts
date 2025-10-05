@@ -484,6 +484,7 @@ export class DatabaseStorage implements IStorage {
     // Select only necessary fields, exclude documentContent by default for performance
     const documentSelect = filters.includeContent ? documents : {
       id: documents.id,
+      userId: documents.userId,
       name: documents.name,
       originalName: documents.originalName,
       filePath: documents.filePath,
@@ -491,6 +492,7 @@ export class DatabaseStorage implements IStorage {
       fileSize: documents.fileSize,
       fileType: documents.fileType,
       mimeType: documents.mimeType,
+      contentHash: documents.contentHash,
       folderId: documents.folderId,
       uploadedAt: documents.uploadedAt,
       isFavorite: documents.isFavorite,
@@ -498,6 +500,7 @@ export class DatabaseStorage implements IStorage {
       // Trash system fields
       status: documents.status,
       deletedAt: documents.deletedAt,
+      deletedGeneration: documents.deletedGeneration,
       driveFileId: documents.driveFileId,
       driveWebViewLink: documents.driveWebViewLink,
       isFromDrive: documents.isFromDrive,
@@ -611,9 +614,14 @@ export class DatabaseStorage implements IStorage {
 
     const consciousnessByDocId = new Map<string, any>();
     allConsciousness.forEach((consciousness) => {
-      // Extract just the consciousnessData JSONB field for the UI
+      // Parse the consciousnessData JSON string for the UI
       if (consciousness.consciousnessData) {
-        consciousnessByDocId.set(consciousness.documentId, consciousness.consciousnessData);
+        try {
+          const parsed = JSON.parse(consciousness.consciousnessData);
+          consciousnessByDocId.set(consciousness.documentId, parsed);
+        } catch (error) {
+          console.error(`Failed to parse consciousness data for document ${consciousness.documentId}:`, error);
+        }
       }
     });
 
