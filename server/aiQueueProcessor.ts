@@ -1,5 +1,5 @@
 import { storage } from './storage.js';
-import { analyzeDocumentContent, generateEmbedding, serializeEmbeddingToJSON } from './gemini.js';
+import { analyzeDocumentContent, generateEmbedding, serializeEmbeddingToJSON, extractDocumentConsciousness } from './gemini.js';
 import type { AiAnalysisQueue } from '../shared/schema.js';
 
 /**
@@ -259,59 +259,116 @@ class AIQueueProcessor {
         throw new Error(`No content available for document ${nextJob.documentId}`);
       }
 
-      // Perform the magical AI analysis! ✨
-      const analysisResult = await analyzeDocumentContent(content);
+      // 🧠 CONSCIOUSNESS EXTRACTION: Single AI call for comprehensive intelligence extraction
+      const consciousnessResult = await extractDocumentConsciousness(
+        content,
+        nextJob.documentId,
+        {
+          name: document.name,
+          fileType: document.fileType,
+          fileSize: document.fileSize || 0,
+          uploadDate: document.uploadedAt.toISOString()
+        }
+      );
       
-      if (analysisResult) {
-        // Generate proper 2-3 line English summary for AI Analysis section
-        const { summarizeDocument } = await import('./gemini.js');
-        const properSummary = await summarizeDocument(content);
+      if (consciousnessResult) {
+        // Extract data from consciousness for backward compatibility
+        const identity = consciousnessResult.consciousnessData.identity || {};
+        const extraction = consciousnessResult.consciousnessData.extraction || {};
+        const temporal = consciousnessResult.consciousnessData.temporal || {};
+        const searchOptimization = consciousnessResult.consciousnessData.searchOptimization || {};
         
-        // Update document with AI insights using updateDocument
-        // Only update aiConciseName if we have a valid title (don't overwrite with null/failed analysis)
+        // DUAL-WRITE: Update both documents table (backward compatibility) AND document_consciousness
+        
+        // 1. Update existing document fields for backward compatibility
         const updateData: any = {
-          aiSummary: properSummary,
-          aiKeyTopics: analysisResult.keyTopics,
-          aiDocumentType: analysisResult.documentType,
-          aiCategory: analysisResult.category,
-          aiCategoryConfidence: analysisResult.categoryConfidence,
-          aiDocumentTypeConfidence: analysisResult.documentTypeConfidence,
-          aiWordCount: analysisResult.wordCount,
+          aiSummary: consciousnessResult.summary,
+          aiKeyTopics: searchOptimization.semanticTags || [],
+          aiDocumentType: identity.docType || 'Technical Documentation',
+          aiCategory: this.mapDocTypeToCategoryCompat(identity.docType),
+          aiCategoryConfidence: 85,
+          aiDocumentTypeConfidence: 85,
+          aiWordCount: content.split(/\s+/).length,
           aiAnalyzedAt: new Date()
         };
         
         // Only set aiConciseName if we have a valid title
-        if (analysisResult.conciseTitle) {
-          updateData.aiConciseName = analysisResult.conciseTitle;
+        if (identity.docTitle) {
+          updateData.aiConciseName = identity.docTitle;
         }
         
         await storage.updateDocument(nextJob.documentId, updateData, nextJob.userId);
         
+        // 2. Create/Update consciousness record
+        try {
+          const existingConsciousness = await storage.getDocumentConsciousness(nextJob.documentId, nextJob.userId);
+          
+          const consciousnessData = {
+            documentId: nextJob.documentId,
+            consciousnessData: JSON.stringify(consciousnessResult.consciousnessData),
+            extractionModel: 'gemini-2.5-flash-lite',
+            documentHash: consciousnessResult.documentHash,
+            docType: identity.docType || null,
+            docPurpose: identity.docPurpose || null,
+            sensitivityLevel: identity.sensitivityLevel || null,
+            expirationDate: temporal.expirationDate ? new Date(temporal.expirationDate) : null,
+            nextRelevanceDate: temporal.nextImportantDate ? new Date(temporal.nextImportantDate) : null,
+            hasInstantAnswers: (searchOptimization.instantAnswers?.length || 0) > 0,
+            hasNumericValues: (extraction.monetaryValues?.length || 0) > 0,
+            hasCriticalDates: (extraction.criticalDates?.length || 0) > 0
+          };
+          
+          if (existingConsciousness) {
+            await storage.updateDocumentConsciousness(nextJob.documentId, consciousnessData, nextJob.userId);
+            console.log(`✨ Updated consciousness for: ${document.name}`);
+          } else {
+            await storage.createDocumentConsciousness(consciousnessData, nextJob.userId);
+            console.log(`✨ Created consciousness for: ${document.name}`);
+          }
+        } catch (consciousnessError) {
+          console.error(`⚠️ Consciousness storage error for "${document.name}":`, consciousnessError);
+        }
+        
         // 🗂️ SMART ORGANIZATION: Automatically organize document into appropriate folder
         try {
-          if (analysisResult.category && analysisResult.documentType) {
+          const category = this.mapDocTypeToCategoryCompat(identity.docType);
+          const documentType = identity.docType || 'Technical Documentation';
+          
+          if (category && documentType) {
             const organized = await storage.organizeDocumentIntoFolder(
               nextJob.documentId, 
-              analysisResult.category, 
-              analysisResult.documentType,
+              category, 
+              documentType,
               nextJob.userId,
-              analysisResult // Pass the full analysis data for smart folder naming
+              {
+                keyTopics: searchOptimization.semanticTags || [],
+                documentType: documentType,
+                category: category,
+                wordCount: content.split(/\s+/).length,
+                conciseTitle: identity.docTitle || 'Untitled',
+                categoryConfidence: 85,
+                documentTypeConfidence: 85,
+                documentYear: null,
+                documentPurpose: identity.docPurpose || null,
+                filingStatus: null,
+                bodyPart: null,
+                documentSubtype: null
+              }
             );
             if (organized) {
-              console.log(`✅ Smart Organization: "${document.name}" → ${analysisResult.category}/${analysisResult.documentType}`);
+              console.log(`✅ Smart Organization: "${document.name}" → ${category}/${documentType}`);
             } else {
               console.warn(`⚠️ Smart Organization failed for "${document.name}"`);
             }
           }
         } catch (orgError) {
-          // Don't fail the entire analysis if organization fails
           console.error(`❌ Smart Organization error for "${document.name}":`, orgError);
         }
         
         // Mark queue item as completed with celebration! 🎉
         await storage.updateQueueJobStatus(nextJob.id, 'completed', 'AI analysis completed successfully');
         
-        // Track usage for quota management - exactly 1 request per analysis
+        // Track usage for quota management - single API call for consciousness extraction
         await storage.incrementDailyUsage(today, 1, true);
         
         // 📊 AUTO-ENQUEUE EMBEDDING GENERATION: After analysis is complete, queue for embedding generation
@@ -434,6 +491,29 @@ class AIQueueProcessor {
   /**
    * Handle job errors with exponential backoff for Gemini API errors
    */
+  /**
+   * Map consciousness docType to backward-compatible category
+   */
+  private mapDocTypeToCategoryCompat(docType: string | null | undefined): string {
+    if (!docType) return 'Personal';
+    
+    const mappings: Record<string, string> = {
+      'tax': 'Taxes',
+      'medical': 'Medical',
+      'insurance': 'Insurance',
+      'legal': 'Legal',
+      'financial': 'Financial',
+      'employment': 'Employment',
+      'education': 'Education',
+      'travel': 'Travel',
+      'receipt': 'Financial',
+      'invoice': 'Financial',
+      'contract': 'Legal'
+    };
+    
+    return mappings[docType.toLowerCase()] || 'Personal';
+  }
+
   private async handleJobError(nextJob: any, error: any, jobType: string, today?: string): Promise<void> {
     console.error(`${jobType} failed for document ${nextJob.documentId}:`, error);
     

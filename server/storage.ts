@@ -8,6 +8,7 @@ import {
   type AiAnalysisQueue,
   type DailyApiUsage,
   type AiQueueMetrics,
+  type DocumentConsciousness,
   type InsertDocument,
   type InsertFolder,
   type InsertTag,
@@ -17,6 +18,7 @@ import {
   type InsertAiAnalysisQueue,
   type InsertDailyApiUsage,
   type InsertAiQueueMetrics,
+  type InsertDocumentConsciousness,
   type DocumentWithFolderAndTags,
   type DocumentWithVersions,
   documents,
@@ -28,6 +30,7 @@ import {
   aiAnalysisQueue,
   dailyApiUsage,
   aiQueueMetrics,
+  documentConsciousness,
 } from "@shared/schema";
 import { ObjectStorageService } from "./objectStorage";
 import { randomUUID } from "crypto";
@@ -210,6 +213,11 @@ export interface IStorage {
   // Document Tags
   addDocumentTag(documentTag: InsertDocumentTag, userId: string): Promise<DocumentTag>;
   removeDocumentTag(documentId: string, tagId: string, userId: string): Promise<void>;
+  
+  // Document Consciousness
+  createDocumentConsciousness(consciousnessData: Omit<InsertDocumentConsciousness, 'userId'>, userId: string): Promise<DocumentConsciousness>;
+  getDocumentConsciousness(documentId: string, userId: string): Promise<DocumentConsciousness | undefined>;
+  updateDocumentConsciousness(documentId: string, consciousnessData: Partial<InsertDocumentConsciousness>, userId: string): Promise<DocumentConsciousness | undefined>;
   
   // Duplicate Detection
   findDuplicateFiles(originalName: string, fileSize: number, userId: string): Promise<DocumentWithFolderAndTags[]>;
@@ -4086,6 +4094,65 @@ export class DatabaseStorage implements IStorage {
           eq(documentTags.userId, userId) // Ensure user owns the relationship
         )
       );
+  }
+
+  // Document Consciousness - AI-extracted intelligence layers
+  async createDocumentConsciousness(
+    consciousnessData: Omit<InsertDocumentConsciousness, 'userId'>, 
+    userId: string
+  ): Promise<DocumentConsciousness> {
+    ensureTenantContext(userId);
+    
+    const [consciousness] = await db
+      .insert(documentConsciousness)
+      .values({
+        ...consciousnessData,
+        userId
+      })
+      .returning();
+    
+    return consciousness;
+  }
+
+  async getDocumentConsciousness(documentId: string, userId: string): Promise<DocumentConsciousness | undefined> {
+    ensureTenantContext(userId);
+    
+    const [consciousness] = await db
+      .select()
+      .from(documentConsciousness)
+      .where(
+        and(
+          eq(documentConsciousness.documentId, documentId),
+          eq(documentConsciousness.userId, userId)
+        )
+      )
+      .limit(1);
+    
+    return consciousness;
+  }
+
+  async updateDocumentConsciousness(
+    documentId: string, 
+    consciousnessData: Partial<InsertDocumentConsciousness>, 
+    userId: string
+  ): Promise<DocumentConsciousness | undefined> {
+    ensureTenantContext(userId);
+    
+    const [updated] = await db
+      .update(documentConsciousness)
+      .set({
+        ...consciousnessData,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(documentConsciousness.documentId, documentId),
+          eq(documentConsciousness.userId, userId)
+        )
+      )
+      .returning();
+    
+    return updated;
   }
 
   // Duplicate Detection with multi-tenant scoping

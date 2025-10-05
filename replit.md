@@ -36,9 +36,50 @@ Preferred communication style: Simple, everyday language.
 - **Validation**: Server-side MIME type and file size validation (50MB limit)
 
 ## AI Integration
-- **AI Provider**: Google Gemini 2.5 Flash
-- **Analysis Features**: Summarization, topic extraction, classification, sentiment analysis, word count statistics.
-- **Processing**: Asynchronous analysis with database storage.
+- **AI Provider**: Google Gemini 2.5 Flash-Lite
+- **Current Analysis**: Summarization, topic extraction, classification, sentiment analysis, word count statistics
+- **Processing**: Asynchronous queue-based processing via aiQueueProcessor
+- **Rate Limits**: 60 requests/minute, 5,000 requests/day (MVP phase)
+
+### Document Consciousness Strategy (In Development)
+**Vision**: Transform documents from passive files into "living sources of knowledge, data, and information" that proactively surface relevant information.
+
+**Core Principle**: Documents should answer questions ("What's my EIN?") not just be searchable files.
+
+**Implementation Approach**:
+- **Single Comprehensive Extraction**: Replace dual Gemini calls with one 6-layer extraction (50% cost reduction)
+- **6 Intelligence Layers**:
+  1. Identity Layer: Core document understanding (type, purpose, stakeholders, sensitivity)
+  2. Extraction Layer: Critical data (identifiers, dates, amounts, obligations)
+  3. Intelligence Layer: Insights (key Q&A pairs, warnings, opportunities)
+  4. Temporal Layer: Time-based relevance (deadlines, expiration, seasonal triggers)
+  5. Computation Layer: Numeric values for calculations (aggregatable fields, baselines)
+  6. Search Optimization: Instant answers (trigger phrases, common queries, semantic tags)
+
+**Storage Strategy**:
+- New table: `document_consciousness` with JSONB columns for flexible schema
+- Dual-write: Maintain existing `aiSummary` field + new consciousness data
+- Zero breaking changes to current document card UI
+
+**Search Revolution**:
+- Answer-based search: Return INFORMATION not just documents
+- Inference engine: Perform calculations, trends, comparisons from extracted data
+- Source tracking: Every answer includes source documents with confidence scores
+- Target: >90% of queries return direct answers
+
+**Success Metrics**:
+- Extraction completes in single Gemini call (<2 seconds)
+- Search returns answers, not documents (>90% of queries)
+- Calculations are accurate (100% accuracy on sums/averages)
+- Users get "How did it know?!" moments
+
+**Technical Details**:
+- Use Gemini Flash-lite 2.5 for cost-effective extraction
+- Temperature 0.1 for deterministic extraction, 0.3 for natural language responses
+- Cache consciousness data to avoid re-extraction
+- Gradual rollout without breaking existing document upload flow
+
+**Current Status**: Schema created, extraction function implemented, storage layer in progress.
 
 ## Policy-Driven Search Architecture
 - **Search Engine**: Comprehensive policy-driven system

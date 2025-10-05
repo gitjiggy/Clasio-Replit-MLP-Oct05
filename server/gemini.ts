@@ -3,6 +3,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ObjectStorageService } from "./objectStorage.js";
+import crypto from 'crypto';
 // Text extraction libraries
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
@@ -1001,4 +1002,150 @@ Keep response helpful and informative but concise.`;
             ? `I couldn't find any documents matching "${query}". Try searching with different keywords, or check if the document might be in a specific folder or have different tags.`
             : `I found ${matchingDocuments.length} document${matchingDocuments.length === 1 ? '' : 's'} that might be relevant to your search.`;
     }
+}
+
+export async function extractDocumentConsciousness(
+  text: string, 
+  documentId: string,
+  documentMetadata: {
+    name: string;
+    fileType: string;
+    fileSize?: number;
+    uploadDate?: string;
+  }
+): Promise<{
+  consciousnessData: any;
+  summary: string;
+  documentHash: string;
+}> {
+  if (!text || text.trim().length === 0) {
+    throw new Error("No content available to extract consciousness");
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("AI analysis unavailable - API key not configured");
+  }
+
+  const documentHash = crypto.createHash('md5').update(text).digest('hex');
+  
+  const prompt = `Analyze this document and extract comprehensive structured intelligence for a revolutionary AI document management system.
+
+Document Info:
+- Name: ${documentMetadata.name}
+- Type: ${documentMetadata.fileType}
+
+Extract ALL these intelligence layers in JSON format:
+
+{
+  "identity": {
+    "docType": "invoice|contract|medical|tax|insurance|legal|financial|receipt|education|employment|travel|personal",
+    "docPurpose": "action_required|reference|compliance|payment|knowledge|safekeeping",
+    "docTitle": "Concise 4-7 word human-readable title",
+    "validityPeriod": {"start": "YYYY-MM-DD or null", "end": "YYYY-MM-DD or null"},
+    "stakeholders": ["people/organizations involved"],
+    "sensitivityLevel": "public|internal|confidential|restricted",
+    "lifecycleStage": "draft|active|pending|completed|archived"
+  },
+  "extraction": {
+    "identifiers": [
+      {"type": "account|policy|claim|ein|ssn|reference|invoice_number", "value": "XXX", "label": "Human name"}
+    ],
+    "criticalDates": [
+      {"date": "YYYY-MM-DD", "event": "what happens", "actionRequired": true, "reminderDaysBefore": 7}
+    ],
+    "monetaryValues": [
+      {"amount": 0.00, "currency": "USD", "context": "invoice_total|payment|deductible", "recurring": false}
+    ],
+    "obligations": [
+      {"requirement": "what must be done", "deadline": "YYYY-MM-DD or null", "penalty": "consequence or null"}
+    ]
+  },
+  "intelligence": {
+    "keyQuestions": [
+      {"question": "Common question users ask", "answer": "Direct answer", "confidence": 0.95}
+    ],
+    "warnings": [
+      {"issue": "Payment overdue", "severity": "high|medium|low", "deadline": "YYYY-MM-DD or null"}
+    ],
+    "opportunities": [
+      {"action": "File claim", "benefit": "Save $200", "deadline": "YYYY-MM-DD or null"}
+    ]
+  },
+  "temporal": {
+    "relevanceTriggers": [
+      {"date": "YYYY-MM-DD", "reason": "Tax deadline approaching", "relevanceScore": 95}
+    ],
+    "expirationDate": "YYYY-MM-DD or null",
+    "nextImportantDate": "YYYY-MM-DD or null"
+  },
+  "computation": {
+    "numericValues": [
+      {"value": 1500.00, "type": "invoice_total|payment|expense", "date": "YYYY-MM-DD"}
+    ],
+    "aggregatableFields": ["invoice_total", "payment_amount"]
+  },
+  "searchOptimization": {
+    "instantAnswers": [
+      {"triggerPhrases": ["deductible", "how much"], "response": "$1,500 health insurance deductible"}
+    ],
+    "semanticTags": ["tax", "2024", "business", "deductible"]
+  },
+  "aiSummary": "Professional 2-3 line summary in sophisticated, direct language. Use active voice and specific details. Avoid starting with 'This document' or 'The document'."
+}
+
+IMPORTANT RULES:
+1. Extract real data from the document - NO placeholders or examples
+2. Use null for missing data, not empty strings
+3. Be precise with dates in YYYY-MM-DD format
+4. Confidence scores 0-1 (0.95 = 95%)
+5. Identify ALL sensitive information (SSN, EIN, medical IDs)
+6. Extract ALL monetary values with context
+7. Find ALL deadlines and action items
+8. Generate instant answers for common queries about this specific document
+
+Document text (first 50000 chars):
+${text.substring(0, 50000)}`;
+
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash-lite",
+      generationConfig: {
+        temperature: 0.1, // Low temperature for deterministic extraction
+        maxOutputTokens: 4096,
+        responseMimeType: "application/json"
+      }
+    });
+    
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const responseText = response.text();
+    
+    const consciousnessData = JSON.parse(responseText);
+    
+    const summary = consciousnessData.aiSummary || await summarizeDocument(text);
+    
+    const fullConsciousnessData = {
+      ...consciousnessData,
+      documentMetadata: {
+        documentId,
+        documentName: documentMetadata.name,
+        uploadDate: documentMetadata.uploadDate || new Date().toISOString(),
+        fileType: documentMetadata.fileType,
+        fileSize: documentMetadata.fileSize || 0,
+        extractionTimestamp: new Date().toISOString(),
+        extractionModel: "gemini-2.5-flash-lite",
+        documentHash
+      }
+    };
+    
+    return {
+      consciousnessData: fullConsciousnessData,
+      summary,
+      documentHash
+    };
+    
+  } catch (error) {
+    console.error("Error extracting document consciousness:", error);
+    throw error;
+  }
 }
