@@ -473,6 +473,7 @@ export default function Documents() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileMoreMenuOpen, setMobileMoreMenuOpen] = useState(false);
+  const [mobileFilterSheetOpen, setMobileFilterSheetOpen] = useState(false);
   const [location, setLocation] = useLocation();
   
   // Responsive page limit: 10 on mobile, 20 on desktop
@@ -1669,6 +1670,7 @@ export default function Documents() {
       onAISearch={handleAISearch}
       aiSearchLoading={aiSearchLoading}
       aiSearchResults={aiSearchResults}
+      onClearFilters={clearFilters}
       selectedFileType={selectedFileType}
       onFileTypeChange={setSelectedFileType}
       selectedFolderId={selectedFolderId}
@@ -1819,76 +1821,9 @@ export default function Documents() {
 
       {/* Main Content - Mobile Flex Layout */}
       <main className="flex-1 md:overflow-hidden flex flex-col overflow-hidden">
-        {/* Section 1 (Mobile): Controls + Filters Combined - Modern Premium Design */}
-        <div className={`bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 transition-all duration-300 ease-in-out md:max-h-none md:opacity-100 ${
-          isScrolling ? 'max-h-0 opacity-0 overflow-hidden' : 'max-h-[200px] opacity-100 overflow-visible'
-        }`}>
-          {/* Header - Clean Premium Single Row - No horizontal scroll on mobile */}
-          <div className="pl-1 md:pl-2 pr-1 md:pr-6 py-1 md:py-1.5 border-b border-border/20 md:overflow-x-auto">
-            {/* Mobile Controls - Show on small screens only */}
-            <div className="flex lg:hidden items-center gap-1 md:gap-2 md:min-w-max w-full md:w-auto">
-              {/* Title + Document Count - Compact but readable */}
-              <div className="flex items-baseline gap-1.5 pr-1 md:pr-2">
-                <h2 className="text-sm md:text-base font-light tracking-wide text-foreground whitespace-nowrap">
-                  {isMainCategorySelected 
-                    ? `${selectedFolder?.name} Sub-folders`
-                    : isSubFolderSelected 
-                      ? selectedFolder?.name 
-                      : "Documents"
-                  }
-                </h2>
-                <span className="text-xs md:text-sm text-muted-foreground/70 font-light tracking-wide whitespace-nowrap" data-testid="document-count">
-                  {isMainCategorySelected 
-                    ? `${selectedCategorySubFolders.length} folders`
-                    : `${documentsData?.pagination.total || 0}`
-                  }
-                </span>
-              </div>
-              
-              {/* Filters - Full width to show complete text */}
-              <Select value={selectedFileType} onValueChange={setSelectedFileType}>
-                <SelectTrigger className="w-[100px] md:w-28 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-type">
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  {availableFileTypes.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                <SelectTrigger className="w-[110px] md:w-36 text-xs h-8 bg-white dark:bg-gray-800 border-border/30 rounded-lg flex-shrink-0" data-testid="filter-folder">
-                  <SelectValue placeholder="All Folders" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Folders</SelectItem>
-                  {folders
-                    .filter(folder => folder.isAutoCreated && !folder.parentId && folder.documentCount > 0)
-                    .map((folder) => (
-                    <SelectItem key={folder.id} value={folder.id}>
-                      {folder.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Button 
-                variant="outline" 
-                onClick={clearFilters}
-                size="sm"
-                className="h-8 px-2.5 md:px-3 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex-shrink-0 shadow-sm"
-                data-testid="clear-filters"
-              >
-                Clear
-              </Button>
-            </div>
-
-            {/* Desktop Hero Toolbar - Hidden on mobile */}
-            <div className="hidden lg:flex items-center gap-6 w-full">
+        {/* Desktop Hero Toolbar */}
+        <div className="bg-gradient-to-b from-white to-slate-50/50 dark:from-gray-900 dark:to-gray-900/80 border-b border-border/20">
+          <div className="hidden lg:flex items-center gap-6 w-full pl-2 pr-6 py-1.5">
               {/* Hero Search Bar with Voice */}
               <div className="relative flex-1 max-w-3xl">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/40" />
@@ -2531,7 +2466,6 @@ export default function Documents() {
           if (button) button.click();
         }}
       />
-    </div>
     </MobileLayout>
   );
 }

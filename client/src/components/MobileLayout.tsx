@@ -4,6 +4,7 @@ import { MobileBottomNav } from "./MobileBottomNav";
 import { MobileDocumentsHeader } from "./MobileDocumentsHeader";
 import { MobileSearchModal } from "./MobileSearchModal";
 import { MobileSidebar } from "./MobileSidebar";
+import { MobileFilterSheet } from "./MobileFilterSheet";
 import { ObjectUploader } from "./ObjectUploader";
 import { Upload } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -54,6 +55,8 @@ interface MobileLayoutProps {
   isScrolling?: boolean;
   // Document click handler
   onDocumentClick?: (doc: any) => void;
+  // Filter props
+  onClearFilters?: () => void;
 }
 
 export function MobileLayout({
@@ -92,10 +95,12 @@ export function MobileLayout({
   isScrolling = false,
   // Document click handler
   onDocumentClick,
+  onClearFilters = () => {},
 }: MobileLayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileFilterSheetOpen, setMobileFilterSheetOpen] = useState(false);
   
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -139,6 +144,8 @@ export function MobileLayout({
         onMenuClick={() => setMobileSidebarOpen(true)}
         documentCount={documentCount}
         isScrolling={isScrolling}
+        onFilterClick={() => setMobileFilterSheetOpen(true)}
+        hasActiveFilters={selectedFileType !== "all" || selectedFolderId !== "all"}
       />
 
       {/* Page Content */}
@@ -188,6 +195,19 @@ export function MobileLayout({
         onDeleteAll={onDeleteAll}
         isDeleting={isDeleting}
         hasDocuments={hasDocuments}
+      />
+
+      {/* Mobile Filter Sheet - Only visible on mobile */}
+      <MobileFilterSheet
+        isOpen={mobileFilterSheetOpen}
+        onClose={() => setMobileFilterSheetOpen(false)}
+        selectedFileType={selectedFileType}
+        onFileTypeChange={onFileTypeChange}
+        selectedFolderId={selectedFolderId}
+        onFolderChange={onFolderChange}
+        folders={folders}
+        availableFileTypes={availableFileTypes}
+        onClearFilters={onClearFilters}
       />
 
       {/* Mobile Upload Button - Hidden but functional, triggered by bottom nav, works across all tabs */}
