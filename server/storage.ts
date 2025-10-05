@@ -2288,27 +2288,64 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // 2. Search Key Questions (high priority) - Use fuzzy matching
+      // 2. Search Key Questions (high priority) - Use semantic similarity + token fallback
       const keyQuestions = parsedData.intelligence?.keyQuestions || [];
+      
+      // Generate query embedding for semantic matching (reuse if already generated)
+      let queryEmbedding: number[] | null = null;
+      try {
+        queryEmbedding = await generateEmbedding(query, 'RETRIEVAL_QUERY');
+      } catch (error) {
+        console.log('Could not generate query embedding, using token matching only:', error);
+      }
+      
       const queryTokens = normalizedQuery.split(/\s+/).filter(t => t.length > 2);
       
       for (const qa of keyQuestions) {
         if (!qa.question || !qa.answer) continue;
         
-        const questionLower = qa.question.toLowerCase();
-        const questionTokens = questionLower.split(/\s+/).filter(t => t.length > 2);
+        let matched = false;
+        let matchConfidence = 0;
         
-        // Check for keyword overlap between query and question
-        const matchCount = queryTokens.filter(qt => 
-          questionTokens.some(qt2 => qt2.includes(qt) || qt.includes(qt2))
-        ).length;
+        // Primary: Semantic similarity matching
+        if (queryEmbedding) {
+          try {
+            const questionEmbedding = await generateEmbedding(qa.question, 'RETRIEVAL_DOCUMENT');
+            const similarity = calculateCosineSimilarity(queryEmbedding, questionEmbedding);
+            
+            // Match if semantic similarity > 0.65
+            if (similarity > 0.65) {
+              matched = true;
+              // Map similarity to confidence: 0.65→0.90, 1.0→0.98
+              matchConfidence = 0.90 + (similarity - 0.65) * 0.23;
+              console.log(`✅ Semantic match: "${query}" → "${qa.question}" (similarity: ${similarity.toFixed(3)}, confidence: ${matchConfidence.toFixed(2)})`);
+            }
+          } catch (error) {
+            console.log('Embedding generation failed for question, falling back to tokens:', error);
+          }
+        }
         
-        // If significant overlap (>40% of query tokens match), include this answer
-        if (matchCount >= Math.max(2, queryTokens.length * 0.4)) {
-          const confidenceAdjusted = (qa.confidence || 0.90) * (matchCount / queryTokens.length);
+        // Fallback: Token-based fuzzy matching (lowered threshold to 25%)
+        if (!matched) {
+          const questionLower = qa.question.toLowerCase();
+          const questionTokens = questionLower.split(/\s+/).filter(t => t.length > 2);
+          
+          const matchCount = queryTokens.filter(qt => 
+            questionTokens.some(qt2 => qt2.includes(qt) || qt.includes(qt2))
+          ).length;
+          
+          // Lower threshold: 25% token overlap or minimum 2 tokens
+          if (matchCount >= Math.max(2, queryTokens.length * 0.25)) {
+            matched = true;
+            matchConfidence = Math.min((qa.confidence || 0.90) * (matchCount / queryTokens.length), 0.92);
+            console.log(`✅ Token match: "${query}" → "${qa.question}" (${matchCount}/${queryTokens.length} tokens, confidence: ${matchConfidence.toFixed(2)})`);
+          }
+        }
+        
+        if (matched) {
           answers.push({
             answer: qa.answer,
-            confidence: Math.min(confidenceAdjusted, 0.95),
+            confidence: matchConfidence,
             sourceDocument: sourceDoc,
             context: qa.question,
             matchType: 'key_question'
