@@ -80,8 +80,11 @@ import {
   Target,
   Link2,
   Edit2,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
+import * as Collapsible from "@radix-ui/react-collapsible";
 import desktopMicIcon from "@assets/ClasioDesktopMic_1759628838903.png";
 
 // Calibrate confidence scores for better user experience
@@ -462,6 +465,9 @@ export default function Documents() {
   const [searchMode, setSearchMode] = useState<"simple" | "ai">("simple");
   const [aiSearchResults, setAiSearchResults] = useState<any>(null);
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  
+  // Desktop collapsible "More" section state
+  const [expandedDocuments, setExpandedDocuments] = useState<Set<string>>(new Set());
   
   // Mobile scroll-to-hide UI elements
   const [isScrolling, setIsScrolling] = useState(false);
@@ -2308,67 +2314,190 @@ export default function Documents() {
                       )}
                     </div>
                     
-                    {/* AI Analysis Results - Scrollable */}
-                    {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
-                      <div className="mb-0 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
-                        <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-purple-50/40 dark:bg-purple-950/10 pb-1">
+                    {/* AI Summary - Always Visible */}
+                    {document.aiSummary && (
+                      <div className="mb-0 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 mb-1.5">
                           <Sparkles className="h-3 w-3 text-purple-500 dark:text-purple-400" />
                           <span className="text-xs font-light tracking-wide text-[#1E1E1E] dark:text-slate-100">
-                            {document.aiSummary ? 'AI Analysis' : 'Classification'}
+                            AI Summary
                           </span>
                         </div>
-                        {document.aiSummary && (
-                          <p className="text-xs text-[#1E1E1E] dark:text-slate-100 mb-2 leading-relaxed font-light tracking-wide">{document.aiSummary}</p>
-                        )}
-                        {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
-                          <div className="text-xs text-[#1E1E1E] dark:text-slate-100 mb-2 space-y-1">
-                            <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs truncate">Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
-                                {document.overrideCategory ? (
-                                  <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-category-${document.id}`}>
-                                    Custom
-                                  </span>
-                                ) : formatConfidence(document.aiCategoryConfidence) && (
-                                  <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-category-${document.id}`}>
-                                    {formatConfidence(document.aiCategoryConfidence)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {(document.overrideDocumentType || document.aiDocumentType) && (
-                              <div className="flex flex-col gap-0.5">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs truncate">Sub-folder: {
-                                    (document.folder?.parentId ? document.folder.name : null) ||
-                                    document.overrideDocumentType || 
-                                    document.aiDocumentType
-                                  }</span>
-                                  {document.overrideDocumentType ? (
-                                    <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-type-${document.id}`}>
-                                      Custom
-                                    </span>
-                                  ) : formatConfidence(document.aiDocumentTypeConfidence) && (
-                                    <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-type-${document.id}`}>
-                                      {formatConfidence(document.aiDocumentTypeConfidence)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1 border-t border-purple-200/30 dark:border-purple-500/20">
-                            {document.aiKeyTopics.map((topic, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs bg-purple-100/60 dark:bg-gray-800/60 text-[#1E1E1E] dark:text-slate-100 border-0">
-                                {topic}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                        <p className="text-xs text-[#1E1E1E] dark:text-slate-100 leading-relaxed font-light tracking-wide">{document.aiSummary}</p>
                       </div>
                     )}
+                    
+                    {/* Collapsible "More" Section - Works on all devices */}
+                    {(() => {
+                      const hasClassifications = document.aiDocumentType || document.overrideDocumentType || document.overrideCategory;
+                      const hasTopics = document.aiKeyTopics && document.aiKeyTopics.length > 0;
+                      const hasActionButtons = true; // Action buttons are always present
+                      const hasMoreDetails = hasClassifications || hasTopics || hasActionButtons;
+                      const isExpanded = expandedDocuments.has(document.id);
+                      
+                      return (
+                        <Collapsible.Root
+                          open={isExpanded}
+                          onOpenChange={(open) => {
+                            setExpandedDocuments(prev => {
+                              const next = new Set(prev);
+                              if (open) {
+                                next.add(document.id);
+                              } else {
+                                next.delete(document.id);
+                              }
+                              return next;
+                            });
+                          }}
+                        >
+                          <Collapsible.Trigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full h-7 mt-2 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`more-button-${document.id}`}
+                            >
+                              <span>More details</span>
+                              {isExpanded ? (
+                                <ChevronUp className="h-3 w-3" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </Collapsible.Trigger>
+                          
+                          <Collapsible.Content className="overflow-hidden data-[state=open]:animate-slideDown data-[state=closed]:animate-slideUp">
+                            <div className="mt-2 space-y-2">
+                              {/* Folder/Sub-folder Classifications */}
+                              {hasClassifications && (
+                                <div className="p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20">
+                                  <div className="flex items-center gap-1.5 mb-1.5">
+                                    <FolderOpen className="h-3 w-3 text-purple-500 dark:text-purple-400" />
+                                    <span className="text-xs font-light tracking-wide text-[#1E1E1E] dark:text-slate-100">
+                                      Classification
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-[#1E1E1E] dark:text-slate-100 space-y-1">
+                                    <div className="flex flex-col gap-0.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs truncate">Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
+                                        {document.overrideCategory ? (
+                                          <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-category-${document.id}`}>
+                                            Custom
+                                          </span>
+                                        ) : formatConfidence(document.aiCategoryConfidence) && (
+                                          <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-category-${document.id}`}>
+                                            {formatConfidence(document.aiCategoryConfidence)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {(document.overrideDocumentType || document.aiDocumentType) && (
+                                      <div className="flex flex-col gap-0.5">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs truncate">Sub-folder: {
+                                            (document.folder?.parentId ? document.folder.name : null) ||
+                                            document.overrideDocumentType || 
+                                            document.aiDocumentType
+                                          }</span>
+                                          {document.overrideDocumentType ? (
+                                            <span className="text-xs bg-green-100/70 dark:bg-green-900/50 px-1 py-0.5 rounded text-green-700 dark:text-green-300 font-medium ml-2" data-testid={`override-type-${document.id}`}>
+                                              Custom
+                                            </span>
+                                          ) : formatConfidence(document.aiDocumentTypeConfidence) && (
+                                            <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-type-${document.id}`}>
+                                              {formatConfidence(document.aiDocumentTypeConfidence)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* AI Topics */}
+                              {hasTopics && (
+                                <div className="p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20">
+                                  <div className="flex items-center gap-1.5 mb-1.5">
+                                    <Brain className="h-3 w-3 text-purple-500 dark:text-purple-400" />
+                                    <span className="text-xs font-light tracking-wide text-[#1E1E1E] dark:text-slate-100">
+                                      Topics
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {document.aiKeyTopics.map((topic, index) => (
+                                      <Badge key={index} variant="secondary" className="text-xs bg-purple-100/60 dark:bg-gray-800/60 text-[#1E1E1E] dark:text-slate-100 border-0">
+                                        {topic}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Action Buttons - Inside Collapsible on Desktop */}
+                              <div className="grid grid-cols-4 gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-11 bg-slate-100/50 hover:bg-slate-200/70 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 px-1.5 transition-all flex-col gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownload(document);
+                                  }}
+                                  data-testid={`download-${document.id}`}
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  <span className="text-[10px] font-light tracking-wide">Get</span>
+                                </Button>
+                                <Button 
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-1.5 transition-all flex-col gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenDocumentFile(document);
+                                  }}
+                                  data-testid={`preview-${document.id}`}
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  <span className="text-[10px] font-light tracking-wide">View</span>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-11 bg-purple-100/50 hover:bg-purple-200/70 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-700/50 px-1.5 transition-all flex-col gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    analyzeDocumentMutation.mutate(document.id);
+                                  }}
+                                  disabled={analyzeDocumentMutation.isPending}
+                                  data-testid={`analyze-ai-${document.id}`}
+                                >
+                                  <Brain className="h-3.5 w-3.5" />
+                                  <span className="text-[10px] font-light tracking-wide">AI</span>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-11 bg-rose-100/50 hover:bg-rose-200/70 dark:bg-rose-900/20 dark:hover:bg-rose-800/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-700/50 px-1.5 transition-all flex-col gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteDocumentMutation.mutate(document.id);
+                                  }}
+                                  disabled={deleteDocumentMutation.isPending}
+                                  data-testid={`delete-${document.id}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span className="text-[10px] font-light tracking-wide">Del</span>
+                                </Button>
+                              </div>
+                            </div>
+                          </Collapsible.Content>
+                        </Collapsible.Root>
+                      );
+                    })()}
                     
                     {/* AI Search Score Display - Mobile Responsive */}
                     {searchMode === "ai" && aiSearchResults && document.aiScore !== undefined && (
@@ -2399,64 +2528,6 @@ export default function Documents() {
                         </div>
                       </div>
                     )}
-
-                    {/* Action Buttons - Premium Subtle Design with Proper Touch Targets */}
-                    <div className="grid grid-cols-4 gap-1.5 mt-2 -mb-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-slate-100/50 hover:bg-slate-200/70 dark:bg-slate-800/30 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownload(document);
-                        }}
-                        data-testid={`download-${document.id}`}
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">Get</span>
-                      </Button>
-                      <Button 
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-emerald-100/50 hover:bg-emerald-200/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDocumentFile(document);
-                        }}
-                        data-testid={`preview-${document.id}`}
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">View</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-purple-100/50 hover:bg-purple-200/70 dark:bg-purple-900/20 dark:hover:bg-purple-800/30 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          analyzeDocumentMutation.mutate(document.id);
-                        }}
-                        disabled={analyzeDocumentMutation.isPending}
-                        data-testid={`analyze-ai-${document.id}`}
-                      >
-                        <Brain className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">AI</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-11 bg-rose-100/50 hover:bg-rose-200/70 dark:bg-rose-900/20 dark:hover:bg-rose-800/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-700/50 px-1.5 transition-all flex-col gap-0.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteDocumentMutation.mutate(document.id);
-                        }}
-                        disabled={deleteDocumentMutation.isPending}
-                        data-testid={`delete-${document.id}`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-light tracking-wide">Del</span>
-                      </Button>
-                    </div>
                   </CardContent>
                 </Card>
               ));
