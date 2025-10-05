@@ -23,6 +23,15 @@ export function NeuralMicIcon({ className = "", active = false, onClick }: Neura
           transition: transform 0.3s ease;
           cursor: pointer;
           position: relative;
+          background-color: white;
+          border-radius: 50%;
+          padding: 8px;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+          .neural-mic-container {
+            background-color: rgb(17, 24, 39);
+          }
         }
         
         /* Glow layer behind the image */
