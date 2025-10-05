@@ -2071,15 +2071,15 @@ export default function Documents() {
           {/* AI Search Results Section */}
           {searchMode === "ai" && aiSearchResults && (
             <div className="mb-6">
-              <div className="rounded-lg border p-4 mb-4 dark:bg-gray-900 dark:border-purple-500" style={{ backgroundColor: '#E2D8FF', borderColor: '#D0BFFF' }}>
+              <div className="bg-purple-50 dark:bg-gray-900 border border-purple-200 dark:border-purple-500 rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Brain className="h-5 w-5 text-purple-500" />
-                  <h3 className="text-sm font-semibold dark:text-purple-100" style={{ color: '#1E1E1E' }}>AI Search Results</h3>
+                  <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">AI Search Results</h3>
                   <Badge variant="secondary" className="text-xs">
                     {aiSearchResults.totalResults} found
                   </Badge>
                 </div>
-                <div className="text-sm mb-2 dark:text-purple-200" style={{ color: '#1E1E1E' }}>
+                <div className="text-sm text-purple-500 dark:text-purple-200 mb-2">
                   {aiSearchResults.response.includes('•') ? (
                     // Format numbered responses
                     <div className="space-y-2">
@@ -2091,7 +2091,7 @@ export default function Documents() {
                           ) : (
                             // Subsequent parts are the numbered points
                             <>
-                              <span className="font-bold mt-0.5 min-w-[1.25rem] dark:text-purple-400" style={{ color: '#1E1E1E' }}>{index}.</span>
+                              <span className="text-purple-500 dark:text-purple-400 font-bold mt-0.5 min-w-[1.25rem]">{index}.</span>
                               <span className="flex-1">{part.trim()}</span>
                             </>
                           )}
@@ -2105,7 +2105,7 @@ export default function Documents() {
                 </div>
                 {aiSearchResults.keywords && aiSearchResults.keywords.length > 0 && (
                   <div className="flex gap-1 flex-wrap">
-                    <span className="text-xs dark:text-purple-300" style={{ color: '#1E1E1E' }}>Keywords:</span>
+                    <span className="text-xs text-purple-500 dark:text-purple-300">Keywords:</span>
                     {aiSearchResults.keywords.map((keyword: string, index: number) => (
                       <Badge key={index} variant="outline" className="text-xs">
                         {keyword}
@@ -2310,18 +2310,18 @@ export default function Documents() {
                     
                     {/* AI Analysis Results - Scrollable */}
                     {(document.aiSummary || document.overrideDocumentType || document.overrideCategory) && (
-                      <div className="mb-0 p-2.5 rounded-lg border flex-shrink-0 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-track-transparent" style={{ backgroundColor: '#E2D8FF', borderColor: '#D0BFFF' }}>
-                        <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 pb-1" style={{ backgroundColor: '#E2D8FF' }}>
+                      <div className="mb-0 p-2.5 bg-purple-50/40 dark:from-purple-950/10 dark:to-indigo-950/10 rounded-lg border border-purple-200/30 dark:border-purple-500/20 flex-shrink-0 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 dark:scrollbar-thumb-purple-800 scrollbar-track-transparent">
+                        <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-purple-50/40 dark:bg-purple-950/10 pb-1">
                           <Sparkles className="h-3 w-3 text-purple-500 dark:text-purple-400" />
-                          <span className="text-xs font-light tracking-wide" style={{ color: '#1E1E1E' }}>
+                          <span className="text-xs font-light tracking-wide text-purple-600 dark:text-purple-300">
                             {document.aiSummary ? 'AI Analysis' : 'Classification'}
                           </span>
                         </div>
                         {document.aiSummary && (
-                          <p className="text-xs mb-2 leading-relaxed font-light tracking-wide" style={{ color: '#1E1E1E' }}>{document.aiSummary}</p>
+                          <p className="text-xs text-purple-600/90 dark:text-purple-400/90 mb-2 leading-relaxed font-light tracking-wide">{document.aiSummary}</p>
                         )}
                         {(document.aiDocumentType || document.overrideDocumentType || document.overrideCategory) && (
-                          <div className="text-xs mb-2 space-y-1" style={{ color: '#1E1E1E' }}>
+                          <div className="text-xs text-purple-500/80 dark:text-purple-400/80 mb-2 space-y-1">
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center justify-between">
                                 <span className="text-xs truncate">Folder: {document.overrideCategory || document.aiCategory || 'Uncategorized'}</span>
@@ -2330,7 +2330,7 @@ export default function Documents() {
                                     Custom
                                   </span>
                                 ) : formatConfidence(document.aiCategoryConfidence) && (
-                                  <span className="text-xs px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" style={{ backgroundColor: '#D0BFFF', color: '#1E1E1E' }} data-testid={`confidence-category-${document.id}`}>
+                                  <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-category-${document.id}`}>
                                     {formatConfidence(document.aiCategoryConfidence)}
                                   </span>
                                 )}
@@ -2349,7 +2349,7 @@ export default function Documents() {
                                       Custom
                                     </span>
                                   ) : formatConfidence(document.aiDocumentTypeConfidence) && (
-                                    <span className="text-xs px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" style={{ backgroundColor: '#D0BFFF', color: '#1E1E1E' }} data-testid={`confidence-type-${document.id}`}>
+                                    <span className="text-xs bg-purple-100/70 dark:bg-gray-800/50 px-1 py-0.5 rounded font-medium whitespace-nowrap ml-2" data-testid={`confidence-type-${document.id}`}>
                                       {formatConfidence(document.aiDocumentTypeConfidence)}
                                     </span>
                                   )}
@@ -2359,9 +2359,9 @@ export default function Documents() {
                           </div>
                         )}
                         {document.aiKeyTopics && document.aiKeyTopics.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1 border-t" style={{ borderColor: '#D0BFFF' }}>
+                          <div className="flex flex-wrap gap-1 pt-1 border-t border-purple-200/30 dark:border-purple-500/20">
                             {document.aiKeyTopics.map((topic, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs border-0" style={{ backgroundColor: '#D0BFFF', color: '#1E1E1E' }}>
+                              <Badge key={index} variant="secondary" className="text-xs bg-purple-100/60 dark:bg-gray-800/60 text-purple-600 dark:text-purple-300 border-0">
                                 {topic}
                               </Badge>
                             ))}
