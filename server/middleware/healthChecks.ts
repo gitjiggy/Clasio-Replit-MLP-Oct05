@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import { storage } from '../storage.js';
 import { logger } from '../logger.js';
+import { adminAuth } from '../auth.js';
 
 interface HealthStatus {
   status: 'healthy' | 'unhealthy';
@@ -123,6 +124,28 @@ export async function readinessCheck(req: Request, res: Response): Promise<void>
         message: dbError instanceof Error ? dbError.message : 'Database connection failed',
         duration_ms: Date.now() - dbStart
       };
+    }
+
+    // Firebase Admin SDK check
+    const firebaseStart = Date.now();
+    try {
+      // Test Firebase Admin by trying to list users (limited to 1)
+      // This verifies the service account credentials are valid
+      const listResult = await adminAuth.listUsers(1);
+      
+      readinessStatus.checks.firebase_admin = {
+        status: 'pass',
+        message: 'Firebase Admin SDK operational',
+        duration_ms: Date.now() - firebaseStart
+      };
+    } catch (firebaseError) {
+      readinessStatus.checks.firebase_admin = {
+        status: 'fail',
+        message: firebaseError instanceof Error ? firebaseError.message : 'Firebase Admin SDK failed',
+        duration_ms: Date.now() - firebaseStart
+      };
+      
+      logger.error('Firebase Admin SDK health check failed', firebaseError instanceof Error ? firebaseError : new Error(String(firebaseError)));
     }
 
     // Queue lag check - measure actual lag of oldest pending job

@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LoginModal } from "@/components/LoginModal";
 import { UserMenu } from "@/components/UserMenu";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Landing from "@/pages/landing";
 import Privacy from "@/pages/privacy";
 import Legal from "@/pages/legal";
@@ -186,17 +187,19 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <AuthProvider>
-          <Switch>
-            <Route path="/auth/drive" component={AuthDrive} />
-            <Route path="/*" component={AuthenticatedApp} />
-          </Switch>
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <AuthProvider>
+            <Switch>
+              <Route path="/auth/drive" component={AuthDrive} />
+              <Route path="/*" component={AuthenticatedApp} />
+            </Switch>
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

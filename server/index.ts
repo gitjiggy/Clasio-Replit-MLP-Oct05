@@ -15,6 +15,7 @@ import { healthCheck, readinessCheck, getSystemStatus } from './middleware/healt
 import { queueMetrics } from './middleware/queueMetrics.js';
 import { logger } from './logger.js';
 import { validateFirebaseAdmin } from './auth.js';
+import { ErrorCodes, createErrorResponse, getUserFriendlyMessage } from './errorCodes.js';
 
 // Environment variable validation
 function validateEnvironment() {
@@ -64,14 +65,21 @@ function validateEnvironment() {
 
 // Run environment validation before starting the server
 console.log('🚀 Starting Clasio server...');
+logger.info('Server startup initiated', { 
+  nodeEnv: process.env.NODE_ENV,
+  nodeVersion: process.version,
+  timestamp: new Date().toISOString()
+});
+
 validateEnvironment();
+logger.info('Environment validation passed');
 
 const app = express();
 
 // Configure trust proxy for rate limiting (Replit uses proxies)
 app.set('trust proxy', 1);
 
-console.log('✓ Express app configured');
+logger.info('Express app configured', { trustProxy: true });
 
 // Configure CORS
 app.use(cors({
@@ -132,18 +140,43 @@ app.use('/__/auth', createProxyMiddleware({
   // Add back the /__/auth prefix that Express strips when mounting at '/__/auth'
   pathRewrite: (path: string, req: any) => {
     const newPath = '/__/auth' + path;
-    console.log(`🔀 Path rewrite: ${path} → ${newPath}`);
+    logger.info('Firebase auth proxy path rewrite', { 
+      originalPath: path, 
+      newPath,
+      originalUrl: req.originalUrl 
+    });
     return newPath;
   },
   onProxyReq: (proxyReq: any, req: any, res: any) => {
-    console.log(`🔄 Proxying Firebase auth: ${req.method} ${req.originalUrl}`);
+    logger.info('Proxying Firebase auth request', { 
+      method: req.method, 
+      url: req.originalUrl 
+    });
   },
   onProxyRes: (proxyRes: any, req: any, res: any) => {
-    console.log(`✅ Firebase auth response: ${proxyRes.statusCode} for ${req.originalUrl}`);
+    logger.info('Firebase auth proxy response', { 
+      statusCode: proxyRes.statusCode, 
+      url: req.originalUrl 
+    });
   },
   onError: (err: any, req: any, res: any) => {
-    console.error('❌ Firebase auth proxy error:', err);
-    res.status(500).send('Auth proxy error');
+    logger.error('Firebase auth proxy error', err instanceof Error ? err : new Error(String(err)), {
+      url: req.originalUrl,
+      method: req.method,
+      errorMessage: err.message || String(err)
+    });
+    
+    const errorResponse = createErrorResponse(
+      ErrorCodes.AUTH_PROXY_FAILURE,
+      `Firebase authentication proxy failed: ${err.message || 'Unknown error'}`,
+      {
+        path: req.originalUrl,
+        method: req.method,
+        userMessage: getUserFriendlyMessage(ErrorCodes.AUTH_PROXY_FAILURE)
+      }
+    );
+    
+    res.status(500).json(errorResponse);
   }
 }));
 
