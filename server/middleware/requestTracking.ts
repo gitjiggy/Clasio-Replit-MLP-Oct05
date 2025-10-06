@@ -111,8 +111,8 @@ function recordRequestMetrics(method: string, route: string, status: number, lat
 export function getRequestMetrics(): Record<string, any> {
   const metrics: Record<string, any> = {};
 
-  for (const [route, routeMetric] of routeMetrics.entries()) {
-    const latencies = routeMetric.latencies.sort((a, b) => a - b);
+  for (const [route, routeMetric] of Array.from(routeMetrics.entries())) {
+    const latencies = routeMetric.latencies.sort((a: number, b: number) => a - b);
     const p95Index = Math.floor(latencies.length * 0.95);
     const p99Index = Math.floor(latencies.length * 0.99);
 
@@ -120,7 +120,7 @@ export function getRequestMetrics(): Record<string, any> {
       totalRequests: routeMetric.totalRequests,
       errorRequests: routeMetric.errorRequests,
       errorRate: routeMetric.totalRequests > 0 ? (routeMetric.errorRequests / routeMetric.totalRequests) * 100 : 0,
-      avgLatencyMs: latencies.length > 0 ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0,
+      avgLatencyMs: latencies.length > 0 ? latencies.reduce((a: number, b: number) => a + b, 0) / latencies.length : 0,
       p95LatencyMs: latencies.length > 0 ? latencies[p95Index] || 0 : 0,
       p99LatencyMs: latencies.length > 0 ? latencies[p99Index] || 0 : 0,
       minLatencyMs: latencies.length > 0 ? latencies[0] : 0,
@@ -153,10 +153,10 @@ export function getSystemMetricsSummary(): {
   let totalLatency = 0;
   let latencyCount = 0;
 
-  for (const metrics of routeMetrics.values()) {
+  for (const metrics of Array.from(routeMetrics.values())) {
     totalRequests += metrics.totalRequests;
     totalErrors += metrics.errorRequests;
-    totalLatency += metrics.latencies.reduce((a, b) => a + b, 0);
+    totalLatency += metrics.latencies.reduce((a: number, b: number) => a + b, 0);
     latencyCount += metrics.latencies.length;
   }
 

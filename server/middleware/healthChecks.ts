@@ -27,6 +27,10 @@ interface ReadinessStatus {
     message?: string;
     duration_ms?: number;
     threshold?: string;
+    current_lag_seconds?: number;
+    queue_lag_seconds?: number;
+    oldest_job_id?: string;
+    oldest_reindex_job_id?: string;
   }>;
 }
 
@@ -109,9 +113,8 @@ export async function readinessCheck(req: Request, res: Response): Promise<void>
     // Database connectivity check
     const dbStart = Date.now();
     try {
-      await storage.ensureInitialized();
       // Simple DB ping - get count of documents (fastest query)
-      await storage.getDocumentsCount({ search: '', fileType: '', folderId: '', tagId: '', page: 1 }, 'health-check');
+      await storage.getDocumentsCount({ search: '', fileType: '', folderId: '', tagId: '', page: 1, limit: 1 }, 'health-check');
       
       readinessStatus.checks.database = {
         status: 'pass',

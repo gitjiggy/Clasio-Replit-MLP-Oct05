@@ -115,7 +115,7 @@ app.use((req, res, next) => {
 });
 
 // Token 5/8: Structured logging and request tracking middleware
-app.use(requestTrackingMiddleware);
+app.use(requestTrackingMiddleware as any);
 
 // Legacy logging for non-API routes (keep for Vite dev server compatibility)
 app.use((req, res, next) => {
