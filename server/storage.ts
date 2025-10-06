@@ -318,35 +318,8 @@ export class DatabaseStorage implements IStorage {
 
   private async initializeDefaults() {
     try {
-      // Check if we have any folders, if not create defaults
-      const existingFolders = await db.select().from(folders);
-      if (existingFolders.length === 0) {
-        const defaultFolders = [
-          { name: "Contracts", color: "#f59e0b" },
-          { name: "Reports", color: "#3b82f6" },
-          { name: "Invoices", color: "#10b981" },
-          { name: "Legal Documents", color: "#8b5cf6" },
-        ];
-        
-        await db.insert(folders).values(defaultFolders);
-      }
-
-      // Check if we have any tags, if not create defaults
-      const existingTags = await db.select().from(tags);
-      if (existingTags.length === 0) {
-        const defaultTags = [
-          { name: "Taxes", color: "#ef4444" },
-          { name: "Medical", color: "#10b981" },
-          { name: "Insurance", color: "#3b82f6" },
-          { name: "Legal", color: "#8b5cf6" },
-          { name: "Immigration", color: "#f59e0b" },
-          { name: "Financial", color: "#06b6d4" },
-          { name: "Important", color: "#dc2626" },
-          { name: "Pending", color: "#f97316" },
-        ];
-        
-        await db.insert(tags).values(defaultTags);
-      }
+      // Default initialization disabled - folders and tags are user-specific
+      // No system-wide defaults needed
     } catch (error) {
     }
   }
@@ -705,7 +678,7 @@ export class DatabaseStorage implements IStorage {
     return result as DocumentWithFolderAndTags[];
   }
 
-  async getTrashedDocuments(userId: string): Promise<DocumentWithFolderAndTags[]> {
+  async getTrashedDocuments(userId: string): Promise<{ documents: DocumentWithFolderAndTags[] }> {
     await this.ensureInitialized();
     ensureTenantContext(userId);
     
@@ -915,12 +888,12 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Match and update incorrect paths
-    for (const [docId, gcsObjectPaths] of gcsObjectsByDocId) {
+    for (const [docId, gcsObjectPaths] of Array.from(gcsObjectsByDocId)) {
       const dbDoc = dbDocsByDocId.get(docId);
       
       if (dbDoc) {
         // Find the main object path (should match originalName)
-        const correctObjectPath = gcsObjectPaths.find(path => {
+        const correctObjectPath = gcsObjectPaths.find((path: string) => {
           const match = path.match(canonicalPattern);
           return match && match[3] === dbDoc.originalName;
         }) || gcsObjectPaths[0]; // Fallback to first if exact match not found
@@ -953,7 +926,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // 5. Remaining documents in dbDocsByDocId are database orphans
-    for (const [docId, doc] of dbDocsByDocId) {
+    for (const [docId, doc] of Array.from(dbDocsByDocId)) {
       results.orphanedDBDocuments.push({
         id: docId,
         name: doc.name,
@@ -1996,7 +1969,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Execute fast FTS query to get top 15 candidates
-    let ftsResults = [];
+    let ftsResults: any[] = [];
     let ftsTime = 0;
     
     if (useFTS) {
