@@ -13,7 +13,7 @@ import { requestTrackingMiddleware, getRequestMetrics, getSystemMetricsSummary }
 import { healthCheck, readinessCheck, getSystemStatus } from './middleware/healthChecks.js';
 import { queueMetrics } from './middleware/queueMetrics.js';
 import { logger } from './logger.js';
-import { validateFirebaseAdmin } from './auth.js';
+import { initializeFirebaseAdmin, validateFirebaseAdmin } from './auth.js';
 import { ErrorCodes, createErrorResponse, getUserFriendlyMessage } from './errorCodes.js';
 
 // Environment variable validation
@@ -371,13 +371,14 @@ app.get('/dashboard', (req, res) => {
     throw new Error('Cannot start server without database connection');
   }
 
-  // Validate Firebase Admin is properly initialized
-  console.log('🔑 Validating Firebase Admin authentication...');
+  // Initialize Firebase Admin explicitly to ensure it runs in production builds
+  console.log('🔑 Initializing Firebase Admin authentication...');
   try {
+    initializeFirebaseAdmin();
     validateFirebaseAdmin();
     console.log('✅ Firebase Admin authentication ready');
   } catch (authError) {
-    console.error('❌ Firebase Admin validation failed:', authError);
+    console.error('❌ Firebase Admin initialization/validation failed:', authError);
     throw new Error('Cannot start server without Firebase authentication');
   }
 

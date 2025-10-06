@@ -2,8 +2,18 @@
 import admin from 'firebase-admin';
 import { Request, Response, NextFunction } from 'express';
 
-// Initialize Firebase Admin SDK for token verification
-if (!admin.apps.length) {
+/**
+ * Initialize Firebase Admin SDK for token verification
+ * MUST be called explicitly during server startup to ensure initialization
+ * and proper error logging in production builds
+ */
+export function initializeFirebaseAdmin(): void {
+  // Skip if already initialized
+  if (admin.apps.length > 0) {
+    console.log('✅ Firebase Admin already initialized, skipping...');
+    return;
+  }
+
   // Use GCP service account key for Firebase Admin in production
   // This allows us to verify ID tokens properly
   const serviceAccountKey = process.env.GCP_SERVICE_ACCOUNT_KEY;
