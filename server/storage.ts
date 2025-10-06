@@ -47,10 +47,6 @@ import {
   parseEmbeddingFromJSON, 
   serializeEmbeddingToJSON 
 } from "./gemini.js";
-import { QueryAnalyzer, PolicyRegistry, QueryAnalysis, SearchPolicy } from './queryAnalysis.js';
-import { FieldAwareLexicalScorer, FieldContent, LexicalAnalysisResult } from './fieldAwareLexical.js';
-import { TierRouter, TierClassification, QualitySignals } from './tierRouting.js';
-import { PolicyDrivenSearchEngine } from './policyDrivenSearch.js';
 import { logger, logWorkerOperation } from './logger.js';
 import { queueMetrics } from './middleware/queueMetrics.js';
 
@@ -290,19 +286,6 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   private isInitialized = false;
   private queryEmbeddingCache = new QueryEmbeddingCacheManager();
-  
-  // Policy-driven search system
-  private queryAnalyzer = new QueryAnalyzer();
-  private policyRegistry = new PolicyRegistry();
-  private fieldAwareLexicalScorer = new FieldAwareLexicalScorer();
-  private tierRouter = new TierRouter();
-  private policyDrivenSearchEngine = new PolicyDrivenSearchEngine(
-    this.queryAnalyzer,
-    this.policyRegistry, 
-    this.fieldAwareLexicalScorer,
-    this.tierRouter,
-    this.queryEmbeddingCache
-  );
 
   private async ensureInitialized() {
     if (!this.isInitialized) {
@@ -1929,11 +1912,6 @@ export class DatabaseStorage implements IStorage {
     return cleanedQuery || query; // Fallback to original if everything was filtered
   }
 
-  // Policy-Driven Search with comprehensive instrumentation
-  async searchWithPolicyDrivenAnalysis(query: string, filters: any = {}, userId?: string) {
-    await this.ensureInitialized();
-    return this.policyDrivenSearchEngine.searchWithPolicyDrivenAnalysis(query, filters, userId);
-  }
 
   // Hybrid FTS + Limited Semantic Search for optimal performance
   async searchFTSPlusSemanticOptimized(query: string, filters: Partial<Omit<DocumentFilters, 'search'>> = {}, userId?: string): Promise<{
