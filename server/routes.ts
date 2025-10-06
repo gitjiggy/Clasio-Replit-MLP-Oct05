@@ -585,11 +585,14 @@ async function cleanupTmpFiles() {
       const stats = await fs.stat(filePath);
       if (now - stats.mtime.getTime() > maxAge) {
         await fs.unlink(filePath);
-        console.log(`Cleaned up old tmp file: ${file}`);
       }
     }
   } catch (error) {
-    console.error('Error cleaning up tmp files:', error);
+    logger.error('Error cleaning up tmp files', {
+      reqId: undefined,
+      userId: undefined,
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
   }
 }
 
@@ -637,8 +640,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         sameSite: 'lax'
       });
-      
-      console.log('✅ Test authentication endpoint called - setting test cookies');
       
       res.json({ 
         success: true, 
@@ -928,35 +929,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (quotaUpdated) {
           try {
             const rollbackSuccess = await decreaseStorageUsage(uid, size);
-            console.log(JSON.stringify({
-              evt: "upload-proxy.quota_rollback",
+            logger.info("Upload proxy quota rollback", {
               reqId: (req as any).reqId,
-              uid,
-              fileSize: size,
-              success: rollbackSuccess,
-              timestamp: new Date().toISOString()
-            }));
+              userId: uid,
+              metadata: { fileSize: size, rollbackSuccess }
+            });
           } catch (rollbackError) {
-            console.error(JSON.stringify({
-              evt: "upload-proxy.quota_rollback_failed",
+            logger.error("Upload proxy quota rollback failed", {
               reqId: (req as any).reqId,
-              uid,
-              fileSize: size,
-              error: rollbackError.message,
-              timestamp: new Date().toISOString()
-            }));
+              userId: uid,
+              metadata: {
+                fileSize: size,
+                errorMessage: rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+              }
+            });
           }
         }
         
-        // Error log with correlation ID
-        console.error(JSON.stringify({
-          evt: "upload-proxy.error",
+        logger.error("Upload proxy error", {
           reqId: (req as any).reqId,
-          uid: req.user?.uid,
-          error: err.message,
-          stack: err.stack,
-          timestamp: new Date().toISOString()
-        }));
+          userId: req.user?.uid,
+          metadata: {
+            errorMessage: err.message,
+            errorStack: err.stack
+          }
+        });
         // Return the actual error message to surface queue creation failures
         return res.status(500).json({ error: err.message || "proxy upload failed" });
       }
@@ -2035,7 +2032,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ].filter(Boolean)
       });
     } catch (error) {
-      console.error("Error fetching queue status:", error);
+      logger.error("Error fetching queue status", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         error: "Failed to fetch queue status",
         funnyMessage: "Our status dashboard seems to be having a coffee break! ☕ Please try again!"
@@ -2220,7 +2221,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
-      console.error("Error fetching fun facts:", error);
+      logger.error("Error fetching fun facts", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         error: "Failed to fetch fun facts"
       });
@@ -2277,7 +2282,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      console.error("Error fetching system analytics:", error);
+      logger.error("Error fetching system analytics", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         error: "Failed to fetch system analytics",
         message: "Unable to retrieve analytics metrics. Please try again later."
@@ -2295,8 +2304,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           funnyMessage: "Who goes there?! 🕵️‍♀️ Our embedding queue is VIP only!"
         });
       }
-
-      console.log(`Starting bulk embedding generation for user: ${userId}`);
       
       // Trigger bulk embedding generation
       const result = await storage.bulkEnqueueDocumentsForEmbedding(userId, 9); // Very low priority
@@ -2323,7 +2330,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
     } catch (error) {
-      console.error("Error in bulk embedding generation:", error);
+      logger.error("Error in bulk embedding generation", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({
         error: "Failed to enqueue documents for embedding generation",
         funnyMessage: "Our embedding queue seems to be having technical difficulties! 🤖💭 Please try again!"
@@ -2334,15 +2345,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update document
   app.put("/api/documents/:id", express.json(), verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      console.log("🔍 PUT /api/documents/:id - Raw body:", req.body);
-      console.log("🔍 Headers:", req.headers['content-type']);
-      
-      // If body is still empty, check if raw body exists
-      if (Object.keys(req.body || {}).length === 0 && req.headers['content-type']?.includes('application/json')) {
-        console.error("⚠️ Body parsing failed despite express.json() middleware");
-        console.error("⚠️ This suggests middleware ordering issue or body was consumed elsewhere");
-      }
-      
       const { name, folderId, isFavorite, tagIds } = req.body;
       
       const userId = req.user?.uid;
@@ -2355,8 +2357,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (name !== undefined) updateData.name = name;
       if (folderId !== undefined) updateData.folderId = folderId;
       if (isFavorite !== undefined) updateData.isFavorite = isFavorite;
-      
-      console.log("🔍 Update data:", updateData);
       
       const document = await storage.updateDocument(req.params.id, updateData, userId);
 
@@ -2377,7 +2377,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedDocument = await storage.getDocumentById(document.id, userId);
       res.json(updatedDocument);
     } catch (error) {
-      console.error("Error updating document:", error);
+      logger.error("Error updating document", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { documentId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to update document" });
     }
   });
@@ -2387,33 +2391,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const documentId = req.params.id;
       
-      // DEBUG: Log incoming data
-      console.log("🔍 Classification update request:", {
-        documentId,
-        body: req.body,
-        category: req.body.category,
-        categoryType: typeof req.body.category,
-        categoryLength: req.body.category?.length,
-        categoryChars: req.body.category?.split('').map((c: string) => ({ char: c, code: c.charCodeAt(0) })),
-        documentType: req.body.documentType,
-        documentTypeType: typeof req.body.documentType,
-        documentTypeLength: req.body.documentType?.length
-      });
-      
       // Validate input
       const validationResult = classificationUpdateSchema.safeParse(req.body);
       if (!validationResult.success) {
-        console.log("❌ Validation failed:", {
-          errors: validationResult.error.issues,
-          formatted: validationResult.error.format()
-        });
         return res.status(400).json({ 
           error: "Invalid classification parameters",
           details: validationResult.error.issues
         });
       }
-      
-      console.log("✅ Validation passed!");
       
       
       const { category, documentType } = validationResult.data;
@@ -2443,7 +2428,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Reorganize document into the correct folder based on new classification
       const organizeSuccess = await storage.organizeDocumentIntoFolder(documentId, category, documentType, userId);
       if (!organizeSuccess) {
-        console.warn(`Failed to reorganize document ${documentId} into folder for category: ${category}, type: ${documentType}`);
+        logger.warn("Failed to reorganize document after classification update", {
+          reqId: (req as any).reqId,
+          userId: userId,
+          metadata: { documentId, category, documentType }
+        });
         // Don't fail the request, as the classification was still updated
       }
       
@@ -2452,7 +2441,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(finalDocument);
       
     } catch (error) {
-      console.error("Error updating document classification:", error);
+      logger.error("Error updating document classification", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { documentId: documentId, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to update document classification" });
     }
   });
@@ -2470,7 +2463,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting document:", error);
+      logger.error("Error deleting document", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { documentId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to delete document" });
     }
   });
@@ -2501,7 +2498,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         alreadyLive: result.alreadyLive || false
       });
     } catch (error) {
-      console.error("Error restoring document:", error);
+      logger.error("Error restoring document", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { documentId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to restore document" });
     }
   });
@@ -2596,7 +2597,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const document = await storage.getDocumentById(documentId, userId);
       if (!document) {
-        console.error("AI analysis failed: Document not found");
         return res.status(404).json({ error: "Document not found" });
       }
 
@@ -2629,7 +2629,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: "pending"
           });
         } catch (error) {
-          console.error("Failed to enqueue document for reanalysis:", error);
+          logger.error("Failed to enqueue document for reanalysis", {
+            reqId: (req as any).reqId,
+            userId: userId,
+            metadata: { documentId, errorMessage: error instanceof Error ? error.message : String(error) }
+          });
           return res.status(500).json({ error: "Failed to queue document for analysis" });
         }
       }
@@ -2645,7 +2649,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Pass the Drive access token if available, otherwise try without it
           success = await storage.analyzeDocumentWithAI(documentId, userId, undefined, driveAccessToken || undefined);
         } catch (error) {
-          console.error("AI analysis failed for Drive document:", error);
+          logger.error("AI analysis failed for Drive document", {
+            reqId: (req as any).reqId,
+            userId: userId,
+            metadata: { documentId, errorMessage: error instanceof Error ? error.message : String(error) }
+          });
           success = false;
         }
       } else {
@@ -2653,13 +2661,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           success = await storage.analyzeDocumentWithAI(documentId, userId);
         } catch (aiError) {
-          console.error("AI analysis failed for uploaded file:", aiError);
+          logger.error("AI analysis failed for uploaded file", {
+            reqId: (req as any).reqId,
+            userId: userId,
+            metadata: { documentId, errorMessage: aiError instanceof Error ? aiError.message : String(aiError) }
+          });
           success = false;
         }
       }
       
       if (!success) {
-        console.error("AI analysis completion failed");
         return res.status(500).json({ error: "Failed to analyze document with AI" });
       }
 
@@ -2671,7 +2682,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         document: updatedDocument
       });
     } catch (error) {
-      console.error("AI analysis exception:", error);
+      logger.error("AI analysis exception", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { documentId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to analyze document" });
     }
   });
@@ -2801,11 +2816,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log completion asynchronously
       processingPromise.then(() => {
       }).catch((error) => {
-        console.error("Batch content extraction error:", error);
+        logger.error("Batch content extraction error", {
+          reqId: (req as any).reqId,
+          userId: userId,
+          metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+        });
       });
       
     } catch (error) {
-      console.error("Error in batch content extraction:", error);
+      logger.error("Error in batch content extraction", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to start batch content extraction" });
     }
   });
@@ -2879,7 +2902,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             processed++;
             
           } catch (error) {
-            console.error("Error processing PDF document:", error);
+            logger.error("Error processing PDF document", {
+              reqId: (req as any).reqId,
+              userId: userId,
+              metadata: { documentId: doc.id, errorMessage: error instanceof Error ? error.message : String(error) }
+            });
             processed++;
           }
         }
@@ -2896,11 +2923,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log completion asynchronously
       batchPromise().then(() => {
       }).catch((error) => {
-        console.error("PDF analysis error:", error);
+        logger.error("PDF analysis error", {
+          reqId: (req as any).reqId,
+          userId: userId,
+          metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+        });
       });
 
     } catch (error) {
-      console.error("PDF analysis failed:", error);
+      logger.error("PDF analysis failed", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to start PDF analysis" });
     }
   });
@@ -2969,7 +3004,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 return { id: doc.id, success };
               } catch (error) {
-                console.error("Error analyzing document:", error);
+                logger.error("Error analyzing document", {
+                  reqId: (req as any).reqId,
+                  userId: userId,
+                  metadata: { documentId: doc.id, errorMessage: error instanceof Error ? error.message : String(error) }
+                });
                 return { id: doc.id, success: false };
               } finally {
                 processed++;
@@ -2995,11 +3034,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log completion asynchronously
       batchPromise().then(() => {
       }).catch((error) => {
-        console.error("Bulk AI analysis error:", error);
+        logger.error("Bulk AI analysis error", {
+          reqId: (req as any).reqId,
+          userId: userId,
+          metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+        });
       });
 
     } catch (error) {
-      console.error("Bulk AI analysis failed:", error);
+      logger.error("Bulk AI analysis failed", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to start bulk AI analysis" });
     }
   });
@@ -3041,10 +3088,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log error if we hit the safety failsafe (indicates possible infinite loop)
       if (currentPage > MAX_PAGES) {
-        console.error(`❌ Smart Organization: Hit safety failsafe at ${MAX_PAGES} pages (${allDocuments.length} documents). This indicates a possible pagination issue.`);
+        logger.error("Smart Organization hit pagination safety failsafe", {
+          reqId: (req as any).reqId,
+          userId: userId,
+          metadata: { maxPages: MAX_PAGES, documentsLoaded: allDocuments.length }
+        });
       }
-      
-      console.log(`📊 Fetched ${allDocuments.length} total documents across ${currentPage - 1} pages`);
       
       // Classify documents into categories
       const needsReanalysis: DocumentWithFolderAndTags[] = [];
@@ -3068,8 +3117,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      console.log(`📊 Smart Organization Check: ${needsReanalysis.length} need analysis, ${needsOrganization.length} need organization, ${alreadyComplete.length} already complete`);
-      
       // Re-analyze documents that need it with concurrency control
       const CONCURRENCY_LIMIT = 3;
       let reanalyzedCount = 0;
@@ -3082,14 +3129,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           batch.map(async (doc) => {
             try {
               if (doc.driveFileId) {
-                console.log(`⏭️ Skipping Drive document: ${doc.id}`);
                 return;
               }
               await storage.analyzeDocumentWithAI(doc.id, userId);
               reanalyzedCount++;
-              console.log(`✅ Re-analyzed: ${doc.name} (${reanalyzedCount}/${needsReanalysis.length})`);
             } catch (error) {
-              console.error(`❌ Failed to re-analyze ${doc.id}:`, error);
+              logger.error("Failed to re-analyze document", {
+                reqId: (req as any).reqId,
+                userId: userId,
+                metadata: {
+                  documentId: doc.id,
+                  documentName: doc.name,
+                  errorMessage: error instanceof Error ? error.message : String(error)
+                }
+              });
             }
           })
         );
@@ -3105,7 +3158,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (needsOrganization.length > 0 || reanalyzedCount > 0) {
         const result = await storage.organizeAllUnorganizedDocuments(userId);
         organizedCount = result.organized;
-        console.log(`✅ Organization complete: ${result.organized} organized, ${result.errors.length} errors`);
       }
       
       // Return response AFTER all processing is complete
@@ -3124,7 +3176,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
     } catch (error) {
-      console.error("Smart organization failed:", error);
+      logger.error("Smart organization failed", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to complete smart organization" });
     }
   });
@@ -3140,7 +3196,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(documentWithVersions);
     } catch (error) {
-      console.error("Error fetching document versions:", error);
+      logger.error("Error fetching document versions", {
+        reqId: (req as any).reqId,
+        userId: req.userId,
+        metadata: { documentId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to fetch document versions" });
     }
   });
@@ -3187,7 +3247,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(version);
     } catch (error) {
-      console.error("Error creating document version:", error);
+      logger.error("Error creating document version", {
+        reqId: (req as any).reqId,
+        userId: req.userId,
+        metadata: { documentId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       
       // Handle idempotency conflicts (409)
       if (error instanceof Error && error.message.includes('same idempotency key')) {
@@ -3218,7 +3282,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ message: "Version activated successfully" });
     } catch (error) {
-      console.error("Error activating version:", error);
+      logger.error("Error activating version", {
+        reqId: (req as any).reqId,
+        userId: req.userId,
+        metadata: { documentId: req.params.id, versionId: req.params.versionId, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       
       // Handle unique constraint violations during activation (Postgres error code 23505)
       if (error instanceof Error && (error as any).code === '23505') {
@@ -3241,7 +3309,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting version:", error);
+      logger.error("Error deleting version", {
+        reqId: (req as any).reqId,
+        userId: req.userId,
+        metadata: { documentId: req.params.id, versionId: req.params.versionId, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       
       // Handle unique constraint violations during deletion (when promoting new active version)
       if (error instanceof Error && (error as any).code === '23505') {
@@ -3258,10 +3330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Smart Organization endpoint - organize all unorganized documents
   app.post("/api/documents/organize-all", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
-      console.log("🗂️ Starting Smart Organization for all unorganized documents...");
       const result = await storage.organizeAllUnorganizedDocuments();
-      
-      console.log(`✅ Smart Organization complete: ${result.organized} organized, ${result.errors.length} errors`);
       
       res.json({
         success: true,
@@ -3270,7 +3339,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errors: result.errors
       });
     } catch (error) {
-      console.error("Error in Smart Organization:", error);
+      logger.error("Error in Smart Organization", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         success: false,
         error: "Failed to organize documents",
@@ -3298,7 +3371,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quota: quotaSummary
       });
     } catch (error) {
-      console.error("Error fetching quota usage:", error);
+      logger.error("Error fetching quota usage", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to retrieve quota usage" });
     }
   });
@@ -3312,7 +3389,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const folders = await storage.getFolders(userId);
       res.json(folders);
     } catch (error) {
-      console.error("Error fetching folders:", error);
+      logger.error("Error fetching folders", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to fetch folders" });
     }
   });
@@ -3327,7 +3408,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const folder = await storage.createFolder(validatedData, userId);
       res.status(201).json(folder);
     } catch (error) {
-      console.error("Error creating folder:", error);
+      logger.error("Error creating folder", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to create folder" });
     }
   });
@@ -3344,7 +3429,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(folder);
     } catch (error) {
-      console.error("Error updating folder:", error);
+      logger.error("Error updating folder", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { folderId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to update folder" });
     }
   });
@@ -3361,7 +3450,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting folder:", error);
+      logger.error("Error deleting folder", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { folderId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to delete folder" });
     }
   });
@@ -3376,7 +3469,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tags = await storage.getTags(userId);
       res.json(tags);
     } catch (error) {
-      console.error("Error fetching tags:", error);
+      logger.error("Error fetching tags", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to fetch tags" });
     }
   });
@@ -3388,19 +3485,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User authentication required" });
       }
       
-      // DEBUG: Log request body
-      console.log("📋 POST /api/tags request body:", JSON.stringify(req.body, null, 2));
-      console.log("📋 Body keys:", Object.keys(req.body));
-      console.log("📋 Name value:", req.body.name, "Type:", typeof req.body.name);
-      console.log("📋 Color value:", req.body.color, "Type:", typeof req.body.color);
-      
       // Only validate name and color from request body, userId comes from auth
       const bodySchema = insertTagSchema.omit({ userId: true });
       const validatedData = bodySchema.parse(req.body);
       const tag = await storage.createTag({ ...validatedData, userId }, userId);
       res.status(201).json(tag);
     } catch (error) {
-      console.error("Error creating tag:", error);
+      logger.error("Error creating tag", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to create tag" });
     }
   });
@@ -3417,7 +3512,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(tag);
     } catch (error) {
-      console.error("Error updating tag:", error);
+      logger.error("Error updating tag", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { tagId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to update tag" });
     }
   });
@@ -3434,7 +3533,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting tag:", error);
+      logger.error("Error deleting tag", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { tagId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to delete tag" });
     }
   });
@@ -3456,7 +3559,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const parsed = insertDocumentTagSchema.safeParse(bodyWithUser);
       
       if (!parsed.success) {
-        console.error("Zod validation failed:", parsed.error);
         return res.status(400).json({ error: parsed.error });
       }
       
@@ -3464,7 +3566,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const documentTag = await storage.addDocumentTag(parsed.data, userId);
       res.status(201).json(documentTag);
     } catch (error) {
-      console.error("Error adding tag to document:", error);
+      logger.error("Error adding tag to document", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to add tag to document" });
     }
   });
@@ -3479,7 +3585,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.removeDocumentTag(documentId, tagId, userId);
       res.status(204).send();
     } catch (error) {
-      console.error("Error removing tag from document:", error);
+      logger.error("Error removing tag from document", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { documentId: req.params.documentId, tagId: req.params.tagId, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to remove tag from document" });
     }
   });
@@ -3530,31 +3640,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // OAuth initiation endpoint - redirects to Google OAuth
   app.get('/api/auth/drive-redirect', (req, res) => {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    
-    // Enhanced logging to debug credential issues
-    console.log('[OAuth Init] Credentials check:', {
-      hasClientId: !!clientId,
-      clientIdPrefix: clientId ? clientId.substring(0, 25) + '...' : 'MISSING',
-      clientIdLength: clientId ? clientId.length : 0,
-      hasClientSecret: !!clientSecret,
-      clientSecretLength: clientSecret ? clientSecret.length : 0
-    });
-    
     // Build URL using URLSearchParams (Token 2)
     const fullUrl = buildGoogleDriveAuthUrl(req);
-
-    // Token 1: Debug logging for URL bytes
-    const slice = (s: string, i: number) => s.slice(Math.max(0, i - 5), Math.min(s.length, i + 5));
-    const ampIndex = fullUrl.indexOf('&');
-    console.info({
-      tag: 'oauth.redirect.debug',
-      hasAmpEscaped: fullUrl.includes('&amp;'),
-      firstAmpSlice: ampIndex >= 0 ? slice(fullUrl, ampIndex) : 'no-&-found',
-      byteCheck: ampIndex >= 0 ? Buffer.from(fullUrl.slice(ampIndex, ampIndex + 1), 'utf8').toString('hex') : 'n/a',
-      fullUrl: fullUrl
-    });
 
     // Add cache-busting headers
     res.set({
@@ -3569,25 +3656,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // OAuth callback endpoint - sets httpOnly cookie with Drive token
   app.get("/api/drive/oauth-callback", async (req, res) => {
     try {
-      const reqId = (req as any).reqId;
-      const userId = req.user?.uid;
-      const userEmail = req.user?.email;
-      
-      // Enhanced debug logging
-      console.log(`[OAuth Callback] 🚀 Drive OAuth callback initiated`, {
-        reqId,
-        userId,
-        userEmail,
-        origin: req.headers.origin,
-        contentType: req.headers['content-type'],
-        userAgent: req.headers['user-agent'],
-        hostname: req.get('host') || req.hostname,
-        hasBody: !!req.body,
-        bodyKeys: req.body ? Object.keys(req.body) : [],
-        hasAccessToken: !!req.body?.accessToken,
-        accessTokenLength: req.body?.accessToken?.length || 0
-      });
-
       const { code, error } = req.query;
       
       if (error) {
@@ -3644,15 +3712,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Set the token in httpOnly cookie
       setDriveTokenCookie(res, accessToken, req);
-      
-      // Log successful completion
-      console.log(`[OAuth Callback] ✅ Drive authentication successful`, {
-        reqId,
-        googleEmail: googleUserEmail,
-        tokenStored: true,
-        authMethod: 'cookie',
-        hostname: req.get('host')
-      });
       
       // Send success message to parent window and close popup
       res.send(`
@@ -3731,13 +3790,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
       
     } catch (error) {
-      const reqId = (req as any).reqId;
-      
-      console.error(`[OAuth Callback] ❌ Drive authentication failed`, {
-        reqId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        hostname: req.get('host') || req.hostname
+      logger.error("Drive OAuth callback failed", {
+        reqId: (req as any).reqId,
+        userId: undefined,
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
       });
       
       res.status(500).send(`
@@ -3757,14 +3816,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       clearDriveTokenCookies(res, req);
       
-      console.log('[Telemetry] Drive sign-out: Cookies cleared for user:', req.user?.email);
-      
       res.json({
         success: true,
         message: "Drive sign-out successful"
       });
     } catch (error) {
-      console.error("Sign-out error:", error);
+      logger.error("Drive sign-out error", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         error: "Sign-out failed",
         message: "Failed to clear Drive authentication"
@@ -3810,7 +3871,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Drive connected successfully"
       });
     } catch (error) {
-      console.error("Error checking Drive connection:", error);
+      logger.error("Error checking Drive connection", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to check Drive connection" });
     }
   });
@@ -3833,14 +3898,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get folders for navigation
       const folders = await driveService.getFolders();
       
-      // Debug logging for pagination
-      console.log('[Drive Pagination]', {
-        filesReturned: result.files.length,
-        pageSize: validatedQuery.pageSize,
-        hasNextPageToken: !!result.nextPageToken,
-        nextPageToken: result.nextPageToken ? result.nextPageToken.substring(0, 20) + '...' : null
-      });
-      
       res.json({
         files: result.files,
         folders,
@@ -3851,7 +3908,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
-      console.error("Error listing Drive documents:", error);
+      logger.error("Error listing Drive documents", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to list Drive documents" });
     }
   });
@@ -3977,61 +4038,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertDocumentSchema.parse(documentData);
       const document = await storage.createDocument(validatedData);
-      
-      console.info(JSON.stringify({
-        evt: "drive_sync.document_created",
-        reqId,
-        uid: userId,
-        driveFileId,
-        documentId: document.id
-      }));
 
       // Queue for AI analysis if requested (matching Upload functionality)
       if (runAiAnalysis) {
-        console.info(JSON.stringify({
-          evt: "drive_sync.ai_analysis_queued",
-          reqId,
-          uid: userId,
-          driveFileId,
-          documentId: document.id
-        }));
-        
         try {
           // Use same queue system as Upload for consistent Smart Organization
           await storage.enqueueDocumentForAnalysis(document.id, userId, 1); // High priority for user-requested
-          
-          console.info(JSON.stringify({
-            evt: "drive_sync.ai_analysis_enqueued_success",
-            reqId,
-            uid: userId,
-            driveFileId,
-            documentId: document.id,
-            priority: 1
-          }));
         } catch (aiError) {
-          console.error(JSON.stringify({
-            evt: "drive_sync.ai_analysis_enqueue_failed",
+          logger.error("Drive sync AI analysis enqueue failed", {
             reqId,
-            uid: userId,
-            driveFileId,
-            documentId: document.id,
-            error: aiError instanceof Error ? aiError.message : String(aiError)
-          }));
+            userId: userId,
+            metadata: {
+              driveFileId,
+              documentId: document.id,
+              errorMessage: aiError instanceof Error ? aiError.message : String(aiError)
+            }
+          });
           // Don't let AI analysis queue errors crash the document sync
         }
       }
 
       // Get document with details
       const documentWithDetails = await storage.getDocumentById(document.id);
-      
-      console.info(JSON.stringify({
-        evt: "drive_sync.completed_success",
-        reqId,
-        uid: userId,
-        driveFileId,
-        documentId: document.id,
-        runAiAnalysis
-      }));
       
       res.status(201).json({
         message: "Document synced from Drive successfully",
@@ -4044,14 +4072,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const driveFileId = req.body?.driveFileId;
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      console.error(JSON.stringify({
-        evt: "drive_sync.failed",
+      logger.error("Drive sync failed", {
         reqId,
-        uid: userId,
-        driveFileId,
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined
-      }));
+        userId: userId,
+        metadata: {
+          driveFileId,
+          errorMessage,
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
+      });
       
       // Provide specific, user-friendly error messages based on error type
       let statusCode = 500;
@@ -4088,18 +4117,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userMessage = "File too large";
         userFriendlyMessage = "This document is too large to sync. Please try with a smaller file.";
       }
-      
-      // Log the friendly error for support purposes
-      console.info(JSON.stringify({
-        evt: "drive_sync.user_error_mapped",
-        reqId,
-        uid: userId,
-        driveFileId,
-        originalError: errorMessage,
-        statusCode,
-        userMessage,
-        userFriendlyMessage
-      }));
       
       res.status(statusCode).json({ 
         error: userMessage,
@@ -4166,8 +4183,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const storage = new DatabaseStorage();
         
         const { dryRun = true } = req.body;
-        console.log(`🧹 Starting GCS cleanup (${dryRun ? 'DRY RUN' : 'LIVE RUN'})...`);
-        
         const result = await storage.reconcileGCSPaths(dryRun);
         
         res.json({
@@ -4176,7 +4191,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           dryRun
         });
       } catch (error) {
-        console.error('Error during GCS cleanup:', error);
+        logger.error('Error during GCS cleanup', {
+          reqId: (req as any).reqId,
+          userId: req.user?.uid,
+          metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+        });
         res.status(500).json({ error: 'Failed to cleanup GCS files' });
       }
     });
@@ -4206,7 +4225,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activeFailpoints: TransactionManager.getActiveFailpoints()
         });
       } catch (error) {
-        console.error('Error adding failpoint:', error);
+        logger.error('Error adding failpoint', {
+          reqId: (req as any).reqId,
+          userId: req.user?.uid,
+          metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+        });
         res.status(500).json({ error: 'Failed to add failpoint' });
       }
     });
@@ -4229,7 +4252,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activeFailpoints: TransactionManager.getActiveFailpoints()
         });
       } catch (error) {
-        console.error('Error removing failpoint:', error);
+        logger.error('Error removing failpoint', {
+          reqId: (req as any).reqId,
+          userId: req.user?.uid,
+          metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+        });
         res.status(500).json({ error: 'Failed to remove failpoint' });
       }
     });
@@ -4245,7 +4272,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: 'All failpoints cleared'
         });
       } catch (error) {
-        console.error('Error clearing failpoints:', error);
+        logger.error('Error clearing failpoints', {
+          reqId: (req as any).reqId,
+          userId: req.user?.uid,
+          metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+        });
         res.status(500).json({ error: 'Failed to clear failpoints' });
       }
     });
@@ -4262,12 +4293,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           count: activeFailpoints.length
         });
       } catch (error) {
-        console.error('Error getting failpoint status:', error);
+        logger.error('Error getting failpoint status', {
+          reqId: (req as any).reqId,
+          userId: req.user?.uid,
+          metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+        });
         res.status(500).json({ error: 'Failed to get failpoint status' });
       }
     });
-
-    console.log('🧪 Development failpoint testing endpoints enabled');
   }
 
   // Contact form endpoint
@@ -4289,7 +4322,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if Resend API key is configured
       const resendApiKey = process.env.RESEND_API_KEY;
       if (!resendApiKey) {
-        console.error('RESEND_API_KEY not configured');
+        logger.error('RESEND_API_KEY not configured', {
+          reqId: (req as any).reqId,
+          userId: undefined,
+          metadata: {}
+        });
         return res.status(500).json({ error: 'Email service not configured' });
       }
 
@@ -4320,14 +4357,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Resend API error:', data);
+        logger.error('Resend API error', {
+          reqId: (req as any).reqId,
+          userId: undefined,
+          metadata: { resendResponse: data }
+        });
         return res.status(500).json({ error: 'Failed to send email' });
       }
 
-      console.log('📧 Contact email sent successfully:', data);
       res.json({ success: true, id: data.id });
     } catch (error) {
-      console.error('Error sending contact email:', error);
+      logger.error('Error sending contact email', {
+        reqId: (req as any).reqId,
+        userId: undefined,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: 'Failed to send email' });
     }
   });
