@@ -91,9 +91,17 @@ Preferred communication style: Simple, everyday language.
 
 ## Authentication & Security
 - **Authentication**: Firebase Authentication (redirect-based flow for custom domains)
-- **Firebase Configuration**: `authDomain` locked to `documentorganizerclean-b629f.firebaseapp.com`
+- **Firebase Configuration**: `authDomain` set to `documentorganizerclean-b629f.firebaseapp.com` (Firebase handles custom domain redirects internally)
+- **Auth Proxy**: Previously used proxy middleware for /__/auth routes; **REMOVED** after identifying it caused 500 errors on first load
 - **File Access**: Custom object ACL system with group-based permissions
-- **Security**: 50MB file size limits with type restrictions, client-side error boundaries.
+- **Security**: 50MB file size limits with type restrictions, client-side error boundaries
+
+## Production Error Diagnostics
+- **Error Code System** (`server/errorCodes.ts`): Standardized error codes with categories (AUTH-1xxx, CLIENT-2xxx, DB-3xxx, etc.), user-friendly messages, and unique error ID generation
+- **Error Boundary** (`client/src/components/ErrorBoundary.tsx`): React error boundary with copy-to-clipboard functionality, error IDs, timestamps, and reload/go-home actions
+- **Critical Path Logging**: Structured logging for server startup, environment validation, Firebase initialization, and database connections
+- **Health Checks**: Enhanced `/health` (liveness) and `/readiness` endpoints with Firebase Admin SDK verification, database connectivity tests, and queue lag monitoring
+- **Request Tracking**: Comprehensive request/response logging with request IDs, latency metrics, and error correlation
 
 ## UI/UX Decisions
 - **Design Theme**: Near-pastel aesthetic with lighter color palettes (e.g., slate-600/indigo-500/purple-500 gradients).
