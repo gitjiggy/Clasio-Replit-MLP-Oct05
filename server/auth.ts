@@ -45,8 +45,11 @@ if (!admin.apps.length) {
   }
 }
 
-// Export Firebase Admin Auth instance for use in health checks and other modules
-export const adminAuth = admin.auth();
+// Lazy getter for Firebase Admin Auth - only initialized when needed
+// This prevents module-load-time crashes if Firebase isn't fully initialized
+export function getAdminAuth() {
+  return admin.auth();
+}
 
 // Export function to validate Firebase Admin is ready
 export function validateFirebaseAdmin(): void {

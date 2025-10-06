@@ -7,7 +7,7 @@
 import { Request, Response } from 'express';
 import { storage } from '../storage.js';
 import { logger } from '../logger.js';
-import { adminAuth } from '../auth.js';
+import { getAdminAuth } from '../auth.js';
 
 interface HealthStatus {
   status: 'healthy' | 'unhealthy';
@@ -131,7 +131,7 @@ export async function readinessCheck(req: Request, res: Response): Promise<void>
     try {
       // Test Firebase Admin by trying to list users (limited to 1)
       // This verifies the service account credentials are valid
-      const listResult = await adminAuth.listUsers(1);
+      const listResult = await getAdminAuth().listUsers(1);
       
       readinessStatus.checks.firebase_admin = {
         status: 'pass',
