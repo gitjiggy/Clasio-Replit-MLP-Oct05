@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { ObjectStorageService, ObjectNotFoundError, generateDocumentPath } from "./objectStorage";
 import { randomUUID } from 'crypto';
 import { verifyFirebaseToken, optionalAuth, AuthenticatedRequest } from "./auth";
+import { logger } from "./logger.js";
 import { DriveService } from "./driveService";
 import { strictLimiter, moderateLimiter, standardLimiter, bulkUploadLimiter } from "./rateLimit";
 import multer from "multer";
@@ -30,19 +31,18 @@ import {
 // Enhanced file signature validation with bomb checks
 async function validateFileSignature(filePath: string, mimeType: string): Promise<boolean> {
   try {
-    console.info(`Starting file signature validation for ${mimeType}`);
-    
     const stats = await fs.stat(filePath);
     const buffer = await fs.readFile(filePath, { flag: 'r' });
     
     if (buffer.length < 4) {
-      console.warn(`File too small for signature validation: ${buffer.length} bytes`);
+      logger.warn('File too small for signature validation', {
+        metadata: { fileSize: buffer.length, filePath }
+      });
       return false; // Need at least 4 bytes for most signatures
     }
     
     const bytes = Array.from(buffer.subarray(0, 16)).map(b => b.toString(16).padStart(2, '0'));
     const signature = bytes.join('');
-    console.info(`File signature detected: ${signature.slice(0, 16)} (first 8 bytes)`);
     
     // Define magic bytes for supported file types
     const signatures: Record<string, string[]> = {
@@ -63,12 +63,10 @@ async function validateFileSignature(filePath: string, mimeType: string): Promis
     
     const expectedSignatures = signatures[mimeType];
     if (!expectedSignatures) {
-      console.info(`No file signature validation available for MIME type: ${mimeType}, allowing through`);
       return true; // Allow unknown types to pass through
     }
     
     if (expectedSignatures.length === 0) {
-      console.info(`Text file detected (${mimeType}), skipping signature validation`);
       return true; // Skip validation for text files
     }
     
@@ -78,11 +76,16 @@ async function validateFileSignature(filePath: string, mimeType: string): Promis
     );
     
     if (!isValid) {
-      console.error(`File signature mismatch: expected ${expectedSignatures} for ${mimeType}, got ${signature.slice(0, 16)}`);
+      logger.error('File signature mismatch', {
+        metadata: { 
+          expectedSignatures, 
+          mimeType, 
+          actualSignature: signature.slice(0, 16),
+          filePath
+        }
+      });
       return false;
     }
-    
-    console.info(`File signature validation passed for ${mimeType}: ${signature.slice(0, 16)}`);
     
     // Enhanced bomb detection for different file types
     if (['504b0304'].some(sig => signature.toLowerCase().startsWith(sig))) {
@@ -92,7 +95,7 @@ async function validateFileSignature(filePath: string, mimeType: string): Promis
     // PDF bomb detection
     if (mimeType === 'application/pdf') {
       if (!(await validatePdfBomb(buffer, stats.size))) {
-        console.warn(`PDF bomb detected in file ${filePath}`);
+        logger.warn('PDF bomb detected', { metadata: { filePath } });
         return false;
       }
     }
@@ -100,14 +103,19 @@ async function validateFileSignature(filePath: string, mimeType: string): Promis
     // Image bomb detection  
     if (mimeType.startsWith('image/')) {
       if (!(await validateImageBomb(buffer, stats.size))) {
-        console.warn(`Image bomb detected in file ${filePath}`);
+        logger.warn('Image bomb detected', { metadata: { filePath } });
         return false;
       }
     }
     
     return true;
   } catch (error) {
-    console.error('File signature validation failed:', error);
+    logger.error('File signature validation failed', {
+      metadata: {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        filePath
+      }
+    });
     return false;
   }
 }
@@ -120,7 +128,7 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
     
     // Quick check: if file is suspiciously small for its claimed type
     if (fileSize < 100) {
-      console.warn('Suspiciously small Office document detected');
+      logger.warn('Suspiciously small Office document', { metadata: { fileSize } });
       return false;
     }
     
@@ -135,7 +143,7 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
     }
     
     if (eocdPos === -1) {
-      console.warn('Invalid ZIP: No End of Central Directory found');
+      logger.warn('Invalid ZIP: No End of Central Directory found');
       return false;
     }
     
@@ -146,7 +154,7 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
     
     // Safety check for too many entries
     if (totalEntries > 10000) {
-      console.warn(`ZIP bomb detected: excessive file count ${totalEntries}`);
+      logger.warn('ZIP bomb: excessive file count', { metadata: { totalEntries } });
       return false;
     }
     
@@ -159,7 +167,7 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
       // Check central directory file header signature: PK\x01\x02
       if (buffer[pos] !== 0x50 || buffer[pos + 1] !== 0x4b || 
           buffer[pos + 2] !== 0x01 || buffer[pos + 3] !== 0x02) {
-        console.warn('Invalid ZIP: Bad central directory entry');
+        logger.warn('Invalid ZIP: Bad central directory entry', { metadata: { entryIndex: i } });
         return false;
       }
       
@@ -175,7 +183,9 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
       
       // Check individual file compression ratio (avoid division by zero)
       if (compressedSize > 0 && uncompressedSize / compressedSize > maxCompressionRatio) {
-        console.warn(`ZIP bomb detected: file ${i + 1} has compression ratio ${Math.round(uncompressedSize / compressedSize)}:1`);
+        logger.warn('ZIP bomb: excessive compression ratio', {
+          metadata: { fileIndex: i + 1, ratio: Math.round(uncompressedSize / compressedSize) }
+        });
         return false;
       }
       
@@ -185,7 +195,9 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
     
     // Check total uncompressed size limit
     if (totalUncompressedSize > maxUncompressedSize) {
-      console.warn(`ZIP bomb detected: total uncompressed size ${Math.round(totalUncompressedSize / 1024 / 1024)}MB exceeds limit`);
+      logger.warn('ZIP bomb: total size exceeds limit', {
+        metadata: { totalMB: Math.round(totalUncompressedSize / 1024 / 1024) }
+      });
       return false;
     }
     
@@ -193,7 +205,9 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
     if (totalCompressedSize > 0) {
       const overallRatio = totalUncompressedSize / totalCompressedSize;
       if (overallRatio > maxCompressionRatio) {
-        console.warn(`ZIP bomb detected: overall compression ratio ${Math.round(overallRatio)}:1 exceeds limit`);
+        logger.warn('ZIP bomb: overall compression ratio exceeds limit', {
+          metadata: { ratio: Math.round(overallRatio) }
+        });
         return false;
       }
     }
@@ -202,15 +216,18 @@ async function validateZipBomb(buffer: Buffer, fileSize: number): Promise<boolea
     if (fileSize > 0 && totalUncompressedSize > 0) {
       const expansionRatio = totalUncompressedSize / fileSize;
       if (expansionRatio > maxCompressionRatio) {
-        console.warn(`ZIP bomb detected: expansion ratio ${Math.round(expansionRatio)}:1 exceeds limit`);
+        logger.warn('ZIP bomb: expansion ratio exceeds limit', {
+          metadata: { ratio: Math.round(expansionRatio) }
+        });
         return false;
       }
     }
     
-    console.info(`ZIP validation passed: ${totalEntries} files, ${Math.round(totalUncompressedSize / 1024)}KB uncompressed, ratio ${Math.round(totalUncompressedSize / (totalCompressedSize || 1))}:1`);
     return true;
   } catch (error) {
-    console.error('Zip bomb validation failed:', error);
+    logger.error('ZIP bomb validation failed', {
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
     return false;
   }
 }
@@ -227,7 +244,9 @@ async function validatePdfBomb(buffer: Buffer, fileSize: number): Promise<boolea
     
     // Heuristic: More than 1 object per 100 bytes is suspicious
     if (objectCount > fileSize / 100) {
-      console.warn(`Suspicious PDF structure: ${objectCount} objects in ${fileSize} bytes`);
+      logger.warn('Suspicious PDF structure', {
+        metadata: { objectCount, fileSize }
+      });
       return false;
     }
     
@@ -237,7 +256,9 @@ async function validatePdfBomb(buffer: Buffer, fileSize: number): Promise<boolea
     
     // Too many streams for file size
     if (streamCount > fileSize / 500) {
-      console.warn(`Suspicious PDF streams: ${streamCount} streams in ${fileSize} bytes`);
+      logger.warn('Suspicious PDF streams', {
+        metadata: { streamCount, fileSize }
+      });
       return false;
     }
     
@@ -251,14 +272,17 @@ async function validatePdfBomb(buffer: Buffer, fileSize: number): Promise<boolea
     
     // Excessive compression filters
     if (filterCount > objectCount) {
-      console.warn(`Suspicious PDF compression: ${filterCount} filters for ${objectCount} objects`);
+      logger.warn('Suspicious PDF compression', {
+        metadata: { filterCount, objectCount }
+      });
       return false;
     }
     
-    console.info(`PDF bomb validation passed: ${objectCount} objects, ${streamCount} streams`);
     return true;
   } catch (error) {
-    console.error('PDF bomb validation failed:', error);
+    logger.error('PDF bomb validation failed', {
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
     return false;
   }
 }
@@ -281,12 +305,16 @@ async function validateImageBomb(buffer: Buffer, fileSize: number): Promise<bool
         const height = buffer.readUInt32BE(ihdrIndex + 8);
         
         if (width > maxDimensions || height > maxDimensions) {
-          console.warn(`PNG dimensions too large: ${width}x${height}`);
+          logger.warn('PNG dimensions too large', {
+            metadata: { width, height }
+          });
           return false;
         }
         
         if (width * height > maxPixels) {
-          console.warn(`PNG pixel count too large: ${width * height} pixels`);
+          logger.warn('PNG pixel count too large', {
+            metadata: { pixels: width * height }
+          });
           return false;
         }
       }
@@ -309,7 +337,9 @@ async function validateImageBomb(buffer: Buffer, fileSize: number): Promise<bool
               // Suspicious compression ratio check
               const expectedMinSize = (width * height) / 10000; // Very rough estimate
               if (fileSize < expectedMinSize) {
-                console.warn(`JPEG compression ratio suspicious: ${width}x${height} in ${fileSize} bytes`);
+                logger.warn('JPEG compression ratio suspicious', {
+                  metadata: { width, height, fileSize }
+                });
                 return false;
               }
             }
@@ -320,10 +350,11 @@ async function validateImageBomb(buffer: Buffer, fileSize: number): Promise<bool
       }
     }
     
-    console.info(`Image bomb validation passed for ${fileSize} bytes`);
     return true;
   } catch (error) {
-    console.error('Image bomb validation failed:', error);
+    logger.error('Image bomb validation failed', {
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
     return false;
   }
 }
@@ -333,10 +364,9 @@ function multerErrorHandler(err: any, req: Request, res: Response, next: NextFun
   if (err instanceof multer.MulterError) {
     switch (err.code) {
       case 'LIMIT_FILE_SIZE':
-        console.error('File size limit exceeded:', {
-          field: err.field,
-          limit: '50MB',
-          reqId: (req as any).reqId
+        logger.error('File size limit exceeded', {
+          reqId: (req as any).reqId,
+          metadata: { field: err.field, limit: '50MB' }
         });
         return res.status(413).json({
           error: 'File too large',
@@ -358,7 +388,10 @@ function multerErrorHandler(err: any, req: Request, res: Response, next: NextFun
           code: 'UNEXPECTED_FILE'
         });
       default:
-        console.error('Multer error:', err.code, err.message, { reqId: (req as any).reqId });
+        logger.error('Multer error', {
+          reqId: (req as any).reqId,
+          metadata: { code: err.code, message: err.message }
+        });
         return res.status(400).json({
           error: 'Upload error',
           message: 'An error occurred during file upload. Please try again.',
@@ -419,10 +452,6 @@ async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any
       });
     }
     
-    if (isTestUser) {
-      console.log(`[Dev Mode] Bypassing email check: Firebase=${firebaseUserEmail}, Google=${googleUserEmail}`);
-    }
-
     // Store Drive service in request for reuse
     (req as any).driveService = new DriveService(driveAccessToken);
     (req as any).driveAuthSource = source; // Should always be 'cookie' now
@@ -430,7 +459,10 @@ async function requireDriveAccess(req: AuthenticatedRequest, res: any, next: any
     
     next();
   } catch (error) {
-    console.error("Drive access verification failed:", error);
+    logger.error("Drive access verification failed", {
+      reqId: (req as any).reqId,
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
     return res.status(403).json({ 
       error: "Invalid or expired Drive access token",
       message: "Please re-authenticate with Google Drive"
@@ -538,7 +570,6 @@ async function ensureTmpDir() {
     await fs.access(TMP_UPLOAD_DIR);
   } catch {
     await fs.mkdir(TMP_UPLOAD_DIR, { recursive: true });
-    console.log(`Created upload tmp directory: ${TMP_UPLOAD_DIR}`);
   }
 }
 
@@ -636,27 +667,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let isAborted = false;
       req.on('aborted', () => {
         isAborted = true;
-        console.info(JSON.stringify({
-          evt: "upload-proxy.client_aborted",
-          reqId: (req as any).reqId,
-          uid: req.user?.uid,
-          timestamp: new Date().toISOString()
-        }));
       });
 
       // Helper function to check if request was aborted
       const checkAborted = (operation: string) => {
-        if (isAborted) {
-          console.info(JSON.stringify({
-            evt: "upload-proxy.operation_halted",
-            reqId: (req as any).reqId,
-            uid: req.user?.uid,
-            operation,
-            timestamp: new Date().toISOString()
-          }));
-          return true;
-        }
-        return false;
+        return isAborted;
       };
 
       let quotaUpdated = false; // Track quota updates for potential rollback
@@ -664,23 +679,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let size: number | undefined;
       
       try {
-        // Entry log with content-type and correlation ID
-        console.info(JSON.stringify({ 
-          evt: "upload-proxy.entry", 
-          reqId: (req as any).reqId,
-          uid: req.user?.uid, 
-          ct: req.headers["content-type"],
-          timestamp: new Date().toISOString()
-        }));
-
         if (!req.file) return res.status(400).json({ error: "file missing" });
 
         const { originalname, mimetype, path: filePath } = req.file;
         size = req.file.size;
         uid = req.user?.uid!;
         const forceUpload = req.body.forceUpload === 'true'; // Check if user decided to force upload
-        
-        console.info(`Upload-proxy processing: ${originalname}, size: ${size}, path: ${filePath}, mimetype: ${mimetype}`);
         
         // 1. Enhanced file size validation with quirky messages
         const fileSizeValidation = validateFileSize(size, mimetype, originalname);
@@ -689,14 +693,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (req as any).cleanup?.();
           await fs.unlink(filePath).catch(() => {});
           
-          console.error(JSON.stringify({
-            evt: "upload-proxy.file_size_exceeded",
+          logger.error('File size exceeded', {
             reqId: (req as any).reqId,
-            uid,
-            fileName: originalname,
-            fileSize: size,
-            timestamp: new Date().toISOString()
-          }));
+            userId: uid,
+            metadata: { fileName: originalname, fileSize: size }
+          });
           
           return res.status(413).json({
             error: 'File too large',
@@ -713,14 +714,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (req as any).cleanup?.();
           await fs.unlink(filePath).catch(() => {});
           
-          console.error(JSON.stringify({
-            evt: "upload-proxy.storage_quota_exceeded",
+          logger.error('Storage quota exceeded', {
             reqId: (req as any).reqId,
-            uid,
-            fileName: originalname,
-            fileSize: size,
-            timestamp: new Date().toISOString()
-          }));
+            userId: uid,
+            metadata: { fileName: originalname, fileSize: size }
+          });
           
           return res.status(413).json({
             error: 'Storage quota exceeded',
@@ -737,13 +735,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (req as any).cleanup?.();
           await fs.unlink(filePath).catch(() => {});
           
-          console.error(JSON.stringify({
-            evt: "upload-proxy.document_quota_exceeded",
+          logger.error('Document quota exceeded', {
             reqId: (req as any).reqId,
-            uid,
-            fileName: originalname,
-            timestamp: new Date().toISOString()
-          }));
+            userId: uid,
+            metadata: { fileName: originalname }
+          });
           
           return res.status(400).json({
             error: 'Document limit exceeded',
@@ -759,14 +755,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (req as any).cleanup?.();
           await fs.unlink(filePath).catch(() => {}); // Ignore cleanup errors
           
-          console.error(JSON.stringify({
-            evt: "upload-proxy.mime_validation_failed",
+          logger.error('MIME validation failed', {
             reqId: (req as any).reqId,
-            uid,
-            fileName: originalname,
-            claimedMimeType: mimetype,
-            timestamp: new Date().toISOString()
-          }));
+            userId: uid,
+            metadata: { fileName: originalname, claimedMimeType: mimetype }
+          });
           return res.status(400).json({
             error: 'File type validation failed',
             message: 'The file content does not match its claimed file type. This may be a security risk.',
@@ -775,15 +768,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // Check for duplicate files unless user is forcing upload after decision
-        console.info(JSON.stringify({
-          evt: "duplicate-check.start",
-          reqId: (req as any).reqId,
-          uid,
-          fileName: originalname,
-          fileSize: size,
-          timestamp: new Date().toISOString()
-        }));
-        
         const duplicates = await storage.findDuplicateFiles(originalname, size, uid);
         
         // Check if client aborted after duplicate check
@@ -793,17 +777,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (req as any).cleanup?.();
           return; // Request was aborted, stop processing
         }
-        
-        console.info(JSON.stringify({
-          evt: "duplicate-check.result",
-          reqId: (req as any).reqId,
-          uid,
-          fileName: originalname,
-          fileSize: size,
-          duplicatesFound: duplicates.length,
-          duplicateIds: duplicates.map(d => d.id),
-          timestamp: new Date().toISOString()
-        }));
         
         // PAUSE upload if duplicates found AND user hasn't already decided to force upload
         if (duplicates.length > 0 && !forceUpload) {
@@ -816,16 +789,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "Another copy? Your files are multiplying like rabbits! 🐰"
           ];
           const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-          
-          console.info(JSON.stringify({
-            evt: "duplicate-detected.awaiting-decision",
-            reqId: (req as any).reqId,
-            uid,
-            fileName: originalname,
-            duplicateCount: duplicates.length,
-            message: randomMessage,
-            timestamp: new Date().toISOString()
-          }));
 
           // Return 409 Conflict status - upload paused, awaiting user decision
           return res.status(409).json({
@@ -868,15 +831,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Cleanup concurrency counter
         (req as any).cleanup?.();
 
-        console.info(JSON.stringify({
-          evt: "upload-proxy.gcs_saved",
-          reqId: (req as any).reqId,
-          uid, 
-          objectPath: obfuscatePath(objectPath), 
-          size,
-          timestamp: new Date().toISOString()
-        }));
-
         // Check if client aborted after GCS upload, before database operations
         if (checkAborted("pre-db-operations")) {
           return; // Request was aborted, stop processing
@@ -910,25 +864,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw new Error('Failed to update storage quota');
           }
           quotaUpdated = true;
-          
-          console.log(JSON.stringify({
-            evt: "upload-proxy.quota_updated",
-            reqId: (req as any).reqId,
-            uid,
-            fileSize: size,
-            documentId: document.id,
-            timestamp: new Date().toISOString()
-          }));
         } catch (quotaError) {
-          console.error(JSON.stringify({
-            evt: "upload-proxy.quota_update_failed",
+          logger.error('Quota update failed', {
             reqId: (req as any).reqId,
-            uid,
-            fileSize: size,
-            documentId: document.id,
-            error: quotaError.message,
-            timestamp: new Date().toISOString()
-          }));
+            userId: uid,
+            metadata: {
+              fileSize: size,
+              documentId: document.id,
+              error: quotaError instanceof Error ? quotaError.message : String(quotaError)
+            }
+          });
           
           // If quota update fails, we should cleanup the uploaded file and fail the request
           // Note: Document creation succeeded, but quota tracking failed
@@ -936,76 +881,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('Failed to track storage usage - upload aborted for data consistency');
         }
 
-        console.info(JSON.stringify({
-          evt: "upload-proxy.db_created",
-          reqId: (req as any).reqId,
-          uid,
-          docId,
-          fileType: determinedFileType,
-          objectPathPrefix: `users/${uid}/docs/${docId}`,
-          timestamp: new Date().toISOString()
-        }));
-
         // Step 3: Queue for AI analysis (CRITICAL - fail upload if this fails)
         try {
           await storage.enqueueDocumentForAnalysis(document.id, uid, 5); // Normal priority
-          console.info(JSON.stringify({
-            evt: "upload-proxy.analysis_queued",
-            reqId: (req as any).reqId,
-            uid,
-            docId: document.id,
-            filename: originalname,
-            timestamp: new Date().toISOString()
-          }));
         } catch (analysisError) {
-          console.error(JSON.stringify({
-            evt: "upload-proxy.analysis_queue_failed",
+          logger.error('Analysis queue failed', {
             reqId: (req as any).reqId,
-            uid,
-            docId: document.id,
-            filename: originalname,
-            error: analysisError instanceof Error ? analysisError.message : String(analysisError),
-            stack: analysisError instanceof Error ? analysisError.stack : undefined,
-            timestamp: new Date().toISOString()
-          }));
+            userId: uid,
+            metadata: {
+              docId: document.id,
+              filename: originalname,
+              errorMessage: analysisError instanceof Error ? analysisError.message : String(analysisError),
+              errorStack: analysisError instanceof Error ? analysisError.stack : undefined
+            }
+          });
           
           // AI analysis is a core feature - fail the upload if queue creation fails
           throw new Error(`Upload succeeded but AI analysis failed to start: ${analysisError instanceof Error ? analysisError.message : String(analysisError)}`);
         }
 
         // Step 4: Queue content extraction for background processing (non-blocking)
-        console.info(JSON.stringify({
-          evt: "upload-proxy.content_extraction_queued",
-          reqId: (req as any).reqId,
-          uid,
-          docId: document.id,
-          filename: originalname,
-          timestamp: new Date().toISOString()
-        }));
-        
-        // Queue content extraction as a background task instead of blocking the response
         try {
           await storage.enqueueDocumentForContentExtraction(document.id, uid, 3); // Medium priority, background
         } catch (queueError) {
-          console.warn(JSON.stringify({
-            evt: "upload-proxy.content_extraction_queue_failed",
+          logger.warn('Content extraction queue failed', {
             reqId: (req as any).reqId,
-            uid,
-            docId: document.id,
-            filename: originalname,
-            error: queueError instanceof Error ? queueError.message : String(queueError),
-            timestamp: new Date().toISOString()
-          }));
+            userId: uid,
+            metadata: {
+              docId: document.id,
+              filename: originalname,
+              error: queueError instanceof Error ? queueError.message : String(queueError)
+            }
+          });
           // Don't fail the upload if queueing fails - content can be extracted later
         }
-
-        console.info(JSON.stringify({
-          evt: "upload-proxy.finalized",
-          reqId: (req as any).reqId,
-          uid,
-          docId: document.id,
-          timestamp: new Date().toISOString()
-        }));
         
         return res.status(200).json({ 
           ok: true, 
@@ -1086,7 +995,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document file not found" });
       }
     } catch (error) {
-      console.error("Error retrieving document:", error);
+      logger.error("Error retrieving document for download", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { documentId, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -1114,7 +1027,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
-      console.error("Error retrieving document:", error);
+      logger.error("Error retrieving document object", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { objectPath: req.path, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -1142,7 +1059,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
       res.json(result);
     } catch (error) {
-      console.error("Error generating upload URL:", error);
+      logger.error("Error generating upload URL", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { originalFileName, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to generate upload URL" });
     }
   });
@@ -1246,25 +1167,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Queue for AI analysis immediately (CRITICAL - fail upload if this fails)
       try {
         await storage.enqueueDocumentForAnalysis(document.id, userId, 5); // Normal priority
-        console.info(JSON.stringify({
-          evt: "standard_upload.analysis_queued",
-          reqId: (req as any).reqId,
-          uid: userId,
-          docId: document.id,
-          filename: document.name,
-          timestamp: new Date().toISOString()
-        }));
       } catch (analysisError) {
-        console.error(JSON.stringify({
-          evt: "standard_upload.analysis_queue_failed",
+        logger.error("Analysis queue failed for standard upload", {
           reqId: (req as any).reqId,
-          uid: userId,
-          docId: document.id,
-          filename: document.name,
-          error: analysisError instanceof Error ? analysisError.message : String(analysisError),
-          stack: analysisError instanceof Error ? analysisError.stack : undefined,
-          timestamp: new Date().toISOString()
-        }));
+          userId: userId,
+          metadata: {
+            documentId: document.id,
+            filename: document.name,
+            errorMessage: analysisError instanceof Error ? analysisError.message : String(analysisError),
+            errorStack: analysisError instanceof Error ? analysisError.stack : undefined
+          }
+        });
         
         // AI analysis is a core feature - fail the upload if queue creation fails
         throw new Error(`Upload succeeded but AI analysis failed to start: ${analysisError instanceof Error ? analysisError.message : String(analysisError)}`);
@@ -1273,37 +1186,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Trigger background content extraction (fire-and-forget for better UX)
       const correlationId = (req as any).reqId;
       storage.extractDocumentContent(document.id, userId)
-        .then(success => {
-          if (success) {
-            console.info(JSON.stringify({
-              evt: "standard_upload.content_extracted",
-              reqId: correlationId,
-              uid: userId,
-              docId: document.id,
-              filename: document.name,
-              timestamp: new Date().toISOString()
-            }));
-          } else {
-            console.error(JSON.stringify({
-              evt: "standard_upload.content_extraction_failed",
-              reqId: correlationId,
-              uid: userId,
-              docId: document.id,
-              filename: document.name,
-              timestamp: new Date().toISOString()
-            }));
-          }
-        })
         .catch(error => {
-          console.error(JSON.stringify({
-            evt: "standard_upload.content_extraction_error",
+          logger.error("Content extraction error in background", {
             reqId: correlationId,
-            uid: userId,
-            docId: document.id,
-            filename: document.name,
-            error: error instanceof Error ? error.message : String(error),
-            timestamp: new Date().toISOString()
-          }));
+            userId: userId,
+            metadata: {
+              documentId: document.id,
+              filename: document.name,
+              errorMessage: error instanceof Error ? error.message : String(error)
+            }
+          });
         });
       
       res.status(201).json({ 
@@ -1311,15 +1203,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         warning: duplicateWarning 
       });
     } catch (error) {
-      // Error log with correlation ID
-      console.error(JSON.stringify({
-        evt: "standard_upload.document_creation_error",
+      logger.error("Document creation error in standard upload", {
         reqId: (req as any).reqId,
-        uid: req.user?.uid,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
-      }));
+        userId: req.user?.uid,
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
+      });
       // Return the actual error message to surface queue creation failures
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create document" });
     }
@@ -1332,14 +1223,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user?.uid;
       
-      // Entry log with correlation ID
-      console.info(JSON.stringify({
-        evt: "standard_upload.entry",
-        reqId: (req as any).reqId,
-        uid: userId,
-        timestamp: new Date().toISOString()
-      }));
-      
       if (!userId) {
         return res.status(401).json({ error: "User authentication required" });
       }
@@ -1350,14 +1233,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Validate file signature to prevent MIME spoofing
       if (!(await validateFileSignature(req.file.path, req.file.mimetype))) {
-        console.error(JSON.stringify({
-          evt: "standard_upload.mime_validation_failed",
+        logger.warn("MIME validation failed - potential spoofing attempt", {
           reqId: (req as any).reqId,
-          uid: userId,
-          fileName: req.file.originalname,
-          claimedMimeType: req.file.mimetype,
-          timestamp: new Date().toISOString()
-        }));
+          userId: userId,
+          metadata: {
+            fileName: req.file.originalname,
+            claimedMimeType: req.file.mimetype
+          }
+        });
         return res.status(400).json({
           error: 'File type validation failed',
           message: 'The file content does not match its claimed file type. This may be a security risk.',
@@ -1385,18 +1268,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const determinedFileType = getFileTypeFromMimeType(req.file.mimetype, originalFileName);
       
-      // Success log with correlation ID
-      console.info(JSON.stringify({
-        evt: "standard_upload.success",
-        reqId: (req as any).reqId,
-        uid: userId,
-        objectPath: obfuscatePath(canonicalPath),
-        fileType: determinedFileType,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype,
-        timestamp: new Date().toISOString()
-      }));
-      
       res.json({
         success: true,
         objectPath: canonicalPath,
@@ -1407,15 +1278,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mimeType: req.file.mimetype
       });
     } catch (error) {
-      // Error log with correlation ID
-      console.error(JSON.stringify({
-        evt: "standard_upload.error",
+      logger.error("Standard upload failed", {
         reqId: (req as any).reqId,
-        uid: req.user?.uid,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
-      }));
+        userId: req.user?.uid,
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
+      });
       res.status(500).json({ error: "Upload failed" });
     }
   });
@@ -1439,51 +1309,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mimeType: z.string().optional()
       })).parse(req.body?.files ?? []);
 
-      // ENTRY log – batch sign
-      console.info(JSON.stringify({
-        evt: "bulk_sign.entry",
-        route: "/api/documents/bulk-upload-urls",
-        reqId: (req as any).reqId,
-        uid: userId,
-        files: files.map(f => ({ name: f.name, mimeType: f.mimeType, size: f.size })),
-        timestamp: new Date().toISOString()
-      }));
-
-      console.info(JSON.stringify({
-        evt: "bulk_upload.processing_start",
-        reqId: (req as any).reqId,
-        uid: userId,
-        fileCount: files.length,
-        bucket: process.env.GCS_BUCKET_NAME || 'development-bucket',
-        timestamp: new Date().toISOString()
-      }));
-      
       const results = await Promise.all(files.map(async (f) => {
         try {
           // Check for duplicate files and add warning (but allow upload to proceed)
-          console.info(JSON.stringify({
-            evt: "bulk-duplicate-check.start",
-            reqId: (req as any).reqId,
-            uid: userId,
-            fileName: f.name,
-            fileSize: f.size,
-            timestamp: new Date().toISOString()
-          }));
-          
           // PAUSE bulk upload if duplicates found - return special response
           if (f.size !== undefined) {
             const duplicates = await storage.findDuplicateFiles(f.name, f.size, userId);
-            
-            console.info(JSON.stringify({
-              evt: "bulk-duplicate-check.result",
-              reqId: (req as any).reqId,
-              uid: userId,
-              fileName: f.name,
-              fileSize: f.size,
-              duplicatesFound: duplicates.length,
-              duplicateIds: duplicates.map(d => d.id),
-              timestamp: new Date().toISOString()
-            }));
             
             if (duplicates.length > 0) {
               const funnyMessages = [
@@ -1494,16 +1325,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 "File already exists! Your storage is having a reunion! 👯‍♀️"
               ];
               const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-              
-              console.info(JSON.stringify({
-                evt: "bulk-duplicate-detected.awaiting-decision",
-                reqId: (req as any).reqId,
-                uid: userId,
-                fileName: f.name,
-                duplicateCount: duplicates.length,
-                message: randomMessage,
-                timestamp: new Date().toISOString()
-              }));
 
               // Return special response - no signed URL, awaiting user decision
               return {
@@ -1535,15 +1356,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contentType
           });
           
-          console.info(JSON.stringify({
-            evt: "bulk_upload.file_signed",
-            reqId: (req as any).reqId,
-            uid: userId,
-            objectPath: obfuscatePath(objectPath),
-            contentType,
-            fileName: f.name,
-            timestamp: new Date().toISOString()
-          }));
           return { 
             ok: true, 
             url, 
@@ -1553,7 +1365,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             name: f.name
           };
         } catch (e: any) {
-          console.error("sign-failed", { name: f.name, err: e?.message, stack: e?.stack });
+          logger.error("Bulk upload URL sign failed", {
+            reqId: (req as any).reqId,
+            userId: userId,
+            metadata: { fileName: f.name, errorMessage: e?.message, errorStack: e?.stack }
+          });
           return { 
             ok: false, 
             name: f.name, 
@@ -1562,28 +1378,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }));
 
-      // EXIT log – batch sign (per-file result, sanitized)
-      console.info(JSON.stringify({
-        evt: "bulk_sign.success",
-        reqId: (req as any).reqId,
-        uid: userId,
-        status: 200,
-        results: results.map(r => ({
-          name: r.name,
-          ok: r.ok,
-          objectPath: r.ok ? obfuscatePath(r.objectPath) : undefined,
-          reason: r.ok ? undefined : r.reason
-        }))
-      }));
-
       return res.status(200).json({ results });
       
     } catch (err: any) {
-      console.error("bulk-upload-urls failed", {
-        userId,
-        files: (req.body?.files||[]).map((f: any) => ({ name:f?.name, mimeType:f?.mimeType, size:f?.size })),
-        err: err?.message, 
-        stack: err?.stack
+      logger.error("Bulk upload URLs generation failed", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: {
+          filesCount: (req.body?.files || []).length,
+          errorMessage: err?.message,
+          errorStack: err?.stack
+        }
       });
       // Note: even on exception, return 200 with ok:false per file so the client can retry individually without blocking the user.
       return res.status(200).json({ 
@@ -1598,13 +1403,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate bulk document creation request
       const validationResult = bulkDocumentCreationSchema.safeParse(req.body);
       if (!validationResult.success) {
-        // Log validation details for debugging
-        console.error("🚨 Bulk upload validation failed:", JSON.stringify(validationResult.error.issues, null, 2));
-        
-        // Surface rejected fileType values in logs for easier debugging
-        validationResult.error.issues.forEach(issue => {
-          if (issue.path.includes('fileType')) {
-            console.error(`❌ FileType rejection: received "${issue.received}", expected one of: ${issue.options?.join(', ')}`);
+        logger.error("Bulk upload validation failed", {
+          reqId: (req as any).reqId,
+          userId: req.user?.uid,
+          metadata: {
+            validationErrors: validationResult.error.issues,
+            fileTypeRejections: validationResult.error.issues
+              .filter(issue => issue.path.includes('fileType'))
+              .map(issue => ({ received: issue.received, expected: issue.options }))
           }
         });
         
@@ -1624,15 +1430,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           funnyMessage: "Who goes there?! 🕵️‍♀️ Our security guards need to know who's uploading all these files!"
         });
       }
-
-      // ENTRY log – batch finalize
-      console.info(JSON.stringify({
-        evt: "finalize.entry",
-        route: "/api/documents/bulk",
-        reqId: (req as any).reqId,
-        uid: userId,
-        count: documentsData?.length
-      }));
 
       // Normalize folder ID
       const normalizedFolderId = folderId && folderId !== "all" ? folderId : null;
@@ -1686,19 +1483,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Trigger background content extraction (don't wait for it)
           storage.extractDocumentContent(document.id)
-            .then(success => {
-              if (success) {
-              } else {
-                console.error("Content extraction failed for bulk document");
-              }
-            })
             .catch(error => {
-              console.error("Content extraction error for bulk document:", error);
+              logger.error("Content extraction error for bulk document", {
+                reqId: (req as any).reqId,
+                userId: userId,
+                metadata: { documentId: document.id, errorMessage: error instanceof Error ? error.message : String(error) }
+              });
             });
 
           return { success: true, document, originalName: docData.originalName };
         } catch (error) {
-          console.error(`Error creating document ${docData.originalName}:`, error);
+          logger.error("Error creating document in bulk", {
+            reqId: (req as any).reqId,
+            userId: userId,
+            metadata: { originalName: docData.originalName, errorMessage: error instanceof Error ? error.message : String(error) }
+          });
           return { success: false, originalName: docData.originalName, error: error instanceof Error ? error.message : String(error) };
         }
       });
@@ -1712,18 +1511,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get queue status for user feedback
       const queueStatus = await storage.getQueueStatus(userId);
       
-      // Extract created document IDs for logging
-      const createdDocIds = successful.map(r => r.document?.id).filter(Boolean);
-      
-      // EXIT log – batch finalize
-      console.info(JSON.stringify({
-        evt: "finalize.success",
-        reqId: (req as any).reqId,
-        uid: userId,
-        status: 201,
-        createdDocIds
-      }));
-
       res.status(201).json({
         success: true,
         message: failed.length === 0 
@@ -1751,7 +1538,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ].filter(Boolean)
       });
     } catch (error) {
-      console.error("Error in bulk document creation:", error);
+      logger.error("Error in bulk document creation", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         error: "Failed to create bulk documents",
         funnyMessage: "Our digital filing cabinet seems to be having a tantrum! 📁💥 Please try again!"
@@ -1772,11 +1563,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { search, fileType, folderId, tagId, page = 1, limit = 12 } = validationResult.data;
-      
-      // Debug logging for search requests
-      if (search) {
-        console.log(`🔍 Simple search request: "${search}" (fileType: ${fileType}, folderId: ${folderId}, tagId: ${tagId})`);
-      }
       
       const filters = {
         search,
@@ -1805,7 +1591,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
-      console.error("Error fetching documents:", error);
+      logger.error("Error fetching documents", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { filters, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to fetch documents" });
     }
   });
@@ -1820,7 +1610,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await storage.getTrashedDocuments(userId);
       res.json(result);
     } catch (error) {
-      console.error("Error fetching trashed documents:", error);
+      logger.error("Error fetching trashed documents", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to fetch trashed documents" });
     }
   });
@@ -1852,7 +1646,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: `Successfully moved ${deletedCount} documents to trash`
       });
     } catch (error) {
-      console.error("Error deleting all documents:", error);
+      logger.error("Error deleting all documents", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to delete all documents" });
     }
   });
@@ -1867,7 +1665,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         deletedCount: result.deletedCount
       });
     } catch (error) {
-      console.error("Error emptying trash:", error);
+      logger.error("Error emptying trash", {
+        reqId: (req as any).reqId,
+        userId: req.userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to empty trash" });
     }
   });
@@ -1876,8 +1678,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/reconcile-gcs-paths", verifyFirebaseToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { dryRun = true } = req.body;
-      
-      console.log(`🔧 Starting GCS reconciliation (dryRun: ${dryRun})`);
       const result = await storage.reconcileGCSPaths(dryRun);
       
       res.json({
@@ -1888,7 +1688,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : "Reconciliation completed successfully!"
       });
     } catch (error) {
-      console.error("Error during GCS reconciliation:", error);
+      logger.error("Error during GCS reconciliation", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { dryRun, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         error: "Failed to reconcile GCS paths",
         details: error instanceof Error ? error.message : String(error)
@@ -1908,7 +1712,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: "Files are immediately removed when trashed to save storage costs, but document metadata is preserved for restore within the retention period."
       });
     } catch (error) {
-      console.error("Error fetching trash config:", error);
+      logger.error("Error fetching trash config", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to fetch trash configuration" });
     }
   });
@@ -1954,7 +1762,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalResults: searchResult.documents.length
       });
     } catch (error) {
-      console.error("Error in conversational search:", error);
+      logger.error("Error in conversational search", {
+        reqId: (req as any).reqId,
+        userId: req.user?.uid,
+        metadata: { query, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         error: "Failed to perform conversational search",
         message: "Our AI assistant seems to be taking a coffee break! ☕ Please try again in a moment."
@@ -2041,7 +1853,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
     } catch (error) {
-      console.error("Error in AI search:", error);
+      logger.error("Error in AI search", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { query, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         error: "Failed to perform AI search",
         message: "AI search service is temporarily unavailable. Please try again."
@@ -2065,8 +1881,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: "Query parameter is required for consciousness search" 
         });
       }
-
-      console.log(`\n🧠 CONSCIOUSNESS SEARCH: "${query}" (userId: ${userId})`);
       
       // Use consciousness-powered search engine
       const searchResult = await storage.searchConsciousness(query.trim(), userId);
@@ -2087,7 +1901,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
     } catch (error) {
-      console.error("Error in consciousness search:", error);
+      logger.error("Error in consciousness search", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { query, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ 
         error: "Failed to perform consciousness search",
         message: "Consciousness search service encountered an error. Please try again."
@@ -2112,7 +1930,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ content });
     } catch (error) {
-      console.error("Error fetching document content:", error);
+      logger.error("Error fetching document content", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { documentId: id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to fetch document content" });
     }
   });
@@ -2130,7 +1952,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(document);
     } catch (error) {
-      console.error("Error fetching document:", error);
+      logger.error("Error fetching document by ID", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { documentId: req.params.id, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to fetch document" });
     }
   });
@@ -2727,7 +2553,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errors: errors.length > 0 ? errors : undefined
       });
     } catch (error) {
-      console.error("Error restoring all documents:", error);
+      logger.error("Error restoring all documents", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to restore all documents" });
     }
   });
@@ -2750,7 +2580,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check if API key is configured
       if (!process.env.GEMINI_API_KEY) {
-        console.error("AI analysis failed: API key not configured");
+        logger.error("AI analysis failed: API key not configured", {
+          reqId: (req as any).reqId,
+          userId: req.user?.uid,
+          metadata: { documentId }
+        });
         return res.status(503).json({ error: "AI analysis unavailable - API key not configured" });
       }
       
@@ -2874,7 +2708,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success = await storage.extractDocumentContent(documentId, userId, driveAccessToken);
           
         } catch (driveError) {
-          console.error("Drive authentication failed:", driveError);
+          logger.error("Drive authentication failed", {
+            reqId: (req as any).reqId,
+            userId: userId,
+            metadata: { documentId, errorMessage: driveError instanceof Error ? driveError.message : String(driveError) }
+          });
           return res.status(403).json({ 
             error: "Failed to authenticate with Google Drive",
             message: "Please re-authenticate with Google Drive",
@@ -2898,7 +2736,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         document: updatedDocument
       });
     } catch (error) {
-      console.error("Error extracting document content:", error);
+      logger.error("Error extracting document content", {
+        reqId: (req as any).reqId,
+        userId: userId,
+        metadata: { documentId, errorMessage: error instanceof Error ? error.message : String(error) }
+      });
       res.status(500).json({ error: "Failed to extract document content" });
     }
   });
@@ -2936,7 +2778,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (success) successful++;
             return { id: doc.id, success };
           } catch (error) {
-            console.error(`Error processing document ${doc.id}:`, error);
+            logger.error("Error processing document in batch", {
+              reqId: (req as any).reqId,
+              userId: userId,
+              metadata: { documentId: doc.id, errorMessage: error instanceof Error ? error.message : String(error) }
+            });
             return { id: doc.id, success: false };
           } finally {
             processed++;
@@ -4014,19 +3860,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const contentTypeGuard = (req: any, res: any, next: any) => {
     const contentType = req.headers['content-type'] || '';
     if (!contentType) {
-      console.warn(JSON.stringify({
-        evt: "drive_sync.missing_content_type",
+      logger.warn("Drive sync missing content-type header", {
         reqId: (req as any).reqId,
-        uid: req.user?.uid,
-        userAgent: req.headers['user-agent']
-      }));
+        userId: req.user?.uid,
+        metadata: { userAgent: req.headers['user-agent'] }
+      });
     } else if (!contentType.startsWith('application/json')) {
-      console.warn(JSON.stringify({
-        evt: "drive_sync.invalid_content_type", 
+      logger.warn("Drive sync invalid content-type", {
         reqId: (req as any).reqId,
-        uid: req.user?.uid,
-        contentType
-      }));
+        userId: req.user?.uid,
+        metadata: { contentType }
+      });
       return res.status(415).json({
         error: 'Expected application/json for this endpoint.'
       });
@@ -4041,67 +3885,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const reqId = (req as any).reqId;
       const userId = req.user?.uid;
       
-      console.info(JSON.stringify({
-        evt: "drive_sync.started",
-        reqId,
-        uid: userId,
-        driveFileId: req.body.driveFileId,
-        runAiAnalysis: req.body.runAiAnalysis || false
-      }));
-      
       // Validate request body
       const validatedBody = driveSyncSchema.parse(req.body);
       const { driveFileId, folderId, runAiAnalysis } = validatedBody;
 
       const driveService = (req as any).driveService as DriveService;
       
-      console.info(JSON.stringify({
-        evt: "drive_sync.fetch_file",
-        reqId,
-        uid: userId,
-        driveFileId
-      }));
-      
       // Get file content from Drive
       const driveFile = await driveService.getFileContent(driveFileId);
       if (!driveFile) {
-        console.error(JSON.stringify({
-          evt: "drive_sync.file_not_found",
+        logger.error("Drive file not found", {
           reqId,
-          uid: userId,
-          driveFileId
-        }));
+          userId: userId,
+          metadata: { driveFileId }
+        });
         return res.status(404).json({ error: "Drive file not found or cannot be accessed" });
       }
       
-      console.info(JSON.stringify({
-        evt: "drive_sync.file_retrieved",
-        reqId,
-        uid: userId,
-        driveFileId,
-        fileName: driveFile.name,
-        mimeType: driveFile.mimeType,
-        contentSize: driveFile.content?.length || 0
-      }));
-
       // Check if document already exists in our system
-      console.info(JSON.stringify({
-        evt: "drive_sync.check_existing",
-        reqId,
-        uid: userId,
-        driveFileId
-      }));
-      
       const existingDocument = await storage.getDocumentByDriveFileId(driveFileId, userId!);
       if (existingDocument) {
-        console.info(JSON.stringify({
-          evt: "drive_sync.update_existing",
-          reqId,
-          uid: userId,
-          driveFileId,
-          documentId: existingDocument.id
-        }));
-        
         // Update existing document sync status
         const updatedDocument = await storage.updateDocument(
           existingDocument.id, 
@@ -4113,45 +3916,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reqId
         );
         
-        console.info(JSON.stringify({
-          evt: "drive_sync.completed_existing",
-          reqId,
-          uid: userId,
-          driveFileId,
-          documentId: existingDocument.id
-        }));
-        
         return res.json({
           message: "Document already synced",
           document: updatedDocument || existingDocument,
           isNew: false
         });
       }
-
-      // Create new document from Drive file
-      console.info(JSON.stringify({
-        evt: "drive_sync.create_document",
-        reqId,
-        uid: userId,
-        driveFileId,
-        fileName: driveFile.name,
-        fileType: getFileTypeFromMimeType(driveFile.mimeType, driveFile.name)
-      }));
       
       const docId = randomUUID();
       const objectPath = `users/${userId}/docs/${docId}/${driveFile.name}`;
       
       // Upload Drive file content to GCS (same as regular uploads)
       if (driveFile.content) {
-        console.info(JSON.stringify({
-          evt: "drive_sync.upload_to_gcs",
-          reqId,
-          uid: userId,
-          driveFileId,
-          objectPath: obfuscatePath(objectPath),
-          contentSize: driveFile.content.length
-        }));
-        
         try {
           const bucket = objectStorageService.getBucket();
           await bucket.file(objectPath).save(Buffer.from(driveFile.content, 'utf8'), {
@@ -4159,23 +3935,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             resumable: false,
             validation: false,
           });
-          
-          console.info(JSON.stringify({
-            evt: "drive_sync.gcs_upload_success",
-            reqId,
-            uid: userId,
-            driveFileId,
-            objectPath: obfuscatePath(objectPath)
-          }));
         } catch (gcsError) {
-          console.error(JSON.stringify({
-            evt: "drive_sync.gcs_upload_failed",
+          logger.error("Drive sync GCS upload failed", {
             reqId,
-            uid: userId,
-            driveFileId,
-            error: gcsError instanceof Error ? gcsError.message : String(gcsError),
-            stack: gcsError instanceof Error ? gcsError.stack : undefined
-          }));
+            userId: userId,
+            metadata: {
+              driveFileId,
+              objectPath,
+              errorMessage: gcsError instanceof Error ? gcsError.message : String(gcsError),
+              errorStack: gcsError instanceof Error ? gcsError.stack : undefined
+            }
+          });
           // Don't fail the entire sync - fall back to database storage for now
         }
       }
