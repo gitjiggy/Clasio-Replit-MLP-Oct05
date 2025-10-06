@@ -4,6 +4,7 @@
 import multer from 'multer';
 import path from 'path';
 import { randomBytes } from 'crypto';
+import { logger } from './logger.js';
 
 export const FILE_SIZE_LIMITS = {
   // All file types capped at 50MB - no exceptions!
@@ -103,7 +104,6 @@ export function createUploadMiddleware() {
         return cb(error as any, false);
       }
 
-      console.log(`📁 Upload attempt: ${file.originalname}, MIME: ${file.mimetype}`);
       cb(null, true);
     }
   });
@@ -166,7 +166,14 @@ export function multerErrorHandler(error: any, req: any, res: any, next: any) {
   }
 
   // Generic error fallback
-  console.error('Unexpected upload error:', error);
+  logger.error('Unexpected upload error', {
+    reqId: (req as any).reqId,
+    userId: (req as any).user?.uid,
+    metadata: {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined
+    }
+  });
   return res.status(500).json({
     error: 'Server error',
     message: 'Our servers are having a moment! 😅 Please try again in a few seconds.',

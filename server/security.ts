@@ -65,7 +65,7 @@ export function getSecurityConfig(): SecurityConfig {
     ...(process.env.APPROVED_THIRD_PARTY_ORIGINS?.split(',').map(origin => origin.trim()) || [])
   ];
 
-  // Security warnings
+  // Security warnings (keep as console for startup visibility)
   if (isProduction && productionOrigins.length === 0) {
     console.warn('⚠️  SECURITY WARNING: No production CORS origins configured. Set CORS_PRODUCTION_ORIGINS environment variable.');
   }

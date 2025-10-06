@@ -2,6 +2,7 @@
 import { db } from './db.js';
 import { userQuotas, documents } from '@shared/schema.js';
 import { eq, and, sum, sql } from 'drizzle-orm';
+import { logger } from './logger.js';
 
 export interface UserQuota {
   userId: string;
@@ -95,7 +96,11 @@ export async function getUserQuota(userId: string): Promise<UserQuota | null> {
       quotaTier: newQuota.quotaTier
     };
   } catch (error) {
-    console.error('Failed to get/create user quota:', error);
+    logger.error('Failed to get/create user quota', {
+      reqId: undefined,
+      userId,
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
     return null;
   }
 }
@@ -139,7 +144,11 @@ export async function checkStorageQuota(userId: string, fileSizeBytes: number): 
 
     return { allowed: true };
   } catch (error) {
-    console.error('Storage quota check failed:', error);
+    logger.error('Storage quota check failed', {
+      reqId: undefined,
+      userId,
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
     return {
       allowed: false,
       reason: 'Unable to check storage quota 😅 Please try again!'
@@ -178,7 +187,11 @@ export async function checkDocumentQuota(userId: string): Promise<QuotaCheckResu
 
     return { allowed: true };
   } catch (error) {
-    console.error('Document quota check failed:', error);
+    logger.error('Document quota check failed', {
+      reqId: undefined,
+      userId,
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
     return {
       allowed: false,
       reason: 'Unable to check document quota 😅 Please try again!'
@@ -200,10 +213,16 @@ export async function updateStorageUsage(userId: string, fileSizeBytes: number):
       })
       .where(eq(userQuotas.userId, userId));
 
-    console.log(`📊 Updated quota for user ${userId}: +${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB, +1 document`);
     return true;
   } catch (error) {
-    console.error('Failed to update storage usage:', error);
+    logger.error('Failed to update storage usage', {
+      reqId: undefined,
+      userId,
+      metadata: { 
+        fileSizeBytes,
+        errorMessage: error instanceof Error ? error.message : String(error) 
+      }
+    });
     return false;
   }
 }
@@ -222,10 +241,16 @@ export async function decreaseStorageUsage(userId: string, fileSizeBytes: number
       })
       .where(eq(userQuotas.userId, userId));
 
-    console.log(`📊 Decreased quota for user ${userId}: -${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB, -1 document`);
     return true;
   } catch (error) {
-    console.error('Failed to decrease storage usage:', error);
+    logger.error('Failed to decrease storage usage', {
+      reqId: undefined,
+      userId,
+      metadata: { 
+        fileSizeBytes,
+        errorMessage: error instanceof Error ? error.message : String(error) 
+      }
+    });
     return false;
   }
 }
@@ -261,10 +286,13 @@ export async function recalculateStorageUsage(userId: string): Promise<boolean> 
       })
       .where(eq(userQuotas.userId, userId));
 
-    console.log(`🔄 Recalculated quota for user ${userId}: ${(Number(actualStorage) / 1024 / 1024).toFixed(1)}MB, ${actualCount} documents`);
     return true;
   } catch (error) {
-    console.error('Failed to recalculate storage usage:', error);
+    logger.error('Failed to recalculate storage usage', {
+      reqId: undefined,
+      userId,
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
     return false;
   }
 }
@@ -308,7 +336,11 @@ export async function getQuotaUsageSummary(userId: string): Promise<{
       tier: quota.quotaTier
     };
   } catch (error) {
-    console.error('Failed to get quota usage summary:', error);
+    logger.error('Failed to get quota usage summary', {
+      reqId: undefined,
+      userId,
+      metadata: { errorMessage: error instanceof Error ? error.message : String(error) }
+    });
     return null;
   }
 }
