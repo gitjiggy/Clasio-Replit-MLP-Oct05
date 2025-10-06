@@ -34,7 +34,7 @@ import {
 } from "@shared/schema";
 import { ObjectStorageService } from "./objectStorage";
 import { randomUUID } from "crypto";
-import { db } from "./db";
+import { db, executeWithTimeout } from "./db";
 import { eq, and, desc, ilike, inArray, count, sql, or, isNotNull } from "drizzle-orm";
 import { transactionManager, ensureTenantContext, type TransactionContext } from "./transactionManager";
 import { 
@@ -5832,11 +5832,16 @@ export class DatabaseStorage implements IStorage {
     await this.ensureInitialized();
     
     try {
-      const [usage] = await db
-        .select()
-        .from(dailyApiUsage)
-        .where(eq(dailyApiUsage.date, date))
-        .limit(1);
+      // Use executeWithTimeout with 5s timeout and 2 retries for background job queries
+      const [usage] = await executeWithTimeout(
+        async () => db
+          .select()
+          .from(dailyApiUsage)
+          .where(eq(dailyApiUsage.date, date))
+          .limit(1),
+        5000, // 5 second timeout
+        2     // 2 retries
+      );
 
       return usage || null;
     } catch (error) {
