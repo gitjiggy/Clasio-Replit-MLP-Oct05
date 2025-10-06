@@ -2,7 +2,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
-import { createProxyMiddleware } from 'http-proxy-middleware';
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { aiQueueProcessor } from "./aiQueueProcessor";
@@ -130,55 +129,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Firebase Auth Handler Proxy - Required for custom domain redirect auth
-// Use http-proxy-middleware for proper streaming proxy that preserves all headers
-app.use('/__/auth', createProxyMiddleware({
-  target: 'https://documentorganizerclean-b629f.firebaseapp.com',
-  changeOrigin: true,
-  secure: true,
-  followRedirects: true,
-  // Add back the /__/auth prefix that Express strips when mounting at '/__/auth'
-  pathRewrite: (path: string, req: any) => {
-    const newPath = '/__/auth' + path;
-    logger.info('Firebase auth proxy path rewrite', { 
-      originalPath: path, 
-      newPath,
-      originalUrl: req.originalUrl 
-    });
-    return newPath;
-  },
-  onProxyReq: (proxyReq: any, req: any, res: any) => {
-    logger.info('Proxying Firebase auth request', { 
-      method: req.method, 
-      url: req.originalUrl 
-    });
-  },
-  onProxyRes: (proxyRes: any, req: any, res: any) => {
-    logger.info('Firebase auth proxy response', { 
-      statusCode: proxyRes.statusCode, 
-      url: req.originalUrl 
-    });
-  },
-  onError: (err: any, req: any, res: any) => {
-    logger.error('Firebase auth proxy error', err instanceof Error ? err : new Error(String(err)), {
-      url: req.originalUrl,
-      method: req.method,
-      errorMessage: err.message || String(err)
-    });
-    
-    const errorResponse = createErrorResponse(
-      ErrorCodes.AUTH_PROXY_FAILURE,
-      `Firebase authentication proxy failed: ${err.message || 'Unknown error'}`,
-      {
-        path: req.originalUrl,
-        method: req.method,
-        userMessage: getUserFriendlyMessage(ErrorCodes.AUTH_PROXY_FAILURE)
-      }
-    );
-    
-    res.status(500).json(errorResponse);
-  }
-}));
+logger.info('Firebase auth proxy removed - using direct Firebase authDomain configuration');
 
 // Token 5/8: Health and monitoring endpoints (before main routes)
 app.get('/health', healthCheck);

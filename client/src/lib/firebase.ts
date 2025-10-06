@@ -16,19 +16,16 @@ import {
   setPersistence
 } from "firebase/auth";
 
-// Detect if running on Replit dev or production
+// Detect if running on Replit dev
 const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
 const isReplitDev = currentHostname.includes('.replit.dev');
-const isProduction = currentHostname === 'clasio.ai' || currentHostname === 'www.clasio.ai';
 
+// CRITICAL: Always use Firebase default authDomain (not custom domain)
+// Firebase handles custom domain redirects internally
 // For Replit dev, use the actual Replit domain as authDomain (whitelisted in Firebase Console)
-// For production, use clasio.ai (custom domain configured in Firebase)
-// Otherwise use Firebase default domain
 let authDomain = "documentorganizerclean-b629f.firebaseapp.com";
 if (isReplitDev && currentHostname) {
   authDomain = currentHostname;
-} else if (isProduction) {
-  authDomain = "clasio.ai";
 }
 
 const firebaseConfig = {
