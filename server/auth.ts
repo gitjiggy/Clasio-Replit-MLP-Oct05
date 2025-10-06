@@ -45,6 +45,9 @@ if (!admin.apps.length) {
   }
 }
 
+// Export Firebase Admin Auth instance for use in health checks and other modules
+export const adminAuth = admin.auth();
+
 // Export function to validate Firebase Admin is ready
 export function validateFirebaseAdmin(): void {
   if (!admin.apps.length) {
