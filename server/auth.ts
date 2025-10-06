@@ -11,9 +11,19 @@ if (!admin.apps.length) {
   
   if (serviceAccountKey && projectId) {
     console.log('🔑 Initializing Firebase Admin with service account credentials...');
+    console.log('📋 Project ID:', projectId);
+    console.log('📋 Service account key length:', serviceAccountKey.length);
+    
     try {
+      // Step 1: Parse the JSON
+      console.log('🔄 Step 1: Parsing service account JSON...');
       const serviceAccount = JSON.parse(serviceAccountKey);
+      console.log('✅ JSON.parse succeeded');
+      console.log('📋 Service account email:', serviceAccount.client_email);
+      console.log('📋 Service account project_id:', serviceAccount.project_id);
       
+      // Step 2: Initialize Firebase Admin
+      console.log('🔄 Step 2: Calling admin.initializeApp...');
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         projectId: projectId
@@ -21,7 +31,11 @@ if (!admin.apps.length) {
       
       console.log('✅ Firebase Admin initialized successfully');
     } catch (error) {
-      console.error('❌ FATAL: Failed to initialize Firebase Admin with service account:', error);
+      console.error('❌ FATAL: Failed to initialize Firebase Admin with service account');
+      console.error('❌ Error type:', error?.constructor?.name);
+      console.error('❌ Error message:', error instanceof Error ? error.message : String(error));
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('❌ Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
       throw new Error(`Firebase Admin initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   } else if (projectId) {
