@@ -1,6 +1,7 @@
 // Server-side Firebase authentication middleware
 import admin from 'firebase-admin';
 import { Request, Response, NextFunction } from 'express';
+import { logger } from './logger.js';
 
 /**
  * Initialize Firebase Admin SDK for token verification
@@ -10,7 +11,7 @@ import { Request, Response, NextFunction } from 'express';
 export function initializeFirebaseAdmin(): void {
   // Skip if already initialized
   if (admin.apps.length > 0) {
-    console.log('✅ Firebase Admin already initialized, skipping...');
+    logger.info('Firebase Admin already initialized');
     return;
   }
 
@@ -20,51 +21,45 @@ export function initializeFirebaseAdmin(): void {
   const projectId = process.env.GCP_PROJECT_ID;
   
   if (serviceAccountKey && projectId) {
-    console.log('🔑 Initializing Firebase Admin with service account credentials...');
-    console.log('📋 Project ID:', projectId);
-    console.log('📋 Service account key length:', serviceAccountKey.length);
-    
     try {
-      // Step 1: Parse the JSON
-      console.log('🔄 Step 1: Parsing service account JSON...');
       const serviceAccount = JSON.parse(serviceAccountKey);
-      console.log('✅ JSON.parse succeeded');
-      console.log('📋 Service account email:', serviceAccount.client_email);
-      console.log('📋 Service account project_id:', serviceAccount.project_id);
-      
-      // Step 2: Initialize Firebase Admin
-      console.log('🔄 Step 2: Calling admin.initializeApp...');
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         projectId: projectId
       });
-      
-      console.log('✅ Firebase Admin initialized successfully');
+      logger.info('Firebase Admin initialized', { metadata: { projectId, method: 'service_account' } });
     } catch (error) {
-      console.error('❌ FATAL: Failed to initialize Firebase Admin with service account');
-      console.error('❌ Error type:', error?.constructor?.name);
-      console.error('❌ Error message:', error instanceof Error ? error.message : String(error));
-      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-      console.error('❌ Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      logger.error('Firebase Admin initialization failed', {
+        metadata: {
+          projectId,
+          method: 'service_account',
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
+      });
       throw new Error(`Firebase Admin initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   } else if (projectId) {
-    // Fallback: Initialize with just project ID (works in some environments)
-    console.warn('⚠️  No service account key found. Initializing with project ID only...');
     try {
-      admin.initializeApp({
-        projectId: projectId,
-      });
-      console.log('✅ Firebase Admin initialized with project ID only');
+      admin.initializeApp({ projectId: projectId });
+      logger.info('Firebase Admin initialized', { metadata: { projectId, method: 'project_id_only' } });
     } catch (error) {
-      console.error('❌ FATAL: Failed to initialize Firebase Admin with project ID:', error);
+      logger.error('Firebase Admin initialization failed', {
+        metadata: {
+          projectId,
+          method: 'project_id_only',
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
+      });
       throw new Error(`Firebase Admin initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   } else {
-    // No credentials available - cannot initialize
-    console.error('❌ FATAL: No Firebase credentials found. Missing both:');
-    console.error('  - GCP_SERVICE_ACCOUNT_KEY (Firebase service account JSON)');
-    console.error('  - GCP_PROJECT_ID (Firebase project ID)');
+    logger.error('Firebase credentials missing', {
+      metadata: {
+        missingVars: ['GCP_SERVICE_ACCOUNT_KEY', 'GCP_PROJECT_ID']
+      }
+    });
     throw new Error('Firebase Admin cannot be initialized: missing required environment variables');
   }
 }
@@ -84,9 +79,13 @@ export function validateFirebaseAdmin(): void {
   try {
     // Test that auth() is accessible
     const auth = admin.auth();
-    console.log('✅ Firebase Admin validation passed');
+    logger.info('Firebase Admin validation passed');
   } catch (error) {
-    console.error('❌ Firebase Admin validation failed:', error);
+    logger.error('Firebase Admin validation failed', {
+      metadata: {
+        errorMessage: error instanceof Error ? error.message : String(error)
+      }
+    });
     throw new Error(`Firebase Admin is not properly configured: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -112,7 +111,6 @@ export const verifyFirebaseToken = async (
       req.cookies?.auth_token;
 
     if (!idToken) {
-      console.log(`🔒 Auth required for ${req.method} ${req.path} - no token provided`);
       res.status(401).json({ 
         error: "unauthenticated",
         message: "Please sign in to continue" 
@@ -136,7 +134,6 @@ export const verifyFirebaseToken = async (
       req.user = testUser as any;
       req.userId = testUser.uid;
       
-      console.log(`✅ Test auth verified for ${req.method} ${req.path} - uid: ${req.userId}`);
       next();
       return;
     }
@@ -148,46 +145,38 @@ export const verifyFirebaseToken = async (
     req.user = decodedToken;
     req.userId = decodedToken.uid;
     
-    console.log(`✅ Auth verified for ${req.method} ${req.path} - uid: ${req.userId}`);
     next();
     
   } catch (error) {
-    console.error(`🚫 Auth failed for ${req.method} ${req.path} - ${error instanceof Error ? error.message : 'Unknown error'}`);
-    
-    // Log auth failures with correlation ID for debugging
-    if ((req as any).reqId) {
-      console.error(JSON.stringify({
-        evt: "auth.error",
-        reqId: (req as any).reqId,
-        route: req.path,
-        method: req.method,
-        reason: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
-      }));
-    }
+    // Log auth failures with structured metadata
+    logger.error('Auth verification failed', {
+      reqId: (req as any).reqId,
+      route: req.path,
+      method: req.method,
+      metadata: {
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined
+      }
+    });
     
     // Provide more specific error messages for debugging
     if (error instanceof Error) {
       if (error.message.includes('project ID')) {
-        console.error('❌ CRITICAL: Firebase Admin not properly configured. Missing project ID or service account credentials.');
         res.status(500).json({ 
           error: 'Server authentication not configured',
           message: 'Contact support if this persists'
         });
       } else if (error.message.includes('Decoding Firebase ID token failed')) {
-        console.error('Firebase ID token is malformed or invalid');
         res.status(401).json({ 
           error: 'Firebase authentication failed',
           message: 'Please refresh the page and sign in again'
         });
       } else if (error.message.includes('expired')) {
-        console.error('Firebase ID token has expired');
         res.status(401).json({ 
           error: 'Session expired',
           message: 'Your session has expired. Please refresh the page and sign in again'
         });
       } else {
-        console.error('Other Firebase auth error:', error.message);
         res.status(401).json({ 
           error: 'Authentication failed',
           message: 'Please refresh the page and sign in again'
@@ -222,7 +211,11 @@ export const optionalAuth = async (
     next();
   } catch (error) {
     // Don't fail for invalid tokens in optional auth, just proceed without user info
-    console.warn('Optional auth token verification failed:', error);
+    logger.warn('Optional auth token verification failed', {
+      metadata: {
+        errorMessage: error instanceof Error ? error.message : String(error)
+      }
+    });
     next();
   }
 };
